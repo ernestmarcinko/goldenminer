@@ -18,6 +18,11 @@
 .gm-pill__value--gold { color: var(--gm-gold); }
 .gm-pill__value--diamond { color: var(--gm-diamond); }
 .gm-header__depth { margin-left: auto; text-align: right; }
+.gm-header__save {
+  min-height: 44px; min-width: 44px; padding: 8px 16px; box-sizing: border-box; cursor: pointer; font: inherit;
+  font-weight: 500; border-radius: 8px; border: 1px solid var(--gm-line); background: var(--gm-panel-raised); color: var(--gm-text);
+}
+.gm-header__save:hover { border-color: var(--gm-gold); }
 .gm-header__depth-now { font-family: var(--gm-font-mono); font-size: 18px; }
 
 .gm-mine { display: flex; flex-direction: column; gap: 16px; min-width: 0; }

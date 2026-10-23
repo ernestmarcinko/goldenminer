@@ -4,7 +4,7 @@ import { formatNumber } from './format';
 import { useGame } from './useGame';
 import './mine/mine.css';
 
-export function Header({ store }: { store: GameStore }) {
+export function Header({ store, onOpenSave }: { store: GameStore; onOpenSave: () => void }) {
   const { state } = useGame(store);
   return (
     <header className="gm-header">
@@ -25,6 +25,9 @@ export function Header({ store }: { store: GameStore }) {
         <div className="gm-header__depth-now">{formatNumber(state.depth)} m</div>
         <div className="gm-muted gm-small">deepest {formatNumber(state.deepest)} m</div>
       </div>
+      <button type="button" className="gm-header__save" onClick={onOpenSave}>
+        Save
+      </button>
     </header>
   );
 }

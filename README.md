@@ -1,11 +1,22 @@
-The Golden Miner incremental game
-===========
+# Golden Miner
 
-This is the original source of the goldenminer.org incremental game.
+An idle mining game: dig deeper, collect gold and diamonds, and find chests, maps, gems and veins on the way down. Built with TypeScript, Vite and React; it is a static site with no backend, and progress is saved in your browser.
 
-Things you will need
-- Ajax Minifier from Microsoft: http://ajaxmin.codeplex.com/
-- To edit the build.bat file's first line to point to the proper <b>ajaxmin</b> location (probably you dont need to touch it if you are using an x64 computer and your windows is on C:)
+## Run it
 
+Node 22.12 or newer is required (`nvm use` picks up the version in `.nvmrc`).
 
-You can test the game without minifiing by launching the <b>index-dev.php</b>
+```
+npm install
+npm run dev      # development server
+npm test         # unit tests
+npm run build    # production build in dist/
+```
+
+## Saves
+
+The game autosaves every 30 seconds and when the tab is hidden or closed. The Save button in the header exports the save as text, imports one, or starts over. Only one tab can play at a time.
+
+## The original
+
+The 2013 original lives in `legacy/` (open `legacy/index-dev.html`).
