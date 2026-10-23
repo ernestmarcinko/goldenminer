@@ -4,6 +4,9 @@ import { TAB_KEY, type StorageLike } from './storage';
 interface LockRecord { id: string; beat: number }
 
 export class TabLock {
+  /** True once this tab's record was written; a missing record after that means the lock was lost. */
+  private written = false;
+
   constructor(
     private readonly storage: StorageLike,
     private readonly now: () => number,
@@ -27,7 +30,9 @@ export class TabLock {
   private write(): void {
     try {
       this.storage.setItem(TAB_KEY, JSON.stringify({ id: this.id, beat: this.now() }));
+      this.written = true;
     } catch {
+      this.written = false;
       // an unwritable lock cannot exclude anyone; stay playable
     }
   }
@@ -44,6 +49,7 @@ export class TabLock {
   heartbeat(): boolean {
     const rec = this.read();
     if (rec !== null && rec.id !== this.id) return false;
+    if (rec === null && this.written) return false;
     this.write();
     return true;
   }

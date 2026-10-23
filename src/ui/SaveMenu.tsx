@@ -3,7 +3,13 @@ import type { GameStore } from '../store/gameStore';
 import { copyText } from './copyText';
 import { useDialog } from './useDialog';
 
-export function SaveMenu({ store, onClose }: { store: GameStore; onClose: () => void }) {
+interface Props {
+  store: GameStore;
+  runAsOwner: (action: () => void) => boolean;
+  onClose: () => void;
+}
+
+export function SaveMenu({ store, runAsOwner, onClose }: Props) {
   const closeRef = useDialog<HTMLButtonElement>(onClose);
   const exported = useMemo(() => store.exportSave(), [store]);
   const exportRef = useRef<HTMLTextAreaElement>(null);
@@ -13,9 +19,14 @@ export function SaveMenu({ store, onClose }: { store: GameStore; onClose: () => 
   const [confirmReset, setConfirmReset] = useState(false);
 
   const load = (): void => {
-    const result = store.importSave(importText.trim());
-    setImportMsg(result.ok ? 'Loaded.' : `That save couldn't be read (${result.reason}).`);
-    if (result.ok) setImportText('');
+    const results: ReturnType<GameStore['importSave']>[] = [];
+    runAsOwner(() => {
+      results.push(store.importSave(importText.trim()));
+    });
+    const done = results[0];
+    if (!done) return;
+    setImportMsg(done.ok ? 'Loaded.' : `That save couldn't be read (${done.reason}).`);
+    if (done.ok) setImportText('');
   };
 
   return (
@@ -70,7 +81,7 @@ export function SaveMenu({ store, onClose }: { store: GameStore; onClose: () => 
                 type="button"
                 className="gm-btn gm-btn--danger"
                 onClick={() => {
-                  store.hardReset();
+                  runAsOwner(() => store.hardReset());
                   setConfirmReset(false);
                   onClose();
                 }}
