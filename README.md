@@ -4,7 +4,7 @@ An idle mining game: dig deeper, collect gold and diamonds, and find chests, map
 
 ## Run it
 
-Node 22.12 or newer is required (`nvm use` picks up the version in `.nvmrc`).
+Node 22.12 or newer is required (`nvm install` reads `.nvmrc` and installs Node 24).
 
 ```
 npm install

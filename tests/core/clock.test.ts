@@ -55,3 +55,11 @@ it('summarize reports what changed', () => {
   expect(sum.finds.map).toBeGreaterThanOrEqual(1);
   expect(Object.keys(sum.finds).sort()).toEqual(['chest', 'diamondVein', 'gem', 'goldVein', 'map']);
 });
+
+it('a zero or non-finite tick rate applies nothing and keeps lastTickAt finite', () => {
+  for (const rate of [0, NaN, Infinity, -1]) {
+    const s = newGame(1, 0);
+    expect(advance(s, 5000, { ...stats, autoTicksPerSecond: rate })).toBe(0);
+    expect(s.lastTickAt).toBe(5000);
+  }
+});

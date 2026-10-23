@@ -2,6 +2,7 @@ import { expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
 import { deriveStats } from '../../src/core/stats';
 import { applyTicks, moveTo } from '../../src/core/dig';
+import { validateState } from '../../src/core/save';
 import type { TickEvent } from '../../src/core/types';
 import { FINDS_LOG_LIMIT } from '../../src/core/balance';
 
@@ -82,4 +83,17 @@ it('the finds log is capped', () => {
   while (s.deepest < 1) applyTicks(s, 1, stats);
   expect(s.finds).toHaveLength(FINDS_LOG_LIMIT);
   expect(s.finds.at(-1)).toMatchObject({ kind: 'gem', depth: 1 });
+});
+
+it('an infinite or zero dig power neither hangs nor corrupts the state', () => {
+  for (const digPower of [Infinity, NaN, 0]) {
+    const s = fresh();
+    applyTicks(s, 5, { ...stats, digPower });
+    expect(s.deepest).toBe(0);
+    expect(validateState(s)).toBe(true);
+    applyTicks(s, 400, stats);
+    moveTo(s, Math.max(0, s.deepest - 1));
+    applyTicks(s, 5, { ...stats, digPower });
+    expect(validateState(s)).toBe(true);
+  }
 });

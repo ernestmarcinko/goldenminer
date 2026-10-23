@@ -12,11 +12,14 @@ export function Notices({ store }: { store: GameStore }) {
   let text: string;
   let showSave = false;
   if (notice.kind === 'loadFailed') {
-    if (notice.backupKey === null) {
-      text = `Your save couldn't be loaded (${notice.reason}) and couldn't be backed up. Copy it below before playing on — progress won't be saved until you start over or import.`;
-      showSave = unreadableSave !== null;
+    showSave = unreadableSave !== null;
+    if (notice.reason === 'future') {
+      text = 'Your save was made by a newer version of the game. Reload the page to update — nothing will be saved here until you do, start over, or import.';
     } else {
-      text = `Your save couldn't be loaded (${notice.reason}). It was kept as a backup, and a new game started.`;
+      const what = notice.reason === 'corrupt' ? 'damaged' : 'not a valid Golden Miner save';
+      text = notice.backupKey === null
+        ? `Your save couldn't be loaded (it is ${what}) and couldn't be backed up. Copy it below before playing on — progress won't be saved until you start over or import.`
+        : `Your save couldn't be loaded (it is ${what}). It was kept as a backup, and a new game started.`;
     }
   } else if (notice.kind === 'saveFailed') {
     text = "Progress couldn't be saved. Your browser storage may be full.";

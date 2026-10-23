@@ -2,6 +2,8 @@ export interface StorageLike {
   getItem(k: string): string | null;
   setItem(k: string, v: string): void;
   removeItem(k: string): void;
+  readonly length: number;
+  key(index: number): string | null;
 }
 
 export const SAVE_KEY = 'goldenminer.save';
@@ -22,6 +24,14 @@ export class MemoryStorage implements StorageLike {
 
   removeItem(k: string): void {
     this.data.delete(k);
+  }
+
+  get length(): number {
+    return this.data.size;
+  }
+
+  key(index: number): string | null {
+    return [...this.data.keys()][index] ?? null;
   }
 }
 

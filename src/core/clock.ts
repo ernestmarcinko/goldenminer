@@ -8,6 +8,10 @@ export function advance(state: GameState, nowMs: number, stats: Stats, events?: 
     state.lastTickAt = nowMs;
     return 0;
   }
+  if (!(stats.autoTicksPerSecond > 0) || !Number.isFinite(stats.autoTicksPerSecond)) {
+    state.lastTickAt = nowMs;
+    return 0;
+  }
   const interval = 1000 / stats.autoTicksPerSecond;
   const capped = elapsed > stats.offlineCapMs;
   const due = Math.floor(Math.min(elapsed, stats.offlineCapMs) / interval);

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { GameStore } from '../store/gameStore';
 import type { TabLock } from '../store/tabLock';
 import { startGame, type GameLoop } from './gameLoop';
@@ -13,7 +13,7 @@ import { useGame } from './useGame';
 export function App({ store, lock }: { store: GameStore; lock: TabLock }) {
   const [blocked, setBlocked] = useState(() => !lock.tryAcquire());
   const loop = useRef<GameLoop | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (blocked) return undefined;
     const running = startGame(store, lock, () => setBlocked(true));
     loop.current = running;

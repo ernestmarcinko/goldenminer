@@ -39,6 +39,7 @@
   position: relative; display: block; width: 100%; min-height: 44px; padding: 0; overflow: hidden;
   border-radius: 12px; border: 1px solid var(--gm-line); background: var(--gm-ground); cursor: pointer;
   font: inherit; color: inherit;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none;
 }
 .gm-scene__grid { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); grid-auto-rows: 44px; }
 .gm-tile { position: relative; }

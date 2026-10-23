@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GameStore } from '../../src/store/gameStore';
 import { MemoryStorage, SAVE_KEY, BACKUP_PREFIX, safeStorage } from '../../src/store/storage';
 import { decodeSave, encodeSave } from '../../src/core/save';
+import { compressToBase64 } from 'lz-string';
 import { newGame } from '../../src/core/newGame';
 
 function make(now = { t: 0 }, storage = new MemoryStorage(), available = true) {
@@ -98,5 +99,39 @@ describe('GameStore', () => {
     expect(store.unreadableSave).toBeNull();
     expect(storage.getItem(SAVE_KEY)).not.toBe('garbage');
     expect(decodeSave(storage.getItem(SAVE_KEY) ?? '').ok).toBe(true);
+  });
+
+  it('a future save is never overwritten', () => {
+    const storage = new MemoryStorage();
+    const future = compressToBase64(JSON.stringify({ schema: 99, savedAt: 0, state: {} }));
+    storage.setItem(SAVE_KEY, future);
+    const { store, now } = make({ t: 42 }, storage); store.load();
+    expect(store.notice).toEqual({ kind: 'loadFailed', reason: 'future', backupKey: BACKUP_PREFIX + '42' });
+    expect(store.unreadableSave).toBe(future);
+    now.t = 5000; store.pump(); store.save();
+    expect(storage.getItem(SAVE_KEY)).toBe(future);
+    // a stale build reloading again does not pile up backup keys
+    now.t = 9000;
+    const again = make(now, storage).store; again.load();
+    expect(again.notice).toEqual({ kind: 'loadFailed', reason: 'future', backupKey: BACKUP_PREFIX + '42' });
+    expect(storage.getItem(BACKUP_PREFIX + '9000')).toBeNull();
+    store.hardReset();
+    expect(store.notice).toBeNull();
+    expect(storage.getItem(SAVE_KEY)).not.toBe(future);
+    expect(decodeSave(storage.getItem(SAVE_KEY) ?? '').ok).toBe(true);
+  });
+
+  it('importing or resetting clears a load-failed notice', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(SAVE_KEY, 'garbage');
+    const { store } = make({ t: 1 }, storage); store.load();
+    expect(store.notice?.kind).toBe('loadFailed');
+    expect(store.importSave(encodeSave(newGame(2, 0), 0)).ok).toBe(true);
+    expect(store.notice).toBeNull();
+    storage.setItem(SAVE_KEY, 'garbage');
+    store.load();
+    expect(store.notice?.kind).toBe('loadFailed');
+    store.hardReset();
+    expect(store.notice).toBeNull();
   });
 });

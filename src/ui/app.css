@@ -15,7 +15,7 @@
 .gm-textarea {
   width: 100%; box-sizing: border-box; resize: vertical; padding: 8px; border-radius: 8px;
   border: 1px solid var(--gm-line); background: var(--gm-ground); color: var(--gm-text);
-  font-family: var(--gm-font-mono); font-size: 12px; word-break: break-all;
+  font-family: var(--gm-font-mono); font-size: 16px; word-break: break-all;
 }
 
 .gm-notice {

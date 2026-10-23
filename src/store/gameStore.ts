@@ -81,6 +81,28 @@ export class GameStore {
     return ticks;
   }
 
+  /** The newest backup key, if that backup already holds exactly `raw`. */
+  private newestBackupKey(raw: string): string | null {
+    const { storage } = this.deps;
+    try {
+      let newest: string | null = null;
+      let newestAt = -Infinity;
+      for (let i = 0; i < storage.length; i++) {
+        const k = storage.key(i);
+        if (k === null || !k.startsWith(BACKUP_PREFIX)) continue;
+        const at = Number(k.slice(BACKUP_PREFIX.length));
+        if (Number.isFinite(at) && at >= newestAt) { newest = k; newestAt = at; }
+      }
+      return newest !== null && storage.getItem(newest) === raw ? newest : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private clearLoadFailed(): void {
+    if (this._notice?.kind === 'loadFailed') this._notice = null;
+  }
+
   load(): void {
     const { storage, now } = this.deps;
     let raw: string | null = null;
@@ -96,11 +118,14 @@ export class GameStore {
       if (result.ok) {
         this.replaceState(result.state);
       } else {
-        const backupKey = BACKUP_PREFIX + now();
+        let backupKey = this.newestBackupKey(raw);
         let backedUp = true;
-        try { storage.setItem(backupKey, raw); } catch { backedUp = false; }
+        if (backupKey === null) {
+          backupKey = BACKUP_PREFIX + now();
+          try { storage.setItem(backupKey, raw); } catch { backedUp = false; }
+        }
         this.replaceState(newGame(this.deps.newSeed(), now()));
-        this._unreadable = backedUp ? null : raw;
+        this._unreadable = backedUp && result.reason !== 'future' ? null : raw;
         this._notice = { kind: 'loadFailed', reason: result.reason, backupKey: backedUp ? backupKey : null };
       }
     }
@@ -173,6 +198,7 @@ export class GameStore {
     if (result.ok) {
       this.replaceState(result.state);
       this._unreadable = null;
+      this.clearLoadFailed();
       this._summary = null;
       this.feedback = emptyFeedback();
       this.changed();
@@ -182,6 +208,7 @@ export class GameStore {
 
   hardReset(): void {
     this._unreadable = null;
+    this.clearLoadFailed();
     this.replaceState(newGame(this.deps.newSeed(), this.deps.now()));
     this._summary = null;
     this.feedback = emptyFeedback();

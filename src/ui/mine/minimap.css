@@ -6,6 +6,7 @@
   position: relative; display: flex; width: 100%; padding: 0; overflow: hidden; box-sizing: border-box;
   border-radius: 10px; border: 1px solid var(--gm-line); background: var(--gm-ground);
   cursor: pointer; font: inherit; color: inherit; text-align: left;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none;
 }
 .gm-minimap__ticks {
   position: relative; display: block; flex: 0 0 40px; background: var(--gm-header);

@@ -31,7 +31,9 @@ function digFace(state: GameState, stats: Stats, events?: TickEvent[]): void {
   const roll = faceRoll(state, stats);
   const m = state.deepest + 1;
   const effective = hardness(m) * (roll.hardRock ? HARD_ROCK_MULTIPLIER : 1);
-  state.progress += stats.digPower / (effective * TICKS_PER_METRE_AT_PARITY);
+  const step = stats.digPower / (effective * TICKS_PER_METRE_AT_PARITY);
+  if (!(step > 0) || !Number.isFinite(step)) return;
+  state.progress += step;
   while (state.progress >= 1) {
     state.progress -= 1;
     const next = state.deepest + 1;
@@ -45,7 +47,9 @@ function digFace(state: GameState, stats: Stats, events?: TickEvent[]): void {
 }
 
 function digGallery(state: GameState, stats: Stats, events?: TickEvent[]): void {
-  state.galleryProgress += stats.digPower / (hardness(state.depth + 1) * TICKS_PER_METRE_AT_PARITY);
+  const step = stats.digPower / (hardness(state.depth + 1) * TICKS_PER_METRE_AT_PARITY);
+  if (!(step > 0) || !Number.isFinite(step)) return;
+  state.galleryProgress += step;
   while (state.galleryProgress >= 1) {
     state.galleryProgress -= 1;
     const roll = rollGallery(state, state.depth, stats);

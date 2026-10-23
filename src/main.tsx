@@ -15,7 +15,10 @@ const store = new GameStore({
   now: Date.now,
   newSeed: () => crypto.getRandomValues(new Uint32Array(1))[0] ?? 1,
 });
-const lock = new TabLock(storage, Date.now, crypto.randomUUID());
+const lock = new TabLock(storage, Date.now, typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : Array.from(crypto.getRandomValues(new Uint32Array(4)), (n) => n.toString(16)).join('-'),
+);
 
 const root = document.getElementById('root');
 if (root) {
