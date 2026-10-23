@@ -1,0 +1,83 @@
+import { describe, expect, it } from 'vitest';
+import { GameStore } from '../../src/store/gameStore';
+import { MemoryStorage, SAVE_KEY, BACKUP_PREFIX, safeStorage } from '../../src/store/storage';
+import { encodeSave } from '../../src/core/save';
+import { newGame } from '../../src/core/newGame';
+
+function make(now = { t: 0 }, storage = new MemoryStorage(), available = true) {
+  const store = new GameStore({ storage, storageAvailable: available, now: () => now.t, newSeed: () => 7 });
+  return { store, storage, now };
+}
+
+describe('GameStore', () => {
+  it('starts a new game when there is no save', () => {
+    const { store } = make();
+    store.load();
+    expect(store.state.seed).toBe(7);
+    expect(store.notice).toBeNull();
+    expect(store.offlineSummary).toBeNull();
+  });
+
+  it('saves and restores', () => {
+    const { store, storage, now } = make();
+    store.load(); now.t = 5000; store.pump(); store.save();
+    const again = make(now, storage).store; again.load();
+    expect(again.state.gold).toBe(store.state.gold);
+  });
+
+  it('shows an offline summary only for long absences', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(SAVE_KEY, encodeSave(newGame(1, 0), 0));
+    const short = make({ t: 100_000 }, storage).store; short.load();
+    expect(short.offlineSummary).toBeNull();
+    const long = make({ t: 600_000 }, storage).store; long.load();
+    expect(long.offlineSummary?.ticks).toBe(600);
+  });
+
+  it('keeps an unreadable save as a backup', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(SAVE_KEY, 'garbage');
+    const { store } = make({ t: 42 }, storage); store.load();
+    expect(store.notice).toEqual({ kind: 'loadFailed', reason: 'corrupt', backupKey: BACKUP_PREFIX + '42' });
+    expect(storage.getItem(BACKUP_PREFIX + '42')).toBe('garbage');
+    store.save();
+    expect(storage.getItem(BACKUP_PREFIX + '42')).toBe('garbage');
+  });
+
+  it('survives storage that refuses writes', () => {
+    const storage = new MemoryStorage();
+    storage.setItem = () => { throw new Error('QuotaExceededError'); };
+    const { store } = make({ t: 0 }, storage); store.load();
+    expect(() => store.save()).not.toThrow();
+    expect(store.notice).toEqual({ kind: 'saveFailed' });
+  });
+
+  it('reports when storage is unavailable', () => {
+    const { store } = make({ t: 0 }, new MemoryStorage(), false); store.load();
+    expect(store.notice).toEqual({ kind: 'storageUnavailable' });
+    const probe = safeStorage(() => { throw new Error('SecurityError'); });
+    expect(probe.available).toBe(false);
+  });
+
+  it('a bad import leaves the game untouched', () => {
+    const { store, now } = make(); store.load(); now.t = 3000; store.pump();
+    const gold = store.state.gold;
+    expect(store.importSave('nope')).toEqual({ ok: false, reason: 'corrupt' });
+    expect(store.state.gold).toBe(gold);
+    const other = newGame(2, 0); other.gold = 999;
+    expect(store.importSave(encodeSave(other, 0)).ok).toBe(true);
+    expect(store.state.seed).toBe(2);
+  });
+
+  it('caps clicks at 10 per second', () => {
+    const { store } = make(); store.load();
+    for (let i = 0; i < 11; i++) store.click();
+    expect(store.state.tickCount).toBe(10);
+  });
+
+  it('aggregates feedback between drains', () => {
+    const { store, now } = make(); store.load(); now.t = 5000; store.pump();
+    expect(store.drainFeedback().gold).toBe(5);
+    expect(store.drainFeedback()).toEqual({ gold: 0, diamonds: 0, finds: [] });
+  });
+});
