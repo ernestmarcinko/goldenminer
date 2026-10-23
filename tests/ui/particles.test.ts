@@ -23,3 +23,9 @@ it('old particles expire and the count stays bounded', () => {
   expect(kept.every((p) => 1500 - p.bornAt <= 1300)).toBe(true);
   expect(pruneParticles(many, 500)).toHaveLength(30);
 });
+
+it('find particles stack above the gold number', () => {
+  const events: TickEvent[] = Array.from({ length: 3 }, (_, i) => ({ kind: 'find', find: { depth: i, kind: 'chest', amount: 0, tick: i } }) as const);
+  const ps = particlesFromEvents(events, { x: 100, y: 200 }, 0, next);
+  expect(ps.map((p) => [p.x, p.y])).toEqual([[90, 176], [90, 152], [90, 128]]);
+});

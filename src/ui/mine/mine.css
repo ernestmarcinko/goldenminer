@@ -66,7 +66,7 @@
 .gm-particle[data-kind='gem'] { color: var(--gm-legendary); }
 .gm-particle[data-kind='diamondVein'] { color: var(--gm-diamond-bright); }
 @media (prefers-reduced-motion: reduce) {
-  .gm-particle, .gm-particle[data-kind] { animation: none; }
+  .gm-particle, .gm-particle[data-kind] { animation: none; transform: translate(-50%, -50%); }
 }
 
 .gm-finds {

@@ -36,7 +36,7 @@ export function particlesFromEvents(
         kind: e.find.kind,
         text: findText(e.find.kind, e.find.amount),
         x: origin.x - 10,
-        y: origin.y - 24 * finds.length,
+        y: origin.y - 24 * (finds.length + 1),
         bornAt: nowMs,
       });
     }

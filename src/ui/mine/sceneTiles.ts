@@ -3,19 +3,21 @@ export interface SceneTile { shade: string; edge: string; fleck: 'gold' | 'diamo
 export const SCENE_COLS = 14;
 export const SCENE_ROWS = 12;
 
-const PALETTES: readonly (readonly [string, string, string, string])[] = [
+type Palette = readonly [string, string, string, string];
+
+const ABYSS_PALETTE: Palette = ['#1a1620', '#201a27', '#17131c', '#241d2c'];
+
+const NAMED_PALETTES: readonly Palette[] = [
   ['#5a4030', '#4e3828', '#614634', '#553b2b'],
   ['#6b4a35', '#5c3f2d', '#734f39', '#63442f'],
   ['#6a5f4f', '#5e5446', '#716553', '#665b4a'],
   ['#4a4550', '#524c59', '#433e49', '#5a5462'],
   ['#2c2832', '#332e3a', '#28242d', '#38323f'],
   ['#1f1b24', '#241f2a', '#1b1820', '#2a2430'],
-  ['#1a1620', '#201a27', '#17131c', '#241d2c'],
 ];
 
 export function bandPalette(tier: number): [string, string, string, string] {
-  const index = Math.min(Math.max(Math.floor(tier), 1), PALETTES.length) - 1;
-  const palette = PALETTES[index] ?? PALETTES[PALETTES.length - 1]!;
+  const palette = NAMED_PALETTES[Math.max(Math.floor(tier), 1) - 1] ?? ABYSS_PALETTE;
   return [palette[0], palette[1], palette[2], palette[3]];
 }
 

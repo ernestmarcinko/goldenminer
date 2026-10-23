@@ -1,4 +1,5 @@
 import type { GameStore } from '../../store/gameStore';
+import { formatNumber } from '../format';
 import { useGame } from '../useGame';
 import { FindsFeed } from './FindsFeed';
 import { MineScene } from './MineScene';
@@ -16,7 +17,7 @@ export function MineView({ store }: { store: GameStore }) {
           <div className="gm-mine__progress">
             <div className="gm-mine__progress-text gm-muted">
               <span>{inGallery ? 'Next gallery find' : 'Next metre'}</span>
-              <span>Auto {stats.autoTicksPerSecond} tick/s · each click +{stats.ticksPerClick} tick</span>
+              <span>Auto {formatNumber(stats.autoTicksPerSecond)} tick/s · each click +{formatNumber(stats.ticksPerClick)} tick</span>
             </div>
             <div
               className="gm-bar"

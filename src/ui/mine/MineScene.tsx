@@ -61,8 +61,8 @@ export function MineScene({ store }: { store: GameStore }) {
 
   const inGallery = state.depth < state.deepest;
   const bandLabel = inGallery
-    ? `${band.name} · side gallery at ${formatNumber(state.depth)} m · tier ${band.tier}`
-    : `${band.name} · dig face at ${formatNumber(state.deepest)} m · tier ${band.tier}`;
+    ? `${band.name} · side gallery at ${formatNumber(state.depth)} m · tier ${formatNumber(band.tier)}`
+    : `${band.name} · dig face at ${formatNumber(state.deepest)} m · tier ${formatNumber(band.tier)}`;
 
   return (
     <button ref={sceneRef} type="button" className="gm-scene" aria-label="Dig: click the rock" onClick={onClick}>
