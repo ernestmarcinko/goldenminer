@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { depthAtY, minimapModel } from '../../src/ui/mine/minimap';
+import { depthAtY, depthForClick, minimapModel } from '../../src/ui/mine/minimap';
 import { newGame } from '../../src/core/newGame';
 
 function at(depth: number, deepest = depth) {
@@ -40,4 +40,11 @@ it('a tap maps to an explored depth only', () => {
   expect(depthAtY(m, 0, 340)).toBe(250);
   expect(depthAtY(m, 527, 340)).toBe(338);
   expect(depthAtY(minimapModel(at(340), 2), 520, 340)).toBe(340);
+});
+
+it('keyboard-synthesised clicks are ignored, pointer clicks map to a depth', () => {
+  const m = minimapModel(at(300, 340), 2);
+  expect(depthForClick(m, { detail: 0, clientX: 50, clientY: 300, stripTop: 100 }, 340)).toBeNull();
+  expect(depthForClick(m, { detail: 1, clientX: 0, clientY: 0, stripTop: 100 }, 340)).toBeNull();
+  expect(depthForClick(m, { detail: 1, clientX: 50, clientY: 100, stripTop: 100 }, 340)).toBe(250);
 });

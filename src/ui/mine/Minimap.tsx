@@ -5,7 +5,7 @@ import { Sprite } from '../../sprites/Sprite';
 import type { SpriteName } from '../../sprites/atlas';
 import { formatNumber } from '../format';
 import { useGame } from '../useGame';
-import { depthAtY, MINIMAP_METRES, MINIMAP_PX_PER_METRE, minimapModel } from './minimap';
+import { depthForClick, MINIMAP_METRES, MINIMAP_PX_PER_METRE, minimapModel } from './minimap';
 import './minimap.css';
 
 const ICONS: Record<FeatureKind, SpriteName> = {
@@ -17,8 +17,12 @@ export function Minimap({ store }: { store: GameStore }) {
   const model = minimapModel(state, stats.lampSight);
 
   const onClick = (e: MouseEvent<HTMLButtonElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    store.moveTo(depthAtY(model, e.clientY - rect.top, state.deepest));
+    const depth = depthForClick(
+      model,
+      { detail: e.detail, clientX: e.clientX, clientY: e.clientY, stripTop: e.currentTarget.getBoundingClientRect().top },
+      state.deepest,
+    );
+    if (depth !== null) store.moveTo(depth);
   };
 
   return (

@@ -83,3 +83,12 @@ export function depthAtY(model: MinimapModel, y: number, deepest: number): numbe
   const d = Math.round(model.top + y / MINIMAP_PX_PER_METRE);
   return Math.min(Math.max(d, 0), deepest);
 }
+
+export function depthForClick(
+  model: MinimapModel,
+  click: { detail: number; clientX: number; clientY: number; stripTop: number },
+  deepest: number,
+): number | null {
+  if (click.detail === 0 || (click.clientX === 0 && click.clientY === 0)) return null;
+  return depthAtY(model, click.clientY - click.stripTop, deepest);
+}
