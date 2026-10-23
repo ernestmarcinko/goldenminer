@@ -14,3 +14,12 @@ it('only one tab plays; a stale lock can be taken; the loser finds out', () => {
   expect(b.heartbeat()).toBe(false);
   expect(a.heartbeat()).toBe(true);
 });
+
+it('stays playable when the lock record cannot be written', () => {
+  const storage = new MemoryStorage();
+  storage.setItem = () => { throw new Error('QuotaExceededError'); };
+  const lock = new TabLock(storage, () => 0, 'a');
+  expect(lock.tryAcquire()).toBe(true);
+  expect(lock.heartbeat()).toBe(true);
+  expect(() => lock.takeOver()).not.toThrow();
+});

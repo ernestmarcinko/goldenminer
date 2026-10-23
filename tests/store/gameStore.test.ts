@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GameStore } from '../../src/store/gameStore';
 import { MemoryStorage, SAVE_KEY, BACKUP_PREFIX, safeStorage } from '../../src/store/storage';
-import { encodeSave } from '../../src/core/save';
+import { decodeSave, encodeSave } from '../../src/core/save';
 import { newGame } from '../../src/core/newGame';
 
 function make(now = { t: 0 }, storage = new MemoryStorage(), available = true) {
@@ -79,5 +79,24 @@ describe('GameStore', () => {
     const { store, now } = make(); store.load(); now.t = 5000; store.pump();
     expect(store.drainFeedback().gold).toBe(5);
     expect(store.drainFeedback()).toEqual({ gold: 0, diamonds: 0, finds: [] });
+  });
+
+  it('never loses an unreadable save when its backup cannot be written', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(SAVE_KEY, 'garbage');
+    const real = storage.setItem.bind(storage);
+    storage.setItem = (k: string, v: string) => {
+      if (k.startsWith(BACKUP_PREFIX)) throw new Error('QuotaExceededError');
+      real(k, v);
+    };
+    const { store } = make({ t: 42 }, storage); store.load();
+    expect(store.notice).toEqual({ kind: 'loadFailed', reason: 'corrupt', backupKey: null });
+    expect(store.unreadableSave).toBe('garbage');
+    store.save();
+    expect(storage.getItem(SAVE_KEY)).toBe('garbage');
+    store.hardReset();
+    expect(store.unreadableSave).toBeNull();
+    expect(storage.getItem(SAVE_KEY)).not.toBe('garbage');
+    expect(decodeSave(storage.getItem(SAVE_KEY) ?? '').ok).toBe(true);
   });
 });

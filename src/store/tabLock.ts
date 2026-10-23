@@ -25,7 +25,11 @@ export class TabLock {
   }
 
   private write(): void {
-    this.storage.setItem(TAB_KEY, JSON.stringify({ id: this.id, beat: this.now() }));
+    try {
+      this.storage.setItem(TAB_KEY, JSON.stringify({ id: this.id, beat: this.now() }));
+    } catch {
+      // an unwritable lock cannot exclude anyone; stay playable
+    }
   }
 
   tryAcquire(): boolean {
@@ -49,6 +53,10 @@ export class TabLock {
   }
 
   release(): void {
-    if (this.read()?.id === this.id) this.storage.removeItem(TAB_KEY);
+    try {
+      if (this.read()?.id === this.id) this.storage.removeItem(TAB_KEY);
+    } catch {
+      // nothing to release
+    }
   }
 }

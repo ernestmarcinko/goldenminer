@@ -11,7 +11,7 @@ import { BACKUP_PREFIX, SAVE_KEY, type StorageLike } from './storage';
 export interface Feedback { gold: number; diamonds: number; finds: FindRecord[] }
 
 export type Notice =
-  | { kind: 'loadFailed'; reason: 'corrupt' | 'future' | 'invalid'; backupKey: string }
+  | { kind: 'loadFailed'; reason: 'corrupt' | 'future' | 'invalid'; backupKey: string | null }
   | { kind: 'saveFailed' }
   | { kind: 'storageUnavailable' }
   | null;
@@ -32,6 +32,7 @@ export class GameStore {
   private _version = 0;
   private _summary: OfflineSummary | null = null;
   private _notice: Notice = null;
+  private _unreadable: string | null = null;
   private feedback: Feedback = emptyFeedback();
   private readonly listeners = new Set<() => void>();
   private limiter = new ClickLimiter();
@@ -46,6 +47,7 @@ export class GameStore {
   get version(): number { return this._version; }
   get offlineSummary(): OfflineSummary | null { return this._summary; }
   get notice(): Notice { return this._notice; }
+  get unreadableSave(): string | null { return this._unreadable; }
 
   subscribe(fn: () => void): () => void {
     this.listeners.add(fn);
@@ -84,6 +86,7 @@ export class GameStore {
     let raw: string | null = null;
     try { raw = storage.getItem(SAVE_KEY); } catch { raw = null; }
     this._notice = null;
+    this._unreadable = null;
     this._summary = null;
     this.feedback = emptyFeedback();
     if (raw === null) {
@@ -94,9 +97,11 @@ export class GameStore {
         this.replaceState(result.state);
       } else {
         const backupKey = BACKUP_PREFIX + now();
-        try { storage.setItem(backupKey, raw); } catch { /* backup is best effort */ }
+        let backedUp = true;
+        try { storage.setItem(backupKey, raw); } catch { backedUp = false; }
         this.replaceState(newGame(this.deps.newSeed(), now()));
-        this._notice = { kind: 'loadFailed', reason: result.reason, backupKey };
+        this._unreadable = backedUp ? null : raw;
+        this._notice = { kind: 'loadFailed', reason: result.reason, backupKey: backedUp ? backupKey : null };
       }
     }
     this.catchUp();
@@ -145,6 +150,7 @@ export class GameStore {
   }
 
   save(): void {
+    if (this._unreadable !== null) return;
     try {
       this.deps.storage.setItem(SAVE_KEY, encodeSave(this._state, this.deps.now()));
     } catch {
@@ -166,6 +172,7 @@ export class GameStore {
     const result = decodeSave(text);
     if (result.ok) {
       this.replaceState(result.state);
+      this._unreadable = null;
       this._summary = null;
       this.feedback = emptyFeedback();
       this.changed();
@@ -174,6 +181,7 @@ export class GameStore {
   }
 
   hardReset(): void {
+    this._unreadable = null;
     this.replaceState(newGame(this.deps.newSeed(), this.deps.now()));
     this._summary = null;
     this.feedback = emptyFeedback();
