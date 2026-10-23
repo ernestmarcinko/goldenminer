@@ -66,8 +66,8 @@ inventory are part of the game. The loot filter is a convenience, not a way to r
 - **Art (decided):** pixel-art sprites. Build with code-drawn placeholders, then swap in a bought or
   free pixel pack (e.g. from itch.io) before launch. So sprites must load from a sprite sheet + atlas
   that can be replaced without code changes (my call: integer scaling, `image-rendering: pixelated`,
-  and an atlas format that accepts any frame size; placeholders are 32×32, and the real base size is
-  set when the pack is picked). UI chrome follows the mockups: a dark, lamp-lit look.
+  and an atlas format that accepts any frame size; placeholders are the mockups' small code-drawn
+  grids (8×8 to 16×20), and the real base size is set when the pack is picked). UI chrome follows the mockups: a dark, lamp-lit look.
 - **Art licensing:** the repo is public on GitHub under MIT. Pack files whose licence forbids
   redistribution stay out of git (my call: a gitignored art folder supplied at build and deploy
   time). CC0 or MIT-compatible art can be committed.
@@ -294,8 +294,8 @@ monsters and bosses, rock tiles per band, dungeon floor tiles.
   export/import as a compressed string.
 - **Repo layout:** the new game lives at the repo root; the 2013 game moves to `legacy/` and stays as
   reference.
-- **Sprites:** placeholder atlas generated in code at 32×32, loaded through the same atlas format a
-  real pack will use.
+- **Sprites:** placeholder atlas generated in code from the mockups' pixel grids, loaded through the
+  same atlas format a real pack will use.
 
 ## 7. Left to the builder
 
