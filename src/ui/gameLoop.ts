@@ -10,23 +10,36 @@ export interface GameLoop {
   runAsOwner: (action: () => void) => boolean;
 }
 
+export interface LoopEnv {
+  doc: EventTarget & { visibilityState: string };
+  win: EventTarget;
+}
+
+const realEnv = (): LoopEnv => ({ doc: document, win: window });
+
 /** Loads the game and runs the pump, autosave and heartbeat. */
-export function startGame(store: GameStore, lock: TabLock, onBlocked: () => void): GameLoop {
+export function startGame(
+  store: GameStore,
+  lock: TabLock,
+  onBlocked: () => void,
+  env: LoopEnv = realEnv(),
+): GameLoop {
   let stopped = false;
-  const timers: number[] = [];
+  let parked = false;
+  const timers: ReturnType<typeof setInterval>[] = [];
 
   const stop = (): void => {
     if (stopped) return;
     stopped = true;
-    for (const t of timers) window.clearInterval(t);
-    document.removeEventListener('visibilitychange', onVisibility);
-    window.removeEventListener('pagehide', onPageHide);
-    window.removeEventListener('pageshow', onPageShow);
+    for (const t of timers) clearInterval(t);
+    env.doc.removeEventListener('visibilitychange', onVisibility);
+    env.win.removeEventListener('pagehide', onPageHide);
+    env.win.removeEventListener('pageshow', onPageShow);
   };
 
   /** True while this tab still owns the lock; otherwise stops without saving and shows the blocked screen. */
   const owns = (): boolean => {
-    if (stopped) return false;
+    if (stopped || parked) return false;
     if (lock.heartbeat()) return true;
     stop();
     onBlocked();
@@ -47,16 +60,20 @@ export function startGame(store: GameStore, lock: TabLock, onBlocked: () => void
   };
 
   function onVisibility(): void {
-    if (document.visibilityState === 'hidden') guardedSave();
+    if (env.doc.visibilityState === 'hidden') guardedSave();
     else owns();
   }
 
   function onPageHide(): void {
-    if (guardedSave()) lock.release();
+    if (guardedSave()) {
+      lock.release();
+      parked = true;
+    }
   }
 
-  function onPageShow(e: PageTransitionEvent): void {
-    if (!e.persisted || stopped) return;
+  function onPageShow(event: Event): void {
+    if (!(event as PageTransitionEvent).persisted || stopped) return;
+    parked = false;
     if (lock.tryAcquire()) {
       store.load();
     } else {
@@ -66,11 +83,11 @@ export function startGame(store: GameStore, lock: TabLock, onBlocked: () => void
   }
 
   store.load();
-  timers.push(window.setInterval(() => store.pump(), PUMP_MS));
-  timers.push(window.setInterval(guardedSave, AUTOSAVE_INTERVAL_MS));
-  timers.push(window.setInterval(owns, TAB_HEARTBEAT_MS));
-  document.addEventListener('visibilitychange', onVisibility);
-  window.addEventListener('pagehide', onPageHide);
-  window.addEventListener('pageshow', onPageShow);
+  timers.push(setInterval(() => store.pump(), PUMP_MS));
+  timers.push(setInterval(guardedSave, AUTOSAVE_INTERVAL_MS));
+  timers.push(setInterval(owns, TAB_HEARTBEAT_MS));
+  env.doc.addEventListener('visibilitychange', onVisibility);
+  env.win.addEventListener('pagehide', onPageHide);
+  env.win.addEventListener('pageshow', onPageShow);
   return { stop, runAsOwner };
 }
