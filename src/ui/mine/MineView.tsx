@@ -3,6 +3,7 @@ import { formatNumber } from '../format';
 import { useGame } from '../useGame';
 import { FindsFeed } from './FindsFeed';
 import { MineScene } from './MineScene';
+import { Minimap } from './Minimap';
 import './mine.css';
 
 export function MineView({ store }: { store: GameStore }) {
@@ -31,7 +32,9 @@ export function MineView({ store }: { store: GameStore }) {
             </div>
           </div>
         </section>
-        <div className="gm-mine__minimap-slot" />
+        <div className="gm-mine__minimap-slot">
+          <Minimap store={store} />
+        </div>
       </div>
       <FindsFeed store={store} />
     </div>
