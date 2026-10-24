@@ -127,7 +127,8 @@ button.gm-item:hover { background: #3a2f20; }
 
 .gm-stash { position: relative; display: flex; flex-direction: column; gap: 12px; }
 .gm-overlay.gm-overlay--top { align-items: flex-start; padding-top: max(16px, 6vh); }
-.gm-dialog.gm-stash { max-width: 980px; }
+/* the dialog is a size container: the stash page and the bag sit side by side only while both fit at 40 px cells */
+.gm-dialog.gm-stash { max-width: 980px; container: gm-stash / inline-size; }
 .gm-stash .gm-char__status:empty { min-height: 0; margin-top: -12px; }
 .gm-stash__body { display: flex; align-items: flex-start; gap: 24px; }
 .gm-stash__main { display: flex; flex-direction: column; min-width: 0; }
@@ -192,7 +193,8 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-fullmode__opt { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
 .gm-fullmode__opt input { width: 18px; height: 18px; margin: 0; accent-color: var(--gm-gold); }
 
-@media (max-width: 760px) {
+/* a 467 px stash panel, the 24 px gap and the 445 px bag */
+@container gm-stash (width < 936px) {
   .gm-stash__body { flex-direction: column; align-items: stretch; gap: 16px; }
 }
 @media (max-width: 600px) {

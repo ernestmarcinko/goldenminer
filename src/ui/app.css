@@ -4,7 +4,8 @@
   margin: 0 auto; box-sizing: border-box;
 }
 .gm-app__play { flex: 999 1 640px; min-width: 0; }
-.gm-app__side { flex: 1 1 420px; max-width: 480px; min-width: 0; }
+/* room for the character panel's 10 × 40 px bag: 445 px plus the panel's padding and border */
+.gm-app__side { flex: 1 1 480px; max-width: 480px; min-width: 0; }
 
 .gm-nav {
   display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 24px; background: var(--gm-header); border-bottom: 1px solid var(--gm-line);
