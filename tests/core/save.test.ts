@@ -566,6 +566,7 @@ it('the validator holds the schema-7 lines', () => {
   expect(bad((s) => rare(s, [line('goldYield', 0)]))).toBe(false);                                       // tier 0 is a legendary's
   expect(bad((s) => rare(s, [line('goldYield', 1.5)]))).toBe(false);
   expect(bad((s) => rare(s, [{ ...line('goldYield'), crafted: false as never }]))).toBe(false);
+  expect(bad((s) => rare(s, [{ ...line('goldYield'), note: 'x' } as ModLine]))).toBe(false);                // a key a line doesn't have
   expect(bad((s) => { pick(s).affixes = [line('goldYield'), line('diamondYield')]; })).toBe(false);      // two prefixes on a magic item
   expect(bad((s) => { pick(s).affixes = [line('goldYield'), line('chestFind')]; })).toBe(true);
   expect(bad((s) => { pick(s).affixes = [line('goldYield'), line('diamondYield', 1, true)]; })).toBe(true);
@@ -613,6 +614,19 @@ it('a schema-6 line whose value is far above its item level keeps the value, at 
   if (!r.ok) throw new Error(`rejected: ${r.reason}`);
   const after = [...r.state.bag, ...r.state.stash.general].find((c) => c?.id === item.id);
   expect(after?.type === 'gear' && after.affixes[0]).toEqual({ stat: line.stat, value: line.value, tier: item.ilvl + MAX_TIER_OVER_CAP });
+});
+
+it('a schema-6 line keeps only its stat and value, with the tier and crafted mark the migration gives it', () => {
+  const env = JSON.parse(decompressFromBase64(fixture6.trim()));
+  const item = [...env.state.bag, ...env.state.stash.general].find((c) => c?.type === 'gear' && c.rarity === 'rare' && c.affixes.length > 0);
+  item.affixes[0].note = 'stray';
+  item.affixes[0].crafted = 'yes';
+  const r = decodeSave(compressToBase64(JSON.stringify(env)));
+  if (!r.ok) throw new Error(`rejected: ${r.reason}`);
+  const after = [...r.state.bag, ...r.state.stash.general].find((c) => c?.id === item.id);
+  if (after?.type !== 'gear') throw new Error('item lost');
+  for (const a of after.affixes) expect(Object.keys(a).sort()).toEqual(a.crafted ? ['crafted', 'stat', 'tier', 'value'] : ['stat', 'tier', 'value']);
+  expect(after.affixes[0]?.crafted).toBeUndefined();
 });
 
 it('a schema-6 run in progress loads with an empty life-regeneration carry', () => {

@@ -55,7 +55,8 @@ export const MAX_SOCKETS = 3;
 // An item holds at most 3 prefixes and 3 suffixes; crafted lines count outside them.
 export const MAX_SIDE_LINES = 3;
 export const MAX_CRAFTED_LINES = 2;
-// A crafted line may sit above an item's tier cap, by up to this many tiers.
+// A line may sit above an item's tier cap by up to this many tiers: a crafted line rolls there, and a migrated line's
+// old value can fall there.
 export const MAX_TIER_OVER_CAP = 2;
 
 export const LEVEL_CAP = 60;

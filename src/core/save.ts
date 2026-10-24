@@ -197,11 +197,11 @@ function tieredLines(item: Record<string, unknown>): ModLine[] | null {
     if (!isObject(a) || !isIn(ALL_STATS, a.stat) || typeof a.value !== 'number' || !Number.isInteger(a.value)) return null;
     const stat = a.stat as StatKey;
     const tier = rarity === 'legendary' ? 0 : Math.min(tierFor(stat, a.value), (ilvl as number) + MAX_TIER_OVER_CAP);
-    const line: ModLine = { ...a, stat, value: a.value, tier };
     const side = MOD_SIDE[stat];
-    if (used[side] < room) used[side]++;
-    else line.crafted = true;
-    lines.push(line);
+    // Only the line's own keys: anything else an old save carried is dropped.
+    const crafted = used[side] >= room;
+    if (!crafted) used[side]++;
+    lines.push(crafted ? { stat, value: a.value, tier, crafted: true } : { stat, value: a.value, tier });
   }
   return lines;
 }
@@ -293,10 +293,12 @@ function isStatLine(x: unknown, allowed: readonly string[]): boolean {
   );
 }
 
+const MOD_LINE_KEYS: readonly string[] = ['stat', 'value', 'tier', 'crafted'];
 // Tier 0 marks a legendary's hand-written line, and only those. A line may sit up to MAX_TIER_OVER_CAP above the item's cap:
-// crafted lines roll there, and an old value can fall there.
+// crafted lines roll there, and an old value can fall there. A line has no keys but its own.
 function isModLine(x: unknown, allowed: readonly string[], legendary: boolean, ilvl: number): x is ModLine {
   if (!isStatLine(x, allowed) || !isObject(x) || !isNonNegInt(x.tier) || (x.crafted !== undefined && x.crafted !== true)) return false;
+  if (!Object.keys(x).every((k) => MOD_LINE_KEYS.includes(k))) return false;
   return legendary ? x.tier === 0 : x.tier >= 1 && x.tier <= ilvl + MAX_TIER_OVER_CAP;
 }
 
