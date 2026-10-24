@@ -88,7 +88,7 @@ export interface GameState {
   level: number; xp: number;               // character level 1..LEVEL_CAP; xp toward the next level
   souls: number;
   activity: Activity;                      // digging, or running a map
-  lastRun: RunResult | null;               // the most recent run, until the player has seen it
+  lastRun: RunResult | null;               // the most recent run; the Last run card keeps showing it, and `seen` is whether the result dialog was dismissed
   mapTally: { cleared: number; lost: number };
 }
 export interface Stats {

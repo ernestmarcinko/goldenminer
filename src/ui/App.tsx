@@ -9,6 +9,8 @@ import { MineView } from './mine/MineView';
 import { Nav, type View } from './Nav';
 import { Notices } from './Notices';
 import { OfflineSummary } from './OfflineSummary';
+import { RunResultDialog } from './run/RunResultDialog';
+import { RunView } from './run/RunView';
 import { SettingsDialog } from './settings/SettingsDialog';
 import { TabBlocked } from './TabBlocked';
 import { Toast } from './Toast';
@@ -68,8 +70,7 @@ function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: ()
           {view === 'mine' ? (
             <MineView store={store} onBackToMap={() => setView('maps')} />
           ) : running ? (
-            // the run screen arrives in Task 9
-            <section aria-label="Map run"><h2>Run in progress</h2></section>
+            <RunView store={store} />
           ) : (
             <MapsView store={store} />
           )}
@@ -77,6 +78,7 @@ function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: ()
         <div className="gm-app__side"><CharacterPanel store={store} /></div>
       </main>
       <Toast store={store} />
+      <RunResultDialog store={store} />
       {/* last, so it paints over Settings just as it sits on top of the dialog stack (an import can raise it there) */}
       {settingsOpen && <SettingsDialog store={store} runAsOwner={runAsOwner} onClose={() => setSettingsOpen(false)} />}
       {offlineSummary && <OfflineSummary summary={offlineSummary} onClose={() => store.dismissSummary()} />}

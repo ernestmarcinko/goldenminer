@@ -57,7 +57,7 @@ export function feedbackToEvents(f: Feedback): TickEvent[] {
   return events;
 }
 
-export function pruneParticles(list: Particle[], nowMs: number, lifeMs = 1300, max = 30): Particle[] {
+export function pruneParticles<T extends { bornAt: number }>(list: T[], nowMs: number, lifeMs = 1300, max = 30): T[] {
   const alive = list.filter((p) => nowMs - p.bornAt <= lifeMs);
   return alive.length > max ? alive.slice(alive.length - max) : alive;
 }
