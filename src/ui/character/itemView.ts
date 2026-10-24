@@ -25,6 +25,11 @@ export const STAT_LABELS: Readonly<Record<StatKey, { label: string; unit: '' | '
   autoTickRate: { label: 'auto tick rate', unit: '%' },
   offlineCap: { label: 'offline cap', unit: ' min' },
   hazardWard: { label: 'hazard ward', unit: '%' },
+  digPowerPct: { label: 'dig power', unit: '%' },
+  veinYield: { label: 'vein yield', unit: '%' },
+  oreFind: { label: 'ore find', unit: '%' },
+  salvageYield: { label: 'salvage yield', unit: '%' },
+  sellBonus: { label: 'Gold from selling', unit: '%' },
   damage: { label: 'damage', unit: '' },
   damagePct: { label: 'damage', unit: '%' },
   attackSpeed: { label: 'attack speed', unit: '%' },
@@ -34,6 +39,13 @@ export const STAT_LABELS: Readonly<Record<StatKey, { label: string; unit: '' | '
   resistAll: { label: 'all resistances', unit: '%' },
   soulFind: { label: 'Soul find', unit: '%' },
   magicFind: { label: 'magic find', unit: '%' },
+  elementalDamage: { label: 'elemental damage', unit: '' },
+  critMultiplier: { label: 'critical damage', unit: '%' },
+  lifePct: { label: 'life', unit: '%' },
+  armorPct: { label: 'armor', unit: '%' },
+  lifeRegen: { label: 'life per second', unit: '' },
+  lifeOnKill: { label: 'life per kill', unit: '' },
+  xpFind: { label: 'XP', unit: '%' },
 };
 
 export function statText(stat: StatKey, value: number): string {

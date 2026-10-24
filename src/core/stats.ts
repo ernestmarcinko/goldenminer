@@ -2,16 +2,16 @@ import {
   BASE_AUTO_TICKS_PER_SECOND, BASE_DIG_POWER, BASE_FEATURE_CHANCES, BASE_HARD_ROCK_CHANCE,
   BASE_LAMP_SIGHT, BASE_OFFLINE_CAP_MS, BASE_TICKS_PER_CLICK, FEATURE_CHANCE_TOTAL_CAP, MAX_LAMP_SIGHT, MAX_HAZARD_WARD,
   GEM_GRADE_LEVEL, MAX_AUTO_TICKS_PER_SECOND, MIN_AUTO_TICKS_PER_SECOND, MAX_DIG_POWER, MAX_OFFLINE_CAP_MS, MAX_TICKS_PER_CLICK, MIN_OFFLINE_CAP_MS,
-  statRange,
 } from './balance';
 import { BATTLE_STATS, MINING_STATS, setOfSlot } from './items';
 import type { Gem, GearItem, GearSet, StatKey, StatLine } from './items';
 import { GEM_EFFECTS } from './itemData';
+import { tierRange } from './tiers';
 import type { FeatureKind, GameState, Stats } from './types';
 
 export function gemEffect(g: Gem, set: GearSet): StatLine {
   const stat = GEM_EFFECTS[g.gem][set];
-  return { stat, value: statRange(stat, GEM_GRADE_LEVEL[g.grade]).max };
+  return { stat, value: tierRange(stat, GEM_GRADE_LEVEL[g.grade]).hi };
 }
 
 export function itemTotals(item: GearItem): Partial<Record<StatKey, number>> {

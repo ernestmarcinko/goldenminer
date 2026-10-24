@@ -139,39 +139,41 @@ export function diamondVeinAmount(tier: number): number {
   return 1 + Math.floor(tier / 2);
 }
 
-export const STAT_RANGES: Readonly<Record<StatKey, { base: number; perLevel: number; cap?: number }>> = {
-  digPower: { base: 2, perLevel: 2 },
-  goldYield: { base: 4, perLevel: 2 },
-  diamondYield: { base: 4, perLevel: 2 },
-  chestFind: { base: 5, perLevel: 2 },
-  gemFind: { base: 5, perLevel: 2 },
-  mapFind: { base: 5, perLevel: 2 },
-  lampSight: { base: 1, perLevel: 0.25, cap: 6 },
-  ticksPerClick: { base: 1, perLevel: 0, cap: 1 },
-  autoTickRate: { base: 3, perLevel: 1, cap: 50 },
-  offlineCap: { base: 15, perLevel: 5, cap: 240 },
-  hazardWard: { base: 5, perLevel: 1, cap: 40 },
-  damage: { base: 2, perLevel: 3 },
-  damagePct: { base: 4, perLevel: 1 },
-  attackSpeed: { base: 3, perLevel: 1, cap: 40 },
-  life: { base: 8, perLevel: 6 },
-  armor: { base: 6, perLevel: 5 },
-  critChance: { base: 1, perLevel: 0.5, cap: 15 },
-  resistAll: { base: 3, perLevel: 1, cap: 30 },
-  soulFind: { base: 4, perLevel: 2 },
-  magicFind: { base: 4, perLevel: 2 },
+// A modifier's tier t rolls from round(base + step * (t - 1)) up to just below tier t + 1's start.
+export const STAT_TIERS: Readonly<Record<StatKey, { base: number; step: number }>> = {
+  digPower: { base: 2, step: 2 },
+  digPowerPct: { base: 4, step: 2 },
+  goldYield: { base: 4, step: 2 },
+  diamondYield: { base: 4, step: 2 },
+  veinYield: { base: 3, step: 1.5 },
+  autoTickRate: { base: 3, step: 2 },
+  ticksPerClick: { base: 1, step: 0.2 },
+  sellBonus: { base: 5, step: 2 },
+  chestFind: { base: 5, step: 2 },
+  gemFind: { base: 5, step: 2 },
+  mapFind: { base: 5, step: 2 },
+  oreFind: { base: 5, step: 2 },
+  lampSight: { base: 1, step: 0.25 },
+  offlineCap: { base: 15, step: 5 },
+  hazardWard: { base: 5, step: 2 },
+  salvageYield: { base: 5, step: 2 },
+  damage: { base: 2, step: 3 },
+  damagePct: { base: 4, step: 2 },
+  elementalDamage: { base: 2, step: 3 },
+  attackSpeed: { base: 3, step: 2 },
+  critChance: { base: 1, step: 0.5 },
+  critMultiplier: { base: 5, step: 3 },
+  life: { base: 8, step: 6 },
+  lifePct: { base: 3, step: 2 },
+  armor: { base: 6, step: 5 },
+  armorPct: { base: 4, step: 2 },
+  resistAll: { base: 3, step: 2 },
+  lifeRegen: { base: 1, step: 0.5 },
+  lifeOnKill: { base: 2, step: 2 },
+  soulFind: { base: 4, step: 2 },
+  magicFind: { base: 4, step: 2 },
+  xpFind: { base: 3, step: 2 },
 };
-
-export function statRange(stat: StatKey, ilvl: number): { min: number; max: number } {
-  const r = STAT_RANGES[stat];
-  const max = Math.min(r.cap ?? Infinity, Math.max(1, Math.round(r.base + r.perLevel * ilvl)));
-  return { min: Math.max(1, Math.round(max / 2)), max };
-}
-
-export function rollStat(stat: StatKey, ilvl: number, u: number): number {
-  const { min, max } = statRange(stat, ilvl);
-  return min + Math.floor(u * (max - min + 1));
-}
 
 export const DEFAULT_STAT_WEIGHT = 10;
 export const STAT_WEIGHTS: Readonly<Partial<Record<StatKey, number>>> = { ticksPerClick: 2, lampSight: 4 };

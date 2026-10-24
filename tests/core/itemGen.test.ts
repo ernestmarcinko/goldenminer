@@ -1,25 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { statRange } from '../../src/core/balance';
 import { emptyInventory, firstEmpty } from '../../src/core/cells';
-import { LEGENDARIES, STAT_WORDS, baseName, gemName } from '../../src/core/itemData';
+import { LEGENDARIES, MOD_WORDS, baseName, gemName } from '../../src/core/itemData';
 import { rollChest, rollGear, rollGem } from '../../src/core/itemGen';
 import { SLOT_IMPLICIT, setOfSlot, statsOf, type GearItem, type GearSet, type Rarity } from '../../src/core/items';
+import { tierCap, tierRange } from '../../src/core/tiers';
 import { newGame } from '../../src/core/newGame';
 import { validateState } from '../../src/core/save';
 import type { Item } from '../../src/core/items';
-
-describe('stat ranges', () => {
-  it('grow with item level and respect caps', () => {
-    expect(statRange('digPower', 1)).toEqual({ min: 2, max: 4 });
-    expect(statRange('digPower', 10)).toEqual({ min: 11, max: 22 });
-    expect(statRange('lampSight', 1)).toEqual({ min: 1, max: 1 });
-    expect(statRange('lampSight', 40)).toEqual({ min: 3, max: 6 });
-    expect(statRange('ticksPerClick', 50)).toEqual({ min: 1, max: 1 });
-    expect(statRange('offlineCap', 1)).toEqual({ min: 10, max: 20 });
-    expect(statRange('offlineCap', 100)).toEqual({ min: 120, max: 240 });
-    expect(statRange('critChance', 1)).toEqual({ min: 1, max: 2 });
-  });
-});
 
 it('gems roll the grade their tier allows, one at a time', () => {
   const gems = [1, 4, 7, 10, 15].map((tier) => rollGem(newGame(1, 0), tier));
@@ -51,24 +38,23 @@ it('every item fits its set, rarity and item level', () => {
       expect(item.gems).toEqual([]);
       expect([0, 1, 2, 3]).toContain(item.sockets);
       expect(item.implicit.stat).toBe(SLOT_IMPLICIT[item.slot]);
-      const imp = statRange(item.implicit.stat, 7);
-      expect(item.implicit.value).toBeGreaterThanOrEqual(imp.min);
-      expect(item.implicit.value).toBeLessThanOrEqual(imp.max);
+      const imp = tierRange(item.implicit.stat, 7);
+      expect(item.implicit.value).toBeGreaterThanOrEqual(imp.lo);
+      expect(item.implicit.value).toBeLessThanOrEqual(imp.hi);
       if (item.rarity === 'legendary') continue;
       const stats = item.affixes.map((a) => a.stat);
       expect(new Set(stats).size).toBe(stats.length);
       expect(stats).not.toContain(item.implicit.stat);
       for (const a of item.affixes) {
         expect(statsOf(set)).toContain(a.stat);
-        const r = statRange(a.stat, 7);
-        expect(a.value).toBeGreaterThanOrEqual(r.min);
-        expect(a.value).toBeLessThanOrEqual(r.max);
+        expect(a.value).toBeGreaterThanOrEqual(tierRange(a.stat, 1).lo);
+        expect(a.value).toBeLessThanOrEqual(tierRange(a.stat, tierCap(7)).hi);
       }
       const base = baseName(item.slot, 7);
       if (item.rarity === 'normal') expect([item.affixes, item.name]).toEqual([[], base]);
       if (item.rarity === 'magic') {
         expect(item.affixes).toHaveLength(2);
-        expect(item.name).toBe(`${STAT_WORDS[item.affixes[0]!.stat].prefix} ${base} of ${STAT_WORDS[item.affixes[1]!.stat].suffix}`);
+        expect(item.name).toBe(`${MOD_WORDS[item.affixes[0]!.stat]} ${base} of ${MOD_WORDS[item.affixes[1]!.stat]}`);
       }
       if (item.rarity === 'rare') expect([3, 4]).toContain(item.affixes.length);
     }

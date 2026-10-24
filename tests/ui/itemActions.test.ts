@@ -35,10 +35,10 @@ it('a bag gem stack offers sockets in worn then carried gear, then sell, salvage
   s.bag[0] = gem(s, 'ruby', { count: 3 });
   const specs = itemActions(s, bag(0));
   expect(labels(specs)).toEqual([
-    ['socket', 'Socket into Stonebiter (+8% Gold yield)'],
-    ['socket', 'Socket into Brass Loop (+6% damage)'],
-    ['socket', 'Socket into Tin Charm (+6% damage) (bag)'],
-    ['socket', 'Socket into Old Boots (+8% Gold yield) (stash)'],
+    ['socket', 'Socket into Stonebiter (+7% Gold yield)'],
+    ['socket', 'Socket into Brass Loop (+7% damage)'],
+    ['socket', 'Socket into Tin Charm (+7% damage) (bag)'],
+    ['socket', 'Socket into Old Boots (+7% Gold yield) (stash)'],
     ['sell', 'Sell (+120 Gold)'],
     ['salvage', 'Salvage (+3 Tin ore)'],
     ['toStash', 'To Gems tab'],
@@ -72,7 +72,7 @@ it('a Gems-tab stack takes, sockets, and sells or salvages all of it', () => {
   const specs = itemActions(s, t);
   expect(labels(specs)).toEqual([
     ['take', 'Take to bag (up to 25)'],
-    ['socket', 'Socket into Brass Loop (+11% all resistances)'],
+    ['socket', 'Socket into Brass Loop (+18% all resistances)'],
     ['sell', 'Sell all (+16,000 Gold)'],
     ['salvage', 'Salvage all (+200 Tin ore)'],
   ]);

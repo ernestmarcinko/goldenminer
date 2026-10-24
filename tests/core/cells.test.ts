@@ -9,7 +9,7 @@ it('gems come in five grades by tier', () => {
     ['tiny', 'tiny', 'tiny', 'small', 'small', 'big', 'big', 'giant', 'giant', 'perfect', 'perfect']);
   expect(gemName({ gem: 'starstone', grade: 'giant' })).toBe('Giant Starstone');
   expect((['tiny', 'small', 'big', 'giant', 'perfect'] as const).map((grade) => gemEffect({ gem: 'starstone', grade }, 'mining').value))
-    .toEqual([6, 12, 18, 26, 38]);
+    .toEqual([5, 11, 17, 25, 37]);
   expect(sellValue({ id: 1, type: 'gem', gem: 'ruby', grade: 'big', count: 3 })).toBe(480);
   expect(salvageYield({ id: 1, type: 'gem', gem: 'ruby', grade: 'perfect', count: 2 })).toEqual({ tin: 8 });
 });

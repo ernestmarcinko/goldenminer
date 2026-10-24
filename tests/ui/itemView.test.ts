@@ -36,12 +36,12 @@ it('item lines list the implicit, affixes, gems and empty sockets', () => {
   expect(itemLines(item)).toEqual([
     { text: '+8 dig power', tone: 'plain' },
     { text: '−10% chest find', tone: 'down' },
-    { text: 'Small Ruby: +14% Gold yield', tone: 'gem' },
+    { text: 'Small Ruby: +13% Gold yield', tone: 'gem' },
     { text: '1 empty socket', tone: 'muted' },
   ]);
   expect(itemLines(gem(s, 'ruby', { grade: 'small' }))).toEqual([
-    { text: 'In mining gear: +14% Gold yield', tone: 'plain' },
-    { text: 'In battle gear: +9% damage', tone: 'plain' },
+    { text: 'In mining gear: +13% Gold yield', tone: 'plain' },
+    { text: 'In battle gear: +13% damage', tone: 'plain' },
   ]);
 });
 

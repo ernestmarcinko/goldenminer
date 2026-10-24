@@ -19,27 +19,16 @@ export function baseName(slot: Slot, ilvl: number): string {
   return names[Math.min(3, Math.floor((ilvl - 1) / 3))] ?? names[0];
 }
 
-export const STAT_WORDS: Readonly<Record<StatKey, { prefix: string; suffix: string }>> = {
-  digPower: { prefix: 'Sharp', suffix: 'the Mole' },
-  goldYield: { prefix: 'Golden', suffix: 'Greed' },
-  diamondYield: { prefix: 'Glittering', suffix: 'the Jeweler' },
-  chestFind: { prefix: 'Lucky', suffix: 'Treasure' },
-  gemFind: { prefix: 'Prismatic', suffix: 'Gems' },
-  mapFind: { prefix: 'Wandering', suffix: 'the Explorer' },
-  lampSight: { prefix: 'Bright', suffix: 'Vision' },
-  ticksPerClick: { prefix: 'Eager', suffix: 'Haste' },
-  autoTickRate: { prefix: 'Tireless', suffix: 'Toil' },
-  offlineCap: { prefix: 'Patient', suffix: 'Dreams' },
-  hazardWard: { prefix: 'Masked', suffix: 'the Canary' },
-  damage: { prefix: 'Heavy', suffix: 'Wounds' },
-  damagePct: { prefix: 'Cruel', suffix: 'Ruin' },
-  attackSpeed: { prefix: 'Swift', suffix: 'Speed' },
-  life: { prefix: 'Hale', suffix: 'Vigor' },
-  armor: { prefix: 'Sturdy', suffix: 'the Wall' },
-  critChance: { prefix: 'Keen', suffix: 'Precision' },
-  resistAll: { prefix: 'Warded', suffix: 'Warding' },
-  soulFind: { prefix: 'Grim', suffix: 'Souls' },
-  magicFind: { prefix: 'Gleaming', suffix: 'Plunder' },
+/** The word a modifier puts on a magic item's name: a prefix word for prefix stats, a suffix word for suffix stats. */
+export const MOD_WORDS: Readonly<Record<StatKey, string>> = {
+  digPower: 'Sharp', digPowerPct: 'Honed', goldYield: 'Golden', diamondYield: 'Glittering', veinYield: 'Bountiful',
+  autoTickRate: 'Tireless', ticksPerClick: 'Eager', sellBonus: 'Shrewd',
+  chestFind: 'Treasure', gemFind: 'Gems', mapFind: 'the Explorer', oreFind: 'Ore', lampSight: 'Vision',
+  offlineCap: 'Dreams', hazardWard: 'the Canary', salvageYield: 'Salvage',
+  damage: 'Heavy', damagePct: 'Cruel', elementalDamage: 'Searing', attackSpeed: 'Swift', critChance: 'Keen',
+  critMultiplier: 'Deadly', life: 'Hale', lifePct: 'Robust',
+  armor: 'the Wall', armorPct: 'the Bulwark', resistAll: 'Warding', lifeRegen: 'Mending', lifeOnKill: 'the Leech',
+  soulFind: 'Souls', magicFind: 'Plunder', xpFind: 'Learning',
 };
 
 export const RARE_FIRST: readonly string[] = ['Gloom', 'Stone', 'Grim', 'Deep', 'Ash', 'Iron', 'Ember', 'Dusk',

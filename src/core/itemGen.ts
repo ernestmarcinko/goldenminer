@@ -1,13 +1,14 @@
 import {
   CHEST_BATTLE_CHANCE, CHEST_SECOND_ITEM_CHANCE, DEFAULT_STAT_WEIGHT, RARE_FOURTH_AFFIX_CHANCE, RARITY_WEIGHTS,
-  SOCKET_WEIGHTS, STAT_WEIGHTS, rollStat,
+  SOCKET_WEIGHTS, STAT_WEIGHTS,
 } from './balance';
-import { LEGENDARIES, RARE_FIRST, RARE_SECOND, STAT_WORDS, baseName, gemGradeFor } from './itemData';
+import { LEGENDARIES, RARE_FIRST, RARE_SECOND, MOD_WORDS, baseName, gemGradeFor } from './itemData';
 import {
   GEM_TYPES, RARITIES, SLOT_IMPLICIT, setOfSlot, slotsOf, statsOf,
   type GearItem, type GearSet, type GemItem, type Rarity, type Slot, type StatKey, type StatLine,
 } from './items';
 import { nextRandom, pickWeighted } from './rng';
+import { tierCap, tierRange } from './tiers';
 import type { GameState } from './types';
 
 type Gen = Pick<GameState, 'rng' | 'nextId'>;
@@ -25,6 +26,12 @@ export function rollRarity(state: Gen, magicFind = 1): Rarity {
 
 function rollSockets(state: Gen): number {
   return pickWeighted(state, SOCKET_WEIGHTS.map((w, count) => [count, w] as const));
+}
+
+/** Rolls a stat uniformly across every tier up to the item level's cap. */
+function rollStat(stat: StatKey, ilvl: number, u: number): number {
+  const { lo, hi } = tierRange(stat, tierCap(ilvl));
+  return lo + Math.floor(u * (hi - lo + 1));
 }
 
 function rollAffixes(state: Gen, set: GearSet, ilvl: number, count: number, implicit: StatKey): StatLine[] {
@@ -64,7 +71,7 @@ export function rollGear(state: Gen, ilvl: number, set: GearSet, rarity: Rarity 
     const a0 = affixes[0];
     const a1 = affixes[1];
     if (rarity === 'magic' && a0 !== undefined && a1 !== undefined) {
-      name = `${STAT_WORDS[a0.stat].prefix} ${baseName(slot, ilvl)} of ${STAT_WORDS[a1.stat].suffix}`;
+      name = `${MOD_WORDS[a0.stat]} ${baseName(slot, ilvl)} of ${MOD_WORDS[a1.stat]}`;
     } else if (rarity === 'rare') {
       name = `${pickUniform(state, RARE_FIRST)} ${pickUniform(state, RARE_SECOND[slot])}`;
     } else {
