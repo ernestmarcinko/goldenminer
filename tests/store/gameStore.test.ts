@@ -3,6 +3,7 @@ import { GameStore } from '../../src/store/gameStore';
 import { MemoryStorage, SAVE_KEY, BACKUP_PREFIX, safeStorage } from '../../src/store/storage';
 import { decodeSave, encodeSave } from '../../src/core/save';
 import { compressToBase64 } from 'lz-string';
+import fixture5 from '../fixtures/save-schema-5.txt?raw';
 import { newGame } from '../../src/core/newGame';
 import { addMap, startMap } from '../../src/core/maps';
 import { advance } from '../../src/core/clock';
@@ -266,6 +267,35 @@ describe('inventory intents', () => {
     expect(store.state.settings.motion).toEqual({ floats: false, pops: false, lampFlicker: true, shaft: 'smooth' });
     // the next save must still be readable
     expect(make().store.importSave(store.exportSave()).ok).toBe(true);
+  });
+});
+
+describe('a migrated save with held loot', () => {
+  // Schema 6 frees room (one bag of 60, two General pages), so the loot the old bags held can go in at once.
+  const decoded = () => { const r = decodeSave(fixture5.trim()); if (!r.ok) throw new Error(r.reason); return r.state; };
+
+  it('loading lets the held items into the room the migration made, and digging goes on', () => {
+    const before = decoded();
+    expect(before.overflow).toHaveLength(2);
+    const held = before.overflow.map((i) => i.id);
+    const now = { t: before.lastTickAt };
+    const { store, storage } = make(now);
+    storage.setItem(SAVE_KEY, fixture5.trim());
+    store.load();
+    const s = store.state;
+    expect(s.overflow).toEqual([]);
+    expect(s.bag.filter((c) => c !== null).map((c) => c.id)).toEqual(expect.arrayContaining(held));
+    expect(store.leaveMap()).toBe(true);
+    now.t += 2_000_000;
+    store.pump();
+    expect(s.deepest).toBeGreaterThan(before.deepest);
+  });
+
+  it('importing it does the same', () => {
+    const { store } = make();
+    store.load();
+    expect(store.importSave(fixture5.trim()).ok).toBe(true);
+    expect(store.state.overflow).toEqual([]);
   });
 });
 

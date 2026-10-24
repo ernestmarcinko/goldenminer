@@ -90,6 +90,7 @@ export class GameStore {
     for (const fn of [...this.listeners]) fn();
   }
 
+  // A loaded save may hold loot that now has room (schema 6 gave it a bigger bag), so `load` and `importSave` drain it.
   private replaceState(state: GameState): void {
     this._state = state;
     this._equipNotice = null;
@@ -149,6 +150,7 @@ export class GameStore {
       const result = decodeSave(raw);
       if (result.ok) {
         this.replaceState(result.state);
+        drainOverflow(this._state);
       } else {
         let backupKey = this.newestBackupKey(raw);
         let backedUp = true;
@@ -285,6 +287,7 @@ export class GameStore {
     const result = decodeSave(text);
     if (result.ok) {
       this.replaceState(result.state);
+      drainOverflow(this._state);
       this._unreadable = null;
       this.clearLoadFailed();
       this._summary = null;
