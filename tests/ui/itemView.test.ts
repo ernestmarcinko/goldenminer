@@ -1,9 +1,9 @@
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
 import { deriveStats, gearTotals } from '../../src/core/stats';
 import { itemName } from '../../src/core/itemData';
 import {
-  battleStatLine, cardHead, clickIntent, compareLines, itemKindLine, itemLines, itemSprite, lootNoteText, miningStatLine, placeTooltip, rarityOf,
+  battleStatLine, cardHead, clickIntent, compareLines, itemKindLine, itemLines, itemSprite, lootNoteText, miningStatLine, placeCardTop, placeTooltip, rarityOf,
   statText,
 } from '../../src/ui/character/itemView';
 import { mapDungeon } from '../../src/ui/maps/mapsView';
@@ -109,6 +109,27 @@ it('summarises each set', () => {
 it('keeps the tooltip inside the panel', () => {
   expect(placeTooltip({ left: 0, top: 0, width: 52, height: 52 }, 342)).toEqual({ left: 0, top: 56 });
   expect(placeTooltip({ left: 290, top: 116, width: 52, height: 52 }, 342)).toEqual({ left: 72, top: 172 });
+});
+
+describe('an action card stays inside the rows that show', () => {
+  const view = { top: 100, bottom: 900 };
+  const anchor = { top: 500, bottom: 552 };
+
+  it('below its item when it fits there', () => {
+    expect(placeCardTop(anchor, 344, view)).toBe(556);              // ends at 900, the view's bottom
+    expect(placeCardTop({ top: 120, bottom: 172 }, 700, view)).toBe(176);
+  });
+
+  it('above its item when it does not fit below', () => {
+    expect(placeCardTop(anchor, 345, view)).toBe(151);              // ends at 496, 4 px above the item
+    expect(placeCardTop(anchor, 396, view)).toBe(100);              // starts at the view's top
+  });
+
+  it('pinned to the top of the view when it fits neither way, even when it is taller than the view', () => {
+    expect(placeCardTop(anchor, 397, view)).toBe(100);
+    expect(placeCardTop(anchor, 1024, view)).toBe(100);
+    expect(placeCardTop({ top: 848, bottom: 900 }, 1024, { top: -40, bottom: 860 })).toBe(-40);
+  });
 });
 
 it('reads what a click means', () => {

@@ -154,6 +154,8 @@ export const TOOLTIP_WIDTH = 270;
 /** The space between a hovered card and the worn item's card beside it. */
 export const CARD_PAIR_GAP = 8;
 const CARD_PAIR_MIN_VIEWPORT = 900;
+/** The space between an item and its card. */
+const CARD_GAP = 4;
 
 /** `minLeft` lets a wide card pair reach left of its container; the container's right edge still bounds it. */
 export function placeTooltip(
@@ -164,8 +166,24 @@ export function placeTooltip(
 ): { left: number; top: number } {
   return {
     left: Math.max(minLeft, Math.min(anchor.left, containerWidth - width)),
-    top: anchor.top + anchor.height + 4,
+    top: anchor.top + anchor.height + CARD_GAP,
   };
+}
+
+/** A stretch of rows, top to bottom. */
+export interface Span { top: number; bottom: number }
+
+/**
+ * An action card's top, so its bottom stays inside `view` (the rows that show): below its item when it fits there,
+ * else above it, else pinned to the top of the view. A card taller than the view runs past its bottom, and the page
+ * scrolls to the rest.
+ */
+export function placeCardTop(anchor: Span, height: number, view: Span): number {
+  const below = anchor.bottom + CARD_GAP;
+  if (below + height <= view.bottom) return below;
+  const above = anchor.top - CARD_GAP - height;
+  if (above >= view.top) return above;
+  return view.top;
 }
 
 /** The worn item's card goes beside a hover card on a wide screen, and inside any other card. */

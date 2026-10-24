@@ -126,6 +126,11 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-card__btn:hover { border-color: var(--gm-gold); }
 .gm-card__btn[aria-disabled='true'] { opacity: 0.5; }
 .gm-card__btn--quiet { border-color: transparent; background: transparent; color: var(--gm-muted); }
+/* the craft buttons, two to a row while each is 120 px or wider (their labels wrap to two lines there), else one */
+.gm-card__crafts {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(max(120px, calc((100% - 4px) / 2)), 1fr)); gap: 4px;
+}
+.gm-card__crafts > .gm-card__btn { padding: 4px 8px; font-size: 12px; line-height: 1.3; }
 
 .gm-stash { position: relative; display: flex; flex-direction: column; gap: 12px; }
 .gm-overlay.gm-overlay--top { align-items: flex-start; padding-top: max(16px, 6vh); }

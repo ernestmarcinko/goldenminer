@@ -90,7 +90,7 @@ export function useItemInteractions({ store, state, containerRef, fallbackRef, d
     <ItemCard
       key={targetKey(menu.target)}
       state={state} target={menu.target}
-      left={menu.left} top={menu.top} inline={menu.inline === true} smooth={smooth}
+      left={menu.left} top={menu.top} fit={menu.fit} inline={menu.inline === true} smooth={smooth}
       menu={{
         onAction: (a) => perform(menu.target, a, true),
         onClose: () => closeMenu(true, fallbackRef.current),

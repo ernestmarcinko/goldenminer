@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { FocusEvent, KeyboardEvent } from 'react';
 import { itemAt } from '../../core/cells';
 import { isGear } from '../../core/items';
@@ -7,8 +7,9 @@ import { itemName } from '../../core/itemData';
 import type { GameState } from '../../core/types';
 import { hoverNote, itemActions } from './itemActions';
 import type { ActionSpec, ItemTarget } from './itemActions';
-import { cardHead, compareLines, itemKindLine, itemLines, rarityOf, wornToCompare } from './itemView';
+import { cardHead, compareLines, itemKindLine, itemLines, placeCardTop, rarityOf, wornToCompare } from './itemView';
 import type { ViewLine } from './itemView';
+import type { CardFit } from './useItemPopover';
 
 export interface CardMenu {
   onAction: (action: ActionSpec) => void;
@@ -47,12 +48,18 @@ function EquippedContent({ worn }: { worn: GearItem }) {
  * Gear that is not worn also shows the worn item's card: beside this one when `pair` (a hover card on a wide
  * screen, placed by the caller as one pair), otherwise as a block inside it.
  */
-export function ItemCard({ state, target, left, top, menu, inline = false, smooth = false, pair = false }: {
-  state: GameState; target: ItemTarget; left: number; top: number; menu?: CardMenu;
+export function ItemCard({ state, target, left, top, fit, menu, inline = false, smooth = false, pair = false }: {
+  state: GameState; target: ItemTarget; left: number; top: number; fit?: CardFit; menu?: CardMenu;
   inline?: boolean; smooth?: boolean; pair?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const isMenu = menu !== undefined;
+  // With `fit`, the card moves to where it fits once its height is known: before it paints, and before focus goes
+  // into it, so that focus never scrolls the page. After every render, as a craft can change its height.
+  useLayoutEffect(() => {
+    const card = ref.current;
+    if (fit !== undefined && card !== null) card.style.top = `${placeCardTop(fit.anchor, card.offsetHeight, fit.view)}px`;
+  });
   useEffect(() => {
     if (!isMenu) return;
     // 'nearest' scrolls only as far as needed; the card sits below the grid, so nothing above it moves in the page
@@ -129,19 +136,25 @@ export function ItemCard({ state, target, left, top, menu, inline = false, smoot
               {a.label}
             </button>
           ))}
-          {crafts.length > 0 && <div className="gm-card__label gm-card__craft">Craft</div>}
-          {crafts.map((a) => (
-            <button
-              key={`craft-${a.kind}`}
-              type="button"
-              className="gm-card__btn"
-              data-craft={a.kind}
-              aria-disabled={a.disabled || undefined}
-              onClick={() => { crafted.current = true; menu.onAction(a); }}
-            >
-              {a.label}
-            </button>
-          ))}
+          {crafts.length > 0 && (
+            <>
+              <div className="gm-card__label gm-card__craft">Craft</div>
+              <div className="gm-card__crafts">
+                {crafts.map((a) => (
+                  <button
+                    key={`craft-${a.kind}`}
+                    type="button"
+                    className="gm-card__btn"
+                    data-craft={a.kind}
+                    aria-disabled={a.disabled || undefined}
+                    onClick={() => { crafted.current = true; menu.onAction(a); }}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
           {menu.onPutBack !== undefined && (
             <button type="button" className="gm-card__btn" onClick={menu.onPutBack}>Put back</button>
           )}

@@ -2,12 +2,37 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { ItemTarget } from './itemActions';
 import { CARD_PAIR_GAP, cardPairLayout, placeTooltip, TOOLTIP_WIDTH } from './itemView';
+import type { Span } from './itemView';
+
+/** Where an action card's item is and which rows show, so the card can be fitted once its height is known. */
+export interface CardFit { anchor: Span; view: Span }
 
 /**
  * `inline`: a card opened by a touch tap, shown in the page flow below the grid instead of placed near the item.
  * `pair`: a hover card placed with the worn item's card beside it, so `left` is the pair's left edge.
+ * `fit`: set on a placed action card, whose `top` is only where it starts.
  */
-export interface Placed { target: ItemTarget; left: number; top: number; inline?: true; pair?: true }
+export interface Placed { target: ItemTarget; left: number; top: number; inline?: true; pair?: true; fit?: CardFit }
+
+/** How far inside the screen's edges a placed card stays. */
+const SCREEN_MARGIN = 8;
+
+/**
+ * The rows of `c`, in its own coordinates, that show on screen: the viewport, cut by every ancestor (or `c`) that
+ * clips, such as a scrolling dialog.
+ */
+function visibleRows(c: HTMLElement): Span {
+  let top = 0;
+  let bottom = window.innerHeight;
+  for (let el: HTMLElement | null = c; el !== null && el !== document.body; el = el.parentElement) {
+    if (getComputedStyle(el).overflowY === 'visible') continue;
+    const r = el.getBoundingClientRect();
+    top = Math.max(top, r.top + el.clientTop);
+    bottom = Math.min(bottom, r.top + el.clientTop + el.clientHeight);
+  }
+  const origin = c.getBoundingClientRect().top + c.clientTop - c.scrollTop;
+  return { top: top + SCREEN_MARGIN - origin, bottom: bottom - SCREEN_MARGIN - origin };
+}
 
 /**
  * Hover tooltip and action-card state; positions are relative to the container, which must be `position: relative`.
@@ -22,7 +47,7 @@ export function useItemPopover(containerRef: RefObject<HTMLElement | null>, hasW
   const hasWornCardNow = useRef(hasWornCard);
   hasWornCardNow.current = hasWornCard;
 
-  const place = useCallback((target: ItemTarget, el: HTMLElement, pair = false): Placed | null => {
+  const place = useCallback((target: ItemTarget, el: HTMLElement, pair = false, menu = false): Placed | null => {
     const c = containerRef.current;
     if (c === null) return null;
     const cr = c.getBoundingClientRect();
@@ -31,6 +56,10 @@ export function useItemPopover(containerRef: RefObject<HTMLElement | null>, hasW
       left: er.left - cr.left - c.clientLeft + c.scrollLeft, top: er.top - cr.top - c.clientTop + c.scrollTop,
       width: er.width, height: er.height,
     };
+    if (menu) {
+      const fit = { anchor: { top: anchor.top, bottom: anchor.top + anchor.height }, view: visibleRows(c) };
+      return { target, ...placeTooltip(anchor, c.clientWidth), fit };
+    }
     if (!pair) return { target, ...placeTooltip(anchor, c.clientWidth) };
     // the pair may reach left of the container, but stays 8 px inside the viewport
     const minLeft = 8 - (cr.left + c.clientLeft - c.scrollLeft);
@@ -48,7 +77,7 @@ export function useItemPopover(containerRef: RefObject<HTMLElement | null>, hasW
   const openMenu = useCallback((target: ItemTarget, el: HTMLElement, inline = false) => {
     opener.current = el;
     setHover(null);
-    setMenu(inline ? { target, left: 0, top: 0, inline: true } : place(target, el));
+    setMenu(inline ? { target, left: 0, top: 0, inline: true } : place(target, el, false, true));
   }, [place]);
 
   /** With `restoreFocus`, focus goes back to the opener, or to `fallback` when the opener is gone. */
