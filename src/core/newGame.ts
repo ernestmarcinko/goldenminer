@@ -15,6 +15,7 @@ export function newGame(seed: number, nowMs: number, options: NewGameOptions = {
     ahead: {}, finds: [],
     nextId: 1, goldCarry: 0, ...emptyInventory(), lootTally: { kept: 0, sold: 0, salvaged: 0 },
     settings: { lootFilter: [], bagFull: 'sellWorst', motion: { ...DEFAULT_MOTION } },
+    level: 1, xp: 0, souls: 0, activity: { kind: 'dig' }, lastRun: null, mapTally: { cleared: 0, lost: 0 },
   };
   fillAhead(state, deriveStats(state));
   const first = state.ahead[1];

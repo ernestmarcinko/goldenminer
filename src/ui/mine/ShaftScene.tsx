@@ -72,6 +72,8 @@ export function ShaftScene({ store }: { store: GameStore }) {
   const reduced = usePrefersReducedMotion();
   const motion = effectiveMotion(state.settings.motion, reduced);
   const { depth, deepest, progress } = state;
+  // During a map the shaft doesn't dig or strike: the banner above it leads back to the map.
+  const paused = state.activity.kind === 'map';
   const sceneRef = useRef<HTMLButtonElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
   const prevTopRef = useRef<number | null>(null);
@@ -147,6 +149,7 @@ export function ShaftScene({ store }: { store: GameStore }) {
   }, [store]);
 
   const onClick = (e: MouseEvent<HTMLButtonElement>) => {
+    if (paused) return;
     const events = eventsForMotion(store.click(), motion);
     if (events.length === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -168,8 +171,9 @@ export function ShaftScene({ store }: { store: GameStore }) {
         ref={sceneRef}
         type="button"
         className="gm-shaft"
-        aria-label="Dig: click the rock"
+        aria-label={paused ? "Digging is paused while you're in a map" : 'Dig: click the rock'}
         aria-describedby={LABELS_ID}
+        disabled={paused}
         onClick={onClick}
       >
         <div ref={stripRef} className="gm-shaft__strip">
@@ -208,7 +212,7 @@ export function ShaftScene({ store }: { store: GameStore }) {
         <div aria-hidden="true" className="gm-shaft__miner" style={{ left: minerX, top: minerTop }}>
           <Sprite name="miner" scale={3} />
         </div>
-        <div className="gm-shaft__hint">Click the rock to dig</div>
+        <div className="gm-shaft__hint">{paused ? 'Digging is paused' : 'Click the rock to dig'}</div>
         {particles.map((p) => (
           <span key={p.id} aria-hidden="true" className="gm-particle" data-kind={p.kind} style={{ left: p.x, top: p.y }}>
             {p.text}

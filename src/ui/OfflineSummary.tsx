@@ -11,12 +11,20 @@ const FIND_LABELS: Record<FeatureKind, [string, string]> = {
   diamondVein: ['diamond vein', 'diamond veins'],
 };
 
+/** The Souls and levels a run away gained, naming only the parts that aren't zero. */
+export function soulsLine(souls: number, levels: number): string {
+  const parts: string[] = [];
+  if (souls > 0) parts.push(`+${formatNumber(souls)} Souls`);
+  if (levels > 0) parts.push(`${plural(levels, 'level', 'levels')} gained`);
+  return parts.join(' · ');
+}
+
 export function OfflineSummary({ summary, onClose }: { summary: Summary; onClose: () => void }) {
   const dialogRef = useRef<HTMLDivElement>(null);
-  const okRef = useDialog<HTMLButtonElement>(onClose, dialogRef);
+  const { focusRef: okRef, depth } = useDialog<HTMLButtonElement>(onClose, dialogRef);
   const finds = (Object.keys(FIND_LABELS) as FeatureKind[]).filter((k) => (summary.finds[k] ?? 0) > 0);
   return (
-    <div className="gm-overlay">
+    <div className="gm-overlay" style={{ zIndex: 10 + depth }}>
       <div ref={dialogRef} className="gm-dialog" role="dialog" aria-modal="true" aria-labelledby="gm-offline-title">
         <h2 id="gm-offline-title" className="gm-dialog__title">
           While you were away ({formatDuration(summary.elapsedMs)}): dug {formatNumber(summary.metres)} m, +
@@ -31,6 +39,12 @@ export function OfflineSummary({ summary, onClose }: { summary: Summary; onClose
             {formatNumber(summary.items.salvaged)} salvaged
           </p>
         )}
+        {(summary.maps.cleared > 0 || summary.maps.lost > 0) && (
+          <p>
+            Maps: {formatNumber(summary.maps.cleared)} cleared · {formatNumber(summary.maps.lost)} lost
+          </p>
+        )}
+        {(summary.souls > 0 || summary.levels > 0) && <p>{soulsLine(summary.souls, summary.levels)}</p>}
         {summary.stoppedBag !== null && <p>Digging stopped because your {summary.stoppedBag} bag and the stash were full.</p>}
         {finds.length > 0 && (
           <ul className="gm-dialog__list">

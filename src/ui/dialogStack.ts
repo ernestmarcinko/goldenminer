@@ -1,5 +1,6 @@
 /** The open modal dialogs, oldest first: only the last one answers Escape and Tab. */
 const stack: number[] = [];
+const depths = new Map<number, number>();
 let lastId = 0;
 
 export function nextDialogId(): number {
@@ -7,14 +8,19 @@ export function nextDialogId(): number {
   return lastId;
 }
 
-export function pushDialog(id: number): void {
+/** Opens `id` on top; returns its depth, one more than the deepest dialog open, so a later dialog always paints over an earlier one. */
+export function pushDialog(id: number): number {
+  const depth = Math.max(0, ...depths.values()) + 1;
   stack.push(id);
+  depths.set(id, depth);
+  return depth;
 }
 
 /** Removes `id` wherever it sits, so a dialog that closes out of order leaves the others in place. */
 export function popDialog(id: number): void {
   const at = stack.lastIndexOf(id);
   if (at >= 0) stack.splice(at, 1);
+  depths.delete(id);
 }
 
 export function isTopDialog(id: number): boolean {

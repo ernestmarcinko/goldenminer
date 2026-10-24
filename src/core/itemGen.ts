@@ -18,8 +18,9 @@ function pickUniform<T>(state: Gen, list: readonly T[]): T {
   return item;
 }
 
-export function rollRarity(state: Gen): Rarity {
-  return pickWeighted(state, RARITIES.map((r) => [r, RARITY_WEIGHTS[r]] as const));
+/** Magic find multiplies the weights of every rarity but normal. */
+export function rollRarity(state: Gen, magicFind = 1): Rarity {
+  return pickWeighted(state, RARITIES.map((r) => [r, r === 'normal' ? RARITY_WEIGHTS[r] : RARITY_WEIGHTS[r] * magicFind] as const));
 }
 
 function rollSockets(state: Gen): number {

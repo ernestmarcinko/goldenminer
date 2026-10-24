@@ -4,6 +4,7 @@
   font: inherit; color: inherit;
   touch-action: manipulation; user-select: none; -webkit-user-select: none;
 }
+.gm-shaft:disabled { cursor: default; }
 /* 4 wall tiles + the 88 px shaft cell + 4 wall tiles; centred, so narrow screens clip the outer wall columns. */
 .gm-shaft__strip {
   position: absolute; top: 0; left: 50%; width: 536px; margin-left: -268px; will-change: transform;

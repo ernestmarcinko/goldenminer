@@ -26,6 +26,25 @@ it('popping a dialog that is not on top removes only that one', () => {
   expect(isTopDialog(2)).toBe(false);
 });
 
+it('a later dialog is deeper, and depths come round again once the stack empties', () => {
+  expect(pushDialog(1)).toBe(1);
+  expect(pushDialog(2)).toBe(2);
+  expect(pushDialog(3)).toBe(3);
+  popDialog(3);
+  expect(pushDialog(3)).toBe(3);
+  popDialog(1);
+  popDialog(2);
+  popDialog(3);
+  expect(pushDialog(1)).toBe(1);
+});
+
+it('a dialog opened after an out-of-order close is still deeper than every one left open', () => {
+  pushDialog(1);
+  pushDialog(2);
+  popDialog(1);
+  expect(pushDialog(3)).toBe(3);
+});
+
 it('hands out increasing ids', () => {
   const a = nextDialogId();
   expect(nextDialogId()).toBeGreaterThan(a);

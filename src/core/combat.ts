@@ -1,0 +1,189 @@
+import {
+  ARMORED_TAKEN, BOSS_DROPS, CHAMPION_DROPS, CHAMPION_MAGIC_FIND, COMBAT_LOG_LIMIT, COMBAT_STEP_S, DROP_CHANCE,
+  MAP_DROP_BATTLE_CHANCE, MAP_GEM_CHANCE, ROOM_REGEN_TOTAL, RUN_LOOT_LIMIT, VAMPIRIC_HEAL, goldPerKill, soulsPerKill,
+} from './balance';
+import { deriveBattleStats, mitigate, type BattleStats } from './battle';
+import { dungeonLayout } from './dungeons';
+import { gainXp } from './levels';
+import { rollGear, rollGem, rollRarity } from './itemGen';
+import { receiveItem } from './loot';
+import { monsterState, rankReward } from './monsters';
+import { nextRandom } from './rng';
+import type {
+  CombatLine, GameState, LootNote, MapRun, MonsterState, Rank, RunOutcome, RunResult, Stats, TickEvent,
+} from './types';
+
+/** What a strike did: the room fights on, the room was cleared and the next one entered, or the run ended. */
+type StrikeOutcome = 'fight' | 'room' | 'end';
+
+function pushNewest<T>(list: T[], item: T, limit: number): void {
+  list.push(item);
+  if (list.length > limit) list.splice(0, list.length - limit);
+}
+
+const logLine = (run: MapRun, line: CombatLine) => pushNewest(run.log, line, COMBAT_LOG_LIMIT);
+
+/** Keeps a drop note on the run, newest RUN_LOOT_LIMIT only. */
+export function noteLoot(run: MapRun, note: LootNote): void {
+  pushNewest(run.loot, note, RUN_LOOT_LIMIT);
+}
+
+/**
+ * The monsters of `room`, regenerated from the seed: rooms 1..bossRoom-1 from the layout, then the boss alone. A room
+ * the layout doesn't have is fought as the boss room, so the queue is never empty.
+ */
+function roomQueue(state: GameState, run: MapRun, room: number): MonsterState[] {
+  const layout = dungeonLayout(state.seed, run.map);
+  const monsters = room < run.bossRoom ? layout.rooms[room - 1] ?? [] : [];
+  if (monsters.length === 0) return [monsterState(run.map.tier, layout.boss)];
+  return monsters.map((m) => monsterState(run.map.tier, m));
+}
+
+/** The run is over: it becomes the last run, the tally counts it and the miner goes back to digging. */
+export function endRun(state: GameState, run: MapRun, outcome: RunOutcome, events?: TickEvent[]): void {
+  const result: RunResult = {
+    map: run.map, outcome, room: run.room, bossRoom: run.bossRoom, gained: { ...run.gained },
+    items: run.items, seen: false,
+  };
+  state.lastRun = result;
+  if (outcome === 'cleared') state.mapTally.cleared += 1;
+  else state.mapTally.lost += 1;
+  state.activity = { kind: 'dig' };
+  events?.push({ kind: 'runEnd', result });
+}
+
+/** Souls for one kill: the whole part of the expected amount, plus one more with the fractional part as its chance. */
+export function soulsForKill(u: number, tier: number, rank: Rank, soulMultiplier: number): number {
+  const x = soulsPerKill(tier) * rankReward(rank) * soulMultiplier;
+  const whole = Math.floor(x);
+  return whole + (u < x - whole ? 1 : 0);
+}
+
+/** Counts one dropped item and notes what became of it on the run and in the log. */
+function takeDrop(run: MapRun, notes: LootNote[]): void {
+  run.items += 1;
+  for (const n of notes) {
+    noteLoot(run, n);
+    logLine(run, { kind: 'drop', note: n });
+  }
+}
+
+/**
+ * A monster fell: its XP (levelling up heals by the max-life gained), then Souls, Gold, items and a gem chance, in
+ * that draw order (exported so the rewards can be pinned per rank). Champions guarantee an item of raised rarity, bosses guarantee BOSS_DROPS, anything may add one more.
+ */
+export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: BattleStats): void {
+  const tier = run.map.tier;
+  const levelBefore = state.level;
+  const levels = gainXp(state, monster.xp);
+  run.gained.xp += monster.xp;
+  if (levels > 0) {
+    run.life += deriveBattleStats(state).maxLife - b.maxLife;
+    run.gained.levels += levels;
+    for (let l = 1; l <= levels; l++) logLine(run, { kind: 'level', level: levelBefore + l });
+  }
+
+  const souls = soulsForKill(nextRandom(state), tier, monster.rank, b.soulMultiplier);
+  state.souls += souls;
+  run.gained.souls += souls;
+  logLine(run, { kind: 'kill', monster: monster.name, xp: monster.xp, souls });
+
+  const gold = goldPerKill(tier) * rankReward(monster.rank);
+  state.gold += gold;
+  run.gained.gold += gold;
+
+  const guaranteed = monster.rank === 'boss' ? BOSS_DROPS : monster.rank === 'champion' ? CHAMPION_DROPS : 0;
+  const count = guaranteed + (nextRandom(state) < DROP_CHANCE ? 1 : 0);
+  for (let i = 0; i < count; i++) {
+    const set = nextRandom(state) < MAP_DROP_BATTLE_CHANCE ? 'battle' : 'mining';
+    const raised = monster.rank === 'champion' && i < guaranteed;
+    const item = rollGear(state, tier, set, rollRarity(state, b.magicFindMultiplier * (raised ? CHAMPION_MAGIC_FIND : 1)));
+    takeDrop(run, receiveItem(state, item, 'battle'));
+  }
+  if (nextRandom(state) < MAP_GEM_CHANCE) takeDrop(run, receiveItem(state, rollGem(state, tier), 'battle'));
+}
+
+function strike(state: GameState, run: MapRun, b: BattleStats, click: boolean, events?: TickEvent[]): StrikeOutcome {
+  const m = run.queue[0];
+  if (m === undefined) return 'fight';
+  let amount = b.damageMin + Math.floor(nextRandom(state) * (b.damageMax - b.damageMin + 1));
+  const crit = nextRandom(state) < b.critChance;
+  if (crit) amount = Math.round(amount * b.critMultiplier);
+  if (m.mods.includes('armored')) amount = Math.max(1, Math.round(amount * ARMORED_TAKEN));
+  m.life -= amount;
+  events?.push({ kind: 'strike', amount, crit, click });
+  logLine(run, { kind: 'hit', monster: m.name, amount, crit, click });
+  if (m.life > 0) return 'fight';
+
+  run.queue.shift();
+  run.monsterCarry = 0;
+  onKill(state, run, m, b);
+  if (run.queue.length > 0) return 'fight';
+  if (run.room >= run.bossRoom) {
+    endRun(state, run, 'cleared', events);
+    return 'end';
+  }
+  logLine(run, { kind: 'room', room: run.room });
+  run.room += 1;
+  const { maxLife } = deriveBattleStats(state);
+  run.life = Math.min(maxLife, run.life + Math.round((maxLife * ROOM_REGEN_TOTAL) / (run.bossRoom - 1)));
+  run.queue = roomQueue(state, run, run.room);
+  return 'room';
+}
+
+/**
+ * One combat step of `dt` seconds: the miner's auto hits, then (unless the room fell) the fighting monster's attacks.
+ * Returns the battle stats to use next, re-derived after a level-up.
+ */
+function combatStep(state: GameState, run: MapRun, b: BattleStats, dt: number, events?: TickEvent[]): BattleStats {
+  run.hitCarry += b.attacksPerSecond * dt;
+  while (run.hitCarry >= 1) {
+    run.hitCarry -= 1;
+    const level = state.level;
+    const outcome = strike(state, run, b, false, events);
+    if (outcome === 'end') return b;
+    if (outcome === 'room') {
+      run.hitCarry -= Math.floor(run.hitCarry);
+      return state.level !== level ? deriveBattleStats(state) : b;   // the new room doesn't attack this step
+    }
+    if (state.level !== level) b = deriveBattleStats(state);
+  }
+
+  const m = run.queue[0];
+  if (m === undefined) return b;
+  run.monsterCarry += dt / m.intervalS;
+  while (run.monsterCarry >= 1) {
+    run.monsterCarry -= 1;
+    const hurt = mitigate(m.damage, m.element, b);
+    run.life -= hurt;
+    events?.push({ kind: 'hurt', amount: hurt });
+    logLine(run, { kind: 'hurt', monster: m.name, amount: hurt });
+    if (m.mods.includes('vampiric')) {
+      const healed = Math.min(m.maxLife, m.life + Math.round(hurt * VAMPIRIC_HEAL)) - m.life;
+      m.life += healed;
+      if (healed > 0) logLine(run, { kind: 'heal', monster: m.name, amount: healed });
+    }
+    if (run.life <= 0) {
+      endRun(state, run, 'died', events);
+      return b;
+    }
+  }
+  return b;
+}
+
+/** One tick of a map: `1 / autoTicksPerSecond` seconds of combat, fought in equal steps of at most COMBAT_STEP_S. */
+export function mapTick(state: GameState, stats: Stats, events?: TickEvent[]): void {
+  const dt = 1 / stats.autoTicksPerSecond;
+  if (!(dt > 0) || !Number.isFinite(dt)) return;
+  const steps = Math.ceil(dt / COMBAT_STEP_S);
+  let b = deriveBattleStats(state);
+  for (let i = 0; i < steps && state.activity.kind === 'map'; i++) {
+    b = combatStep(state, state.activity.run, b, dt / steps, events);
+  }
+}
+
+/** One click strike, at once; a room it clears advances straight away. Does nothing outside a map. */
+export function clickHit(state: GameState, events?: TickEvent[]): void {
+  if (state.activity.kind !== 'map') return;
+  strike(state, state.activity.run, deriveBattleStats(state), true, events);
+}

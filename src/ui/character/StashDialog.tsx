@@ -5,6 +5,7 @@ import { filledCount } from '../../core/cells';
 import type { GearSet } from '../../core/items';
 import type { GameStore } from '../../store/gameStore';
 import { formatNumber } from '../format';
+import { MapList } from '../maps/MapList';
 import { useDialog } from '../useDialog';
 import { useGame } from '../useGame';
 import { dropAttr } from './dragDrop';
@@ -34,7 +35,7 @@ export function StashDialog({ store, set, onClose, drag, sayRef }: {
   const [tab, setTab] = useState<StashTab>('general');
   const [bagSet, setBagSet] = useState<GearSet>(set);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const closeRef = useDialog<HTMLButtonElement>(onClose, dialogRef);
+  const { focusRef: closeRef, depth } = useDialog<HTMLButtonElement>(onClose, dialogRef);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const tabRefs = useRef<Partial<Record<StashTab, HTMLButtonElement | null>>>({});
   const { handlers, message, say, cards, tapCard, reset } = useItemInteractions({
@@ -67,7 +68,7 @@ export function StashDialog({ store, set, onClose, drag, sayRef }: {
   const bag = state.bags[bagSet];
   const bagLabel = BAGS.find((b) => b.set === bagSet)?.toggle ?? 'Bag';
   return (
-    <div className="gm-overlay gm-overlay--top">
+    <div className="gm-overlay gm-overlay--top" style={{ zIndex: 10 + depth }}>
       <div
         ref={dialogRef}
         className="gm-dialog gm-dialog--wide gm-stash"
@@ -119,9 +120,7 @@ export function StashDialog({ store, set, onClose, drag, sayRef }: {
                 />
               )}
               {tab === 'gems' && <GemTab state={state} handlers={handlers} />}
-              {tab === 'maps' && (
-                <p className="gm-stash__empty gm-muted">No maps yet. Maps are kept here once dungeons open.</p>
-              )}
+              {tab === 'maps' && <MapList store={store} compact onRun={onClose} />}
             </div>
           </div>
           <div className="gm-stash__bag">

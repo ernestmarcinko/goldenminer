@@ -33,3 +33,10 @@ export function pickWeighted<T>(s: { rng: number }, entries: readonly (readonly 
   if (last === undefined) throw new Error('pickWeighted needs at least one entry');
   return last[0];
 }
+
+/** Chains `hash2` over every `n`: world generation passes a per-feature salt first, then the position. */
+export function hashN(seed: number, ...ns: number[]): number {
+  let h = seed >>> 0;
+  for (const n of ns) h = hash2(h, n);
+  return h;
+}

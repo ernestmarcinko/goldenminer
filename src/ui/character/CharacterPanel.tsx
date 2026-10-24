@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BAG_SIZE, STASH_SIZE } from '../../core/balance';
 import { filledCount } from '../../core/cells';
-import type { GearSet } from '../../core/items';
+import { setOfSlot, type GearSet } from '../../core/items';
 import { gearTotals } from '../../core/stats';
 import type { GameStore } from '../../store/gameStore';
 import { formatNumber } from '../format';
@@ -26,8 +26,10 @@ type Dialog = 'stash' | 'filter' | null;
 
 export function CharacterPanel({ store }: { store: GameStore }) {
   const { state, stats } = useGame(store);
-  const flashSlot = useRecentEquip(store)?.slot ?? null;
-  const [set, setSet] = useState<GearSet>('mining');
+  const recentEquip = useRecentEquip(store);
+  const flashSlot = recentEquip?.slot ?? null;
+  const running = state.activity.kind === 'map';
+  const [set, setSet] = useState<GearSet>(running ? 'battle' : 'mining');
   const [dialog, setDialog] = useState<Dialog>(null);
   const panelRef = useRef<HTMLElement>(null);
   const bagHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -39,6 +41,22 @@ export function CharacterPanel({ store }: { store: GameStore }) {
   const { handlers, message, say, cards, tapCard, reset } = useItemInteractions({
     store, state, shownSet: set, containerRef: panelRef, fallbackRef: bagHeadingRef, drag,
   });
+
+  // a run starting shows the Battle set and its ending the Mining set; an equip shows the set it went into, so its glow is seen
+  const wasRunning = useRef(running);
+  useEffect(() => {
+    if (running === wasRunning.current) return;
+    wasRunning.current = running;
+    setSet(running ? 'battle' : 'mining');
+    reset();
+  }, [running, reset]);
+  const shownEquip = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (recentEquip === null || recentEquip.id === shownEquip.current) return;
+    shownEquip.current = recentEquip.id;
+    setSet(setOfSlot(recentEquip.slot));
+    reset();
+  }, [recentEquip, reset]);
 
   const closeDialog = (): void => {
     const back = dialog === 'stash' ? stashButtonRef : filterButtonRef;

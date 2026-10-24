@@ -45,6 +45,74 @@ export const MAX_OVERFLOW = 10;
 export const MAX_SOCKETS = 3;
 export const MAX_AFFIXES = 4;
 
+export const LEVEL_CAP = 60;
+export const MAP_STASH_SIZE = 200;
+export const COMBAT_LOG_LIMIT = 20;
+export const RUN_LOOT_LIMIT = 30;
+export const MAX_LIFE = 1_000_000;
+export const MAX_DAMAGE = 1_000_000;
+
+// The miner's battle numbers.
+export const BASE_LIFE = 50;
+export const LIFE_PER_LEVEL = 10;
+export function baseDamage(level: number): { min: number; max: number } {
+  return { min: 2 + level, max: 4 + 2 * level };
+}
+export const BASE_ATTACKS_PER_SECOND = 1;
+export const MIN_ATTACKS_PER_SECOND = 0.2;
+export const MAX_ATTACKS_PER_SECOND = 5;
+export const BASE_CRIT_CHANCE = 5;
+export const MAX_CRIT_CHANCE = 75;
+export const CRIT_MULTIPLIER = 1.5;
+export const MAX_RESIST = 75;
+export const ARMOR_FACTOR = 10;
+export const MAX_ARMOR_REDUCTION = 0.9;
+
+// Monster base values by tier (unrounded); species, rank and modifiers scale them.
+export function monsterLifeBase(tier: number): number {
+  return 15 * tier ** 1.3;
+}
+export function monsterDamageBase(tier: number): number {
+  return 2 + 1.5 * tier ** 1.2;
+}
+export function monsterXp(tier: number): number {
+  return Math.round(10 * tier ** 1.5);
+}
+export const CHAMPION_LIFE = 2.5;
+export const CHAMPION_DAMAGE = 1.5;
+export const CHAMPION_REWARD = 3;
+export const BOSS_LIFE = 5;
+export const BOSS_DAMAGE = 1.5;
+export const BOSS_REWARD = 5;
+export const ARMORED_TAKEN = 0.6;
+export const SWIFT_SPEED = 1.4;
+export const VAMPIRIC_HEAL = 0.2;
+export const BRUTAL_DAMAGE = 1.5;
+export const THICK_LIFE = 1.8;
+
+// Rewards and drops.
+export function soulsPerKill(tier: number): number {
+  return 0.25 * tier;
+}
+export function goldPerKill(tier: number): number {
+  return 2 * tier;
+}
+export const DROP_CHANCE = 0.15;
+export const BOSS_DROPS = 2;
+export const CHAMPION_DROPS = 1;
+export const CHAMPION_MAGIC_FIND = 3;
+export const MAP_DROP_BATTLE_CHANCE = 0.8;
+export const MAP_GEM_CHANCE = 0.04;
+// What the room clears of a map heal in all, as a share of max life: each clear heals its part, so every map heals the same.
+export const ROOM_REGEN_TOTAL = 1.5;
+// A map tick is fought in equal steps of at most this many seconds, so the tick rate never changes a fight.
+export const COMBAT_STEP_S = 0.25;
+// A map's layout: every map holds the same monster budget; a champion costs CHAMPION_UNITS of it.
+export const MONSTER_BUDGET = 15;
+export const CHAMPION_UNITS = 3;
+export const MIN_ROOMS = 4;
+export const MAX_ROOMS = 7;
+
 export const AUTOSAVE_INTERVAL_MS = 30_000;
 export const OFFLINE_SUMMARY_MIN_TICKS = 300;
 export const TAB_LOCK_STALE_MS = 5000;

@@ -19,7 +19,7 @@ export function emptyInventory(): Pick<GameState, 'equipped' | 'bags' | 'stash' 
   return {
     equipped: { mining: {}, battle: {} },
     bags: { mining: emptyGrid(BAG_SIZE), battle: emptyGrid(BAG_SIZE) },
-    stash: { general: emptyGrid(STASH_SIZE), gems: emptyGemCounts() },
+    stash: { general: emptyGrid(STASH_SIZE), gems: emptyGemCounts(), maps: [] },
     overflow: [],
   };
 }

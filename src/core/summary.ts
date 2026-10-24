@@ -10,6 +10,9 @@ export function summarize(before: GameState, after: GameState, elapsedMs: number
     gold: after.gold - before.gold,
     diamonds: after.diamonds - before.diamonds,
     metres: after.deepest - before.deepest,
+    souls: after.souls - before.souls,
+    levels: after.level - before.level,
+    maps: { cleared: after.mapTally.cleared - before.mapTally.cleared, lost: after.mapTally.lost - before.mapTally.lost },
     finds,
     items: {
       kept: after.lootTally.kept - before.lootTally.kept,

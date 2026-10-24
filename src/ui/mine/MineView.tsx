@@ -8,7 +8,7 @@ import { Minimap } from './Minimap';
 import { ShaftScene } from './ShaftScene';
 import './mine.css';
 
-export function MineView({ store }: { store: GameStore }) {
+export function MineView({ store, onBackToMap }: { store: GameStore; onBackToMap: () => void }) {
   const { state, stats } = useGame(store);
   const heldBag = state.overflow[0]?.bag;
   const inGallery = state.depth < state.deepest;
@@ -16,6 +16,12 @@ export function MineView({ store }: { store: GameStore }) {
   const pct = Math.round(Math.min(1, Math.max(0, inGallery ? state.galleryProgress : state.progress)) * 100);
   return (
     <div className="gm-mine">
+      {state.activity.kind === 'map' && (
+        <div role="status" className="gm-banner gm-banner--run">
+          <span>Digging is paused while you're in a map.</span>
+          <button type="button" className="gm-btn" onClick={onBackToMap}>Back to the map</button>
+        </div>
+      )}
       {heldBag !== undefined && (
         <div role="status" className="gm-banner">
           Your {heldBag} bag and the stash are full, so digging has stopped. Sell or salvage something from the {heldBag} bag or the stash to carry on.

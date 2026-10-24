@@ -17,6 +17,13 @@
   --gm-gem: #7fd3e8;
   --gm-up: #6fcf97;
   --gm-down: #ff8a7a;
+  --gm-soul: #b39cff;
+  --gm-soul-bright: #e6deff;
+  --gm-life: #6fcf97;
+  --gm-enemy-life: #e2604f;
+  --gm-badge-bg: #d6c9ff;
+  --gm-badge-fg: #2c2440;
+  --gm-soul-panel: #2a2338;
 
   --gm-font-display: 'Metamorphous', serif;
   --gm-font-ui: 'Alegreya Sans', system-ui, sans-serif;
@@ -45,6 +52,12 @@ a:hover {
   100% { transform: translate(-50%, calc(-50% - 64px)); opacity: 0; }
 }
 
+@keyframes gmCrit {
+  0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
+  20% { transform: translate(-50%, calc(-50% - 12px)) scale(1.3); opacity: 1; }
+  100% { transform: translate(-50%, calc(-50% - 72px)) scale(1); opacity: 0; }
+}
+
 @keyframes gmFlicker {
   0% { opacity: 0.9; }
   45% { opacity: 1; }
@@ -59,6 +72,7 @@ a:hover {
 
 @media (prefers-reduced-motion: reduce) {
   .gm-particle,
+  .gm-float,
   .gm-shaft__glow {
     animation: none;
   }

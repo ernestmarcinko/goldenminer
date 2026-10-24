@@ -1,24 +1,31 @@
 import { compressToBase64, decompressFromBase64 } from 'lz-string';
 import {
-  BAG_SIZE, FINDS_LOG_LIMIT, GEM_BAG_STACK, GEM_STASH_STACK, MAX_AFFIXES, MAX_LOOT_RULES, MAX_OVERFLOW, MAX_SOCKETS,
-  STASH_SIZE,
+  BAG_SIZE, COMBAT_LOG_LIMIT, FINDS_LOG_LIMIT, GEM_BAG_STACK, GEM_STASH_STACK, LEVEL_CAP, MAP_STASH_SIZE, MAX_AFFIXES,
+  MAX_DAMAGE, MAX_LIFE, MAX_LOOT_RULES, MAX_OVERFLOW, MAX_SOCKETS, MONSTER_BUDGET, RUN_LOOT_LIMIT, STASH_SIZE,
 } from './balance';
+import { metreTier } from './bands';
 import { emptyGemCounts } from './cells';
+import { dungeonIndexAt, dungeonType } from './dungeons';
 import { gemGradeFor } from './itemData';
 import { GEAR_SETS, GEM_GRADES, GEM_TYPES, RARITIES, setOfSlot, slotsOf, statsOf } from './items';
 import type { Cell, GearItem, GearSet, GemItem, GemType, Item, Slot } from './items';
+import { xpToNext } from './levels';
 import { isValidSeedText, seedFromText } from './seed';
+import { speciesOf } from './species';
 import {
-  BAG_FULL_MODES, DEFAULT_MOTION, FEATURE_KINDS, LOOT_ACTIONS, LOOT_OUTCOMES, SHAFT_MOTIONS, type GameState,
+  BAG_FULL_MODES, CHAMPION_MODS, DEFAULT_MOTION, ELEMENTS, FEATURE_KINDS, LOOT_ACTIONS, LOOT_OUTCOMES, RANKS, RUN_OUTCOMES,
+  SHAFT_MOTIONS, type GameState, type MapItem,
 } from './types';
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
   | { ok: false; reason: 'corrupt' | 'future' | 'invalid' };
 
 export type Migration = (state: unknown) => unknown;
+
+const MAX_MIGRATED_METRE = 30_000_000;
 
 export const MIGRATIONS: Record<number, Migration> = {
   1: (state) => {
@@ -87,6 +94,25 @@ export const MIGRATIONS: Record<number, Migration> = {
       bags: { mining: bagOf(state.bags.mining), battle: bagOf(state.bags.battle) },
       stash: { general: padCells(general, STASH_SIZE), gems: tab },
       overflow,
+    };
+  },
+  4: (state) => {
+    if (!isObject(state) || !Array.isArray(state.finds) || !isObject(state.stash) || !isNonNegInt(state.nextId)) return state;
+    // Every past map find becomes a map of the tier its metre was dug at; the Maps tab keeps the newest.
+    let nextId = state.nextId;
+    const maps: MapItem[] = [];
+    for (const f of state.finds) {
+      if (!isObject(f) || f.kind !== 'map') continue;
+      const metre = f.depth;
+      // An absurd depth is left for the validator to reject; the band maths below must never see it.
+      if (!isNonNegInt(metre) || metre < 1 || metre > MAX_MIGRATED_METRE) return state;
+      maps.push({ id: nextId++, type: 'map', tier: metreTier(metre), metre });
+    }
+    return {
+      ...state,
+      nextId,
+      stash: { ...state.stash, maps: maps.slice(-MAP_STASH_SIZE) },
+      level: 1, xp: 0, souls: 0, activity: { kind: 'dig' }, lastRun: null, mapTally: { cleared: 0, lost: 0 },
     };
   },
 };
@@ -266,12 +292,82 @@ function isSettings(x: unknown): boolean {
   );
 }
 
-function isInventory(x: Record<string, unknown>, nextId: number): boolean {
-  const seen = new Set<number>();
+function isMapItem(x: unknown, nextId: number, seen: Set<number>): x is MapItem {
+  if (!isObject(x) || x.type !== 'map' || !isItemLevel(x.tier) || !isNonNegInt(x.metre) || x.metre < 1) return false;
+  return isItemBase(x, nextId, seen, false);
+}
+
+function isMonster(x: unknown, tier: number): boolean {
+  if (!isObject(x)) return false;
+  if (typeof x.name !== 'string' || x.name.length < 1 || x.name.length > 80 || !isNonNegInt(x.species)) return false;
+  if (x.species >= speciesOf(tier).length) return false;
+  if (!isIn(RANKS, x.rank) || !isUint32(x.extra) || !isIn(ELEMENTS, x.element)) return false;
+  if (
+    !Array.isArray(x.mods) || x.mods.length > 2 || (x.mods.length > 0 && x.rank !== 'champion') ||
+    !x.mods.every((m) => isIn(CHAMPION_MODS, m)) || new Set(x.mods).size !== x.mods.length
+  ) return false;
+  return (
+    isNonNegInt(x.life) && x.life >= 1 && isNonNegInt(x.maxLife) && x.life <= x.maxLife && x.maxLife <= MAX_LIFE &&
+    isNonNegInt(x.damage) && x.damage <= MAX_DAMAGE && isNonNegInt(x.xp) &&
+    isNonNegFinite(x.intervalS) && x.intervalS > 0 && x.intervalS <= 60
+  );
+}
+
+function isGains(x: unknown): boolean {
+  return isObject(x) && isNonNegInt(x.xp) && isNonNegInt(x.souls) && isNonNegInt(x.gold) && isNonNegInt(x.levels);
+}
+
+function isCombatLine(x: unknown): boolean {
+  if (!isObject(x)) return false;
+  const named = typeof x.monster === 'string' && x.monster.length >= 1 && x.monster.length <= 80;
+  switch (x.kind) {
+    case 'hit': return named && isNonNegInt(x.amount) && typeof x.crit === 'boolean' && typeof x.click === 'boolean';
+    case 'hurt':
+    case 'heal': return named && isNonNegInt(x.amount);
+    case 'kill': return named && isNonNegInt(x.xp) && isNonNegInt(x.souls);
+    case 'room': return isNonNegInt(x.room) && x.room >= 1;
+    case 'level': return isNonNegInt(x.level) && x.level >= 1 && x.level <= LEVEL_CAP;
+    case 'drop': return isLootNote(x.note);
+    default: return false;
+  }
+}
+
+// The boss room is the last: bossRoom is the map's dungeon's regular rooms plus one, regenerated from the world seed.
+const isBossRoom = (x: unknown, seed: number, map: MapItem): x is number =>
+  x === dungeonType(seed, map.tier, dungeonIndexAt(seed, map.metre)).rooms + 1;
+const isRoomIn = (x: unknown, bossRoom: number): x is number => isNonNegInt(x) && x >= 1 && x <= bossRoom;
+
+function isMapRun(x: unknown, seed: number, nextId: number, seen: Set<number>): boolean {
+  if (!isObject(x) || !isMapItem(x.map, nextId, seen) || !isBossRoom(x.bossRoom, seed, x.map) || !isRoomIn(x.room, x.bossRoom)) return false;
+  const { queue, room, bossRoom } = x;
+  const tier = isObject(x.map) && typeof x.map.tier === 'number' ? x.map.tier : 1;
+  if (!Array.isArray(queue) || queue.length < 1 || queue.length > MONSTER_BUDGET || !queue.every((m) => isMonster(m, tier))) return false;
+  if ((queue[0].rank === 'boss') !== (room === bossRoom)) return false;
+  if (!isNonNegInt(x.life) || x.life < 1 || x.life > MAX_LIFE || !isUnitRange(x.hitCarry) || !isUnitRange(x.monsterCarry)) return false;
+  if (!isGains(x.gained) || !isNonNegInt(x.items)) return false;
+  if (!Array.isArray(x.log) || x.log.length > COMBAT_LOG_LIMIT || !x.log.every(isCombatLine)) return false;
+  return Array.isArray(x.loot) && x.loot.length <= RUN_LOOT_LIMIT && x.loot.every(isLootNote);
+}
+
+function isActivity(x: unknown, seed: number, nextId: number, seen: Set<number>): boolean {
+  if (!isObject(x)) return false;
+  if (x.kind === 'dig') return Object.keys(x).length === 1;
+  return x.kind === 'map' && isMapRun(x.run, seed, nextId, seen);
+}
+
+function isRunResult(x: unknown, seed: number, nextId: number, seen: Set<number>): boolean {
+  return (
+    isObject(x) && isMapItem(x.map, nextId, seen) && isIn(RUN_OUTCOMES, x.outcome) && isBossRoom(x.bossRoom, seed, x.map) &&
+    isRoomIn(x.room, x.bossRoom) && isGains(x.gained) && isNonNegInt(x.items) && typeof x.seen === 'boolean'
+  );
+}
+
+function isInventory(x: Record<string, unknown>, nextId: number, seen: Set<number>): boolean {
   const { equipped, bags, stash, overflow, lootTally } = x;
   if (!isObject(equipped) || !isEquipped(equipped.mining, 'mining', nextId, seen) || !isEquipped(equipped.battle, 'battle', nextId, seen)) return false;
   if (!isObject(bags) || !isBag(bags.mining, 'mining', nextId, seen) || !isBag(bags.battle, 'battle', nextId, seen)) return false;
   if (!isObject(stash) || !isGeneral(stash.general, nextId, seen) || !isGemTab(stash.gems)) return false;
+  if (!Array.isArray(stash.maps) || stash.maps.length > MAP_STASH_SIZE || !stash.maps.every((m) => isMapItem(m, nextId, seen))) return false;
   if (!Array.isArray(overflow) || overflow.length > MAX_OVERFLOW) return false;
   const heldOk = overflow.every(
     (o) =>
@@ -302,7 +398,14 @@ export function validateState(x: unknown): x is GameState {
   }
   if (!isNonNegInt(x.nextId) || x.nextId < 1) return false;
   const { nextId } = x;
-  if (!isUnitRange(x.goldCarry) || !isInventory(x, nextId) || !isSettings(x.settings)) return false;
+  const seen = new Set<number>();
+  if (!isUnitRange(x.goldCarry) || !isInventory(x, nextId, seen) || !isSettings(x.settings)) return false;
+  if (!isNonNegInt(x.level) || x.level < 1 || x.level > LEVEL_CAP) return false;
+  // Below the cap xp is under the next level's cost; at the cap (where xpToNext is 0) it stays 0.
+  if (!isNonNegInt(x.xp) || (x.level === LEVEL_CAP ? x.xp !== 0 : x.xp >= xpToNext(x.level))) return false;
+  if (!isNonNegInt(x.souls) || !isActivity(x.activity, x.seed, nextId, seen)) return false;
+  if (x.lastRun !== null && !isRunResult(x.lastRun, x.seed, nextId, seen)) return false;
+  if (!isObject(x.mapTally) || !isNonNegInt(x.mapTally.cleared) || !isNonNegInt(x.mapTally.lost)) return false;
   if (!Array.isArray(x.finds) || x.finds.length > FINDS_LOG_LIMIT) return false;
   return x.finds.every((f) => isFindRecord(f, nextId));
 }

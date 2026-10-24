@@ -4,9 +4,15 @@ import { MemoryStorage, SAVE_KEY, BACKUP_PREFIX, safeStorage } from '../../src/s
 import { decodeSave, encodeSave } from '../../src/core/save';
 import { compressToBase64 } from 'lz-string';
 import { newGame } from '../../src/core/newGame';
+import { addMap, startMap } from '../../src/core/maps';
+import { advance } from '../../src/core/clock';
+import { freshWorld } from '../../src/core/seed';
+import { deriveBattleStats } from '../../src/core/battle';
+import { deriveStats } from '../../src/core/stats';
+import { xpToNext } from '../../src/core/levels';
 import { seedFromText } from '../../src/core/seed';
 import { MAX_LOOT_RULES } from '../../src/core/balance';
-import type { LootRule } from '../../src/core/types';
+import type { LootRule, TickEvent } from '../../src/core/types';
 import { gear, gem } from '../helpers/items';
 
 function make(now = { t: 0 }, storage = new MemoryStorage(), available = true) {
@@ -84,7 +90,7 @@ describe('GameStore', () => {
   it('aggregates feedback between drains', () => {
     const { store, now } = make(); store.load(); now.t = 5000; store.pump();
     expect(store.drainFeedback().gold).toBe(5);
-    expect(store.drainFeedback()).toEqual({ gold: 0, diamonds: 0, finds: [] });
+    expect(store.drainFeedback()).toEqual({ gold: 0, diamonds: 0, finds: [], strikes: [], hurt: 0 });
   });
 
   it('never loses an unreadable save when its backup cannot be written', () => {
@@ -260,5 +266,145 @@ describe('inventory intents', () => {
     expect(store.state.settings.motion).toEqual({ floats: false, pops: false, lampFlicker: true, shaft: 'smooth' });
     // the next save must still be readable
     expect(make().store.importSave(store.exportSave()).ok).toBe(true);
+  });
+});
+
+describe('maps', () => {
+  it('a click in a map is a hit, never a dig, and still capped', () => {
+    const { store } = make(); store.load();
+    const map = addMap(store.state, 1, 2);
+    expect(store.startMap(map.id)).toBe('ok');
+    const ticks = store.state.tickCount;
+    const events = store.click();
+    expect(events.some((e) => e.kind === 'strike' && e.click)).toBe(true);
+    expect(store.state.tickCount).toBe(ticks);
+    for (let i = 0; i < 20; i++) store.click();
+    const hits = store.state.activity.kind === 'map' ? store.state.activity.run.log.filter((l) => l.kind === 'hit' && l.click).length : 0;
+    expect(hits).toBeLessThanOrEqual(10);
+  });
+
+  it('leaving and dismissing', () => {
+    const { store } = make(); store.load();
+    store.startMap(addMap(store.state, 1, 2).id);
+    expect(store.leaveMap()).toBe(true);
+    expect(store.state.lastRun).toMatchObject({ outcome: 'left', seen: false });
+    store.dismissRun();
+    expect(store.state.lastRun?.seen).toBe(true);
+  });
+
+  it('auto strikes reach the feedback', () => {
+    const { store, now } = make(); store.load();
+    store.startMap(addMap(store.state, 1, 2).id);
+    now.t = 3000; store.pump();
+    const fb = store.drainFeedback();
+    expect(fb.strikes.length).toBeGreaterThan(0);
+  });
+
+  /** The same run on a plain core game, pumped at the same moments, with every event it produced. */
+  function runEvents(seconds: number): TickEvent[] {
+    const reference = freshWorld(() => 7, 0);
+    startMap(reference, addMap(reference, 1, 2).id);
+    const events: TickEvent[] = [];
+    for (let t = 250; t <= seconds * 1000; t += 250) advance(reference, t, deriveStats(reference), events);
+    expect(reference.activity.kind).toBe('map');
+    return events;
+  }
+
+  function pumpedRun(seconds: number) {
+    const { store, now } = make(); store.load();
+    store.startMap(addMap(store.state, 1, 2).id);
+    for (now.t = 250; now.t <= seconds * 1000; now.t += 250) store.pump();
+    expect(store.state.activity.kind).toBe('map');
+    return store;
+  }
+
+  it('keeps only the newest 6 auto strikes', () => {
+    const struck = runEvents(10).flatMap((e) => (e.kind === 'strike' && !e.click ? [{ amount: e.amount, crit: e.crit }] : []));
+    expect(struck.length).toBeGreaterThan(6);
+    expect(pumpedRun(10).drainFeedback().strikes).toEqual(struck.slice(-6));
+  });
+
+  it('click strikes stay out of the feedback', () => {
+    const { store } = make(); store.load();
+    store.startMap(addMap(store.state, 1, 2).id);
+    expect(store.click().some((e) => e.kind === 'strike' && e.click)).toBe(true);
+    expect(store.drainFeedback().strikes).toEqual([]);
+  });
+
+  it('sums the damage taken and starts again after a drain', () => {
+    const hurt = runEvents(10).reduce((sum, e) => sum + (e.kind === 'hurt' ? e.amount : 0), 0);
+    expect(hurt).toBeGreaterThan(0);
+    const store = pumpedRun(10);
+    expect(store.drainFeedback().hurt).toBeCloseTo(hurt, 6);
+    expect(store.drainFeedback().hurt).toBe(0);
+  });
+
+  it('a click after the run has ended digs again', () => {
+    const { store } = make(); store.load();
+    store.startMap(addMap(store.state, 1, 2).id);
+    store.leaveMap();
+    expect(store.state.activity.kind).toBe('dig');
+    const ticks = store.state.tickCount;
+    store.click();
+    expect(store.state.tickCount).toBeGreaterThan(ticks);
+  });
+
+  it('dismissing with no run, or an already seen one, changes nothing', () => {
+    const { store } = make(); store.load();
+    let v = store.version;
+    store.dismissRun();
+    expect(store.state.lastRun).toBeNull();
+    expect(store.version).toBe(v);
+    store.startMap(addMap(store.state, 1, 2).id);
+    store.leaveMap();
+    store.dismissRun();
+    v = store.version;
+    store.dismissRun();
+    expect(store.version).toBe(v);
+  });
+
+  it('a dismissed run stays dismissed across a save and load', () => {
+    const { store, storage, now } = make(); store.load();
+    store.startMap(addMap(store.state, 1, 2).id);
+    store.leaveMap();
+    store.dismissRun();
+    store.save();
+    const again = make(now, storage).store; again.load();
+    expect(again.state.lastRun).toMatchObject({ outcome: 'left', seen: true });
+  });
+});
+
+describe('battle stats', () => {
+  it('start from the fresh game and follow worn battle gear', () => {
+    const { store } = make(); store.load();
+    expect(store.battle).toEqual(deriveBattleStats(store.state));
+    const before = store.battle.damageMin;
+    store.state.bags.battle[0] = gear(store.state, 'weapon');
+    expect(store.equip({ where: 'bag', set: 'battle', index: 0 })).toBe('ok');
+    expect(store.battle.damageMin).toBeGreaterThan(before);
+    expect(store.battle).toEqual(deriveBattleStats(store.state));
+  });
+
+  it('follow a level gained inside a pump', () => {
+    const { store, now } = make(); store.load();
+    const before = store.battle.maxLife;
+    store.state.xp = xpToNext(store.state.level) - 1;
+    store.startMap(addMap(store.state, 1, 2).id);
+    for (now.t = 250; store.state.level === 1 && now.t <= 60_000; now.t += 250) store.pump();
+    expect(store.state.level).toBeGreaterThan(1);
+    expect(store.battle.maxLife).toBeGreaterThan(before);
+    expect(store.battle).toEqual(deriveBattleStats(store.state));
+  });
+
+  it('follow an imported save and a new world', () => {
+    const { store } = make(); store.load();
+    const other = newGame(2, 0);
+    other.level = 5;
+    expect(store.importSave(encodeSave(other, 0)).ok).toBe(true);
+    expect(store.battle).toEqual(deriveBattleStats(store.state));
+    expect(store.battle.maxLife).toBeGreaterThan(deriveBattleStats(newGame(2, 0)).maxLife);
+    expect(store.newWorld(null)).toBe(true);
+    expect(store.battle).toEqual(deriveBattleStats(store.state));
+    expect(store.battle.maxLife).toBe(deriveBattleStats(newGame(2, 0)).maxLife);
   });
 });
