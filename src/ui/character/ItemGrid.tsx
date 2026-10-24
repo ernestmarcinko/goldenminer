@@ -5,9 +5,9 @@ import type { Cell, Item } from '../../core/items';
 import { itemName } from '../../core/itemData';
 import { Sprite } from '../../sprites/Sprite';
 import { formatCompact, formatNumber } from '../format';
-import { dropAttr } from './dragDrop';
+import { clickRoute, dropAttr } from './dragDrop';
 import type { ItemTarget } from './itemActions';
-import { clickIntent, itemSprite, rarityOf } from './itemView';
+import { itemSprite, rarityOf } from './itemView';
 import type { ClickIntent } from './itemView';
 import type { ItemDrag } from './useItemDrag';
 
@@ -17,6 +17,8 @@ export interface ItemHandlers {
   onInspect: (target: ItemTarget, el: HTMLElement) => void;
   onClear: () => void;
   onMenu: (target: ItemTarget, el: HTMLElement) => void;
+  /** A touch tap lifted the item: its card opens below the grid. */
+  onLift: (target: ItemTarget, el: HTMLElement) => void;
 }
 
 const MAX_DOTS = 3;
@@ -52,15 +54,11 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
       onPointerDown={(e) => { pointerType.current = e.pointerType; drag.onPointerDown(target, e); }}
       onClick={(e) => {
         if (drag.consumeClick()) return;
-        // a touch tap lifts the item and opens its card; with an item already lifted it places or puts back
-        if (pointerType.current === 'touch' && e.detail !== 0) {
-          const lifting = drag.held === null;
-          if (drag.onTap(target, true) && !lifting) return;
-        }
-        const intent = clickIntent({
+        const route = clickRoute({
           altKey: e.altKey, shiftKey: e.shiftKey, detail: e.detail, pointerType: pointerType.current,
-        });
-        handlers.onPick(target, intent, e.currentTarget);
+        }, drag.held !== null);
+        if (route.kind === 'pick') handlers.onPick(target, route.intent, e.currentTarget);
+        else if (drag.onTap(target, true) && route.kind === 'lift') handlers.onLift(target, e.currentTarget);
       }}
       onContextMenu={(e) => { e.preventDefault(); handlers.onMenu(target, e.currentTarget); }}
       onMouseEnter={(e) => { if (pointerType.current !== 'touch') handlers.onInspect(target, e.currentTarget); }}

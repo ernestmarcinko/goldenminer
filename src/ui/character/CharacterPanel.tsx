@@ -34,7 +34,7 @@ export function CharacterPanel({ store }: { store: GameStore }) {
   // one drag controller for the panel and the stash; a drop result shows on the stash's status line while it is open
   const stashSay = useRef<((text: string | null) => void) | null>(null);
   const drag = useItemDrag({ store, onResult: (text) => (stashSay.current ?? say)(text) });
-  const { handlers, message, say, cards, reset } = useItemInteractions({
+  const { handlers, message, say, cards, tapCard, reset } = useItemInteractions({
     store, state, shownSet: set, containerRef: panelRef, fallbackRef: bagHeadingRef, drag,
   });
 
@@ -97,6 +97,7 @@ export function CharacterPanel({ store }: { store: GameStore }) {
         targetOf={(index) => ({ where: 'bag', set, index })}
         handlers={handlers}
       />
+      {tapCard}
       <div className="gm-char__status gm-small" role="status">{message}</div>
       <p className="gm-char__hint gm-muted gm-small">
         Hover an item to inspect it, click to equip, or drag it to a cell, a slot or the Stash button. Alt+click sells,

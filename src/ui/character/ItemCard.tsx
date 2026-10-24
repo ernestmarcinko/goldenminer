@@ -29,15 +29,22 @@ function Lines({ lines }: { lines: ViewLine[] }) {
   );
 }
 
-/** The hover tooltip, or with `menu` the action card: same content, plus one button per action. */
-export function ItemCard({ state, target, shownSet, left, top, menu }: {
+/**
+ * The hover tooltip, or with `menu` the action card: same content, plus one button per action. An `inline` card
+ * (opened by a touch tap) sits in the page flow and scrolls just into view, `smooth` only when motion is allowed.
+ */
+export function ItemCard({ state, target, shownSet, left, top, menu, inline = false, smooth = false }: {
   state: GameState; target: ItemTarget; shownSet: GearSet; left: number; top: number; menu?: CardMenu;
+  inline?: boolean; smooth?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const isMenu = menu !== undefined;
   useEffect(() => {
-    if (isMenu) ref.current?.querySelector('button')?.focus();
-  }, [isMenu]);
+    if (!isMenu) return;
+    // 'nearest' scrolls only as far as needed; the card sits below the grid, so nothing above it moves in the page
+    if (inline) ref.current?.scrollIntoView({ block: 'nearest', behavior: smooth ? 'smooth' : 'auto' });
+    ref.current?.querySelector('button')?.focus({ preventScroll: inline });
+  }, [isMenu, inline]);   // when the card opens, not when `smooth` changes
 
   const item = itemAt(state, target);
   if (item === undefined) return null;
@@ -58,12 +65,12 @@ export function ItemCard({ state, target, shownSet, left, top, menu }: {
   return (
     <div
       ref={ref}
-      className="gm-card"
+      className={inline ? 'gm-card gm-card--inline' : 'gm-card'}
       data-rarity={rarityOf(item)}
       data-item-card=""
       role={isMenu ? 'dialog' : 'tooltip'}
       aria-label={isMenu ? name : undefined}
-      style={{ left, top }}
+      style={inline ? undefined : { left, top }}
       onKeyDown={onKeyDown}
       onBlur={onBlur}
     >

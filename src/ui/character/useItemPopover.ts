@@ -3,7 +3,8 @@ import type { RefObject } from 'react';
 import type { ItemTarget } from './itemActions';
 import { placeTooltip } from './itemView';
 
-export interface Placed { target: ItemTarget; left: number; top: number }
+/** `inline`: a card opened by a touch tap, shown in the page flow below the grid instead of placed near the item. */
+export interface Placed { target: ItemTarget; left: number; top: number; inline?: true }
 
 /** Hover tooltip and action-card state; positions are relative to the container, which must be `position: relative`. */
 export function useItemPopover(containerRef: RefObject<HTMLElement | null>) {
@@ -32,10 +33,10 @@ export function useItemPopover(containerRef: RefObject<HTMLElement | null>) {
 
   const clear = useCallback(() => setHover(null), []);
 
-  const openMenu = useCallback((target: ItemTarget, el: HTMLElement) => {
+  const openMenu = useCallback((target: ItemTarget, el: HTMLElement, inline = false) => {
     opener.current = el;
     setHover(null);
-    setMenu(place(target, el));
+    setMenu(inline ? { target, left: 0, top: 0, inline: true } : place(target, el));
   }, [place]);
 
   /** With `restoreFocus`, focus goes back to the opener, or to `fallback` when the opener is gone. */

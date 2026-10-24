@@ -82,6 +82,8 @@ button.gm-item:hover { background: #3a2f20; }
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6); pointer-events: none;
 }
 .gm-card[role='dialog'] { pointer-events: auto; }
+/* the card a touch tap opens: in the flow below the grid, so the targets above stay uncovered */
+.gm-card.gm-card--inline { position: static; width: 100%; box-shadow: none; }
 .gm-card__name { font-family: var(--gm-font-display); font-weight: 400; font-size: 15px; color: var(--gm-tone, var(--gm-normal)); }
 .gm-card__kind { font-size: 12px; color: var(--gm-muted); }
 .gm-card__lines { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }

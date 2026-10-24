@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
+import { itemAt } from '../../core/cells';
 import type { DropTarget, InvResult, ItemLoc } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
-import { DRAG_THRESHOLD_PX, parseDrop, tapAction } from './dragDrop';
+import { DRAG_THRESHOLD_PX, heldLoc, parseDrop, tapAction } from './dragDrop';
+import type { Hold } from './dragDrop';
 import { resultText } from './itemActions';
 
 export interface ItemDrag {
@@ -12,7 +14,7 @@ export interface ItemDrag {
   consumeClick: () => boolean;
   /** A drag is in flight: tooltips and cards stay closed. */
   dragging: boolean;
-  /** The item lifted by a touch tap. */
+  /** Where the item lifted by a touch tap is; null once that item has gone from there. */
   held: ItemLoc | null;
   /** A touch tap on a target; true when the tap lifted, put back or placed an item. */
   onTap: (tapped: DropTarget, tappedIsItem: boolean) => boolean;
@@ -49,24 +51,26 @@ export function useItemDrag({ store, onResult }: {
   onResult: (text: string | null) => void;
 }): ItemDrag {
   const [dragging, setDragging] = useState(false);
-  const [held, setHeldState] = useState<ItemLoc | null>(null);
-  const heldRef = useRef<ItemLoc | null>(null);
+  const [hold, setHoldState] = useState<Hold | null>(null);
+  const holdRef = useRef<Hold | null>(null);
+  // checked on every render (the panel re-renders on each game change), so a sold or replaced item is not shown held
+  const held = heldLoc(store.state, hold);
   const resultRef = useRef(onResult);
   resultRef.current = onResult;
   const swallowClick = useRef(false);
   const stopPress = useRef<(() => void) | null>(null);
 
-  const setHeld = useCallback((loc: ItemLoc | null) => {
-    heldRef.current = loc;
-    setHeldState(loc);
+  const setHold = useCallback((next: Hold | null) => {
+    holdRef.current = next;
+    setHoldState(next);
   }, []);
-  const release = useCallback(() => setHeld(null), [setHeld]);
+  const release = useCallback(() => setHold(null), [setHold]);
 
   const drop = useCallback((from: ItemLoc, to: DropTarget): void => {
     const r: InvResult = store.drop(from, to);
     resultRef.current(resultText(r));
-    if (r === 'ok') setHeld(null);
-  }, [store, setHeld]);
+    if (r === 'ok') setHold(null);
+  }, [store, setHold]);
 
   const onPointerDown = useCallback((loc: ItemLoc, e: ReactPointerEvent<HTMLElement>) => {
     if (e.pointerType === 'touch' || e.button !== 0) return;
@@ -95,7 +99,13 @@ export function useItemDrag({ store, onResult }: {
       setDragging(false);
     };
     const onMove = (ev: PointerEvent): void => {
-      if (ev.pointerId !== pointerId || cancelled) return;
+      if (ev.pointerId !== pointerId) return;
+      // no button down means the pointerup was lost (say, to an alt-tab); a source that left the page cannot be dragged
+      if (ev.buttons === 0 || !source.isConnected) {
+        stop();
+        return;
+      }
+      if (cancelled) return;
       if (ghost === null) {
         if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < DRAG_THRESHOLD_PX) return;
         ghost = makeGhost(source);
@@ -149,22 +159,28 @@ export function useItemDrag({ store, onResult }: {
   useEffect(() => {
     if (!isHeld) return undefined;
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setHeld(null);
+      if (e.key === 'Escape') setHold(null);
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [isHeld, setHeld]);
+  }, [isHeld, setHold]);
 
   const onTap = useCallback((tapped: DropTarget, tappedIsItem: boolean): boolean => {
-    const from = heldRef.current;
+    // a hold whose item has gone is dropped, and the tap counts as one with nothing held
+    const from = heldLoc(store.state, holdRef.current);
+    if (from === null && holdRef.current !== null) setHold(null);
     const action = tapAction(from, tapped, tappedIsItem);
     switch (action.kind) {
-      case 'hold':
-        if (tapped.where === 'stashTab') return false;
-        setHeld(tapped);
+      case 'hold': {
+        // only a place with an item in it can be lifted
+        const loc = tapped.where === 'stashTab' ? null : tapped;
+        const item = loc === null ? undefined : itemAt(store.state, loc);
+        if (loc === null || item === undefined) return false;
+        setHold({ loc, id: item.id });
         return true;
+      }
       case 'release':
-        setHeld(null);
+        setHold(null);
         return true;
       case 'drop':
         if (from !== null) drop(from, action.to);
@@ -172,7 +188,7 @@ export function useItemDrag({ store, onResult }: {
       case 'none':
         return false;
     }
-  }, [drop, setHeld]);
+  }, [store, drop, setHold]);
 
   const consumeClick = useCallback((): boolean => {
     const swallow = swallowClick.current;

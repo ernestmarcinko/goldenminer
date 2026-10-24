@@ -37,7 +37,7 @@ export function StashDialog({ store, set, onClose, drag, sayRef }: {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const tabRefs = useRef<Partial<Record<StashTab, HTMLButtonElement | null>>>({});
-  const { handlers, message, say, cards, reset } = useItemInteractions({
+  const { handlers, message, say, cards, tapCard, reset } = useItemInteractions({
     store, state, shownSet: bagSet, containerRef: dialogRef, fallbackRef: titleRef, drag,
   });
   useEffect(() => {
@@ -147,6 +147,7 @@ export function StashDialog({ store, set, onClose, drag, sayRef }: {
             <div className="gm-muted gm-small">
               {bagLabel} {formatNumber(filledCount(bag))} / {formatNumber(BAG_SIZE)}
             </div>
+            {tapCard}
           </div>
         </div>
         <div className="gm-char__status gm-small" role="status">{message}</div>
