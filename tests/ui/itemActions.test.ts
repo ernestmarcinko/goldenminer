@@ -32,7 +32,7 @@ it('a bag gem stack offers sockets in worn then carried gear, then sell, salvage
   expect(labels(specs)).toEqual([
     ['socket', 'Socket into Stonebiter (+8% Gold yield)'],
     ['socket', 'Socket into Brass Loop (+6% damage)'],
-    ['socket', 'Socket into Tin Charm (+6% damage) (bag)'],
+    ['socket', 'Socket into Tin Charm (+6% damage) (battle bag)'],
     ['socket', 'Socket into Old Boots (+8% Gold yield) (stash)'],
     ['sell', 'Sell (+120 Gold)'],
     ['salvage', 'Salvage (+6 Diamonds)'],
@@ -113,6 +113,8 @@ it('what clicks do', () => {
   expect(act(gems, 'menu')).toBe('menu');
   expect(act(worn, 'primary')).toMatchObject({ id: 'unequip' });
   expect(act(worn, 'move')).toMatchObject({ id: 'toStash' });
+  expect(hoverNote(gems, gem(s))).toBe('Click to take up to 25 · right-click for more');
+  expect(hoverNote(bag(1), gem(s))).toBe('Click for actions · Alt+click to sell · Shift+click to the Gems tab');
 });
 
 it('every refusal has a message, and success has none', () => {

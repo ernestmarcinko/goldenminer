@@ -40,7 +40,7 @@ function socketActions(state: GameState, item: Item): ActionSpec[] {
   }
   for (const set of GEAR_SETS) {
     for (const [index, c] of state.bags[set].entries()) {
-      if (c !== null && isGear(c)) add({ where: 'bag', set, index }, c, ' (bag)');
+      if (c !== null && isGear(c)) add({ where: 'bag', set, index }, c, ` (${set} bag)`);
     }
   }
   for (const [index, c] of state.stash.general.entries()) {
@@ -75,7 +75,7 @@ export function itemActions(state: GameState, target: ItemTarget, shownSet: Gear
   };
   if (target.where === 'gems') {
     const take: ActionSpec = {
-      id: 'take', label: `Take to bag (up to ${GEM_BAG_STACK})`, disabled: !bagTakesGem(state, shownSet, item),
+      id: 'take', label: `Take to bag (up to ${formatNumber(GEM_BAG_STACK)})`, disabled: !bagTakesGem(state, shownSet, item),
     };
     return [take, ...socketActions(state, item), sell, salvage];
   }
@@ -117,10 +117,10 @@ export function actionForIntent(
 export function hoverNote(target: ItemTarget, item: Item): string {
   if (target.where === 'worn') return 'Click to unequip';
   if (target.where === 'stash') return 'Click to move to your bag · Alt+click to sell';
-  if (target.where === 'gems') return `Click to take up to ${GEM_BAG_STACK} to your bag · Alt+click for sell all`;
+  if (target.where === 'gems') return `Click to take up to ${formatNumber(GEM_BAG_STACK)} · right-click for more`;
   return isGear(item)
     ? 'Click to equip · Alt+click to sell · Shift+click to stash'
-    : 'Click to socket · Alt+click to sell · Shift+click to Gems tab';
+    : 'Click for actions · Alt+click to sell · Shift+click to the Gems tab';
 }
 
 export function runAction(store: GameStore, target: ItemTarget, action: ActionSpec, shownSet: GearSet): InvResult {

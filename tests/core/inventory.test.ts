@@ -1,9 +1,9 @@
 import { expect, it } from 'vitest';
 import fixture3 from '../fixtures/save-schema-3.txt?raw';
-import { itemAt } from '../../src/core/cells';
+import { itemAt, sameLoc } from '../../src/core/cells';
 import { dropItem, equip, moveItem, salvage, sell, sendItem, socketGem, unequip } from '../../src/core/inventory';
 import { GEM_GRADES, GEM_TYPES, isGear, MINING_SLOTS, BATTLE_SLOTS } from '../../src/core/items';
-import type { GearSet } from '../../src/core/items';
+import type { GearSet, Gem, Slot } from '../../src/core/items';
 import { newGame } from '../../src/core/newGame';
 import { mulberry32 } from '../../src/core/rng';
 import { decodeSave, validateState } from '../../src/core/save';
@@ -133,6 +133,16 @@ it('a Gems-tab take tops up stacks and refuses a cell holding something else', (
   expect(moveItem(s, stack('emerald', 'small'), bag('mining', 2))).toBe('invalid');
 });
 
+it('a gem dropped on the Gems tab goes to its own kind, whichever stack it lands on', () => {
+  const s = newGame(1, 0);
+  s.stash.gems.ruby.tiny = 5;
+  s.bags.mining[0] = gem(s, 'emerald', { grade: 'perfect', count: 3 });
+  expect(moveItem(s, bag('mining', 0), stack('ruby', 'tiny'))).toBe('ok');
+  expect(s.stash.gems.emerald.perfect).toBe(3);
+  expect(s.stash.gems.ruby.tiny).toBe(5);
+  expect(s.bags.mining[0]).toBeNull();
+});
+
 it('sell and salvage take a whole stack, from a cell or the Gems tab', () => {
   const s = newGame(1, 0);
   s.stash.general[3] = gear(s, 'ring', { rarity: 'rare', ilvl: 10 });
@@ -224,31 +234,62 @@ function gearIds(s: GameState): number[] {
   return ids.sort((a, b) => a - b);
 }
 
-function gemTotal(s: GameState): number {
-  let total = 0;
-  const addGear = (g: { gems: unknown[] }): void => { total += g.gems.length; };
+/** How many gems of each type and grade exist: in bag stacks, the Gems tab and every socket. */
+function gemCounts(s: GameState): Record<string, number> {
+  const counts: Record<string, number> = {};
+  const add = (g: { gem: string; grade: string }, n: number): void => {
+    const key = `${g.gem}/${g.grade}`;
+    counts[key] = (counts[key] ?? 0) + n;
+  };
+  const addSocketed = (g: { gems: Gem[] }): void => { for (const x of g.gems) add(x, 1); };
   for (const set of ['mining', 'battle'] as const) {
-    for (const c of s.bags[set]) if (c !== null) { if (isGear(c)) addGear(c); else total += c.count; }
-    for (const g of Object.values(s.equipped[set])) addGear(g);
+    for (const c of s.bags[set]) if (c !== null) { if (isGear(c)) addSocketed(c); else add(c, c.count); }
+    for (const g of Object.values(s.equipped[set])) addSocketed(g);
   }
-  for (const c of s.stash.general) if (c !== null) addGear(c);
-  for (const o of s.overflow) addGear(o.item);
-  for (const t of GEM_TYPES) for (const grade of GEM_GRADES) total += s.stash.gems[t][grade];
-  return total;
+  for (const c of s.stash.general) if (c !== null) addSocketed(c);
+  for (const o of s.overflow) addSocketed(o.item);
+  for (const t of GEM_TYPES) for (const grade of GEM_GRADES) if (s.stash.gems[t][grade] > 0) add({ gem: t, grade }, s.stash.gems[t][grade]);
+  return counts;
 }
 
-it('drops never create or lose items', () => {
+const ALL_SLOTS = [...MINING_SLOTS, ...BATTLE_SLOTS];
+const TABS = ['general', 'gems', 'auto'] as const;
+
+it('drops, sends and unequips never create or lose items, and the walk reaches every rule', () => {
   const decoded = decodeSave(fixture3);
   if (!decoded.ok) throw new Error('fixture does not decode');
   const s = decoded.state;
-  // enough gems of several kinds to make stacks, merges and takes likely
-  s.stash.gems.ruby.tiny = 40;
-  s.stash.gems.sapphire.big = 7;
-  s.bags.mining[20] = gem(s, 'ruby', { count: 12 });
+  // Identical stacks to merge, Gems-tab counts to take from or fill, and nearly full grids to run out of room.
+  s.bags.mining[20] = gem(s, 'ruby', { count: 10 });
+  s.bags.mining[21] = gem(s, 'ruby', { count: 20 });
+  s.bags.mining[22] = gem(s, 'ruby', { count: 25 });
   s.bags.battle[20] = gem(s, 'sapphire', { grade: 'big', count: 25 });
+  s.bags.battle[21] = gem(s, 'sapphire', { grade: 'big', count: 7 });
+  s.stash.gems.ruby.tiny = 60;
+  s.stash.gems.sapphire.big = 999_990;
+  s.stash.gems.emerald.small = 30;
+  s.stash.gems.amethyst.giant = 3;
+  const fill = (set: GearSet, free: number): void => {
+    const slots: readonly Slot[] = set === 'mining' ? MINING_SLOTS : BATTLE_SLOTS;
+    const cells = s.bags[set];
+    let n = 0;
+    for (let i = 0; i < cells.length; i++) {
+      if (cells[i] !== null) continue;
+      if (cells.filter((c) => c === null).length <= free) break;
+      cells[i] = n++ % 3 === 0 ? gem(s, GEM_TYPES[n % GEM_TYPES.length] ?? 'ruby', { grade: GEM_GRADES[n % 2] ?? 'tiny', count: 1 + (n % 25) }) : gear(s, slots[n % slots.length] ?? 'pickaxe', { sockets: n % 4 });
+    }
+  };
+  fill('mining', 1);
+  fill('battle', 2);
+  for (let i = 0; i < s.stash.general.length; i++) {
+    if (s.stash.general[i] === null && s.stash.general.filter((c) => c === null).length > 2) {
+      s.stash.general[i] = gear(s, ALL_SLOTS[i % ALL_SLOTS.length] ?? 'pickaxe', { sockets: i % 4 });
+    }
+  }
+  s.equipped.mining.lamp ??= gear(s, 'lamp', { sockets: 2 });
   expect(validateState(s)).toBe(true);
   const ids = gearIds(s);
-  const gems = gemTotal(s);
+  const gems = gemCounts(s);
 
   let rng = 7;
   const draw = (n: number): number => {
@@ -256,40 +297,79 @@ it('drops never create or lose items', () => {
     rng = r.state;
     return Math.floor(r.value * n);
   };
-  const cellLoc = (): ItemLoc => {
-    const kind = draw(4);
-    if (kind === 0) return bag('mining', draw(24));
-    if (kind === 1) return bag('battle', draw(24));
-    if (kind === 2) return cell(draw(60));
-    return stack(GEM_TYPES[draw(GEM_TYPES.length)] ?? 'ruby', GEM_GRADES[draw(GEM_GRADES.length)] ?? 'tiny');
+  const pick = <T,>(list: readonly T[]): T => {
+    const x = list[draw(list.length)];
+    if (x === undefined) throw new Error('empty list');
+    return x;
   };
-  const anyLoc = (): ItemLoc => {
-    if (draw(5) > 0) return cellLoc();
-    const slots = [...MINING_SLOTS, ...BATTLE_SLOTS];
-    return { where: 'worn', slot: slots[draw(slots.length)] ?? 'pickaxe' };
-  };
-  const target = (): DropTarget => {
-    if (draw(12) > 0) return anyLoc();
-    const tabs = ['general', 'gems', 'auto'] as const;
-    return { where: 'stashTab', tab: tabs[draw(3)] ?? 'auto' };
-  };
-  // aim at things that exist most of the time, so most drops do something
+  const cellLocs: ItemLoc[] = [];
+  for (const set of ['mining', 'battle'] as const) for (let i = 0; i < 24; i++) cellLocs.push(bag(set, i));
+  for (let i = 0; i < 60; i++) cellLocs.push(cell(i));
+  for (const t of GEM_TYPES) for (const g of GEM_GRADES) cellLocs.push(stack(t, g));
+  const wornLocs: ItemLoc[] = ALL_SLOTS.map((slot) => ({ where: 'worn', slot }));
+  const everyLoc = [...cellLocs, ...wornLocs];
   const occupied = (): ItemLoc => {
-    for (let i = 0; i < 30; i++) {
-      const loc = anyLoc();
-      if (itemAt(s, loc) !== undefined) return loc;
-    }
-    return anyLoc();
+    const filled = everyLoc.filter((l) => itemAt(s, l) !== undefined);
+    return pick(filled);
+  };
+  // A place the item would merge or swap with: an identical gem stack, or gear for the same slot.
+  const partnerOf = (from: ItemLoc): ItemLoc | undefined => {
+    const item = itemAt(s, from);
+    if (item === undefined) return undefined;
+    const partners = everyLoc.filter((l) => {
+      const other = itemAt(s, l);
+      if (other === undefined || sameLoc(l, from)) return false;
+      return isGear(item) ? isGear(other) && other.slot === item.slot : !isGear(other) && other.gem === item.gem && other.grade === item.grade;
+    });
+    return partners.length > 0 ? pick(partners) : undefined;
+  };
+  const target = (from: ItemLoc): DropTarget => {
+    const roll = draw(10);
+    if (roll < 4) return partnerOf(from) ?? pick(everyLoc);
+    const wornNow = wornLocs.filter((l) => itemAt(s, l) !== undefined);
+    if (roll < 5 && wornNow.length > 0) return pick(wornNow);
+    if (roll < 6) return { where: 'stashTab', tab: pick(TABS) };
+    return pick(everyLoc);
   };
 
-  const results = new Set<string>();
-  for (let i = 0; i < 2000; i++) {
-    results.add(dropItem(s, occupied(), target()));
+  const seen = {
+    merge: 0, takeTopUp: 0, wornSwap: 0, wornSwapOut: 0, stackFull: 0, bagFull: 0, stashFull: 0,
+    send: 0, unequip: 0, socket: 0,
+  };
+  const kind = (l: ItemLoc | DropTarget): string => {
+    if (l.where === 'stashTab') return 'tab';
+    const item = itemAt(s, l);
+    return item === undefined ? 'empty' : isGear(item) ? 'gear' : 'gem';
+  };
+  for (let i = 0; i < 4000; i++) {
+    const op = draw(10);
+    let result: string;
+    if (op < 6) {
+      const from = occupied();
+      const to = target(from);
+      const [a, b] = [itemAt(s, from), to.where === 'stashTab' ? undefined : itemAt(s, to)];
+      const kinds = [kind(from), kind(to)];
+      result = dropItem(s, from, to);
+      if (result === 'ok' && a !== undefined && b !== undefined && !isGear(a) && !isGear(b) && a.gem === b.gem && a.grade === b.grade) {
+        if (from.where === 'bag' && to.where === 'bag') seen.merge++;
+        if (from.where === 'gems' && to.where === 'bag') seen.takeTopUp++;
+      }
+      if (result === 'ok' && to.where === 'worn' && from.where !== 'worn' && kinds.join() === 'gear,gear') seen.wornSwap++;
+      if (result === 'ok' && from.where === 'worn' && (to.where === 'bag' || to.where === 'stash') && kinds[1] === 'gear') seen.wornSwapOut++;
+      if (result === 'ok' && a !== undefined && !isGear(a) && b !== undefined && isGear(b)) seen.socket++;
+    } else if (op < 8) {
+      result = sendItem(s, occupied(), pick(['stash', 'mining', 'battle'] as const));
+      if (result === 'ok') seen.send++;
+    } else {
+      result = unequip(s, pick(ALL_SLOTS));
+      if (result === 'ok') seen.unequip++;
+    }
+    if (result === 'stackFull') seen.stackFull++;
+    if (result === 'bagFull') seen.bagFull++;
+    if (result === 'stashFull') seen.stashFull++;
     expect(gearIds(s)).toEqual(ids);
-    expect(gemTotal(s)).toBe(gems);
+    expect(gemCounts(s)).toEqual(gems);
     expect(validateState(s)).toBe(true);
   }
-  // the run exercised more than the happy path
-  expect(results.has('ok')).toBe(true);
-  expect(results.size).toBeGreaterThan(4);
+  for (const [name, n] of Object.entries(seen)) expect([name, n > 0]).toEqual([name, true]);
 });

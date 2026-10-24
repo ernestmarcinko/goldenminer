@@ -182,6 +182,22 @@ describe('inventory intents', () => {
     expect(store.equipNotice).toEqual({ id: 2, slot: 'lamp', name: 'Oil Lamp Helm' });
   });
 
+  it('replacing the game clears the equip notice', () => {
+    const { store } = make();
+    store.load();
+    const s = store.state;
+    s.bags.mining[0] = gear(s, 'pickaxe');
+    expect(store.equip({ where: 'bag', set: 'mining', index: 0 })).toBe('ok');
+    expect(store.equipNotice).not.toBeNull();
+    expect(store.importSave(store.exportSave()).ok).toBe(true);
+    expect(store.equipNotice).toBeNull();
+    store.state.bags.mining[0] = gear(store.state, 'lamp');
+    store.equip({ where: 'bag', set: 'mining', index: 0 });
+    expect(store.equipNotice?.id).toBe(2);
+    expect(store.newWorld(null)).toBe(true);
+    expect(store.equipNotice).toBeNull();
+  });
+
   it('a refused equip leaves no notice, and unequipping does not either', () => {
     const { store } = make();
     store.load();
