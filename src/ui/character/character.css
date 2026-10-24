@@ -30,6 +30,8 @@
 .gm-slot__label { font-size: 11px; color: var(--gm-muted); }
 .gm-slot__box { width: 60px; height: 60px; border-radius: 8px; }
 .gm-slot__box--empty { box-sizing: border-box; border: 2px dashed var(--gm-line); background: transparent; }
+/* an item just went into this slot: a static green glow, shown for a moment */
+.gm-slot[data-flash] .gm-slot__box { box-shadow: 0 0 0 3px rgba(111, 207, 151, 0.55), 0 0 18px rgba(111, 207, 151, 0.45); }
 
 .gm-item {
   position: relative; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
@@ -38,11 +40,11 @@
 }
 button.gm-item:hover { background: #3a2f20; }
 .gm-slot__box.gm-item { border-radius: 8px; }
-.gm-item[data-rarity='magic'], .gm-card[data-rarity='magic'] { --gm-tone: var(--gm-magic); }
-.gm-item[data-rarity='rare'], .gm-card[data-rarity='rare'] { --gm-tone: var(--gm-rare); }
-.gm-item[data-rarity='legendary'], .gm-card[data-rarity='legendary'] { --gm-tone: var(--gm-legendary); }
-.gm-item[data-rarity='gem'], .gm-card[data-rarity='gem'] { --gm-tone: var(--gm-gem); }
-.gm-item[data-rarity='normal'], .gm-card[data-rarity='normal'] { --gm-tone: var(--gm-normal); }
+.gm-item[data-rarity='magic'], .gm-card[data-rarity='magic'], .gm-card__equipped[data-rarity='magic'] { --gm-tone: var(--gm-magic); }
+.gm-item[data-rarity='rare'], .gm-card[data-rarity='rare'], .gm-card__equipped[data-rarity='rare'] { --gm-tone: var(--gm-rare); }
+.gm-item[data-rarity='legendary'], .gm-card[data-rarity='legendary'], .gm-card__equipped[data-rarity='legendary'] { --gm-tone: var(--gm-legendary); }
+.gm-item[data-rarity='gem'], .gm-card[data-rarity='gem'], .gm-card__equipped[data-rarity='gem'] { --gm-tone: var(--gm-gem); }
+.gm-item[data-rarity='normal'], .gm-card[data-rarity='normal'], .gm-card__equipped[data-rarity='normal'] { --gm-tone: var(--gm-normal); }
 .gm-item { border-color: var(--gm-tone); }
 .gm-item__dots { position: absolute; left: 0; right: 0; bottom: 2px; display: flex; justify-content: center; gap: 2px; }
 .gm-item__dot { width: 6px; height: 6px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--gm-muted); background: transparent; }
@@ -84,6 +86,12 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-card[role='dialog'] { pointer-events: auto; }
 /* the card a touch tap opens: in the flow below the grid, so the targets above stay uncovered */
 .gm-card.gm-card--inline { position: static; width: 100%; box-shadow: none; }
+.gm-card__label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gm-muted); }
+/* a hover card and the worn item's card, side by side as one placed pair */
+.gm-cardpair { position: absolute; z-index: 2; display: flex; align-items: flex-start; gap: 8px; pointer-events: none; }
+.gm-cardpair > .gm-card { position: static; }
+.gm-card--equipped { opacity: 0.92; border-color: var(--gm-line); }
+.gm-card__equipped { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px solid var(--gm-line); }
 .gm-card__name { font-family: var(--gm-font-display); font-weight: 400; font-size: 15px; color: var(--gm-tone, var(--gm-normal)); }
 .gm-card__kind { font-size: 12px; color: var(--gm-muted); }
 .gm-card__lines { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }

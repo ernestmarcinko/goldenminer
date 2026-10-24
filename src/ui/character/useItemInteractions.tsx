@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
-import { sameLoc } from '../../core/cells';
+import { itemAt, sameLoc } from '../../core/cells';
 import type { GearSet } from '../../core/items';
 import type { GameState } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
@@ -9,6 +9,7 @@ import { ItemCard } from './ItemCard';
 import type { ItemHandlers } from './ItemGrid';
 import { actionForIntent, itemActions, resultText, runAction } from './itemActions';
 import type { ActionSpec, ItemTarget } from './itemActions';
+import { wornToCompare } from './itemView';
 import type { ItemDrag } from './useItemDrag';
 import { useItemPopover } from './useItemPopover';
 
@@ -42,7 +43,10 @@ export function useItemInteractions({ store, state, shownSet, containerRef, fall
   tapCard: ReactNode; reset: () => void;
 } {
   const [message, setMessage] = useState<string | null>(null);
-  const popover = useItemPopover(containerRef);
+  const popover = useItemPopover(containerRef, (target) => {
+    const item = itemAt(state, target);
+    return item !== undefined && wornToCompare(state, item, target.where === 'worn') !== undefined;
+  });
   const { inspect, clear, openMenu, closeMenu, leaveMenu } = popover;
   // the tap card scrolls into view smoothly unless the player turned scrolling motion off or the system reduces motion
   const smooth = effectiveMotion(state.settings.motion, usePrefersReducedMotion()).shaft !== 'off';
@@ -94,7 +98,10 @@ export function useItemInteractions({ store, state, shownSet, containerRef, fall
   const cards = (
     <>
       {hover && (
-        <ItemCard state={state} target={hover.target} shownSet={shownSet} left={hover.left} top={hover.top} />
+        <ItemCard
+          state={state} target={hover.target} shownSet={shownSet} left={hover.left} top={hover.top}
+          pair={hover.pair === true}
+        />
       )}
       {menu?.inline !== true && menuCard}
     </>

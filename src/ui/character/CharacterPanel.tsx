@@ -5,6 +5,7 @@ import type { GearSet } from '../../core/items';
 import { gearTotals } from '../../core/stats';
 import type { GameStore } from '../../store/gameStore';
 import { formatNumber } from '../format';
+import { useRecentEquip } from '../Toast';
 import { useGame } from '../useGame';
 import { dropAttr } from './dragDrop';
 import { ItemGrid } from './ItemGrid';
@@ -25,6 +26,7 @@ type Dialog = 'stash' | 'filter' | null;
 
 export function CharacterPanel({ store }: { store: GameStore }) {
   const { state, stats } = useGame(store);
+  const flashSlot = useRecentEquip(store)?.slot ?? null;
   const [set, setSet] = useState<GearSet>('mining');
   const [dialog, setDialog] = useState<Dialog>(null);
   const panelRef = useRef<HTMLElement>(null);
@@ -66,7 +68,7 @@ export function CharacterPanel({ store }: { store: GameStore }) {
         </div>
       </div>
 
-      <PaperDoll state={state} set={set} handlers={handlers} />
+      <PaperDoll state={state} set={set} handlers={handlers} flashSlot={flashSlot} />
 
       <div className="gm-char__stats">
         {set === 'mining' ? miningStatLine(stats, state.deepest) : battleStatLine(gearTotals(state, 'battle'))}

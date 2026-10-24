@@ -59,6 +59,19 @@
   .gm-notice { padding: 10px 12px; flex-wrap: wrap; }
 }
 
+/* appears and goes without animating; bottom-centre, so it clears the header and the character panel at the right */
+.gm-toast {
+  position: fixed; z-index: 20; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+  max-width: calc(100vw - 32px); box-sizing: border-box; display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: 10px; background: #1f3326; border: 1px solid var(--gm-up); color: #a6e8bf;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); pointer-events: none;
+}
+.gm-toast__dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--gm-up); }
+.gm-toast__name { font-family: var(--gm-font-display); font-weight: 400; color: var(--gm-normal); overflow-wrap: anywhere; }
+.gm-toast__name[data-rarity='magic'] { color: var(--gm-magic); }
+.gm-toast__name[data-rarity='rare'] { color: var(--gm-rare); }
+.gm-toast__name[data-rarity='legendary'] { color: var(--gm-legendary); }
+
 .gm-visually-hidden {
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
   clip: rect(0 0 0 0); white-space: nowrap; border: 0;

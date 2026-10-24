@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react';
 import type { FocusEvent, KeyboardEvent } from 'react';
 import { itemAt } from '../../core/cells';
-import { isGear, setOfSlot } from '../../core/items';
-import type { GearSet } from '../../core/items';
+import { isGear } from '../../core/items';
+import type { GearItem, GearSet } from '../../core/items';
 import { itemName } from '../../core/itemData';
 import type { GameState } from '../../core/types';
 import { hoverNote, itemActions } from './itemActions';
 import type { ActionSpec, ItemTarget } from './itemActions';
-import { compareLines, itemKindLine, itemLines, rarityOf } from './itemView';
+import { compareLines, itemKindLine, itemLines, rarityOf, wornToCompare } from './itemView';
 import type { ViewLine } from './itemView';
 
 export interface CardMenu {
@@ -29,13 +29,27 @@ function Lines({ lines }: { lines: ViewLine[] }) {
   );
 }
 
+/** The worn item's name, kind line and lines under an "Equipped" label. */
+function EquippedContent({ worn }: { worn: GearItem }) {
+  return (
+    <>
+      <div className="gm-card__label">Equipped</div>
+      <div className="gm-card__name">{itemName(worn)}</div>
+      <div className="gm-card__kind">{itemKindLine(worn)}</div>
+      <div className="gm-card__lines"><Lines lines={itemLines(worn)} /></div>
+    </>
+  );
+}
+
 /**
  * The hover tooltip, or with `menu` the action card: same content, plus one button per action. An `inline` card
  * (opened by a touch tap) sits in the page flow and scrolls just into view, `smooth` only when motion is allowed.
+ * Gear that is not worn also shows the worn item's card: beside this one when `pair` (a hover card on a wide
+ * screen, placed by the caller as one pair), otherwise as a block inside it.
  */
-export function ItemCard({ state, target, shownSet, left, top, menu, inline = false, smooth = false }: {
+export function ItemCard({ state, target, shownSet, left, top, menu, inline = false, smooth = false, pair = false }: {
   state: GameState; target: ItemTarget; shownSet: GearSet; left: number; top: number; menu?: CardMenu;
-  inline?: boolean; smooth?: boolean;
+  inline?: boolean; smooth?: boolean; pair?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const isMenu = menu !== undefined;
@@ -49,9 +63,12 @@ export function ItemCard({ state, target, shownSet, left, top, menu, inline = fa
   const item = itemAt(state, target);
   if (item === undefined) return null;
   const name = itemName(item);
-  const compare = isGear(item) && target.where !== 'worn'
-    ? compareLines(item, state.equipped[setOfSlot(item.slot)][item.slot])
-    : null;
+  const worn = wornToCompare(state, item, target.where === 'worn');
+  const compare = isGear(item) && target.where !== 'worn' ? compareLines(item, worn) : null;
+  const beside = pair && !isMenu && worn !== undefined;
+  const wornBlock = worn !== undefined && !beside && (
+    <div className="gm-card__equipped" data-rarity={rarityOf(worn)}><EquippedContent worn={worn} /></div>
+  );
   const onKeyDown = (e: KeyboardEvent): void => {
     if (e.key === 'Escape' && menu) {
       e.stopPropagation();
@@ -62,7 +79,7 @@ export function ItemCard({ state, target, shownSet, left, top, menu, inline = fa
     // a null relatedTarget is a click on the card's own padding or leaving the page; outside clicks have their own listener
     if (menu && e.relatedTarget instanceof Node && !e.currentTarget.contains(e.relatedTarget)) menu.onLeave();
   };
-  return (
+  const card = (
     <div
       ref={ref}
       className={inline ? 'gm-card gm-card--inline' : 'gm-card'}
@@ -70,7 +87,7 @@ export function ItemCard({ state, target, shownSet, left, top, menu, inline = fa
       data-item-card=""
       role={isMenu ? 'dialog' : 'tooltip'}
       aria-label={isMenu ? name : undefined}
-      style={inline ? undefined : { left, top }}
+      style={inline || beside ? undefined : { left, top }}
       onKeyDown={onKeyDown}
       onBlur={onBlur}
     >
@@ -83,6 +100,7 @@ export function ItemCard({ state, target, shownSet, left, top, menu, inline = fa
           <Lines lines={compare.lines} />
         </div>
       )}
+      {!inline && wornBlock}
       {menu?.onPutBack !== undefined && (
         <div className="gm-card__note">Picked up: tap a cell, a slot or a tab to put it there.</div>
       )}
@@ -107,6 +125,14 @@ export function ItemCard({ state, target, shownSet, left, top, menu, inline = fa
       ) : (
         <div className="gm-card__note">{hoverNote(target, item)}</div>
       )}
+      {inline && wornBlock}
+    </div>
+  );
+  if (!beside) return card;
+  return (
+    <div className="gm-cardpair" style={{ left, top }}>
+      <div className="gm-card gm-card--equipped" data-rarity={rarityOf(worn)}><EquippedContent worn={worn} /></div>
+      {card}
     </div>
   );
 }

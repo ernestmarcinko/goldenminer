@@ -3,7 +3,7 @@ import { GEM_GRADE_LABELS, gemName } from '../../core/itemData';
 import { BATTLE_STATS, isGear, setOfSlot } from '../../core/items';
 import type { GearItem, GemType, Item, Slot, StatKey } from '../../core/items';
 import { gemEffect, itemTotals } from '../../core/stats';
-import type { LootNote, Stats } from '../../core/types';
+import type { GameState, LootNote, Stats } from '../../core/types';
 import type { SpriteName } from '../../sprites/atlas';
 import { formatDuration, formatNumber, formatRate, plural } from '../format';
 
@@ -106,15 +106,31 @@ export function battleStatLine(totals: Readonly<Record<StatKey, number>>): strin
 }
 
 export const TOOLTIP_WIDTH = 270;
+/** The space between a hovered card and the worn item's card beside it. */
+export const CARD_PAIR_GAP = 8;
+const CARD_PAIR_MIN_VIEWPORT = 900;
 
+/** `minLeft` lets a wide card pair reach left of its container; the container's right edge still bounds it. */
 export function placeTooltip(
   anchor: { left: number; top: number; width: number; height: number },
   containerWidth: number,
+  width: number = TOOLTIP_WIDTH,
+  minLeft = 0,
 ): { left: number; top: number } {
   return {
-    left: Math.max(0, Math.min(anchor.left, containerWidth - TOOLTIP_WIDTH)),
+    left: Math.max(minLeft, Math.min(anchor.left, containerWidth - width)),
     top: anchor.top + anchor.height + 4,
   };
+}
+
+/** The worn item's card goes beside a hover card on a wide screen, and inside any other card. */
+export function cardPairLayout(viewportWidth: number, isMenu: boolean): 'row' | 'column' {
+  return !isMenu && viewportWidth >= CARD_PAIR_MIN_VIEWPORT ? 'row' : 'column';
+}
+
+/** The worn item that `item` would replace, when `item` is gear that is not itself worn. */
+export function wornToCompare(state: GameState, item: Item, isWorn: boolean): GearItem | undefined {
+  return isGear(item) && !isWorn ? state.equipped[setOfSlot(item.slot)][item.slot] : undefined;
 }
 
 export type ClickIntent = 'primary' | 'sell' | 'move' | 'menu';

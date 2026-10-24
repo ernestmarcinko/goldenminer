@@ -1,34 +1,46 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { ItemTarget } from './itemActions';
-import { placeTooltip } from './itemView';
+import { CARD_PAIR_GAP, cardPairLayout, placeTooltip, TOOLTIP_WIDTH } from './itemView';
 
-/** `inline`: a card opened by a touch tap, shown in the page flow below the grid instead of placed near the item. */
-export interface Placed { target: ItemTarget; left: number; top: number; inline?: true }
+/**
+ * `inline`: a card opened by a touch tap, shown in the page flow below the grid instead of placed near the item.
+ * `pair`: a hover card placed with the worn item's card beside it, so `left` is the pair's left edge.
+ */
+export interface Placed { target: ItemTarget; left: number; top: number; inline?: true; pair?: true }
 
-/** Hover tooltip and action-card state; positions are relative to the container, which must be `position: relative`. */
-export function useItemPopover(containerRef: RefObject<HTMLElement | null>) {
+/**
+ * Hover tooltip and action-card state; positions are relative to the container, which must be `position: relative`.
+ * `hasWornCard` says whether an item's hover card shows the worn item's card too.
+ */
+export function useItemPopover(containerRef: RefObject<HTMLElement | null>, hasWornCard: (target: ItemTarget) => boolean) {
   const [hover, setHover] = useState<Placed | null>(null);
   const [menu, setMenu] = useState<Placed | null>(null);
   const menuNow = useRef<Placed | null>(null);
   menuNow.current = menu;
   const opener = useRef<HTMLElement | null>(null);
+  const hasWornCardNow = useRef(hasWornCard);
+  hasWornCardNow.current = hasWornCard;
 
-  const place = useCallback((target: ItemTarget, el: HTMLElement): Placed | null => {
+  const place = useCallback((target: ItemTarget, el: HTMLElement, pair = false): Placed | null => {
     const c = containerRef.current;
     if (c === null) return null;
     const cr = c.getBoundingClientRect();
     const er = el.getBoundingClientRect();
-    const at = placeTooltip(
-      { left: er.left - cr.left - c.clientLeft + c.scrollLeft, top: er.top - cr.top - c.clientTop + c.scrollTop, width: er.width, height: er.height },
-      c.clientWidth,
-    );
-    return { target, ...at };
+    const anchor = {
+      left: er.left - cr.left - c.clientLeft + c.scrollLeft, top: er.top - cr.top - c.clientTop + c.scrollTop,
+      width: er.width, height: er.height,
+    };
+    if (!pair) return { target, ...placeTooltip(anchor, c.clientWidth) };
+    // the pair may reach left of the container, but stays 8 px inside the viewport
+    const minLeft = 8 - (cr.left + c.clientLeft - c.scrollLeft);
+    return { target, pair: true, ...placeTooltip(anchor, c.clientWidth, 2 * TOOLTIP_WIDTH + CARD_PAIR_GAP, minLeft) };
   }, [containerRef]);
 
   const inspect = useCallback((target: ItemTarget, el: HTMLElement) => {
     if (menuNow.current !== null) return;
-    setHover(place(target, el));
+    const pair = cardPairLayout(window.innerWidth, false) === 'row' && hasWornCardNow.current(target);
+    setHover(place(target, el, pair));
   }, [place]);
 
   const clear = useCallback(() => setHover(null), []);
