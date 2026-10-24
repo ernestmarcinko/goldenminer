@@ -20,7 +20,21 @@ it('a full Maps tab drops its lowest-tier, oldest map', () => {
   expect(s.stash.maps).toHaveLength(MAP_STASH_SIZE);
   expect(s.stash.maps.some((m) => m.id === firstLow)).toBe(false);
   expect(s.stash.maps.filter((m) => m.tier === 1)).toHaveLength(1);
+  const lowOne = s.stash.maps.find((m) => m.tier === 1)?.id;
   const kept = addMap(s, 1, 5);
-  expect(s.stash.maps.some((m) => m.id === kept.id)).toBe(false);   // strictly the lowest: not kept
+  expect(s.stash.maps.some((m) => m.id === lowOne)).toBe(false);   // a tie: the older tier-1 map goes
+  expect(s.stash.maps.some((m) => m.id === kept.id)).toBe(true);
   expect(s.stash.maps).toHaveLength(MAP_STASH_SIZE);
+});
+
+it('a map strictly below every map in a full tab is not kept', () => {
+  const s = newGame(1, 0);
+  for (let i = 0; i < MAP_STASH_SIZE; i++) addMap(s, 2 + (i % 3), 10 + i);
+  const before = structuredClone(s.stash.maps);
+  const next = s.nextId;
+  const dropped = addMap(s, 1, 5);
+  expect(s.stash.maps).toEqual(before);
+  expect(s.stash.maps.some((m) => m.id === dropped.id)).toBe(false);
+  expect(dropped.id).toBe(next);
+  expect(s.nextId).toBe(next + 1);
 });
