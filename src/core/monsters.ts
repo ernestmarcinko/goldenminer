@@ -10,6 +10,9 @@ const RANK_LIFE: Readonly<Record<Rank, number>> = { normal: 1, champion: CHAMPIO
 const RANK_DAMAGE: Readonly<Record<Rank, number>> = { normal: 1, champion: CHAMPION_DAMAGE, boss: BOSS_DAMAGE };
 const RANK_REWARD: Readonly<Record<Rank, number>> = { normal: 1, champion: CHAMPION_REWARD, boss: BOSS_REWARD };
 
+/** What a rank multiplies a monster's XP, Souls and Gold by. */
+export const rankReward = (rank: Rank): number => RANK_REWARD[rank];
+
 /** A layout slot made fightable: its species, rank and champion modifiers decide the numbers. */
 export function monsterState(tier: number, lm: LayoutMonster): MonsterState {
   const s = speciesOf(tier)[lm.species];

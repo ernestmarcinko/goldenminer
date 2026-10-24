@@ -107,6 +107,8 @@ export type TickEvent =
   | { kind: 'runEnd'; result: RunResult };
 export interface OfflineSummary {
   elapsedMs: number; ticks: number; gold: number; diamonds: number; metres: number; capMs: number;
+  souls: number; levels: number;
+  maps: { cleared: number; lost: number };
   finds: Record<FeatureKind, number>;
   items: { kept: number; sold: number; salvaged: number };
   stoppedBag: GearSet | null;
