@@ -52,7 +52,8 @@ export interface MapRun {
   map: MapItem; room: number; bossRoom: number;   // rooms 1..bossRoom; bossRoom = regular rooms + 1 (5..8)
   queue: MonsterState[];                           // monsters left in this room, the fighting one first; never empty
   life: number; hitCarry: number; monsterCarry: number;
-  gained: RunGains; log: CombatLine[]; loot: LootNote[];
+  gained: RunGains; log: CombatLine[]; loot: LootNote[];   // loot keeps the newest RUN_LOOT_LIMIT notes
+  items: number;                                   // items dropped this run, every one counted
 }
 export interface RunResult { map: MapItem; outcome: RunOutcome; room: number; bossRoom: number; gained: RunGains; items: number; seen: boolean }
 export type Activity = { kind: 'dig' } | { kind: 'map'; run: MapRun };

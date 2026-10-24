@@ -103,7 +103,8 @@ export const CHAMPION_DROPS = 1;
 export const CHAMPION_MAGIC_FIND = 3;
 export const MAP_DROP_BATTLE_CHANCE = 0.8;
 export const MAP_GEM_CHANCE = 0.04;
-export const ROOM_REGEN = 0.3;
+// What the room clears of a map heal in all, as a share of max life: each clear heals its part, so every map heals the same.
+export const ROOM_REGEN_TOTAL = 1.5;
 // A map tick is fought in equal steps of at most this many seconds, so the tick rate never changes a fight.
 export const COMBAT_STEP_S = 0.25;
 // A map's layout: every map holds the same monster budget; a champion costs CHAMPION_UNITS of it.

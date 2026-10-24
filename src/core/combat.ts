@@ -1,6 +1,6 @@
 import {
   ARMORED_TAKEN, BOSS_DROPS, CHAMPION_DROPS, CHAMPION_MAGIC_FIND, COMBAT_LOG_LIMIT, COMBAT_STEP_S, DROP_CHANCE,
-  MAP_DROP_BATTLE_CHANCE, MAP_GEM_CHANCE, ROOM_REGEN, RUN_LOOT_LIMIT, VAMPIRIC_HEAL, goldPerKill, soulsPerKill,
+  MAP_DROP_BATTLE_CHANCE, MAP_GEM_CHANCE, ROOM_REGEN_TOTAL, RUN_LOOT_LIMIT, VAMPIRIC_HEAL, goldPerKill, soulsPerKill,
 } from './balance';
 import { deriveBattleStats, mitigate, type BattleStats } from './battle';
 import { dungeonLayout } from './dungeons';
@@ -28,18 +28,22 @@ export function noteLoot(run: MapRun, note: LootNote): void {
   pushNewest(run.loot, note, RUN_LOOT_LIMIT);
 }
 
-/** The monsters of `room`, regenerated from the seed: rooms 1..bossRoom-1 from the layout, then the boss alone. */
+/**
+ * The monsters of `room`, regenerated from the seed: rooms 1..bossRoom-1 from the layout, then the boss alone. A room
+ * the layout doesn't have is fought as the boss room, so the queue is never empty.
+ */
 function roomQueue(state: GameState, run: MapRun, room: number): MonsterState[] {
   const layout = dungeonLayout(state.seed, run.map);
-  if (room >= run.bossRoom) return [monsterState(run.map.tier, layout.boss)];
-  return (layout.rooms[room - 1] ?? []).map((m) => monsterState(run.map.tier, m));
+  const monsters = room < run.bossRoom ? layout.rooms[room - 1] ?? [] : [];
+  if (monsters.length === 0) return [monsterState(run.map.tier, layout.boss)];
+  return monsters.map((m) => monsterState(run.map.tier, m));
 }
 
 /** The run is over: it becomes the last run, the tally counts it and the miner goes back to digging. */
 export function endRun(state: GameState, run: MapRun, outcome: RunOutcome, events?: TickEvent[]): void {
   const result: RunResult = {
     map: run.map, outcome, room: run.room, bossRoom: run.bossRoom, gained: { ...run.gained },
-    items: run.loot.length, seen: false,
+    items: run.items, seen: false,
   };
   state.lastRun = result;
   if (outcome === 'cleared') state.mapTally.cleared += 1;
@@ -55,8 +59,9 @@ export function soulsForKill(u: number, tier: number, rank: Rank, soulMultiplier
   return whole + (u < x - whole ? 1 : 0);
 }
 
-/** Puts a drop into the miner's bags, noting it on the run and in the log. */
+/** Counts one dropped item and notes what became of it on the run and in the log. */
 function takeDrop(run: MapRun, notes: LootNote[]): void {
+  run.items += 1;
   for (const n of notes) {
     noteLoot(run, n);
     logLine(run, { kind: 'drop', note: n });
@@ -121,7 +126,7 @@ function strike(state: GameState, run: MapRun, b: BattleStats, click: boolean, e
   logLine(run, { kind: 'room', room: run.room });
   run.room += 1;
   const { maxLife } = deriveBattleStats(state);
-  run.life = Math.min(maxLife, run.life + Math.round(maxLife * ROOM_REGEN));
+  run.life = Math.min(maxLife, run.life + Math.round((maxLife * ROOM_REGEN_TOTAL) / (run.bossRoom - 1)));
   run.queue = roomQueue(state, run, run.room);
   return 'room';
 }

@@ -38,7 +38,7 @@ export function startMap(state: GameState, mapId: number): 'ok' | 'busy' | 'inva
     run: {
       map, room: 1, bossRoom: layout.rooms.length + 1, queue,
       life: deriveBattleStats(state).maxLife, hitCarry: 0, monsterCarry: 0,
-      gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [],
+      gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [], items: 0,
     },
   };
   return 'ok';

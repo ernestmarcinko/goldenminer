@@ -145,13 +145,16 @@ it('the dungeon index covers all three types and does not decide the room order'
 });
 
 it('pinned vectors: a seed keeps reproducing its dungeons', () => {
-  // Structure only (no names): changing a salt, the room order or the spread must fail here, since saves rely on it.
+  // Changing a salt, the room order, the spread or a name must fail here, since saves rely on it: a run's boss room and
+  // the dungeon a map opens are regenerated from the seed. An intended change to world generation needs a worldGen bump.
   expect(Array.from({ length: 12 }, (_, m) => dungeonIndexAt(42, m + 1))).toEqual([0, 1, 1, 1, 2, 1, 0, 0, 1, 2, 1, 1]);
   const layout = dungeonLayout(42, { tier: 4, metre: 333 });
   expect({
     rooms: layout.type.rooms, species: layout.type.species, bossSpecies: layout.type.bossSpecies, bias: layout.type.bias,
     ranks: layout.rooms.map((r) => r.map((m) => m.rank[0]).join('')), bossExtra: layout.boss.extra,
   }).toEqual({ rooms: 7, species: [0, 2], bossSpecies: 0, bias: 'physical', ranks: ['c', 'nn', 'nn', 'nn', 'nn', 'nn', 'nn'], bossExtra: 3083684602 });
+  expect([layout.boss.name, layout.rooms[0]?.find((m) => m.rank === 'champion')?.name])
+    .toEqual(['Bramulrin, Warden of the Lonely Diggings', 'Rulilkas the Ravenous']);
   expect([100, 101, 102, 103, 104, 105, 106, 107].map((metre) => championRooms(dungeonLayout(42, { tier: 8, metre }).rooms)))
     .toEqual([[0, 1], [0, 1], [1, 3], [0, 1], [0, 1], [1, 2], [0, 1], [2, 4]]);
 });

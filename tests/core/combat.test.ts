@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { ARMORED_TAKEN, ROOM_REGEN, VAMPIRIC_HEAL } from '../../src/core/balance';
+import { ARMORED_TAKEN, RUN_LOOT_LIMIT, VAMPIRIC_HEAL } from '../../src/core/balance';
 import { deriveBattleStats } from '../../src/core/battle';
 import { advance } from '../../src/core/clock';
 import { clickHit } from '../../src/core/combat';
@@ -220,9 +220,77 @@ it('a level-up mid-run adds the life it grants, before the room regen', () => {
   const newMax = deriveBattleStats(s).maxLife;
   expect(newMax).toBeGreaterThan(oldMax);
   expect(run.room).toBe(2);
-  expect(run.life).toBe(Math.min(newMax, 35 + (newMax - oldMax) + Math.round(newMax * ROOM_REGEN)));
+  expect([oldMax, newMax, run.bossRoom]).toEqual([60, 70, 6]);
+  expect(run.life).toBe(66);   // 35 + the 10 the level grants + round(70 × 1.5 / 5) = 21
   expect(run.log).toContainEqual({ kind: 'level', level: 2 });
   expect(run.gained).toMatchObject({ xp: 10, levels: 1 });
+});
+
+it('every map heals the same total: a room clear heals 1.5 × max life over the rooms before the boss', () => {
+  // A naked level-1 miner has 60 life; seed 1 has 4 rooms at tier 2 metre 1, 5 at metre 2, 6 at metre 4, 7 at tier 1 metre 4.
+  const cases: [number, number, number, number][] = [
+    [2, 1, 5, 23],   // round(60 × 1.5 / 4) = round(22.5)
+    [2, 2, 6, 18],   // 60 × 1.5 / 5
+    [2, 4, 7, 15],   // 60 × 1.5 / 6
+    [1, 4, 8, 13],   // round(60 × 1.5 / 7) = round(12.86)
+  ];
+  for (const [tier, metre, bossRoom, healed] of cases) {
+    const s = newGame(1, 0);
+    expect(startMap(s, addMap(s, tier, metre).id)).toBe('ok');
+    const run = runOf(s);
+    expect(run.bossRoom, `metre ${metre}`).toBe(bossRoom);
+    run.queue = [monster({ life: 1 })];
+    run.life = 1;
+    clickHit(s);
+    expect(run.room).toBe(2);
+    expect(run.life, `metre ${metre}`).toBe(1 + healed);
+  }
+});
+
+it('room regen never heals past max life', () => {
+  const { s, run } = started({ life: 1 });
+  run.life = 59;
+  clickHit(s);
+  expect(run.room).toBe(2);
+  expect(run.life).toBe(60);
+});
+
+it('a boss room past the layout still fights the boss: the queue is never empty and the run ends', () => {
+  // seed 1's tier-1 dungeon at metre 11 has 6 rooms; a hand-edited boss room of 8 leaves room 7 without a layout room
+  for (const bossRoom of [5, 6, 7, 8]) {
+    const s = newGame(1, 0);
+    expect(startMap(s, addMap(s, 1, 11).id)).toBe('ok');
+    const run = runOf(s);
+    run.bossRoom = bossRoom;
+    run.life = 1_000_000;
+    for (let c = 0; c < 200 && s.activity.kind === 'map'; c++) {
+      const m = run.queue[0];
+      if (m) m.life = 1;
+      clickHit(s);
+      if (s.activity.kind === 'map') expect(run.queue.length, `boss room ${bossRoom} room ${run.room}`).toBeGreaterThan(0);
+    }
+    expect(s.lastRun, `boss room ${bossRoom}`).toMatchObject({ outcome: 'cleared', room: bossRoom });
+  }
+});
+
+it('the run result counts every item, not only the notes the run keeps', () => {
+  const { s, run } = started({ rank: 'boss', life: 1 });
+  run.room = run.bossRoom;
+  const note = { name: 'Old ring', rarity: 'normal', base: 'ring', outcome: 'sold', value: 1 } as const;
+  run.loot = Array.from({ length: RUN_LOOT_LIMIT }, () => ({ ...note }));
+  run.items = 41;
+  const before = run.log.length;
+  clickHit(s);
+  const drops = run.log.slice(before).filter((l) => l.kind === 'drop').length;   // empty bags: one note per item
+  expect(drops).toBeGreaterThanOrEqual(2);
+  expect(run.loot).toHaveLength(RUN_LOOT_LIMIT);
+  expect(s.lastRun?.items).toBe(41 + drops);
+});
+
+it('a new run has counted no items', () => {
+  const { run } = started();
+  expect(run.items).toBe(0);
+  expect(run.loot).toEqual([]);
 });
 
 it('the swings after a level-up in the same tick hit with the new level', () => {

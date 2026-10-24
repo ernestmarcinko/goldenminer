@@ -3,7 +3,10 @@ import { deriveBattleStats, mitigate } from '../../src/core/battle';
 import { rollRarity } from '../../src/core/itemGen';
 import { gainXp, xpToNext } from '../../src/core/levels';
 import { monsterState } from '../../src/core/monsters';
-import { monsterXp } from '../../src/core/balance';
+import { MAX_DAMAGE, MAX_LIFE, monsterXp } from '../../src/core/balance';
+import { dungeonLayout } from '../../src/core/dungeons';
+import { addMap, startMap } from '../../src/core/maps';
+import { validateState } from '../../src/core/save';
 import { newGame } from '../../src/core/newGame';
 import type { Slot, StatKey } from '../../src/core/items';
 import type { ChampionMod } from '../../src/core/types';
@@ -90,6 +93,31 @@ it('monster numbers by rank and modifier', () => {
   const slime = { species: 1, rank: 'normal' as const, name: 'Mud Slime', mods: [], extra: 1 };
   expect(monsterState(2, slime)).toMatchObject({ element: 'elemental', life: 37, damage: 4, xp: 28, intervalS: 2 });
   expect([monsterXp(2), monsterXp(4), monsterXp(10)]).toEqual([28, 80, 316]);
+});
+
+it('monster numbers stop at the save limits, however deep the tier', () => {
+  // Unclamped, a tier-2,000 Bone Crawler boss would have 1,760,279 life and a tier-100,000 brutal champion would hit for 3,712,505.
+  for (const tier of [2_000, 100_000]) {
+    for (const rank of ['normal', 'champion', 'boss'] as const) {
+      const m = monsterState(tier, { species: 0, rank, name: 'Deep One', mods: rank === 'champion' ? ['thickSkinned', 'brutal'] : [], extra: 1 });
+      expect(m.maxLife, `tier ${tier} ${rank}`).toBeLessThanOrEqual(MAX_LIFE);
+      expect(m.life).toBe(m.maxLife);
+      expect(m.damage, `tier ${tier} ${rank}`).toBeLessThanOrEqual(MAX_DAMAGE);
+    }
+    expect(monsterState(tier, { species: 0, rank: 'boss', name: 'Deep One', mods: [], extra: 1 }).maxLife).toBe(MAX_LIFE);
+  }
+  expect(monsterState(100_000, { species: 0, rank: 'champion', name: 'Deep One', mods: ['brutal'], extra: 1 }).damage).toBe(MAX_DAMAGE);
+  // and a run started that deep is a valid save, its boss included
+  for (const tier of [2_000, 100_000]) {
+    const s = newGame(1, 0);
+    expect(startMap(s, addMap(s, tier, 5).id)).toBe('ok');
+    expect(validateState(s), `tier ${tier}`).toBe(true);
+    if (s.activity.kind !== 'map') throw new Error('no run');
+    const run = s.activity.run;
+    run.room = run.bossRoom;
+    run.queue = [monsterState(tier, dungeonLayout(s.seed, run.map).boss)];
+    expect(validateState(s), `tier ${tier} boss`).toBe(true);
+  }
 });
 
 it('magic find raises the better rarities', () => {

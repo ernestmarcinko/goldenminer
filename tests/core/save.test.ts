@@ -7,7 +7,7 @@ import fixture4 from '../fixtures/save-schema-4.txt?raw';
 import { applyTicks } from '../../src/core/dig';
 import { BAG_SIZE, MAX_LOOT_RULES, MAX_OVERFLOW, STASH_SIZE } from '../../src/core/balance';
 import { emptyInventory, firstEmpty } from '../../src/core/cells';
-import { addMap } from '../../src/core/maps';
+import { addMap, startMap } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
 import { decodeSave, encodeSave, migrate, SCHEMA_VERSION } from '../../src/core/save';
 import { deriveStats } from '../../src/core/stats';
@@ -305,12 +305,13 @@ it('older fixtures gain their maps too', () => {
   expect(r2.state.stash.maps.map((m) => [m.id, m.tier, m.metre])).toEqual([[79, 1, 2], [80, 1, 3], [81, 1, 4], [82, 1, 36], [83, 1, 47], [84, 2, 66], [85, 2, 79]]);
 });
 
+// Seed 1's tier-2 dungeon at metre 2 has 5 rooms, so its boss room is 6.
 function running(): GameState {
   const s = newGame(1, 0);
-  const map = addMap(s, 2, 60);
+  const map = addMap(s, 2, 2);
   s.stash.maps = [];
   s.activity = { kind: 'map', run: {
-    map, room: 1, bossRoom: 6, life: 40, hitCarry: 0, monsterCarry: 0, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [],
+    map, room: 1, bossRoom: 6, life: 40, hitCarry: 0, monsterCarry: 0, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [], items: 0,
     queue: [{ name: 'Mud Slime', species: 1, rank: 'normal', mods: [], extra: 7, element: 'elemental', life: 30, maxLife: 37, damage: 4, intervalS: 2, xp: 28 }],
   } };
   return s;
@@ -334,9 +335,20 @@ it('rejects impossible maps, runs and levels', () => {
     ['modifiers on a normal', (s) => { const m = first(s); if (m) m.mods = ['brutal']; }],
     ['three modifiers', (s) => { const m = first(s); if (m) { m.rank = 'champion'; m.mods = ['brutal', 'swift', 'armored']; } }],
     ['boss room 9', (s) => { const r = run(s); if (r) r.bossRoom = 9; }],
+    ['a boss room the dungeon does not have', (s) => { const r = run(s); if (r) r.bossRoom = 7; }],
+    ['a hand-edited boss room on a started map', (s) => {
+      // seed 1's tier-1 dungeon at metre 11 has 6 rooms: its boss room is 7, not 8
+      s.activity = { kind: 'dig' };
+      startMap(s, addMap(s, 1, 11).id);
+      const r = run(s);
+      if (r) r.bossRoom = 8;
+    }],
+    ['a last run with the wrong boss room', (s) => { const m = addMap(s, 1, 2); s.stash.maps.pop(); s.lastRun = { map: m, outcome: 'cleared', room: 7, bossRoom: 7, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, items: 0, seen: false }; }],
+    ['a negative item count', (s) => { const r = run(s); if (r) r.items = -1; }],
+    ['no item count', (s) => { const r = run(s); if (r) delete (r as Partial<typeof r>).items; }],
     ['a whole hit carried', (s) => { const r = run(s); if (r) r.hitCarry = 1; }],
     ['a map id reused in the stash', (s) => { const r = run(s); if (r) s.stash.maps.push({ ...r.map }); }],
-    ['an unknown outcome', (s) => { const m = addMap(s, 1, 1); s.stash.maps.pop(); s.lastRun = { map: m, outcome: 'won' as RunOutcome, room: 6, bossRoom: 6, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, items: 0, seen: false }; }],
+    ['an unknown outcome', (s) => { const m = addMap(s, 1, 2); s.stash.maps.pop(); s.lastRun = { map: m, outcome: 'won' as RunOutcome, room: 6, bossRoom: 6, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, items: 0, seen: false }; }],
     ['201 maps', (s) => { for (let i = 0; i < 201; i++) s.stash.maps.push({ id: s.nextId++, type: 'map', tier: 1, metre: 1 }); }],
     ['a map at metre 0', (s) => { s.stash.maps.push({ id: s.nextId++, type: 'map', tier: 1, metre: 0 }); }],
   ];
@@ -358,6 +370,8 @@ it('accepts the legal extremes of maps, runs and levels', () => {
     ['the last xp below a level', (s) => { s.level = 2; s.xp = 282; }],
     ['a champion with two distinct mods', (s) => { Object.assign(monster(s), { rank: 'champion', mods: ['brutal', 'swift'] }); }],
     ['the boss room with a boss in front', (s) => { run(s).room = 6; monster(s).rank = 'boss'; }],
+    ['a started map with its own boss room', (s) => { s.activity = { kind: 'dig' }; startMap(s, addMap(s, 1, 11).id); }],
+    ['more items than the run keeps notes of', (s) => { run(s).items = 500; }],
     ['a log with heal, drop and level lines', (s) => {
       run(s).log = [
         { kind: 'heal', monster: 'Mud Slime', amount: 3 },
@@ -366,7 +380,7 @@ it('accepts the legal extremes of maps, runs and levels', () => {
       ];
     }],
     ['a cleared last run in the boss room', (s) => {
-      const m = addMap(s, 1, 1);
+      const m = addMap(s, 1, 2);
       s.stash.maps.pop();
       s.lastRun = { map: m, outcome: 'cleared', room: 6, bossRoom: 6, gained: GAINS, items: 3, seen: false };
     }],

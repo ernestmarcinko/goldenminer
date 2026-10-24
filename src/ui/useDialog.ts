@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import { isTopDialog, nextDialogId, nextFocusIndex, popDialog, pushDialog } from './dialogStack';
 
@@ -48,7 +48,8 @@ export function useDialog<T extends HTMLElement>(
   const [depth, setDepth] = useState(0);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
-  useEffect(() => {
+  // A layout effect, so the dialog's depth is set before it first paints and it never shows under the one below.
+  useLayoutEffect(() => {
     const id = nextDialogId();
     setDepth(pushDialog(id));
     const active = document.activeElement;

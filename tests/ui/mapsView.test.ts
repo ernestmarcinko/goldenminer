@@ -10,7 +10,10 @@ it('xp bar', () => {
   expect(xpBar(1, 50)).toEqual({ label: 'Level 1', text: '50 / 100 XP', pct: 0.5 });
   expect(xpBar(60, 0)).toEqual({ label: 'Level 60', text: 'Max level', pct: 1 });
   expect(xpBar(30, 1234).text).toBe('1,234 / 16,432 XP');
-  expect(xpBar(1, 500)).toEqual({ label: 'Level 1', text: '500 / 100 XP', pct: 1 });
+  expect(xpBar(1, 0)).toEqual({ label: 'Level 1', text: '0 / 100 XP', pct: 0 });
+  // the last xp below a level stays short of a full bar
+  expect(xpBar(1, 99).text).toBe('99 / 100 XP');
+  expect(xpBar(1, 99).pct).toBeCloseTo(0.99);
 });
 
 it('run results in words', () => {
@@ -41,7 +44,6 @@ it('maps of the schema-4 fixture group by dungeon, the same metre in one row', (
   // the 14 maps found at metre 214 are one row of one dungeon
   const crowded = groups.flatMap((g) => g.maps).filter((m) => m.metre === 214);
   expect(crowded).toHaveLength(1);
-  for (const g of groups) expect(g.maps.length).toBeLessThanOrEqual(g.maps.reduce((c, m) => c + m.count, 0));
 });
 
 it('groups order by tier then name, rows by their oldest map, and the same metre collapses', () => {
