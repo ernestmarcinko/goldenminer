@@ -3,9 +3,10 @@ import { newGame } from '../../src/core/newGame';
 import { deriveStats, gearTotals } from '../../src/core/stats';
 import { itemName } from '../../src/core/itemData';
 import {
-  battleStatLine, clickIntent, compareLines, itemKindLine, itemLines, itemSprite, lootNoteText, miningStatLine, placeTooltip, rarityOf,
+  battleStatLine, cardHead, clickIntent, compareLines, itemKindLine, itemLines, itemSprite, lootNoteText, miningStatLine, placeTooltip, rarityOf,
   statText,
 } from '../../src/ui/character/itemView';
+import { mapDungeon } from '../../src/ui/maps/mapsView';
 import { gear, gem } from '../helpers/items';
 
 it('stat text', () => {
@@ -89,6 +90,15 @@ it('loot notes in words', () => {
   expect(lootNoteText({ ...n, outcome: 'salvaged', value: 1 })).toBe('salvaged into 1 material');
   expect(lootNoteText({ ...n, outcome: 'stash', value: 0 })).toBe('to stash');
   expect(lootNoteText({ ...n, outcome: 'held', value: 0 })).toBe('waiting for space');
+});
+
+it('a map card is named after its dungeon, with the tier and the rooms on the kind line', () => {
+  const map = { id: 1, type: 'map', tier: 4, metre: 327 } as const;
+  const { type } = mapDungeon(77, map);
+  expect(cardHead(77, map)).toEqual({ name: type.name, kind: `Tier 4 map · ${type.rooms} rooms` });
+  const s = newGame(1, 0);
+  const pick = gear(s, 'pickaxe', { name: 'Stonebiter', rarity: 'normal', ilvl: 1 });
+  expect(cardHead(77, pick)).toEqual({ name: 'Stonebiter', kind: 'Normal pickaxe · item level 1' });
 });
 
 it('a map item reads as its tier and where it was found', () => {

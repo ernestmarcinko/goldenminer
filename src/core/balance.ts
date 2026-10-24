@@ -37,6 +37,11 @@ export const STASH_PAGE_SIZE = 60;
 export const START_GENERAL_PAGES = 2;
 export const START_MAP_PAGES = 1;
 export const MAX_STASH_PAGES = 1000;
+export const STASH_PAGE_GOLD = 5000;
+/** The Gold price of the `n`th page bought in a General or Maps tab; each tab counts its own. */
+export function stashPagePrice(n: number): number {
+  return STASH_PAGE_GOLD * n * n;
+}
 // The item level a gem's value is worked out at, and the first tier each grade is found at.
 export const GEM_GRADE_LEVEL: Readonly<Record<GemGrade, number>> = { tiny: 2, small: 5, big: 8, giant: 12, perfect: 18 };
 export const GEM_GRADE_FROM_TIER: Readonly<Record<GemGrade, number>> = { tiny: 1, small: 4, big: 7, giant: 10, perfect: 15 };

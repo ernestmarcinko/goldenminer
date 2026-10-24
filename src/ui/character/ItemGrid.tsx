@@ -96,10 +96,12 @@ export function EmptyTarget({ target, drag, className, label }: {
   );
 }
 
-/** A fixed-size grid of item cells; `targetOf` says where cell `i` lives so any container can use it. */
-export function ItemGrid({ items, capacity, targetOf, handlers, className }: {
+/**
+ * A fixed-size grid of item cells, ten to a row; `targetOf` says where cell `i` lives so any container can use it. Its
+ * box shrinks the cells to fit a narrow screen, then scrolls sideways on its own.
+ */
+export function ItemGrid({ items, capacity, targetOf, handlers }: {
   items: readonly Cell[]; capacity: number; targetOf: (index: number) => ItemTarget; handlers: ItemHandlers;
-  className?: string;
 }) {
   const cells = [];
   for (let i = 0; i < capacity; i++) {
@@ -118,5 +120,5 @@ export function ItemGrid({ items, capacity, targetOf, handlers, className }: {
       />
     ));
   }
-  return <div className={className ? `gm-grid ${className}` : 'gm-grid'}>{cells}</div>;
+  return <div className="gm-gridbox"><div className="gm-grid">{cells}</div></div>;
 }

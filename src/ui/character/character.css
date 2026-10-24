@@ -74,9 +74,22 @@ button.gm-item:hover { background: #3a2f20; }
 /* a touch tap lifts an item until it is placed or put back */
 .gm-item[data-held] { z-index: 1; transform: translateY(-6px); box-shadow: 0 0 0 3px var(--gm-gold), 0 10px 18px rgba(0, 0, 0, 0.6); }
 
-.gm-grid { display: grid; grid-template-columns: repeat(6, minmax(44px, 52px)); gap: 6px; }
-.gm-grid--stash { grid-template-columns: repeat(8, minmax(44px, 52px)); }
+/* a 10 × 6 grid (the bag, a General or Maps page) of 40 px cells, as on the Round 3 board. On a narrow screen the
+   cells shrink to fit, never under 28 px, and below that the box scrolls sideways on its own. The box's 6 px padding
+   (taken back by its margin) keeps focus outlines and a lifted item inside its clip. */
+.gm-gridbox {
+  box-sizing: border-box; width: 457px; max-width: calc(100% + 12px); margin: -6px; padding: 6px;
+  overflow-x: auto; container-type: inline-size;
+}
+.gm-grid {
+  --gm-cell: clamp(28px, (100cqi - 45px) / 10, 40px);
+  display: grid; grid-template-columns: repeat(10, var(--gm-cell)); gap: 5px;
+}
 .gm-cell { width: 100%; aspect-ratio: 1; min-width: 44px; }
+.gm-grid > .gm-cell { min-width: 0; min-height: 0; }
+/* the 36 px sprite steps down with the cells: 30 px from 34 px cells, 24 px below */
+@container (width < 445px) { .gm-grid > .gm-item > :first-child { transform: scale(0.8333); } }
+@container (width < 385px) { .gm-grid > .gm-item > :first-child { transform: scale(0.6667); } }
 .gm-cell--empty { box-sizing: border-box; border-radius: 6px; background: #1a1613; border: 1px solid #2e2722; }
 
 .gm-card {
@@ -114,7 +127,7 @@ button.gm-item:hover { background: #3a2f20; }
 
 .gm-stash { position: relative; display: flex; flex-direction: column; gap: 12px; }
 .gm-overlay.gm-overlay--top { align-items: flex-start; padding-top: max(16px, 6vh); }
-.gm-dialog.gm-stash { max-width: 900px; }
+.gm-dialog.gm-stash { max-width: 980px; }
 .gm-stash .gm-char__status:empty { min-height: 0; margin-top: -12px; }
 .gm-stash__body { display: flex; align-items: flex-start; gap: 24px; }
 .gm-stash__main { display: flex; flex-direction: column; min-width: 0; }
@@ -129,6 +142,17 @@ button.gm-item:hover { background: #3a2f20; }
   box-sizing: border-box; padding: 10px; border-radius: 0 8px 8px 8px; background: var(--gm-panel-raised);
   border: 1px solid var(--gm-gold);
 }
+.gm-stash__paged { display: flex; flex-direction: column; gap: 10px; }
+.gm-stash__pages { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.gm-stash__page {
+  min-height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--gm-line); background: var(--gm-panel);
+  color: var(--gm-normal); font: inherit; font-size: 13px; cursor: pointer;
+}
+.gm-stash__page:hover { border-color: var(--gm-gold); }
+.gm-stash__page[aria-pressed='true'] { border-color: var(--gm-gold); color: var(--gm-gold-bright); }
+.gm-stash__page--buy { border-style: dashed; border-color: var(--gm-gold); color: var(--gm-gold); }
+.gm-stash__page--buy[aria-disabled='true'] { opacity: 0.5; }
+.gm-stash__page:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
 .gm-stash__bag { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .gm-stash__bag .gm-char__toggle { align-self: flex-start; }
 
@@ -173,7 +197,6 @@ button.gm-item:hover { background: #3a2f20; }
 }
 @media (max-width: 600px) {
   .gm-char { padding: 12px; }
-  .gm-grid--stash { grid-template-columns: repeat(6, minmax(44px, 52px)); }
   .gm-stash__panel { padding: 8px; }
   .gm-stash__tab { padding: 0 10px; }
   .gm-gemtab { grid-template-columns: 56px repeat(5, minmax(44px, 52px)); gap: 4px; }

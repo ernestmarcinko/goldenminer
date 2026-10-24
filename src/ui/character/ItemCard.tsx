@@ -7,7 +7,7 @@ import { itemName } from '../../core/itemData';
 import type { GameState } from '../../core/types';
 import { hoverNote, itemActions } from './itemActions';
 import type { ActionSpec, ItemTarget } from './itemActions';
-import { compareLines, itemKindLine, itemLines, rarityOf, wornToCompare } from './itemView';
+import { cardHead, compareLines, itemKindLine, itemLines, rarityOf, wornToCompare } from './itemView';
 import type { ViewLine } from './itemView';
 
 export interface CardMenu {
@@ -62,7 +62,7 @@ export function ItemCard({ state, target, left, top, menu, inline = false, smoot
 
   const item = itemAt(state, target);
   if (item === undefined) return null;
-  const name = itemName(item);
+  const { name, kind } = cardHead(state.seed, item);
   const worn = wornToCompare(state, item, target.where === 'worn');
   const compare = isGear(item) && target.where !== 'worn' ? compareLines(item, worn) : null;
   const beside = pair && !isMenu && worn !== undefined;
@@ -92,7 +92,7 @@ export function ItemCard({ state, target, left, top, menu, inline = false, smoot
       onBlur={onBlur}
     >
       <div className="gm-card__name">{name}</div>
-      <div className="gm-card__kind">{itemKindLine(item)}</div>
+      <div className="gm-card__kind">{kind}</div>
       <div className="gm-card__lines"><Lines lines={itemLines(item)} /></div>
       {compare !== null && compare.lines.length > 0 && (
         <div className="gm-card__compare">

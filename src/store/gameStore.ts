@@ -9,6 +9,7 @@ import type { GearItem, Slot } from '../core/items';
 import { drainOverflow } from '../core/loot';
 import { leaveMap as coreLeaveMap, startMap as coreStartMap } from '../core/maps';
 import { newGame } from '../core/newGame';
+import { buyStashPage as coreBuyStashPage } from '../core/stashPages';
 import { decodeSave, encodeSave, type DecodeResult } from '../core/save';
 import { freshWorld, isValidSeedText, seedFromText } from '../core/seed';
 import { deriveStats } from '../core/stats';
@@ -245,6 +246,16 @@ export class GameStore {
   sell(from: ItemLoc): InvResult { return this.act(() => inv.sell(this._state, from)); }
   salvage(from: ItemLoc): InvResult { return this.act(() => inv.salvage(this._state, from)); }
   drop(from: ItemLoc, to: DropTarget): InvResult { return this.act(() => inv.dropItem(this._state, from, to)); }
+
+  /** A bought page is new room, so held loot may come in. */
+  buyStashPage(tab: 'general' | 'maps'): 'ok' | 'noGold' | 'full' {
+    const result = coreBuyStashPage(this._state, tab);
+    if (result === 'ok') {
+      drainOverflow(this._state);
+      this.changed();
+    }
+    return result;
+  }
 
   setLootFilter(rules: LootRule[]): void {
     this._state.settings.lootFilter = rules.slice(0, MAX_LOOT_RULES).map((r) => ({ ...r }));

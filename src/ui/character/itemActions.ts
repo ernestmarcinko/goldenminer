@@ -14,7 +14,7 @@ import { statText } from './itemView';
 export type ItemTarget = ItemLoc;
 
 export interface ActionSpec {
-  id: 'equip' | 'unequip' | 'sell' | 'salvage' | 'toStash' | 'toBag' | 'take' | 'socket';
+  id: 'equip' | 'unequip' | 'sell' | 'salvage' | 'toStash' | 'toBag' | 'take' | 'socket' | 'run';
   label: string;
   disabled: boolean;
   /** For 'socket': the gear that takes the gem. */
@@ -75,10 +75,17 @@ function materialActions(state: GameState, target: ItemTarget, item: MaterialIte
   return [{ id: 'toStash', label: 'To Materials tab', disabled: full }];
 }
 
+/** A map runs from its card (not while another run is going) and moves between the bag and the Maps tab. */
+function mapActions(state: GameState, target: ItemTarget): ActionSpec[] {
+  const run: ActionSpec = { id: 'run', label: 'Run this map', disabled: state.activity.kind === 'map' };
+  if (target.where === 'maps') return [run, { id: 'toBag', label: 'To bag', disabled: firstEmpty(state.bag) < 0 }];
+  return [run, { id: 'toStash', label: 'To Maps tab', disabled: firstEmpty(state.stash.maps) < 0 }];
+}
+
 export function itemActions(state: GameState, target: ItemTarget): ActionSpec[] {
   const item = itemAt(state, target);
-  // maps have no card actions yet: they move by drag and drop
-  if (item === undefined || item.type === 'map') return [];
+  if (item === undefined) return [];
+  if (item.type === 'map') return mapActions(state, target);
   if (item.type === 'material') return materialActions(state, target, item);
   const bagFull = firstEmpty(state.bag) < 0;
   const generalFull = firstEmpty(state.stash.general) < 0;
@@ -138,7 +145,8 @@ export function hoverNote(target: ItemTarget, item: Item): string {
   if (target.where === 'stash') return 'Click to move to your bag · Alt+click to sell';
   if (target.where === 'gems') return `Click to take up to ${formatNumber(GEM_BAG_STACK)} · right-click for more`;
   if (target.where === 'materials') return `Click to take up to ${formatNumber(MATERIAL_BAG_STACK)} · right-click for more`;
-  if (item.type === 'map') return 'Drag it to the Stash button to keep it in the Maps tab';
+  if (target.where === 'maps') return 'Click for actions · Shift+click to your bag';
+  if (item.type === 'map') return 'Click for actions · Shift+click to the Maps tab';
   if (item.type === 'material') return 'Click for actions · Shift+click to the Materials tab';
   return isGear(item)
     ? 'Click to equip · Alt+click to sell · Shift+click to stash'
@@ -157,6 +165,7 @@ export function runAction(store: GameStore, target: ItemTarget, action: ActionSp
     case 'toBag':
     case 'take': return store.sendItem(target, 'bag');
     case 'socket': return action.into !== undefined ? store.socketGem(target, action.into) : 'invalid';
+    case 'run': return item.type === 'map' ? store.startMap(item.id) : 'invalid';
   }
 }
 

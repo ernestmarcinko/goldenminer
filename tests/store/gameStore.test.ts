@@ -274,6 +274,44 @@ describe('inventory intents', () => {
   });
 });
 
+describe('stash pages', () => {
+  it('buying a Maps page with enough Gold bumps the version and adds the cells', () => {
+    const { store } = make();
+    store.load();
+    store.state.gold = 5000;
+    const v = store.version;
+    expect(store.buyStashPage('maps')).toBe('ok');
+    expect(store.version).toBe(v + 1);
+    expect(store.state.stash.maps).toHaveLength(120);
+    expect(store.state.gold).toBe(0);
+  });
+
+  it('a refused purchase changes nothing', () => {
+    const { store } = make();
+    store.load();
+    store.state.gold = 4999;
+    const v = store.version;
+    expect(store.buyStashPage('general')).toBe('noGold');
+    expect(store.version).toBe(v);
+    expect(store.state.stash.general).toHaveLength(120);
+  });
+
+  it('a bought page lets held loot into it', () => {
+    const { store } = make();
+    store.load();
+    const s = store.state;
+    s.settings.bagFull = 'stop';
+    s.bag = s.bag.map(() => gem(s));
+    s.stash.general = s.stash.general.map(() => gear(s, 'ring'));
+    const held = gear(s, 'pickaxe');
+    s.overflow.push(held);
+    s.gold = 5000;
+    expect(store.buyStashPage('general')).toBe('ok');
+    expect(s.overflow).toEqual([]);
+    expect(s.stash.general[120]).toBe(held);
+  });
+});
+
 describe('a migrated save with held loot', () => {
   // Schema 6 frees room (one bag of 60, two General pages), so the loot the old bags held can go in at once.
   const decoded = () => { const r = decodeSave(fixture5.trim()); if (!r.ok) throw new Error(r.reason); return r.state; };

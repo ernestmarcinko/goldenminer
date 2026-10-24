@@ -1,7 +1,10 @@
 import { expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
 import type { ItemLoc } from '../../src/core/types';
-import { actionForIntent, hoverNote, itemActions, resultText } from '../../src/ui/character/itemActions';
+import { addMap, startMap } from '../../src/core/maps';
+import { GameStore } from '../../src/store/gameStore';
+import { MemoryStorage } from '../../src/store/storage';
+import { actionForIntent, hoverNote, itemActions, resultText, runAction } from '../../src/ui/character/itemActions';
 import { gear, gem } from '../helpers/items';
 import { lootNoteText } from '../../src/ui/character/itemView';
 import { MATERIAL_STASH_STACK } from '../../src/core/balance';
@@ -133,14 +136,66 @@ it('every refusal has a message, and success has none', () => {
   expect(resultText('ok')).toBeNull();
 });
 
-it('maps have no card actions yet', () => {
+it('a bag map runs or goes to the Maps tab; a Maps-tab map runs or comes back to the bag', () => {
+  const s = newGame(1, 0);
+  const carried = { id: s.nextId++, type: 'map', tier: 4, metre: 327 } as const;
+  s.bag[0] = carried;
+  s.stash.maps[2] = { id: s.nextId++, type: 'map', tier: 1, metre: 2 };
+  const tab: ItemLoc = { where: 'maps', index: 2 };
+  expect(itemActions(s, bag(0))).toEqual([
+    { id: 'run', label: 'Run this map', disabled: false },
+    { id: 'toStash', label: 'To Maps tab', disabled: false },
+  ]);
+  expect(itemActions(s, tab)).toEqual([
+    { id: 'run', label: 'Run this map', disabled: false },
+    { id: 'toBag', label: 'To bag', disabled: false },
+  ]);
+  const act = (t: ItemLoc, intent: Parameters<typeof actionForIntent>[2]) => actionForIntent(itemActions(s, t), t, intent);
+  expect(act(bag(0), 'primary')).toBe('menu');
+  expect(act(tab, 'primary')).toBe('menu');
+  expect(act(bag(0), 'move')).toMatchObject({ id: 'toStash' });
+  expect(act(tab, 'move')).toMatchObject({ id: 'toBag' });
+  expect(hoverNote(bag(0), carried)).toBe('Click for actions · Shift+click to the Maps tab');
+  expect(hoverNote(tab, carried)).toBe('Click for actions · Shift+click to your bag');
+});
+
+it('a map cannot run while another run is going, and moves need room', () => {
   const s = newGame(1, 0);
   s.bag[0] = { id: s.nextId++, type: 'map', tier: 4, metre: 327 };
   s.stash.maps[2] = { id: s.nextId++, type: 'map', tier: 1, metre: 2 };
-  for (const t of [bag(0), { where: 'maps', index: 2 }] as ItemLoc[]) {
-    expect(itemActions(s, t)).toEqual([]);
-    expect(actionForIntent(itemActions(s, t), t, 'primary')).toBe('menu');
-  }
+  startMap(s, addMap(s, 1, 2).id);
+  const tab: ItemLoc = { where: 'maps', index: 2 };
+  expect(itemActions(s, bag(0))[0]).toMatchObject({ id: 'run', disabled: true });
+  expect(itemActions(s, tab)[0]).toMatchObject({ id: 'run', disabled: true });
+  s.stash.maps = s.stash.maps.map((c) => c ?? { id: s.nextId++, type: 'map', tier: 1, metre: 2 });
+  expect(itemActions(s, bag(0))[1]).toMatchObject({ id: 'toStash', disabled: true });
+  s.bag = s.bag.map((c) => c ?? gear(s, 'ring'));
+  expect(itemActions(s, tab)[1]).toMatchObject({ id: 'toBag', disabled: true });
+});
+
+it('Run this map starts that map', () => {
+  const store = new GameStore({ storage: new MemoryStorage(), storageAvailable: true, now: () => 0, newSeed: () => 7 });
+  store.load();
+  const s = store.state;
+  const map = { id: s.nextId++, type: 'map', tier: 1, metre: 2 } as const;
+  s.stash.maps[5] = map;
+  const t: ItemLoc = { where: 'maps', index: 5 };
+  const run = itemActions(s, t).find((a) => a.id === 'run');
+  if (run === undefined) throw new Error('no run action');
+  expect(runAction(store, t, run)).toBe('ok');
+  expect(store.state.activity.kind).toBe('map');
+  expect(store.state.activity.kind === 'map' && store.state.activity.run.map.id).toBe(map.id);
+  expect(s.stash.maps[5]).toBeNull();
+});
+
+it('Run this map during a run is refused as busy', () => {
+  const store = new GameStore({ storage: new MemoryStorage(), storageAvailable: true, now: () => 0, newSeed: () => 7 });
+  store.load();
+  const s = store.state;
+  s.bag[0] = { id: s.nextId++, type: 'map', tier: 1, metre: 2 };
+  store.startMap(addMap(s, 1, 2).id);
+  expect(runAction(store, bag(0), { id: 'run', label: 'Run this map', disabled: true })).toBe('busy');
+  expect(s.bag[0]).not.toBeNull();
 });
 
 it('a bag material stack goes to the Materials tab; a tab stack comes back to the bag', () => {

@@ -1,11 +1,12 @@
 import { hardness, MATERIAL_TABLE, TICKS_PER_METRE_AT_PARITY } from '../../core/balance';
-import { GEM_GRADE_LABELS, gemName } from '../../core/itemData';
+import { GEM_GRADE_LABELS, gemName, itemName } from '../../core/itemData';
 import { BATTLE_STATS, isGear, setOfSlot } from '../../core/items';
 import type { GearItem, GemType, Item, Material, Slot, StatKey } from '../../core/items';
 import { gemEffect, itemTotals } from '../../core/stats';
 import type { GameState, LootNote, Stats } from '../../core/types';
 import type { SpriteName } from '../../sprites/atlas';
 import { formatDuration, formatNumber, formatRate, plural } from '../format';
+import { mapDungeon } from '../maps/mapsView';
 
 export const SLOT_LABELS: Readonly<Record<Slot, string>> = {
   pickaxe: 'Pickaxe', lamp: 'Lamp helm', gloves: 'Gloves', boots: 'Boots', weapon: 'Weapon', armor: 'Armor',
@@ -62,6 +63,13 @@ export function itemKindLine(item: Item): string {
   }
   const base = `${capitalise(item.rarity)} ${SLOT_LABELS[item.slot].toLowerCase()} · item level ${formatNumber(item.ilvl)}`;
   return item.sockets > 0 ? `${base} · ${formatNumber(item.gems.length)}/${formatNumber(item.sockets)} sockets` : base;
+}
+
+/** A card's name and kind line: a map is named after the dungeon it opens into, and counts its rooms. */
+export function cardHead(seed: number, item: Item): { name: string; kind: string } {
+  if (item.type !== 'map') return { name: itemName(item), kind: itemKindLine(item) };
+  const { type } = mapDungeon(seed, item);
+  return { name: type.name, kind: `${itemKindLine(item)} · ${plural(type.rooms, 'room', 'rooms')}` };
 }
 
 export function itemLines(item: Item): ViewLine[] {
