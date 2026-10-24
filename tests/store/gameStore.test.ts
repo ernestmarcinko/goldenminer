@@ -4,6 +4,9 @@ import { MemoryStorage, SAVE_KEY, BACKUP_PREFIX, safeStorage } from '../../src/s
 import { decodeSave, encodeSave } from '../../src/core/save';
 import { compressToBase64 } from 'lz-string';
 import { newGame } from '../../src/core/newGame';
+import { BAG_SIZE, MAX_LOOT_RULES, STASH_SIZE } from '../../src/core/balance';
+import type { LootRule } from '../../src/core/types';
+import { gem } from '../helpers/items';
 
 function make(now = { t: 0 }, storage = new MemoryStorage(), available = true) {
   const store = new GameStore({ storage, storageAvailable: available, now: () => now.t, newSeed: () => 7 });
@@ -133,5 +136,46 @@ describe('GameStore', () => {
     expect(store.notice?.kind).toBe('loadFailed');
     store.hardReset();
     expect(store.notice).toBeNull();
+  });
+});
+
+describe('inventory intents', () => {
+  it('an action bumps the version and lets held loot into the room it made', () => {
+    const { store } = make();
+    store.load();
+    const s = store.state;
+    s.settings.bagFull = 'stop';
+    for (let i = 0; i < BAG_SIZE; i++) s.bags.mining.push(gem(s));
+    for (let i = 0; i < STASH_SIZE; i++) s.stash.push(gem(s));
+    const held = gem(s, 'emerald');
+    s.overflow.push({ bag: 'mining', item: held });
+    const v = store.version;
+    expect(store.sell('mining', 0)).toBe('ok');
+    expect(store.version).toBe(v + 1);
+    expect(s.overflow).toEqual([]);
+    expect(s.bags.mining.at(-1)).toBe(held);
+  });
+
+  it('a refused action changes nothing', () => {
+    const { store } = make();
+    store.load();
+    const v = store.version;
+    expect(store.unequip('pickaxe')).toBe('invalid');
+    expect(store.version).toBe(v);
+  });
+
+  it('settings keep at most 20 rules, and switching to sellWorst drains held loot', () => {
+    const { store } = make();
+    store.load();
+    const rule: LootRule = { rarity: 'normal', target: 'any', action: 'sell' };
+    store.setLootFilter(Array.from({ length: 25 }, () => rule));
+    expect(store.state.settings.lootFilter).toHaveLength(MAX_LOOT_RULES);
+    const s = store.state;
+    s.settings.bagFull = 'stop';
+    for (let i = 0; i < BAG_SIZE; i++) s.bags.mining.push(gem(s));
+    for (let i = 0; i < STASH_SIZE; i++) s.stash.push(gem(s));
+    s.overflow.push({ bag: 'mining', item: gem(s) });
+    store.setBagFull('sellWorst');
+    expect(s.overflow).toEqual([]);
   });
 });

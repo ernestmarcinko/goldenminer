@@ -1,11 +1,16 @@
-import { OFFLINE_SUMMARY_MIN_TICKS } from '../core/balance';
+import { MAX_LOOT_RULES, OFFLINE_SUMMARY_MIN_TICKS } from '../core/balance';
 import { advance, ClickLimiter, clickTicks } from '../core/clock';
 import { moveTo as coreMoveTo } from '../core/dig';
+import * as inv from '../core/inventory';
+import type { GearSet, Slot } from '../core/items';
+import { drainOverflow } from '../core/loot';
 import { newGame } from '../core/newGame';
 import { decodeSave, encodeSave, type DecodeResult } from '../core/save';
 import { deriveStats } from '../core/stats';
 import { summarize } from '../core/summary';
-import type { FindRecord, GameState, OfflineSummary, Stats, TickEvent } from '../core/types';
+import type {
+  BagFullMode, Container, FindRecord, GameState, InvResult, LootRule, OfflineSummary, Stats, TickEvent,
+} from '../core/types';
 import { BACKUP_PREFIX, SAVE_KEY, type StorageLike } from './storage';
 
 export interface Feedback { gold: number; diamonds: number; finds: FindRecord[] }
@@ -166,6 +171,36 @@ export class GameStore {
     const moved = coreMoveTo(this._state, depth);
     if (moved) this.changed();
     return moved;
+  }
+
+  private settle(result: InvResult): InvResult {
+    if (result === 'ok') {
+      drainOverflow(this._state);
+      this.changed();
+    }
+    return result;
+  }
+
+  equip(set: GearSet, index: number): InvResult { return this.settle(inv.equip(this._state, set, index)); }
+  unequip(slot: Slot): InvResult { return this.settle(inv.unequip(this._state, slot)); }
+  sell(from: Container, index: number): InvResult { return this.settle(inv.sell(this._state, from, index)); }
+  salvage(from: Container, index: number): InvResult { return this.settle(inv.salvage(this._state, from, index)); }
+  moveItem(from: Container, index: number, to: Container): InvResult {
+    return this.settle(inv.moveItem(this._state, from, index, to));
+  }
+  socketGem(from: Container, index: number, slot: Slot): InvResult {
+    return this.settle(inv.socketGem(this._state, from, index, slot));
+  }
+
+  setLootFilter(rules: LootRule[]): void {
+    this._state.settings.lootFilter = rules.slice(0, MAX_LOOT_RULES).map((r) => ({ ...r }));
+    this.changed();
+  }
+
+  setBagFull(mode: BagFullMode): void {
+    this._state.settings.bagFull = mode;
+    drainOverflow(this._state);
+    this.changed();
   }
 
   drainFeedback(): Feedback {
