@@ -43,7 +43,7 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
         handlers.onPick(target, intent, e.currentTarget);
       }}
       onContextMenu={(e) => { e.preventDefault(); handlers.onMenu(target, e.currentTarget); }}
-      onMouseEnter={(e) => handlers.onInspect(target, e.currentTarget)}
+      onMouseEnter={(e) => { if (pointerType.current !== 'touch') handlers.onInspect(target, e.currentTarget); }}
       onMouseLeave={handlers.onClear}
       onFocus={(e) => handlers.onInspect(target, e.currentTarget)}
       onBlur={handlers.onClear}

@@ -20,18 +20,22 @@ const SETS: readonly { set: GearSet; toggle: string; bag: string }[] = [
   { set: 'battle', toggle: 'Battle set', bag: 'Battle bag' },
 ];
 
+const targetKey = (t: ItemTarget): string =>
+  t.where === 'worn' ? `worn-${t.slot}` : t.where === 'bag' ? `bag-${t.set}-${t.index}` : `stash-${t.index}`;
+
 export function CharacterPanel({ store }: { store: GameStore }) {
   const { state, stats } = useGame(store);
   const [set, setSet] = useState<GearSet>('mining');
   const [message, setMessage] = useState<string | null>(null);
   const panelRef = useRef<HTMLElement>(null);
+  const bagHeadingRef = useRef<HTMLHeadingElement>(null);
   const popover = useItemPopover(panelRef);
   const { inspect, clear, openMenu, closeMenu } = popover;
 
-  const perform = (target: ItemTarget, action: ActionSpec): void => {
+  const perform = (target: ItemTarget, action: ActionSpec, fromCard = false): void => {
     setMessage(resultText(runAction(store, target, action, set)));
     clear();
-    closeMenu();
+    closeMenu(fromCard, bagHeadingRef.current);
   };
 
   const handlers: ItemHandlers = {
@@ -72,8 +76,8 @@ export function CharacterPanel({ store }: { store: GameStore }) {
         {set === 'mining' ? miningStatLine(stats, state.deepest) : battleStatLine(gearTotals(state, 'battle'))}
       </div>
 
-      <h3 className="gm-char__bag">
-        {current?.bag} <span className="gm-muted">{formatNumber(bag.length)} / {BAG_SIZE}</span>
+      <h3 ref={bagHeadingRef} tabIndex={-1} className="gm-char__bag">
+        {current?.bag} <span className="gm-muted">{formatNumber(bag.length)} / {formatNumber(BAG_SIZE)}</span>
       </h3>
       <ItemGrid
         items={bag}
@@ -95,11 +99,12 @@ export function CharacterPanel({ store }: { store: GameStore }) {
       )}
       {popover.menu && (
         <ItemCard
+          key={targetKey(popover.menu.target)}
           state={state} target={popover.menu.target} shownSet={set}
           left={popover.menu.left} top={popover.menu.top}
           menu={{
-            onAction: (a) => { if (popover.menu) perform(popover.menu.target, a); },
-            onClose: () => closeMenu(true),
+            onAction: (a) => { if (popover.menu) perform(popover.menu.target, a, true); },
+            onClose: () => closeMenu(true, bagHeadingRef.current),
           }}
         />
       )}

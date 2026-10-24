@@ -53,9 +53,9 @@ export function rarityOf(item: Item): GearItem['rarity'] | 'gem' {
 const capitalise = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function itemKindLine(item: Item): string {
-  if (!isGear(item)) return `Gem · item level ${item.ilvl} · socket into any gear`;
-  const base = `${capitalise(item.rarity)} ${SLOT_LABELS[item.slot].toLowerCase()} · item level ${item.ilvl}`;
-  return item.sockets > 0 ? `${base} · ${item.gems.length}/${item.sockets} sockets` : base;
+  if (!isGear(item)) return `Gem · item level ${formatNumber(item.ilvl)} · socket into any gear`;
+  const base = `${capitalise(item.rarity)} ${SLOT_LABELS[item.slot].toLowerCase()} · item level ${formatNumber(item.ilvl)}`;
+  return item.sockets > 0 ? `${base} · ${formatNumber(item.gems.length)}/${formatNumber(item.sockets)} sockets` : base;
 }
 
 export function itemLines(item: Item): ViewLine[] {

@@ -19,8 +19,8 @@ export function useItemPopover(containerRef: RefObject<HTMLElement | null>) {
     const cr = c.getBoundingClientRect();
     const er = el.getBoundingClientRect();
     const at = placeTooltip(
-      { left: er.left - cr.left - c.clientLeft, top: er.top - cr.top - c.clientTop, width: er.width, height: er.height },
-      cr.width,
+      { left: er.left - cr.left - c.clientLeft + c.scrollLeft, top: er.top - cr.top - c.clientTop + c.scrollTop, width: er.width, height: er.height },
+      c.clientWidth,
     );
     return { target, ...at };
   }, [containerRef]);
@@ -38,9 +38,13 @@ export function useItemPopover(containerRef: RefObject<HTMLElement | null>) {
     setMenu(place(target, el));
   }, [place]);
 
-  const closeMenu = useCallback((restoreFocus = false) => {
+  /** With `restoreFocus`, focus goes back to the opener, or to `fallback` when the opener is gone. */
+  const closeMenu = useCallback((restoreFocus = false, fallback?: HTMLElement | null) => {
     setMenu(null);
-    if (restoreFocus && opener.current?.isConnected) opener.current.focus();
+    if (!restoreFocus) return;
+    const el = opener.current;
+    // after the re-render, so an opener that the action removed is seen as gone
+    setTimeout(() => { if (el?.isConnected) el.focus(); else fallback?.focus(); }, 0);
   }, []);
 
   const isOpen = menu !== null;
