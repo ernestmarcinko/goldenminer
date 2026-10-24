@@ -101,6 +101,8 @@ button.gm-item:hover { background: #3a2f20; }
 /* the card a touch tap opens: in the flow below the grid, so the targets above stay uncovered */
 .gm-card.gm-card--inline { position: static; width: 100%; box-shadow: none; }
 .gm-card__label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gm-muted); }
+/* the label over a gear card's craft buttons, set apart from the actions above it */
+.gm-card__craft { padding-top: 6px; }
 /* a hover card and the worn item's card, side by side as one placed pair */
 .gm-cardpair { position: absolute; z-index: 2; display: flex; align-items: flex-start; gap: 8px; pointer-events: none; }
 .gm-cardpair > .gm-card { position: static; }

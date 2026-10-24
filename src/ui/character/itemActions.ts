@@ -5,20 +5,28 @@ import { BATTLE_SLOTS, isGear, MATERIALS, MINING_SLOTS, setOfSlot } from '../../
 import type { GearItem, GemItem, Item, MaterialItem } from '../../core/items';
 import { salvagePay, sellPay } from '../../core/loot';
 import { deriveStats, gemEffect } from '../../core/stats';
-import type { GameState, InvResult, ItemLoc, Stats } from '../../core/types';
+import type { CraftKind, GameState, InvResult, ItemLoc, Stats } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
 import { formatNumber } from '../format';
+import { craftOptions } from './craftView';
 import type { ClickIntent } from './itemView';
 import { statText } from './itemView';
 
 export type ItemTarget = ItemLoc;
 
 export interface ActionSpec {
-  id: 'equip' | 'unequip' | 'sell' | 'salvage' | 'toStash' | 'toBag' | 'take' | 'socket' | 'run';
+  id: 'equip' | 'unequip' | 'sell' | 'salvage' | 'toStash' | 'toBag' | 'take' | 'socket' | 'run' | 'craft';
   label: string;
   disabled: boolean;
   /** For 'socket': the gear that takes the gem. */
   into?: ItemLoc;
+  /** For 'craft': what it crafts with. */
+  kind?: CraftKind;
+}
+
+/** One action per craft the gear's card offers, after its other actions. */
+function craftActions(state: GameState, target: ItemTarget): ActionSpec[] {
+  return craftOptions(state, target).map((o) => ({ id: 'craft', kind: o.kind, label: o.label, disabled: !o.enabled }));
 }
 
 /** One "Socket into …" action per worn item, then per carried item, that has an open socket. */
@@ -93,6 +101,7 @@ export function itemActions(state: GameState, target: ItemTarget): ActionSpec[] 
     return [
       { id: 'unequip', label: 'Unequip', disabled: bagFull },
       { id: 'toStash', label: 'To stash', disabled: generalFull },
+      ...craftActions(state, target),
     ];
   }
   const all = target.where === 'gems';
@@ -110,12 +119,16 @@ export function itemActions(state: GameState, target: ItemTarget): ActionSpec[] 
     return [take, ...socketActions(state, item), sell, salvage];
   }
   if (target.where === 'stash') {
-    return [{ id: 'equip', label: 'Equip', disabled: false }, { id: 'toBag', label: 'To bag', disabled: bagFull }, sell, salvage];
+    return [
+      { id: 'equip', label: 'Equip', disabled: false }, { id: 'toBag', label: 'To bag', disabled: bagFull }, sell, salvage,
+      ...craftActions(state, target),
+    ];
   }
   if (isGear(item)) {
     return [
       { id: 'equip', label: 'Equip', disabled: false }, sell, salvage,
       { id: 'toStash', label: 'To stash', disabled: generalFull },
+      ...craftActions(state, target),
     ];
   }
   // a gem stack joins its count on the Gems tab, unless that count is at its cap
@@ -167,6 +180,9 @@ export function runAction(store: GameStore, target: ItemTarget, action: ActionSp
     case 'take': return store.sendItem(target, 'bag');
     case 'socket': return action.into !== undefined ? store.socketGem(target, action.into) : 'invalid';
     case 'run': return item.type === 'map' ? store.startMap(item.id) : 'invalid';
+    case 'craft':
+      if (action.kind === undefined) return 'invalid';
+      return store.craft(target, action.kind).check === 'ok' ? 'ok' : 'craftRefused';
   }
 }
 

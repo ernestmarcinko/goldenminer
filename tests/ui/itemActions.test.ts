@@ -11,12 +11,14 @@ import { MATERIAL_STASH_STACK } from '../../src/core/balance';
 
 const bag = (index: number): ItemLoc => ({ where: 'bag', index });
 const labels = (specs: ReturnType<typeof itemActions>) => specs.map((a) => [a.id, a.label]);
+/** The actions besides crafts, which have tests of their own. */
+const noCrafts = (specs: ReturnType<typeof itemActions>) => specs.filter((a) => a.id !== 'craft');
 
 it('bag gear offers equip, sell, salvage and stash', () => {
   const s = newGame(1, 0);
   const pick = gear(s, 'pickaxe', { rarity: 'magic', ilvl: 4 });
   s.bag[0] = pick;
-  expect(itemActions(s, bag(0))).toEqual([
+  expect(noCrafts(itemActions(s, bag(0)))).toEqual([
     { id: 'equip', label: 'Equip', disabled: false },
     { id: 'sell', label: 'Sell (+48 Gold)', disabled: false },
     { id: 'salvage', label: 'Salvage (+2 Copper ore, +1 Tin ore)', disabled: false },
@@ -52,7 +54,7 @@ it('General gear offers equip, to bag, sell and salvage', () => {
   const s = newGame(1, 0);
   s.stash.general[0] = gear(s, 'boots', { rarity: 'normal', ilvl: 2 });
   const t: ItemLoc = { where: 'stash', index: 0 };
-  expect(itemActions(s, t)).toEqual([
+  expect(noCrafts(itemActions(s, t))).toEqual([
     { id: 'equip', label: 'Equip', disabled: false },
     { id: 'toBag', label: 'To bag', disabled: false },
     { id: 'sell', label: 'Sell (+10 Gold)', disabled: false },
@@ -87,7 +89,7 @@ it('a worn item offers unequip and to stash', () => {
   const s = newGame(1, 0);
   s.equipped.mining.pickaxe = gear(s, 'pickaxe');
   const t: ItemLoc = { where: 'worn', slot: 'pickaxe' };
-  expect(itemActions(s, t)).toEqual([
+  expect(noCrafts(itemActions(s, t))).toEqual([
     { id: 'unequip', label: 'Unequip', disabled: false },
     { id: 'toStash', label: 'To stash', disabled: false },
   ]);
@@ -249,7 +251,38 @@ it('the sell and salvage labels show what sell bonus and salvage yield will pay'
   const s = newGame(1, 0);
   s.equipped.mining.gloves = gear(s, 'gloves', { affixes: [{ stat: 'sellBonus', value: 50 }, { stat: 'salvageYield', value: 100 }] });
   s.bag[0] = gear(s, 'pickaxe', { rarity: 'magic', ilvl: 4 });
-  expect(labels(itemActions(s, bag(0)))).toEqual([
+  expect(labels(noCrafts(itemActions(s, bag(0))))).toEqual([
     ['equip', 'Equip'], ['sell', 'Sell (+72 Gold)'], ['salvage', 'Salvage (+4 Copper ore, +2 Tin ore)'], ['toStash', 'To stash'],
   ]);
+});
+
+it('a card for gear lists one craft action per option after its other actions', () => {
+  const s = newGame(1, 0);
+  s.bag[0] = gear(s, 'pickaxe', { rarity: 'normal', ilvl: 4 });
+  s.bag[1] = { id: s.nextId++, type: 'material', material: 'copper', count: 37 };
+  s.equipped.mining.lamp = gear(s, 'lamp', { rarity: 'normal', ilvl: 4 });
+  s.stash.general[0] = gear(s, 'boots', { rarity: 'normal', ilvl: 4 });
+  const crafts = [
+    { id: 'craft', kind: 'copper', label: 'Copper ore ×3: make it magic', disabled: false },
+    { id: 'craft', kind: 'mithril', label: 'Mithril ×2: reroll its sockets', disabled: true },
+  ];
+  expect(itemActions(s, bag(0)).slice(4)).toEqual(crafts);
+  expect(itemActions(s, bag(0)).slice(0, 4).map((a) => a.id)).toEqual(['equip', 'sell', 'salvage', 'toStash']);
+  expect(itemActions(s, { where: 'worn', slot: 'lamp' }).slice(2)).toEqual(crafts);
+  expect(itemActions(s, { where: 'stash', index: 0 }).slice(4)).toEqual(crafts);
+  expect(itemActions(s, bag(1)).some((a) => a.id === 'craft')).toBe(false);
+});
+
+it('a craft action crafts through the store', () => {
+  const store = new GameStore({ storage: new MemoryStorage(), storageAvailable: true, now: () => 0, newSeed: () => 7 });
+  store.load();
+  const s = store.state;
+  s.bag[0] = gear(s, 'pickaxe', { rarity: 'normal', ilvl: 4 });
+  s.stash.materials.copper = 5;
+  const copper = itemActions(s, bag(0)).find((a) => a.id === 'craft' && a.kind === 'copper');
+  if (copper === undefined) throw new Error('no copper craft');
+  expect(runAction(store, bag(0), copper)).toBe('ok');
+  expect(s.bag[0]).toMatchObject({ rarity: 'magic' });
+  expect(s.stash.materials.copper).toBe(2);
+  expect(store.lastCraft).toMatchObject({ kind: 'copper', check: 'ok' });
 });
