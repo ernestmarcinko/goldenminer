@@ -1,5 +1,5 @@
 import type { Rarity, StatKey } from './items';
-import type { FeatureKind } from './types';
+import type { FeatureKind, Stats } from './types';
 
 export const BASE_DIG_POWER = 10;
 export const BASE_AUTO_TICKS_PER_SECOND = 1;
@@ -24,6 +24,10 @@ export const BASE_FEATURE_CHANCES: Readonly<Record<FeatureKind, number>> = {
   goldVein: 0.12, diamondVein: 0.03, chest: 0.06, gem: 0.03, map: 0.04,
 };
 export const BASE_HARD_ROCK_CHANCE = 0.08;
+// What the seed alone decides about a metre (world generation 2); find gear never changes it.
+export const BASE_ROLL_CHANCES: Pick<Stats, 'featureChances' | 'hardRockChance'> = {
+  featureChances: BASE_FEATURE_CHANCES, hardRockChance: BASE_HARD_ROCK_CHANCE,
+};
 
 export const GUARANTEED_FIRST_MAP_METRE = 2;
 export const FINDS_LOG_LIMIT = 5000;

@@ -5,8 +5,8 @@ import {
 import { metreTier, tierAt } from './bands';
 import { rollChest, rollGem } from './itemGen';
 import { receiveItem } from './loot';
-import { fillAhead, rollGallery, rollMetre } from './metres';
-import { mulberry32 } from './rng';
+import { fillAhead, metreChances, rollGallery, rollMetre } from './metres';
+import { mulberry32, nextRandom } from './rng';
 import type { FindRecord, GameState, LootNote, MetreRoll, Stats, TickEvent } from './types';
 
 export function collect(state: GameState, roll: MetreRoll, depth: number, tier: number, stats: Stats, events?: TickEvent[]): void {
@@ -38,10 +38,29 @@ function faceRoll(state: GameState, stats: Stats): MetreRoll {
   const m = state.deepest + 1;
   let roll = state.ahead[m];
   if (roll === undefined) {
-    roll = rollMetre(state.seed, m, stats);
+    roll = rollMetre(state.seed, m, metreChances(state, stats));
     state.ahead[m] = roll;
   }
   return roll;
+}
+
+const BONUS_KINDS = ['chest', 'gem', 'map'] as const;
+
+// Find gear adds finds on metres the seed left empty; the draw comes from the player's own loot stream.
+function collectBonus(state: GameState, depth: number, stats: Stats, events?: TickEvent[]): void {
+  const { chest, gem, map } = stats.bonusChances;
+  if (chest + gem + map <= 0) return;
+  const u = nextRandom(state);
+  let cumulative = 0;
+  for (const kind of BONUS_KINDS) {
+    cumulative += stats.bonusChances[kind];
+    if (u < cumulative) {
+      collect(state, { feature: kind, amount: 0, hardRock: false }, depth, metreTier(depth), stats, events);
+      const find = state.finds[state.finds.length - 1];
+      if (find !== undefined) find.bonus = true;
+      return;
+    }
+  }
 }
 
 function effectiveHardness(metre: number, roll: MetreRoll): number {
@@ -59,6 +78,7 @@ function digFace(state: GameState, stats: Stats, events?: TickEvent[]): void {
     const next = state.deepest + 1;
     const done = faceRoll(state, stats);
     collect(state, done, next, metreTier(next), stats, events);
+    if (state.worldGen === 2 && done.feature === null) collectBonus(state, next, stats, events);
     delete state.ahead[next];
     state.deepest = next;
     state.depth = next;

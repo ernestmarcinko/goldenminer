@@ -50,6 +50,19 @@ export function deriveStats(state: GameState): Stats {
     const scale = FEATURE_CHANCE_TOTAL_CAP / total;
     for (const kind of Object.keys(featureChances) as FeatureKind[]) featureChances[kind] *= scale;
   }
+  const bonusChances = {
+    chest: BASE_FEATURE_CHANCES.chest * Math.max(0, pct(g.chestFind) - 1),
+    gem: BASE_FEATURE_CHANCES.gem * Math.max(0, pct(g.gemFind) - 1),
+    map: BASE_FEATURE_CHANCES.map * Math.max(0, pct(g.mapFind) - 1),
+  };
+  const baseTotal = Object.values(BASE_FEATURE_CHANCES).reduce((a, b) => a + b, 0);
+  const bonusTotal = bonusChances.chest + bonusChances.gem + bonusChances.map;
+  if (baseTotal + bonusTotal > FEATURE_CHANCE_TOTAL_CAP) {
+    const scale = Math.max(0, FEATURE_CHANCE_TOTAL_CAP - baseTotal) / bonusTotal;
+    bonusChances.chest *= scale;
+    bonusChances.gem *= scale;
+    bonusChances.map *= scale;
+  }
   return {
     digPower: clamp(BASE_DIG_POWER + g.digPower, 1, MAX_DIG_POWER),
     autoTicksPerSecond: Math.min(MAX_AUTO_TICKS_PER_SECOND, Math.max(MIN_AUTO_TICKS_PER_SECOND, BASE_AUTO_TICKS_PER_SECOND * pct(g.autoTickRate))),
@@ -60,5 +73,6 @@ export function deriveStats(state: GameState): Stats {
     hardRockChance: BASE_HARD_ROCK_CHANCE,
     goldMultiplier: pct(g.goldYield),
     diamondMultiplier: pct(g.diamondYield),
+    bonusChances,
   };
 }
