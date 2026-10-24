@@ -5,6 +5,7 @@ import { bandLook, worldOf, type WallTile } from '../../core/mineLook';
 import type { FeatureKind } from '../../core/types';
 import { Sprite } from '../../sprites/Sprite';
 import type { SpriteName } from '../../sprites/atlas';
+import { effectiveMotion, usePrefersReducedMotion } from '../settings/motion';
 import { useGame } from '../useGame';
 import {
   eventsForMotion, feedbackToEvents, particlesFromEvents, pruneParticles, shaftFaceOrigin, type Particle,
@@ -67,7 +68,8 @@ function ShaftCell({ row, rock, depth, progress }: { row: ShaftRow; rock: string
 
 export function ShaftScene({ store }: { store: GameStore }) {
   const { state, stats } = useGame(store);
-  const { motion } = state.settings;
+  const reduced = usePrefersReducedMotion();
+  const motion = effectiveMotion(state.settings.motion, reduced);
   const { depth, deepest, progress } = state;
   const sceneRef = useRef<HTMLButtonElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);

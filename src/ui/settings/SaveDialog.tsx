@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
-import type { GameStore } from '../store/gameStore';
-import { copyText } from './copyText';
-import { saveProblem } from './saveText';
-import { useDialog } from './useDialog';
+import type { GameStore } from '../../store/gameStore';
+import { copyText } from '../copyText';
+import { saveProblem } from '../saveText';
+import { useDialog } from '../useDialog';
 
 interface Props {
   store: GameStore;
@@ -10,14 +10,13 @@ interface Props {
   onClose: () => void;
 }
 
-export function SaveMenu({ store, runAsOwner, onClose }: Props) {
+export function SaveDialog({ store, runAsOwner, onClose }: Props) {
   const closeRef = useDialog<HTMLButtonElement>(onClose);
   const exported = useMemo(() => store.exportSave(), [store]);
   const exportRef = useRef<HTMLTextAreaElement>(null);
   const [copied, setCopied] = useState(false);
   const [importText, setImportText] = useState('');
   const [importMsg, setImportMsg] = useState<string | null>(null);
-  const [confirmReset, setConfirmReset] = useState(false);
 
   const load = (): void => {
     const results: ReturnType<GameStore['importSave']>[] = [];
@@ -34,7 +33,7 @@ export function SaveMenu({ store, runAsOwner, onClose }: Props) {
     <div className="gm-overlay">
       <div className="gm-dialog gm-dialog--wide" role="dialog" aria-modal="true" aria-labelledby="gm-save-title">
         <div className="gm-dialog__head">
-          <h2 id="gm-save-title" className="gm-dialog__title">Save</h2>
+          <h2 id="gm-save-title" className="gm-dialog__title">Export / import save</h2>
           <button type="button" ref={closeRef} className="gm-btn" onClick={onClose}>
             Close
           </button>
@@ -71,35 +70,6 @@ export function SaveMenu({ store, runAsOwner, onClose }: Props) {
             </button>
             {importMsg && <span role="status">{importMsg}</span>}
           </div>
-        </section>
-
-        <section className="gm-dialog__section">
-          <h3>Reset</h3>
-          {confirmReset ? (
-            <div className="gm-dialog__actions">
-              <span>Really erase this game?</span>
-              <button
-                type="button"
-                className="gm-btn gm-btn--danger"
-                onClick={() => {
-                  runAsOwner(() => store.newWorld(null));
-                  setConfirmReset(false);
-                  onClose();
-                }}
-              >
-                Yes
-              </button>
-              <button type="button" className="gm-btn" onClick={() => setConfirmReset(false)}>
-                No
-              </button>
-            </div>
-          ) : (
-            <div className="gm-dialog__actions">
-              <button type="button" className="gm-btn" onClick={() => setConfirmReset(true)}>
-                Start over
-              </button>
-            </div>
-          )}
         </section>
       </div>
     </div>

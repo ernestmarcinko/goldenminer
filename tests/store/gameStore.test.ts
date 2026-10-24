@@ -190,4 +190,13 @@ describe('inventory intents', () => {
     expect(store.newWorld(null)).toBe(true);
     expect(store.state.worldSeed).toMatch(/^[a-z]+-[a-z]+-\d{1,3}$/);
   });
+
+  it('setMotion applies a patch and skips undefined entries', () => {
+    const { store } = make(); store.load();
+    store.setMotion({ floats: false, shaft: 'smooth' });
+    store.setMotion({ shaft: undefined, pops: false });
+    expect(store.state.settings.motion).toEqual({ floats: false, pops: false, lampFlicker: true, shaft: 'smooth' });
+    // the next save must still be readable
+    expect(make().store.importSave(store.exportSave()).ok).toBe(true);
+  });
 });

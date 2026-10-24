@@ -7,7 +7,7 @@ import { Header } from './Header';
 import { MineView } from './mine/MineView';
 import { Notices } from './Notices';
 import { OfflineSummary } from './OfflineSummary';
-import { SaveMenu } from './SaveMenu';
+import { SettingsDialog } from './settings/SettingsDialog';
 import { TabBlocked } from './TabBlocked';
 import { useGame } from './useGame';
 
@@ -45,18 +45,18 @@ export function App({ store, lock }: { store: GameStore; lock: TabLock }) {
 }
 
 function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: () => void) => boolean }) {
-  const [saveOpen, setSaveOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { offlineSummary } = useGame(store);
   return (
     <div className="gm-app">
-      <Header store={store} onOpenSave={() => setSaveOpen(true)} />
+      <Header store={store} onOpenSettings={() => setSettingsOpen(true)} />
       <Notices store={store} />
       <main className="gm-app__main">
         <div className="gm-app__play"><MineView store={store} /></div>
         <div className="gm-app__side"><CharacterPanel store={store} /></div>
       </main>
       {offlineSummary && <OfflineSummary summary={offlineSummary} onClose={() => store.dismissSummary()} />}
-      {saveOpen && <SaveMenu store={store} runAsOwner={runAsOwner} onClose={() => setSaveOpen(false)} />}
+      {settingsOpen && <SettingsDialog store={store} runAsOwner={runAsOwner} onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }

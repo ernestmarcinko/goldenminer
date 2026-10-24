@@ -18,8 +18,8 @@
   --gm-up: #6fcf97;
   --gm-down: #ff8a7a;
 
-  --gm-font-display: Cinzel, serif;
-  --gm-font-ui: 'IBM Plex Sans', system-ui, sans-serif;
+  --gm-font-display: 'Metamorphous', serif;
+  --gm-font-ui: 'Alegreya Sans', system-ui, sans-serif;
   --gm-font-mono: 'IBM Plex Mono', monospace;
 }
 
@@ -58,7 +58,8 @@ a:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gm-particle {
+  .gm-particle,
+  .gm-shaft__glow {
     animation: none;
   }
 }

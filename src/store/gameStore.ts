@@ -266,7 +266,9 @@ export class GameStore {
   }
 
   setMotion(patch: Partial<MotionSettings>): void {
-    this._state.settings.motion = { ...this._state.settings.motion, ...patch };
+    // An explicit undefined must not overwrite a setting: it would make the next save invalid.
+    const defined = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
+    this._state.settings.motion = { ...this._state.settings.motion, ...defined };
     this.changed();
   }
 

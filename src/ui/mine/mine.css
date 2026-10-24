@@ -6,7 +6,7 @@
   padding: 14px 24px; background: var(--gm-header); border-bottom: 1px solid var(--gm-line);
 }
 .gm-header__title {
-  font-family: var(--gm-font-display); font-weight: 700; font-size: 22px;
+  font-family: var(--gm-font-display); font-weight: 400; font-size: 22px;
   letter-spacing: 0.04em; color: var(--gm-gold);
 }
 .gm-header__pills { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -18,11 +18,11 @@
 .gm-pill__value--gold { color: var(--gm-gold); }
 .gm-pill__value--diamond { color: var(--gm-diamond); }
 .gm-header__depth { margin-left: auto; text-align: right; }
-.gm-header__save {
+.gm-header__settings {
   min-height: 44px; min-width: 44px; padding: 8px 16px; box-sizing: border-box; cursor: pointer; font: inherit;
   font-weight: 500; border-radius: 8px; border: 1px solid var(--gm-line); background: var(--gm-panel-raised); color: var(--gm-text);
 }
-.gm-header__save:hover { border-color: var(--gm-gold); }
+.gm-header__settings:hover { border-color: var(--gm-gold); }
 .gm-header__depth-now { font-family: var(--gm-font-mono); font-size: 18px; }
 
 .gm-mine { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -31,7 +31,7 @@
 .gm-mine__minimap-slot { flex: 1 1 200px; max-width: 240px; min-width: 0; }
 .gm-mine__minimap-slot:empty { display: none; }
 .gm-mine__caption { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 16px; flex-wrap: wrap; }
-.gm-mine__band { font-family: var(--gm-font-display); font-weight: 700; font-size: 18px; }
+.gm-mine__band { font-family: var(--gm-font-display); font-weight: 400; font-size: 18px; }
 .gm-mine__progress { display: flex; flex-direction: column; gap: 6px; }
 .gm-mine__progress-text { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12px; }
 .gm-bar { height: 10px; border-radius: 5px; background: #2e2722; overflow: hidden; }
