@@ -13,7 +13,12 @@ const ICONS: Record<FeatureKind, SpriteName> = {
   chest: 'chest', map: 'map', gem: 'gem', goldVein: 'coin', diamondVein: 'diamond',
 };
 
-function label(kind: FeatureKind, amount: number): string {
+export function label(kind: FeatureKind, amount: number, bonus: boolean): string {
+  const base = baseLabel(kind, amount);
+  return bonus ? `${base} (bonus)` : base;
+}
+
+function baseLabel(kind: FeatureKind, amount: number): string {
   switch (kind) {
     case 'chest': return 'Chest';
     case 'map': return 'Map';
@@ -37,7 +42,7 @@ export function FindsFeed({ store }: { store: GameStore }) {
             <li key={f.id} className="gm-finds__item">
               <Sprite name={ICONS[f.kind]} scale={2} />
               <span className="gm-finds__label">
-                {label(f.kind, f.amount)}{f.loot && f.loot.length > 0 ? ':' : ''}
+                {label(f.kind, f.amount, f.bonus === true)}{f.loot && f.loot.length > 0 ? ':' : ''}
                 {f.loot?.map((n, i) => (
                   <span key={i}>
                     {' '}

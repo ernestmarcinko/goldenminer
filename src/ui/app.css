@@ -41,7 +41,7 @@
 }
 .gm-dialog--wide { max-width: 560px; }
 .gm-dialog__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.gm-dialog__title { margin: 0; font-family: var(--gm-font-display); font-size: 18px; line-height: 1.35; }
+.gm-dialog__title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 18px; line-height: 1.35; }
 .gm-dialog__list { margin: 12px 0 0; padding-left: 20px; }
 .gm-dialog__section { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
 .gm-dialog__section h3 { margin: 0; font-size: 14px; color: var(--gm-muted); }
@@ -52,9 +52,14 @@
   min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 12px; padding: 24px; text-align: center; background: var(--gm-ground);
 }
-.gm-blocked__title { margin: 0; font-family: var(--gm-font-display); font-size: 28px; color: var(--gm-gold); }
+.gm-blocked__title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 28px; color: var(--gm-gold); }
 
 @media (max-width: 600px) {
   .gm-app__main { padding: 12px 12px 24px; }
   .gm-notice { padding: 10px 12px; flex-wrap: wrap; }
+}
+
+.gm-visually-hidden {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }

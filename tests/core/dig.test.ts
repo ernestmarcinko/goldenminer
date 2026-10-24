@@ -27,7 +27,7 @@ it('finishing a face metre consumes its roll and reveals the next', () => {
   const s = fresh();
   while (s.deepest < 1) applyTicks(s, 1, stats);
   expect(s.ahead[1]).toBeUndefined();
-  expect(Object.keys(s.ahead).map(Number).sort()).toEqual([2, 3]);
+  expect(Object.keys(s.ahead).map(Number).sort()).toEqual([2, 3, 4]);
 });
 
 it('veins pay out and are logged', () => {

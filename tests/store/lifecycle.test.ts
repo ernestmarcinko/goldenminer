@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { advance } from '../../src/core/clock';
-import { newGame } from '../../src/core/newGame';
+import { freshWorld } from '../../src/core/seed';
 import { deriveStats } from '../../src/core/stats';
 import { GameStore } from '../../src/store/gameStore';
 import { MemoryStorage } from '../../src/store/storage';
@@ -18,7 +18,7 @@ it('an hour of 250 ms pumps, a save, then a 2 h absence equals one advance over 
   const second = mk();
   second.load();
 
-  const reference = newGame(7, 0);
+  const reference = freshWorld(() => 7, 0);
   advance(reference, 3 * HOUR, deriveStats(reference));
   expect(second.state).toEqual(reference);
   expect(second.offlineSummary?.ticks).toBe(2 * 3600);

@@ -18,8 +18,8 @@
   --gm-up: #6fcf97;
   --gm-down: #ff8a7a;
 
-  --gm-font-display: Cinzel, serif;
-  --gm-font-ui: 'IBM Plex Sans', system-ui, sans-serif;
+  --gm-font-display: 'Metamorphous', serif;
+  --gm-font-ui: 'Alegreya Sans', system-ui, sans-serif;
   --gm-font-mono: 'IBM Plex Mono', monospace;
 }
 
@@ -45,6 +45,12 @@ a:hover {
   100% { transform: translate(-50%, calc(-50% - 64px)); opacity: 0; }
 }
 
+@keyframes gmFlicker {
+  0% { opacity: 0.9; }
+  45% { opacity: 1; }
+  100% { opacity: 0.85; }
+}
+
 @keyframes gmPop {
   0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
   20% { transform: translate(-50%, calc(-50% - 16px)) scale(1.15); opacity: 1; }
@@ -52,7 +58,8 @@ a:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gm-particle {
+  .gm-particle,
+  .gm-shaft__glow {
     animation: none;
   }
 }

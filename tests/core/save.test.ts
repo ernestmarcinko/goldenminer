@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { compressToBase64 } from 'lz-string';
 import fixture from '../fixtures/save-schema-1.txt?raw';
+import fixture2 from '../fixtures/save-schema-2.txt?raw';
 import { applyTicks } from '../../src/core/dig';
 import { newGame } from '../../src/core/newGame';
 import { decodeSave, encodeSave, migrate } from '../../src/core/save';
@@ -54,7 +55,8 @@ it('migrates a real schema-1 save', () => {
   expect(s).toMatchObject({ gold: 10_972, diamonds: 119, depth: 123, deepest: 125, tickCount: 6300, goldCarry: 0, nextId: 31 });
   expect([s.equipped, s.bags, s.stash, s.overflow, s.lootTally, s.settings]).toEqual([
     { mining: {}, battle: {} }, { mining: [], battle: [] }, [], [],
-    { kept: 0, sold: 0, salvaged: 0 }, { lootFilter: [], bagFull: 'sellWorst' },
+    { kept: 0, sold: 0, salvaged: 0 },
+    { lootFilter: [], bagFull: 'sellWorst', motion: { floats: true, pops: true, lampFlicker: true, shaft: 'step' } },
   ]);
   expect(s.finds.map((f) => f.id)).toEqual(Array.from({ length: 30 }, (_, i) => i + 1));
   expect(s.finds[0]).toEqual({ id: 1, depth: 2, kind: 'map', amount: 0, tick: 50 });
@@ -102,5 +104,27 @@ it('rejects impossible inventories', () => {
     const s = stocked();
     mutate(s);
     expect(decodeSave(raw({ schema: 2, savedAt: 0, state: s })), name).toEqual({ ok: false, reason: 'invalid' });
+  }
+});
+
+it('migrates a real schema-2 save into world generation 1', () => {
+  const r = decodeSave(fixture2.trim());
+  if (!r.ok) throw new Error(`fixture rejected: ${r.reason}`);
+  expect(r.state).toMatchObject({ seed: 9090, worldSeed: '9090', worldGen: 1, gold: 22_975, deepest: 215 });
+  expect(r.state.settings.motion).toEqual({ floats: true, pops: true, lampFlicker: true, shaft: 'step' });
+});
+
+it('rejects a seed text that does not match the seed', () => {
+  const s = newGame(1, 0);
+  expect(decodeSave(raw({ schema: 3, savedAt: 0, state: s })).ok).toBe(true);
+  for (const mutate of [
+    (x: GameState) => { x.worldSeed = 'golden mole'; },
+    (x: GameState) => { x.worldSeed = ''; },
+    (x: GameState) => { (x as { worldGen: number }).worldGen = 3; },
+    (x: GameState) => { (x.settings.motion as { shaft: string }).shaft = 'wobble'; },
+  ]) {
+    const bad = newGame(1, 0);
+    mutate(bad);
+    expect(decodeSave(raw({ schema: 3, savedAt: 0, state: bad }))).toEqual({ ok: false, reason: 'invalid' });
   }
 });

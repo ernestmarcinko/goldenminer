@@ -1,0 +1,82 @@
+.gm-shaft {
+  position: relative; display: block; width: 100%; height: 728px; padding: 0; overflow: hidden;
+  border-radius: 12px; border: 1px solid var(--gm-line); background: #120f0d; cursor: pointer;
+  font: inherit; color: inherit;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none;
+}
+/* 4 wall tiles + the 88 px shaft cell + 4 wall tiles; centred, so narrow screens clip the outer wall columns. */
+.gm-shaft__strip {
+  position: absolute; top: 0; left: 50%; width: 536px; margin-left: -268px; will-change: transform;
+}
+.gm-shaft__row { position: relative; display: flex; height: 56px; }
+.gm-shaft__row--surface { background: #1b2430; }
+.gm-shaft__grass { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; background: #3f5a2c; }
+
+.gm-shaft__tile {
+  position: relative; flex: 0 0 56px; height: 56px;
+  box-shadow: inset -3px -3px 0 rgba(0, 0, 0, 0.28), inset 2px 2px 0 rgba(255, 255, 255, 0.04);
+}
+.gm-shaft__tile--dug { background: #1a171c; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4); }
+
+.gm-shaft__detail { position: absolute; display: block; }
+.gm-shaft__detail--root { width: 3px; height: 14px; background: #2a1d12; box-shadow: 3px 4px 0 #2a1d12, 6px 8px 0 #2a1d12; }
+.gm-shaft__detail--bone { width: 12px; height: 3px; background: #0e0c11; box-shadow: 3px 5px 0 #0e0c11, 9px 9px 0 #0e0c11; }
+.gm-shaft__detail--pebble { width: 5px; height: 5px; background: #8a857c; box-shadow: 9px 7px 0 #6f6a62; }
+.gm-shaft__detail--shard { width: 3px; height: 3px; background: #d8c4a6; box-shadow: 8px 3px 0 #d8c4a6, 3px 9px 0 #bda885; }
+.gm-shaft__detail--chalk { width: 7px; height: 2px; background: #e6e0d0; box-shadow: 4px 5px 0 #e6e0d0, 0 10px 0 #cfc8b6; }
+.gm-shaft__detail--quartz { width: 3px; height: 3px; background: #e8e4f0; box-shadow: 7px 4px 0 #e8e4f0, 2px 9px 0 #cfc9de; }
+.gm-shaft__detail--ember { width: 6px; height: 6px; background: #ff9b45; box-shadow: 0 0 8px 3px rgba(255, 140, 50, 0.65); }
+.gm-shaft__detail--glass { width: 3px; height: 3px; background: #7fd3e8; box-shadow: 8px 3px 0 #7fd3e8, 3px 9px 0 #5fb0c4; }
+.gm-shaft__detail--crystal { width: 3px; height: 3px; background: #9be8f5; box-shadow: 6px 2px 0 #9be8f5, 3px 7px 0 #c9f1fa, 0 0 6px 1px rgba(127, 211, 232, 0.5); }
+.gm-shaft__detail--fossil { width: 12px; height: 12px; box-sizing: border-box; border: 2px solid #cfc6b8; border-left-color: transparent; border-radius: 50%; }
+.gm-shaft__detail--fossil::after {
+  content: ''; position: absolute; left: 1px; top: 1px; width: 4px; height: 4px; box-sizing: border-box;
+  border: 2px solid #cfc6b8; border-right-color: transparent; border-radius: 50%;
+}
+
+.gm-shaft__cell { position: relative; flex: 0 0 88px; height: 56px; overflow: hidden; }
+.gm-shaft__cell--dug { background: #1a171c; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4); }
+.gm-shaft__cell--dark { background: #0a0807; }
+.gm-shaft__cell--rock { box-shadow: inset -3px -3px 0 rgba(0, 0, 0, 0.3); }
+.gm-shaft__rope { position: absolute; left: 12px; top: 0; width: 3px; height: 56px; background: #8a6a40; }
+.gm-shaft__crack {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(135deg, rgba(0, 0, 0, 0.35) 0 3px, rgba(255, 214, 120, 0.12) 3px 7px);
+}
+.gm-shaft__hard {
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.4) 0 2px, rgba(0, 0, 0, 0) 2px 9px);
+}
+.gm-shaft__feature {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); line-height: 0;
+  filter: drop-shadow(0 0 6px var(--gm-glow, rgba(255, 214, 120, 0.9)));
+}
+.gm-shaft__feature[data-feature='goldVein'] { --gm-glow: var(--gm-gold); }
+.gm-shaft__feature[data-feature='diamondVein'], .gm-shaft__feature[data-feature='gem'] { --gm-glow: var(--gm-diamond); }
+.gm-shaft__feature[data-feature='chest'] { --gm-glow: var(--gm-rare); }
+.gm-shaft__feature[data-feature='map'] { --gm-glow: var(--gm-magic); }
+
+.gm-shaft__label {
+  position: absolute; left: 324px; top: 50%; transform: translateY(-50%); z-index: 1;
+  padding: 3px 8px; border-radius: 6px; background: rgba(15, 13, 11, 0.85); font-size: 12px; white-space: nowrap;
+  color: var(--gm-muted); pointer-events: none;
+}
+.gm-shaft__label[data-feature='goldVein'] { color: var(--gm-gold-bright); }
+.gm-shaft__label[data-feature='diamondVein'] { color: var(--gm-diamond-bright); }
+.gm-shaft__label[data-feature='chest'] { color: var(--gm-rare); }
+.gm-shaft__label[data-feature='map'] { color: var(--gm-magic); }
+.gm-shaft__label[data-feature='gem'] { color: var(--gm-legendary); }
+
+.gm-shaft__vignette, .gm-shaft__fog { position: absolute; left: 0; right: 0; pointer-events: none; }
+.gm-shaft__vignette { top: 0; height: 160px; background: linear-gradient(180deg, rgba(10, 8, 6, 0.55), rgba(10, 8, 6, 0)); }
+.gm-shaft__fog { bottom: 0; background: linear-gradient(180deg, rgba(10, 8, 6, 0), rgba(10, 8, 6, 0.82) 45%, rgba(10, 8, 6, 0.97)); }
+.gm-shaft__glow {
+  position: absolute; width: 300px; height: 300px; transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 214, 120, 0.24) 0%, rgba(255, 214, 120, 0.08) 45%, rgba(255, 214, 120, 0) 70%);
+}
+.gm-shaft__glow[data-flicker='true'] { animation: gmFlicker 2.4s ease-in-out infinite; }
+.gm-shaft__miner { position: absolute; transform: translateX(-50%); line-height: 0; pointer-events: none; }
+.gm-shaft__hint {
+  position: absolute; right: 12px; bottom: 10px; padding: 4px 10px; border-radius: 6px;
+  background: rgba(15, 13, 11, 0.85); font-size: 12px; color: var(--gm-gold-bright);
+}

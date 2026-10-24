@@ -1,6 +1,6 @@
 .gm-minimap { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .gm-minimap__head { display: flex; justify-content: space-between; align-items: baseline; }
-.gm-minimap__title { margin: 0; font-family: var(--gm-font-display); font-size: 16px; }
+.gm-minimap__title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 16px; }
 .gm-minimap__range { font-size: 11px; }
 .gm-minimap__strip {
   position: relative; display: flex; width: 100%; padding: 0; overflow: hidden; box-sizing: border-box;

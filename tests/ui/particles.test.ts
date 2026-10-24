@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { particlesFromEvents, pruneParticles } from '../../src/ui/mine/particles';
+import { eventsForMotion, particlesFromEvents, pruneParticles, shaftFaceOrigin } from '../../src/ui/mine/particles';
 import type { TickEvent } from '../../src/core/types';
 
 let id = 0; const next = () => ++id;
@@ -28,4 +28,19 @@ it('find particles stack above the gold number', () => {
   const events: TickEvent[] = Array.from({ length: 3 }, (_, i) => ({ kind: 'find', find: { id: i + 1, depth: i, kind: 'chest', amount: 0, tick: i } }) as const);
   const ps = particlesFromEvents(events, { x: 100, y: 200 }, 0, next);
   expect(ps.map((p) => [p.x, p.y])).toEqual([[90, 176], [90, 152], [90, 128]]);
+});
+
+it('floats off drops gold and diamonds, pops off drops finds', () => {
+  const events: TickEvent[] = [
+    { kind: 'gold', amount: 3 }, { kind: 'diamond', amount: 1 },
+    { kind: 'find', find: { id: 1, depth: 4, kind: 'gem', amount: 0, tick: 1 } },
+  ];
+  expect(eventsForMotion(events, { floats: true, pops: true })).toHaveLength(3);
+  expect(eventsForMotion(events, { floats: false, pops: true }).map((e) => e.kind)).toEqual(['find']);
+  expect(eventsForMotion(events, { floats: true, pops: false }).map((e) => e.kind)).toEqual(['gold', 'diamond']);
+  expect(eventsForMotion(events, { floats: false, pops: false })).toEqual([]);
+});
+
+it('the dig face is the middle of the shaft cell one row below the miner', () => {
+  expect(shaftFaceOrigin(536)).toEqual({ x: 268, y: 308 });
 });

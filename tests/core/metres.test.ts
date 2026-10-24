@@ -6,7 +6,7 @@ import { fillAhead, rollMetre } from '../../src/core/metres';
 const stats = deriveStats(newGame(1, 0));
 
 it('base stats', () => {
-  expect(stats).toMatchObject({ digPower: 10, autoTicksPerSecond: 1, ticksPerClick: 1, lampSight: 2, offlineCapMs: 28_800_000 });
+  expect(stats).toMatchObject({ digPower: 10, autoTicksPerSecond: 1, ticksPerClick: 1, lampSight: 3, offlineCapMs: 28_800_000 });
 });
 
 it('a metre roll is a pure function of seed and metre', () => {
@@ -41,7 +41,7 @@ describe('newGame', () => {
   it('starts at the surface with a guaranteed map at metre 2', () => {
     const s = newGame(1, 1000);
     expect(s).toMatchObject({ depth: 0, deepest: 0, gold: 0, diamonds: 0, lastTickAt: 1000, finds: [] });
-    expect(Object.keys(s.ahead).map(Number).sort()).toEqual([1, 2]);
+    expect(Object.keys(s.ahead).map(Number).sort()).toEqual([1, 2, 3]);
     expect(s.ahead[2]).toEqual({ feature: 'map', amount: 0, hardRock: false });
     expect(s.ahead[1]?.hardRock).toBe(false);
   });
@@ -52,6 +52,6 @@ it('fillAhead adds missing metres and never re-rolls', () => {
   s.deepest = 10; s.depth = 10; s.ahead = { 11: { feature: 'chest', amount: 0, hardRock: true } };
   fillAhead(s, stats);
   expect(s.ahead[11]).toEqual({ feature: 'chest', amount: 0, hardRock: true });
-  expect(s.ahead[12]).toBeDefined();
-  expect(s.ahead[13]).toBeUndefined();
+  expect(s.ahead[13]).toBeDefined();
+  expect(s.ahead[14]).toBeUndefined();
 });

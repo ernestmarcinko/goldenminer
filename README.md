@@ -17,9 +17,13 @@ npm run build    # production build in dist/
 
 Chests and gems drop mining and battle gear, which the character panel shows. Hover an item to compare it with what you wear, click to equip it, Alt+click to sell it, Shift+click to stash it, and right-click (or tap) to see every action. The loot filter sells or salvages new items by rule.
 
+## Worlds
+
+Every world has a seed, a short phrase such as `amber-fox-427`, shown in Settings with a Copy seed button. The seed decides the mine: its bands, the shape of the shaft and where chests, maps, veins and hard rock lie. Two players with the same seed dig through the same mine. Chest contents, gallery finds, bonus finds and combat are still your own luck. Start a new world from Settings with a random seed or one you type; a number or any text up to 64 characters works.
+
 ## Saves
 
-The game autosaves every 30 seconds and when the tab is hidden or closed. The Save button in the header exports the save as text, imports one, or starts over. Only one tab can play at a time.
+The game autosaves every 30 seconds and when the tab is hidden or closed. The Settings button in the header opens the motion switches, the world seed, the loot filter and the save tools: export the save as text, import one, or start a new world. Only one tab can play at a time.
 
 ## The original
 

@@ -56,7 +56,7 @@ it('compares against the worn item', () => {
 
 it('summarises each set', () => {
   const s = newGame(1, 0);
-  expect(miningStatLine(deriveStats(s), s.deepest)).toBe('Dig 2.4 m/min · chest find 6% · gem find 3% · map find 4% · lamp sight 2 m · offline cap 8h 0m');
+  expect(miningStatLine(deriveStats(s), s.deepest)).toBe('Dig 2.4 m/min · chest find 6% · gem find 3% · map find 4% · lamp sight 3 m · offline cap 8h 0m');
   expect(battleStatLine(gearTotals(s, 'battle'))).toBe('Battle gear: nothing equipped yet');
   s.equipped.battle.weapon = gear(s, 'weapon', { implicit: { stat: 'damage', value: 14 }, affixes: [{ stat: 'critChance', value: 5 }] });
   s.equipped.battle.armor = gear(s, 'armor', { implicit: { stat: 'armor', value: 30 } });

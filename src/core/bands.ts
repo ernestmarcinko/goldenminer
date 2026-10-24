@@ -14,8 +14,8 @@ const NAMED_BANDS: readonly Band[] = [
   { name: 'Obsidian Reach', start: 700, end: 1000, tier: 6 },
 ];
 
-const ABYSS_START = 1000;
-const ABYSS_BAND_HEIGHT = 300;
+export const ABYSS_START = 1000;
+export const ABYSS_BAND_HEIGHT = 300;
 const ABYSS_BASE_TIER = 6;
 
 const ROMAN: readonly [number, string][] = [

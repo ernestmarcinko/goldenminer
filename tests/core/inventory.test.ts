@@ -88,7 +88,7 @@ it('a better lamp reveals more metres at once, and taking it off keeps their rol
   const s = newGame(1, 0);
   s.bags.mining.push(gear(s, 'lamp', { implicit: { stat: 'lampSight', value: 3 } }));
   expect(equip(s, 'mining', 0)).toBe('ok');
-  expect(Object.keys(s.ahead).map(Number).sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5]);
+  expect(Object.keys(s.ahead).map(Number).sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6]);
   const rolls = structuredClone(s.ahead);
   expect(unequip(s, 'lamp')).toBe('ok');
   expect(s.ahead).toEqual(rolls);
