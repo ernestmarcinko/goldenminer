@@ -1,5 +1,5 @@
-import type { GemGrade, Rarity, StatKey } from './items';
-import type { FeatureKind, Stats } from './types';
+import type { GemGrade, Material, Rarity, StatKey } from './items';
+import type { FeatureKind, Hazard, Stats } from './types';
 
 export const BASE_DIG_POWER = 10;
 export const BASE_AUTO_TICKS_PER_SECOND = 1;
@@ -180,3 +180,25 @@ export const GEM_SELL_GOLD = 20;
 export const SALVAGE_DIAMONDS: Readonly<Record<Rarity, number>> = { normal: 1, magic: 2, rare: 4, legendary: 10 };
 export const GEM_SALVAGE_DIAMONDS = 2;
 export const LOOT_NOTES_KEPT = 30;
+
+// Material veins and hazards come from their own seeded layer, so they never disturb the feature roll.
+export const MATERIAL_TABLE: Readonly<Record<Material, { from: number; weight: number; amount: number }>> = {
+  copper: { from: 0, weight: 40, amount: 4 },
+  tin: { from: 0, weight: 30, amount: 3 },
+  iron: { from: 50, weight: 20, amount: 3 },
+  silver: { from: 150, weight: 12, amount: 2 },
+  mithril: { from: 300, weight: 8, amount: 2 },
+  starsteel: { from: 450, weight: 5, amount: 1 },
+  obsidian: { from: 700, weight: 3, amount: 1 },
+  voidCrystal: { from: 1000, weight: 1, amount: 1 },
+};
+export const MATERIAL_VEIN_CHANCE = 0.3;
+export const MATERIAL_RAMP_METRES = 500;
+export const MATERIAL_RAMP_CAP = 3;
+export const LAYER_SALT = 0x1a7e2;
+export const HAZARD_START_METRE = 300;
+export function hazardChance(metre: number): number {
+  return metre <= HAZARD_START_METRE ? 0 : Math.min(0.25, 0.05 + (metre - HAZARD_START_METRE) / 20_000);
+}
+export const HAZARD_SLOW: Readonly<Record<Hazard, number>> = { gas: 2, unstable: 1.6 };
+export const MAX_HAZARD_WARD = 75;

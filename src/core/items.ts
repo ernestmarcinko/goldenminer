@@ -8,6 +8,7 @@ export const BATTLE_STATS = ['damage', 'damagePct', 'attackSpeed', 'life', 'armo
   'resistAll', 'soulFind', 'magicFind'] as const;
 export const GEM_TYPES = ['ruby', 'sapphire', 'emerald', 'amethyst', 'starstone'] as const;
 export const GEM_GRADES = ['tiny', 'small', 'big', 'giant', 'perfect'] as const;
+export const MATERIALS = ['copper', 'tin', 'iron', 'silver', 'mithril', 'starsteel', 'obsidian', 'voidCrystal'] as const;
 
 export type Rarity = (typeof RARITIES)[number];
 export type GearSet = (typeof GEAR_SETS)[number];
@@ -19,6 +20,7 @@ export type BattleStat = (typeof BATTLE_STATS)[number];
 export type StatKey = MiningStat | BattleStat;
 export type GemType = (typeof GEM_TYPES)[number];
 export type GemGrade = (typeof GEM_GRADES)[number];
+export type Material = (typeof MATERIALS)[number];
 
 export interface StatLine { stat: StatKey; value: number }
 export interface Gem { gem: GemType; grade: GemGrade }

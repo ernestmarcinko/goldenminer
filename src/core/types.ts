@@ -2,6 +2,8 @@ import type { Cell, GearItem, GearSet, GemGrade, GemType, Rarity, Slot } from '.
 
 export const FEATURE_KINDS = ['goldVein', 'diamondVein', 'chest', 'gem', 'map'] as const;
 export type FeatureKind = (typeof FEATURE_KINDS)[number];
+export const HAZARDS = ['gas', 'unstable'] as const;
+export type Hazard = (typeof HAZARDS)[number];
 export interface MetreRoll { feature: FeatureKind | null; amount: number; hardRock: boolean }
 /** Where an item lives: a bag cell, a General-tab cell, a Gems-tab stack, or a worn slot. */
 export type ItemLoc =
