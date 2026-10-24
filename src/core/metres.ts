@@ -1,5 +1,5 @@
 import { BASE_ROLL_CHANCES, diamondVeinAmount, goldVeinAmount } from './balance';
-import { metreTier, tierAt } from './bands';
+import { metreTier } from './bands';
 import { hash2, mulberry32 } from './rng';
 import type { FeatureKind, GameState, MetreRoll, Stats } from './types';
 
@@ -30,15 +30,6 @@ export function rollMetre(seed: number, metre: number, stats: RollChances): Metr
     return r.value;
   };
   return roll(next, metreTier(metre), stats);
-}
-
-export function rollGallery(state: GameState, depth: number, stats: Stats): MetreRoll {
-  const next = (): number => {
-    const r = mulberry32(state.rng);
-    state.rng = r.state;
-    return r.value;
-  };
-  return roll(next, tierAt(depth), stats);
 }
 
 // Generation 2 worlds roll every metre from the base chances, so the seed alone decides what it holds.

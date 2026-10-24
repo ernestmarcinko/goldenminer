@@ -1,11 +1,12 @@
-import { hardness, TICKS_PER_METRE_AT_PARITY } from '../../core/balance';
-import { GEM_GRADE_LABELS, gemName } from '../../core/itemData';
+import { hardness, MATERIAL_TABLE, TICKS_PER_METRE_AT_PARITY } from '../../core/balance';
+import { GEM_GRADE_LABELS, gemName, itemName } from '../../core/itemData';
 import { BATTLE_STATS, isGear, setOfSlot } from '../../core/items';
-import type { GearItem, GemType, Item, Slot, StatKey } from '../../core/items';
+import type { GearItem, GemType, Item, Material, Slot, StatKey } from '../../core/items';
 import { gemEffect, itemTotals } from '../../core/stats';
 import type { GameState, LootNote, Stats } from '../../core/types';
 import type { SpriteName } from '../../sprites/atlas';
 import { formatDuration, formatNumber, formatRate, plural } from '../format';
+import { mapDungeon } from '../maps/mapsView';
 
 export const SLOT_LABELS: Readonly<Record<Slot, string>> = {
   pickaxe: 'Pickaxe', lamp: 'Lamp helm', gloves: 'Gloves', boots: 'Boots', weapon: 'Weapon', armor: 'Armor',
@@ -23,6 +24,7 @@ export const STAT_LABELS: Readonly<Record<StatKey, { label: string; unit: '' | '
   ticksPerClick: { label: 'tick per click', unit: '' },
   autoTickRate: { label: 'auto tick rate', unit: '%' },
   offlineCap: { label: 'offline cap', unit: ' min' },
+  hazardWard: { label: 'hazard ward', unit: '%' },
   damage: { label: 'damage', unit: '' },
   damagePct: { label: 'damage', unit: '%' },
   attackSpeed: { label: 'attack speed', unit: '%' },
@@ -46,14 +48,16 @@ const lineText = (l: { stat: StatKey; value: number }): string => statText(l.sta
 export type Tone = 'plain' | 'up' | 'down' | 'gem' | 'muted';
 export interface ViewLine { text: string; tone: Tone }
 
-export function rarityOf(item: Item): GearItem['rarity'] | 'gem' {
-  return isGear(item) ? item.rarity : 'gem';
+export function rarityOf(item: Item): GearItem['rarity'] | 'gem' | 'material' | 'map' {
+  return isGear(item) ? item.rarity : item.type;
 }
 
 const capitalise = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function itemKindLine(item: Item): string {
-  if (!isGear(item)) {
+  if (item.type === 'map') return `Tier ${formatNumber(item.tier)} map`;
+  if (item.type === 'material') return 'Crafting material';
+  if (item.type === 'gem') {
     const base = `Gem · ${GEM_GRADE_LABELS[item.grade]} · socket into any gear`;
     return item.count > 1 ? `${base} · ${formatNumber(item.count)} in this stack` : base;
   }
@@ -61,8 +65,23 @@ export function itemKindLine(item: Item): string {
   return item.sockets > 0 ? `${base} · ${formatNumber(item.gems.length)}/${formatNumber(item.sockets)} sockets` : base;
 }
 
+/** A card's name and kind line: a map is named after the dungeon it opens into, and counts its rooms. */
+export function cardHead(seed: number, item: Item): { name: string; kind: string } {
+  if (item.type !== 'map') return { name: itemName(item), kind: itemKindLine(item) };
+  const { type } = mapDungeon(seed, item);
+  return { name: type.name, kind: `${itemKindLine(item)} · ${plural(type.rooms, 'room', 'rooms')}` };
+}
+
 export function itemLines(item: Item): ViewLine[] {
-  if (!isGear(item)) {
+  if (item.type === 'map') return [{ text: `Found at ${formatNumber(item.metre)} m`, tone: 'plain' }];
+  if (item.type === 'material') {
+    const from = MATERIAL_TABLE[item.material].from;
+    return [
+      { text: from === 0 ? 'Found at every depth' : `First found below ${formatNumber(from)} m`, tone: 'plain' },
+      { text: 'Kept for crafting.', tone: 'muted' },
+    ];
+  }
+  if (item.type === 'gem') {
     return [
       { text: `In mining gear: ${lineText(gemEffect(item, 'mining'))}`, tone: 'plain' },
       { text: `In battle gear: ${lineText(gemEffect(item, 'battle'))}`, tone: 'plain' },
@@ -147,20 +166,29 @@ const SLOT_SPRITES: Readonly<Record<Slot, SpriteName>> = {
   helm: 'helm', ring: 'ring', amulet: 'amulet',
 };
 
-export function baseSprite(base: Slot | GemType): SpriteName {
-  return base in SLOT_SPRITES ? SLOT_SPRITES[base as Slot] : (base as GemType);
+/** Gems and materials have sprites named after them; gear by its slot. */
+export function baseSprite(base: Slot | GemType | Material): SpriteName {
+  return base in SLOT_SPRITES ? SLOT_SPRITES[base as Slot] : (base as GemType | Material);
 }
 
 export function itemSprite(item: Item): SpriteName {
-  return baseSprite(isGear(item) ? item.slot : item.gem);
+  switch (item.type) {
+    case 'gear': return baseSprite(item.slot);
+    case 'gem': return baseSprite(item.gem);
+    case 'map': return 'map';
+    case 'material': return baseSprite(item.material);
+  }
 }
 
 export function lootNoteText(note: LootNote): string {
   switch (note.outcome) {
-    case 'bag': return 'to bag';
-    case 'stash': return 'to stash';
+    case 'bag':
+    case 'stash':
+      // The note's name is already the material, so the text says only how many and where they went.
+      if (note.rarity === 'material') return `×${formatNumber(note.value)} ${note.outcome === 'bag' ? 'to bag' : 'to Materials tab'}`;
+      return note.outcome === 'bag' ? 'to bag' : 'to stash';
     case 'sold': return `sold +${formatNumber(note.value)} Gold`;
-    case 'salvaged': return `salvaged +${plural(note.value, 'Diamond', 'Diamonds')}`;
+    case 'salvaged': return `salvaged into ${plural(note.value, 'material', 'materials')}`;
     case 'held': return 'waiting for space';
   }
 }

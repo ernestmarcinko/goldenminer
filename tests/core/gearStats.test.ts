@@ -1,6 +1,8 @@
 import { expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
 import { deriveStats, gearTotals, itemTotals } from '../../src/core/stats';
+import { MAX_HAZARD_WARD } from '../../src/core/balance';
+import { MINING_STATS } from '../../src/core/items';
 import { gear, gem } from '../helpers/items';
 
 it('no gear means the Plan 1 base stats', () => {
@@ -64,4 +66,12 @@ it('absurd gear totals are clamped to sane bounds', () => {
   expect(deriveStats(s)).toMatchObject({ digPower: 1, lampSight: 0, ticksPerClick: 1, offlineCapMs: 3_600_000 });
   s.equipped.mining.pickaxe = gear(s, 'pickaxe', { affixes: [{ stat: 'autoTickRate', value: -1_000_000 }] });
   expect(deriveStats(s).autoTicksPerSecond).toBe(0.1);
+});
+
+it('hazard ward rolls on mining gear and adds up, capped', () => {
+  const s = newGame(1, 0);
+  s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'hazardWard', value: 40 }] });
+  s.equipped.mining.gloves = gear(s, 'gloves', { affixes: [{ stat: 'hazardWard', value: 40 }] });
+  expect(deriveStats(s).hazardWard).toBe(MAX_HAZARD_WARD);
+  expect(MINING_STATS).toContain('hazardWard');
 });

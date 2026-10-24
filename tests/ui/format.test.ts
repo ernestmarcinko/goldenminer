@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatCompact, formatDuration, formatNumber, formatRate, plural } from '../../src/ui/format';
+import { formatCompact, formatDuration, formatEta, formatNumber, formatRate, plural } from '../../src/ui/format';
 
 describe('formatNumber', () => {
   it('uses en-US separators and never exponents', () => {
@@ -41,4 +41,8 @@ describe('formatCompact', () => {
     expect(formatCompact(1240)).toBe('1.2K');
     expect(formatCompact(1_000_000)).toBe('1M');
   });
+});
+
+it('formatEta', () => {
+  expect([formatEta(42), formatEta(0.4), formatEta(125), formatEta(3725)]).toEqual(['42 s', '1 s', '2 min 5 s', '1 h 2 min']);
 });

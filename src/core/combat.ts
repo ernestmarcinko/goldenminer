@@ -1,12 +1,14 @@
 import {
   ARMORED_TAKEN, BOSS_DROPS, CHAMPION_DROPS, CHAMPION_MAGIC_FIND, COMBAT_LOG_LIMIT, COMBAT_STEP_S, DROP_CHANCE,
-  MAP_DROP_BATTLE_CHANCE, MAP_GEM_CHANCE, ROOM_REGEN_TOTAL, RUN_LOOT_LIMIT, VAMPIRIC_HEAL, goldPerKill, soulsPerKill,
+  MAP_DROP_BATTLE_CHANCE, MAP_GEM_CHANCE, MAP_MATERIAL_CHANCE, ROOM_REGEN_TOTAL, RUN_LOOT_LIMIT, VAMPIRIC_HEAL,
+  goldPerKill, soulsPerKill,
 } from './balance';
 import { deriveBattleStats, mitigate, type BattleStats } from './battle';
 import { dungeonLayout } from './dungeons';
 import { gainXp } from './levels';
 import { rollGear, rollGem, rollRarity } from './itemGen';
-import { receiveItem } from './loot';
+import { materialAmount, pickMaterial } from './layer';
+import { receiveItem, receiveMaterial } from './loot';
 import { monsterState, rankReward } from './monsters';
 import { nextRandom } from './rng';
 import type {
@@ -59,9 +61,9 @@ export function soulsForKill(u: number, tier: number, rank: Rank, soulMultiplier
   return whole + (u < x - whole ? 1 : 0);
 }
 
-/** Counts one dropped item and notes what became of it on the run and in the log. */
-function takeDrop(run: MapRun, notes: LootNote[]): void {
-  run.items += 1;
+/** Notes what became of a drop on the run and in the log, and counts it as an item unless it is a material stack. */
+function takeDrop(run: MapRun, notes: LootNote[], isItem = true): void {
+  if (isItem) run.items += 1;
   for (const n of notes) {
     noteLoot(run, n);
     logLine(run, { kind: 'drop', note: n });
@@ -69,8 +71,8 @@ function takeDrop(run: MapRun, notes: LootNote[]): void {
 }
 
 /**
- * A monster fell: its XP (levelling up heals by the max-life gained), then Souls, Gold, items and a gem chance, in
- * that draw order (exported so the rewards can be pinned per rank). Champions guarantee an item of raised rarity, bosses guarantee BOSS_DROPS, anything may add one more.
+ * A monster fell: its XP (levelling up heals by the max-life gained), then Souls, Gold, items, a gem chance and the
+ * material chances, in that draw order (exported so the rewards can be pinned per rank). Champions guarantee an item of raised rarity, bosses guarantee BOSS_DROPS, anything may add one more.
  */
 export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: BattleStats): void {
   const tier = run.map.tier;
@@ -98,9 +100,16 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
     const set = nextRandom(state) < MAP_DROP_BATTLE_CHANCE ? 'battle' : 'mining';
     const raised = monster.rank === 'champion' && i < guaranteed;
     const item = rollGear(state, tier, set, rollRarity(state, b.magicFindMultiplier * (raised ? CHAMPION_MAGIC_FIND : 1)));
-    takeDrop(run, receiveItem(state, item, 'battle'));
+    takeDrop(run, receiveItem(state, item));
   }
-  if (nextRandom(state) < MAP_GEM_CHANCE) takeDrop(run, receiveItem(state, rollGem(state, tier), 'battle'));
+  if (nextRandom(state) < MAP_GEM_CHANCE) takeDrop(run, receiveItem(state, rollGem(state, tier)));
+  // Materials of the map's depth: rankReward chances, each pass drawing its material and then its amount.
+  const metre = run.map.metre;
+  for (let i = 0; i < rankReward(monster.rank); i++) {
+    if (nextRandom(state) >= MAP_MATERIAL_CHANCE) continue;
+    const material = pickMaterial(metre, nextRandom(state));
+    takeDrop(run, receiveMaterial(state, material, materialAmount(material, metre, nextRandom(state))), false);
+  }
 }
 
 function strike(state: GameState, run: MapRun, b: BattleStats, click: boolean, events?: TickEvent[]): StrikeOutcome {

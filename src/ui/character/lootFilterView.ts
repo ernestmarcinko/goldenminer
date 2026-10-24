@@ -51,5 +51,5 @@ export const TARGET_OPTIONS: readonly { value: LootTarget; label: string }[] = [
 export const ACTION_OPTIONS: readonly { value: LootAction; label: string }[] = [
   { value: 'keep', label: 'Keep' },
   { value: 'sell', label: 'Sell for Gold' },
-  { value: 'salvage', label: 'Salvage for Diamonds' },
+  { value: 'salvage', label: 'Salvage for materials' },
 ];

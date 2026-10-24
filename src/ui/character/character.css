@@ -45,6 +45,7 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-item[data-rarity='legendary'], .gm-card[data-rarity='legendary'], .gm-card__equipped[data-rarity='legendary'] { --gm-tone: var(--gm-legendary); }
 .gm-item[data-rarity='gem'], .gm-card[data-rarity='gem'], .gm-card__equipped[data-rarity='gem'] { --gm-tone: var(--gm-gem); }
 .gm-item[data-rarity='normal'], .gm-card[data-rarity='normal'], .gm-card__equipped[data-rarity='normal'] { --gm-tone: var(--gm-normal); }
+.gm-item[data-rarity='material'], .gm-card[data-rarity='material'] { --gm-tone: var(--gm-material); }
 .gm-item { border-color: var(--gm-tone); }
 .gm-item__dots { position: absolute; left: 0; right: 0; bottom: 2px; display: flex; justify-content: center; gap: 2px; }
 .gm-item__dot { width: 6px; height: 6px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--gm-muted); background: transparent; }
@@ -56,7 +57,7 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-item__dot[data-gem='amethyst'], .gm-gemtab__name[data-gem='amethyst'] { --gm-gem-color: #8a6fe0; }
 .gm-item__dot[data-gem='starstone'], .gm-gemtab__name[data-gem='starstone'] { --gm-gem-color: #e8d27a; }
 .gm-item__dot[data-gem] { background: var(--gm-gem-color); }
-.gm-item__count {
+.gm-item__count, .gm-item__tier {
   position: absolute; right: 3px; bottom: 1px; font-family: var(--gm-font-mono); font-size: 11px; line-height: 1.2;
   color: var(--gm-text); text-shadow: 0 1px 2px #000; pointer-events: none;
 }
@@ -73,9 +74,22 @@ button.gm-item:hover { background: #3a2f20; }
 /* a touch tap lifts an item until it is placed or put back */
 .gm-item[data-held] { z-index: 1; transform: translateY(-6px); box-shadow: 0 0 0 3px var(--gm-gold), 0 10px 18px rgba(0, 0, 0, 0.6); }
 
-.gm-grid { display: grid; grid-template-columns: repeat(6, minmax(44px, 52px)); gap: 6px; }
-.gm-grid--stash { grid-template-columns: repeat(8, minmax(44px, 52px)); }
+/* a 10 × 6 grid (the bag, a General or Maps page) of 40 px cells, as on the Round 3 board. On a narrow screen the
+   cells shrink to fit, never under 28 px, and below that the box scrolls sideways on its own. The box's 6 px padding
+   (taken back by its margin) keeps focus outlines and a lifted item inside its clip. */
+.gm-gridbox {
+  box-sizing: border-box; width: 457px; max-width: calc(100% + 12px); margin: -6px; padding: 6px;
+  overflow-x: auto; container-type: inline-size;
+}
+.gm-grid {
+  --gm-cell: clamp(28px, (100cqi - 45px) / 10, 40px);
+  display: grid; grid-template-columns: repeat(10, var(--gm-cell)); gap: 5px;
+}
 .gm-cell { width: 100%; aspect-ratio: 1; min-width: 44px; }
+.gm-grid > .gm-cell { min-width: 0; min-height: 0; }
+/* the 36 px sprite steps down with the cells: 30 px from 34 px cells, 24 px below */
+@container (width < 445px) { .gm-grid > .gm-item > :first-child { transform: scale(0.8333); } }
+@container (width < 385px) { .gm-grid > .gm-item > :first-child { transform: scale(0.6667); } }
 .gm-cell--empty { box-sizing: border-box; border-radius: 6px; background: #1a1613; border: 1px solid #2e2722; }
 
 .gm-card {
@@ -113,7 +127,8 @@ button.gm-item:hover { background: #3a2f20; }
 
 .gm-stash { position: relative; display: flex; flex-direction: column; gap: 12px; }
 .gm-overlay.gm-overlay--top { align-items: flex-start; padding-top: max(16px, 6vh); }
-.gm-dialog.gm-stash { max-width: 900px; }
+/* the dialog is a size container: the stash page and the bag sit side by side only while both fit at 40 px cells */
+.gm-dialog.gm-stash { max-width: 980px; container: gm-stash / inline-size; }
 .gm-stash .gm-char__status:empty { min-height: 0; margin-top: -12px; }
 .gm-stash__body { display: flex; align-items: flex-start; gap: 24px; }
 .gm-stash__main { display: flex; flex-direction: column; min-width: 0; }
@@ -128,6 +143,17 @@ button.gm-item:hover { background: #3a2f20; }
   box-sizing: border-box; padding: 10px; border-radius: 0 8px 8px 8px; background: var(--gm-panel-raised);
   border: 1px solid var(--gm-gold);
 }
+.gm-stash__paged { display: flex; flex-direction: column; gap: 10px; }
+.gm-stash__pages { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.gm-stash__page {
+  min-height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--gm-line); background: var(--gm-panel);
+  color: var(--gm-normal); font: inherit; font-size: 13px; cursor: pointer;
+}
+.gm-stash__page:hover { border-color: var(--gm-gold); }
+.gm-stash__page[aria-pressed='true'] { border-color: var(--gm-gold); color: var(--gm-gold-bright); }
+.gm-stash__page--buy { border-style: dashed; border-color: var(--gm-gold); color: var(--gm-gold); }
+.gm-stash__page--buy[aria-disabled='true'] { opacity: 0.5; }
+.gm-stash__page:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
 .gm-stash__bag { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .gm-stash__bag .gm-char__toggle { align-self: flex-start; }
 
@@ -136,6 +162,11 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-gemtab__cell > .gm-cell { height: 100%; }
 .gm-gemtab__head { font-size: 12px; color: var(--gm-muted); text-align: center; }
 .gm-gemtab__name { font-size: 13px; color: var(--gm-gem-color); }
+.gm-mattab { display: grid; grid-template-columns: repeat(8, minmax(44px, 60px)); gap: 6px; align-items: start; }
+.gm-mattab__slot { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.gm-mattab__cell { display: grid; aspect-ratio: 1; width: 100%; min-width: 44px; }
+.gm-mattab__cell > .gm-cell { height: 100%; }
+.gm-mattab__name { font-size: 12px; line-height: 1.2; color: var(--gm-muted); text-align: center; overflow-wrap: anywhere; }
 
 .gm-rules { display: flex; flex-direction: column; gap: 8px; }
 .gm-rule { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; border-radius: 8px; background: #241e19; }
@@ -162,14 +193,15 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-fullmode__opt { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
 .gm-fullmode__opt input { width: 18px; height: 18px; margin: 0; accent-color: var(--gm-gold); }
 
-@media (max-width: 760px) {
+/* a 467 px stash panel, the 24 px gap and the 445 px bag */
+@container gm-stash (width < 936px) {
   .gm-stash__body { flex-direction: column; align-items: stretch; gap: 16px; }
 }
 @media (max-width: 600px) {
   .gm-char { padding: 12px; }
-  .gm-grid--stash { grid-template-columns: repeat(6, minmax(44px, 52px)); }
   .gm-stash__panel { padding: 8px; }
   .gm-stash__tab { padding: 0 10px; }
   .gm-gemtab { grid-template-columns: 56px repeat(5, minmax(44px, 52px)); gap: 4px; }
   .gm-gemtab__name { font-size: 12px; }
+  .gm-mattab { grid-template-columns: repeat(4, minmax(44px, 60px)); gap: 4px 6px; }
 }

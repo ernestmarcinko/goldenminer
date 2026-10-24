@@ -1,11 +1,12 @@
 import { expect, it, vi } from 'vitest';
-import { MAX_OVERFLOW } from '../../src/core/balance';
+import { MATERIAL_TABLE, MAX_OVERFLOW } from '../../src/core/balance';
 import { deriveBattleStats } from '../../src/core/battle';
 import { clickHit, onKill, soulsForKill } from '../../src/core/combat';
 import { applyTicks } from '../../src/core/dig';
 import { addMap, startMap } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
-import { isGear } from '../../src/core/items';
+import { isGear, setOfSlot, type Material } from '../../src/core/items';
+import { pickMaterial } from '../../src/core/layer';
 import { nextRandom } from '../../src/core/rng';
 import { deriveStats } from '../../src/core/stats';
 import { summarize } from '../../src/core/summary';
@@ -62,8 +63,7 @@ it('a cleared tier-1 map pays Souls, 40 Gold and at least the boss and champion 
 it('a full bag under stop holds map drops but the fight goes on', () => {
   const s = newGame(1, 0);
   s.settings.bagFull = 'stop';
-  s.bags.battle = s.bags.battle.map(() => gear(s, 'weapon'));
-  s.bags.mining = s.bags.mining.map(() => gear(s, 'pickaxe'));
+  s.bag = s.bag.map((_, i) => gear(s, i % 2 ? 'weapon' : 'pickaxe'));
   s.stash.general = s.stash.general.map(() => gear(s, 'weapon'));
   startMap(s, addMap(s, 1, 2).id);
   fight(s);
@@ -79,11 +79,11 @@ function runOf(s: GameState): MapRun {
   return s.activity.run;
 }
 
-// A started tier-1 run (seed `seed`), and a hand-built monster of `rank` ready to fall.
-function kill(seed: number, rank: Rank, prepare?: (s: GameState) => void) {
+// A started run (seed `seed`, a tier-1 map unless `map` says otherwise), and a hand-built monster of `rank` ready to fall.
+function kill(seed: number, rank: Rank, prepare?: (s: GameState) => void, map = { tier: 1, metre: 2 }) {
   const s = newGame(seed, 0);
   prepare?.(s);
-  startMap(s, addMap(s, 1, 2).id);
+  startMap(s, addMap(s, map.tier, map.metre).id);
   const run = runOf(s);
   const m: MonsterState = {
     name: 'Test Monster', species: 0, rank, mods: [], extra: 0, element: 'physical',
@@ -110,9 +110,10 @@ it('each rank drops its guaranteed items plus one more when the chance draw pass
     for (let seed = 1; seed <= 120; seed++) {
       const { run, chancePasses } = kill(seed, rank);
       seen[chancePasses ? 'pass' : 'miss'] += 1;
-      // Gem notes are on the run too: items rolled with a rarity draw are counted by the spy.
+      // Gem and material notes are on the run too: items rolled with a rarity draw are counted by the spy.
       expect(spy.rarityArgs.length, `${rank} seed ${seed}`).toBe(GUARANTEED[rank] + (chancePasses ? 1 : 0));
-      expect(run.loot.length, `${rank} seed ${seed}`).toBe(spy.rarityArgs.length + spy.gems);
+      const items = run.loot.filter((n) => n.rarity !== 'material');
+      expect(items.length, `${rank} seed ${seed}`).toBe(spy.rarityArgs.length + spy.gems);
     }
     expect(seen.pass, rank).toBeGreaterThan(0);
     expect(seen.miss, rank).toBeGreaterThan(0);
@@ -132,15 +133,18 @@ it('only a champion\'s guaranteed item rolls with the champion magic-find boost'
   }
 });
 
-it('about 80% of map gear is battle gear, and gems land in the battle bag', () => {
+it('about 80% of map gear is battle gear, and gems land in the bag', () => {
   let battle = 0;
   let mining = 0;
   let gems = 0;
   for (let seed = 1; seed <= 400; seed++) {
     const { s } = kill(seed, 'boss');
-    for (const c of s.bags.battle) { if (c !== null && isGear(c)) battle++; else if (c !== null) gems++; }
-    mining += s.bags.mining.filter((c) => c !== null && isGear(c)).length;
-    expect(s.bags.mining.some((c) => c !== null && !isGear(c)), `seed ${seed}`).toBe(false);
+    for (const c of s.bag) {
+      if (c === null || c.type === 'material') continue;
+      if (!isGear(c)) gems++;
+      else if (setOfSlot(c.slot) === 'battle') battle++;
+      else mining++;
+    }
   }
   const share = battle / (battle + mining);
   expect(share).toBeGreaterThan(0.75);
@@ -161,13 +165,56 @@ it('a gem drop is noted on the run and in the log like an item', () => {
   expect(found).toBeGreaterThan(0);
 });
 
+const materialsOf = (run: MapRun) => run.loot.filter((n) => n.rarity === 'material').map((n) => n.base as Material);
+
+it('map kills drop materials of the map\'s depth', () => {
+  const deep = new Set<Material>();
+  const shallow = new Set<Material>();
+  for (let seed = 1; seed <= 400; seed++) {
+    for (const m of materialsOf(kill(seed, 'boss', undefined, { tier: 7, metre: 1100 }).run)) deep.add(m);
+    for (const m of materialsOf(kill(seed, 'boss', undefined, { tier: 1, metre: 20 }).run)) shallow.add(m);
+  }
+  // Starsteel, obsidian and void crystal weigh about 18 of 344 at 1100 m: some 26 of the ~500 drops are expected.
+  expect([...deep].some((m) => MATERIAL_TABLE[m].from >= 450)).toBe(true);
+  expect(pickMaterial(1100, 0.9999)).toBe('voidCrystal');
+  expect(shallow.size).toBeGreaterThan(0);
+  expect([...shallow].every((m) => m === 'copper' || m === 'tin')).toBe(true);
+});
+
+it('normal kills roll one material chance', () => {
+  let dropped = 0;
+  for (let seed = 1; seed <= 2000; seed++) {
+    if (materialsOf(kill(seed, 'normal').run).length > 0) dropped++;
+  }
+  expect(Math.abs(dropped / 2000 - 0.25)).toBeLessThan(0.03);
+});
+
+it('bosses roll the material chance five times', () => {
+  let drops = 0;
+  const kills = 800;
+  for (let seed = 1; seed <= kills; seed++) drops += materialsOf(kill(seed, 'boss').run).length;
+  // 5 passes x 0.25 = 1.25 a kill (about 1,000 drops, sd about 27); a single pass would give about 200.
+  expect(Math.abs(drops / kills - 5 * 0.25)).toBeLessThan(0.1);
+});
+
+it('a material drop is noted on the run but not counted as an item', () => {
+  let sawMaterial = 0;
+  for (let seed = 1; seed <= 100; seed++) {
+    const { run } = kill(seed, 'boss');
+    sawMaterial += materialsOf(run).length;
+    expect(run.items, `seed ${seed}`).toBe(spy.rarityArgs.length + spy.gems);
+    expect(run.loot.length, `seed ${seed}`).toBe(run.items + materialsOf(run).length);
+    expect(dropLines(run), `seed ${seed}`).toBe(run.loot.length);
+  }
+  expect(sawMaterial).toBeGreaterThan(0);
+});
+
 it('with MAX_OVERFLOW items already held under stop, a further drop is sold and nothing more is held', () => {
   const { s, run } = kill(1, 'boss', (g) => {
     g.settings.bagFull = 'stop';
-    g.bags.battle = g.bags.battle.map(() => gear(g, 'weapon'));
-    g.bags.mining = g.bags.mining.map(() => gear(g, 'pickaxe'));
+    g.bag = g.bag.map((_, i) => gear(g, i % 2 ? 'weapon' : 'pickaxe'));
     g.stash.general = g.stash.general.map(() => gear(g, 'weapon'));
-    for (let i = 0; i < MAX_OVERFLOW; i++) g.overflow.push({ bag: 'battle', item: gear(g, 'weapon') });
+    for (let i = 0; i < MAX_OVERFLOW; i++) g.overflow.push(gear(g, 'weapon'));
   });
   expect(s.overflow).toHaveLength(MAX_OVERFLOW);
   expect(run.loot.some((n) => n.outcome === 'sold')).toBe(true);
@@ -199,16 +246,14 @@ it('the offline summary counts a lost map', () => {
   expect(summarize(before, after, 600_000, 600, 28_800_000).maps).toEqual({ cleared: 0, lost: 1 });
 });
 
-it('the offline summary names the bag that is holding map drops', () => {
+it('the offline summary notices the bag holding map drops', () => {
   const before = newGame(1, 0);
   const after = structuredClone(before);
   after.settings.bagFull = 'stop';
-  after.bags.battle = after.bags.battle.map(() => gear(after, 'weapon'));
-  after.bags.mining = after.bags.mining.map(() => gear(after, 'pickaxe'));
+  after.bag = after.bag.map((_, i) => gear(after, i % 2 ? 'weapon' : 'pickaxe'));
   after.stash.general = after.stash.general.map(() => gear(after, 'weapon'));
   startMap(after, addMap(after, 1, 2).id);
   fight(after);
-  const held = after.overflow[0]?.bag;
-  expect(held).toBeDefined();
-  expect(summarize(before, after, 600_000, 600, 28_800_000).stoppedBag).toBe(held);
+  expect(after.overflow.length).toBeGreaterThan(0);
+  expect(summarize(before, after, 600_000, 600, 28_800_000).bagStopped).toBe(true);
 });

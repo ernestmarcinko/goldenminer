@@ -2,12 +2,12 @@ import { useEffect, useRef } from 'react';
 import type { FocusEvent, KeyboardEvent } from 'react';
 import { itemAt } from '../../core/cells';
 import { isGear } from '../../core/items';
-import type { GearItem, GearSet } from '../../core/items';
+import type { GearItem } from '../../core/items';
 import { itemName } from '../../core/itemData';
 import type { GameState } from '../../core/types';
 import { hoverNote, itemActions } from './itemActions';
 import type { ActionSpec, ItemTarget } from './itemActions';
-import { compareLines, itemKindLine, itemLines, rarityOf, wornToCompare } from './itemView';
+import { cardHead, compareLines, itemKindLine, itemLines, rarityOf, wornToCompare } from './itemView';
 import type { ViewLine } from './itemView';
 
 export interface CardMenu {
@@ -47,8 +47,8 @@ function EquippedContent({ worn }: { worn: GearItem }) {
  * Gear that is not worn also shows the worn item's card: beside this one when `pair` (a hover card on a wide
  * screen, placed by the caller as one pair), otherwise as a block inside it.
  */
-export function ItemCard({ state, target, shownSet, left, top, menu, inline = false, smooth = false, pair = false }: {
-  state: GameState; target: ItemTarget; shownSet: GearSet; left: number; top: number; menu?: CardMenu;
+export function ItemCard({ state, target, left, top, menu, inline = false, smooth = false, pair = false }: {
+  state: GameState; target: ItemTarget; left: number; top: number; menu?: CardMenu;
   inline?: boolean; smooth?: boolean; pair?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -62,7 +62,7 @@ export function ItemCard({ state, target, shownSet, left, top, menu, inline = fa
 
   const item = itemAt(state, target);
   if (item === undefined) return null;
-  const name = itemName(item);
+  const { name, kind } = cardHead(state.seed, item);
   const worn = wornToCompare(state, item, target.where === 'worn');
   const compare = isGear(item) && target.where !== 'worn' ? compareLines(item, worn) : null;
   const beside = pair && !isMenu && worn !== undefined;
@@ -92,7 +92,7 @@ export function ItemCard({ state, target, shownSet, left, top, menu, inline = fa
       onBlur={onBlur}
     >
       <div className="gm-card__name">{name}</div>
-      <div className="gm-card__kind">{itemKindLine(item)}</div>
+      <div className="gm-card__kind">{kind}</div>
       <div className="gm-card__lines"><Lines lines={itemLines(item)} /></div>
       {compare !== null && compare.lines.length > 0 && (
         <div className="gm-card__compare">
@@ -106,7 +106,7 @@ export function ItemCard({ state, target, shownSet, left, top, menu, inline = fa
       )}
       {menu ? (
         <div className="gm-card__actions">
-          {itemActions(state, target, shownSet).map((a, i) => (
+          {itemActions(state, target).map((a, i) => (
             <button
               key={`${a.id}${i}`}
               type="button"

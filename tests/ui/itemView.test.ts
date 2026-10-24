@@ -1,7 +1,12 @@
 import { expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
 import { deriveStats, gearTotals } from '../../src/core/stats';
-import { battleStatLine, clickIntent, compareLines, itemKindLine, itemLines, lootNoteText, miningStatLine, placeTooltip, statText } from '../../src/ui/character/itemView';
+import { itemName } from '../../src/core/itemData';
+import {
+  battleStatLine, cardHead, clickIntent, compareLines, itemKindLine, itemLines, itemSprite, lootNoteText, miningStatLine, placeTooltip, rarityOf,
+  statText,
+} from '../../src/ui/character/itemView';
+import { mapDungeon } from '../../src/ui/maps/mapsView';
 import { gear, gem } from '../helpers/items';
 
 it('stat text', () => {
@@ -82,7 +87,41 @@ it('reads what a click means', () => {
 it('loot notes in words', () => {
   const n = { name: 'X', rarity: 'magic', base: 'pickaxe' } as const;
   expect(lootNoteText({ ...n, outcome: 'sold', value: 48 })).toBe('sold +48 Gold');
-  expect(lootNoteText({ ...n, outcome: 'salvaged', value: 1 })).toBe('salvaged +1 Diamond');
+  expect(lootNoteText({ ...n, outcome: 'salvaged', value: 1 })).toBe('salvaged into 1 material');
   expect(lootNoteText({ ...n, outcome: 'stash', value: 0 })).toBe('to stash');
   expect(lootNoteText({ ...n, outcome: 'held', value: 0 })).toBe('waiting for space');
+});
+
+it('a map card is named after its dungeon, with the tier and the rooms on the kind line', () => {
+  const map = { id: 1, type: 'map', tier: 4, metre: 327 } as const;
+  const { type } = mapDungeon(77, map);
+  expect(cardHead(77, map)).toEqual({ name: type.name, kind: `Tier 4 map · ${type.rooms} rooms` });
+  const s = newGame(1, 0);
+  const pick = gear(s, 'pickaxe', { name: 'Stonebiter', rarity: 'normal', ilvl: 1 });
+  expect(cardHead(77, pick)).toEqual({ name: 'Stonebiter', kind: 'Normal pickaxe · item level 1' });
+});
+
+it('a map item reads as its tier and where it was found', () => {
+  const map = { id: 1, type: 'map', tier: 4, metre: 327 } as const;
+  expect([itemName(map), itemKindLine(map), rarityOf(map), itemSprite(map)]).toEqual(['Tier 4 map', 'Tier 4 map', 'map', 'map']);
+  expect(itemLines(map)).toEqual([{ text: 'Found at 327 m', tone: 'plain' }]);
+  expect(rarityOf({ id: 2, type: 'material', material: 'tin', count: 3 })).toBe('material');
+});
+
+it('a material item reads as a crafting material and where it is first found', () => {
+  const tin = { id: 2, type: 'material', material: 'tin', count: 3 } as const;
+  const iron = { id: 3, type: 'material', material: 'iron', count: 1 } as const;
+  expect([itemName(tin), itemKindLine(tin), rarityOf(tin), itemSprite(tin)]).toEqual(['Tin ore', 'Crafting material', 'material', 'tin']);
+  expect(itemLines(tin)).toEqual([
+    { text: 'Found at every depth', tone: 'plain' },
+    { text: 'Kept for crafting.', tone: 'muted' },
+  ]);
+  expect(itemLines(iron)[0]).toEqual({ text: 'First found below 50 m', tone: 'plain' });
+  expect(itemSprite({ id: 4, type: 'material', material: 'voidCrystal', count: 1 })).toBe('voidCrystal');
+});
+
+it('a material loot note reads as how many and where they went', () => {
+  const n = { name: 'Copper ore', rarity: 'material', base: 'copper', value: 1240 } as const;
+  expect(lootNoteText({ ...n, outcome: 'bag' })).toBe('×1,240 to bag');
+  expect(lootNoteText({ ...n, outcome: 'stash' })).toBe('×1,240 to Materials tab');
 });

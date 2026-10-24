@@ -13,12 +13,16 @@ function migrated() {
 }
 
 const KINDS: DropTarget[] = [
-  { where: 'bag', set: 'battle', index: 23 },
-  { where: 'stash', index: 59 },
+  { where: 'bag', index: 59 },
+  { where: 'stash', index: 119 },
+  { where: 'maps', index: 61 },
   { where: 'gems', gem: 'starstone', grade: 'perfect' },
+  { where: 'materials', material: 'voidCrystal' },
   { where: 'worn', slot: 'amulet' },
   { where: 'stashTab', tab: 'general' },
   { where: 'stashTab', tab: 'gems' },
+  { where: 'stashTab', tab: 'maps' },
+  { where: 'stashTab', tab: 'materials' },
   { where: 'stashTab', tab: 'auto' },
 ];
 
@@ -31,21 +35,24 @@ it('dropAttr and parseDrop round-trip every kind of drop target', () => {
 });
 
 it('parseDrop refuses anything that is not exactly a drop target', () => {
-  expect(parseDrop('{"where":"bag","set":"magic","index":1}')).toBeNull();
+  expect(parseDrop('{"where":"bag","index":-1}')).toBeNull();
   expect(parseDrop('{"where":"stash","index":-1}')).toBeNull();
+  expect(parseDrop('{"where":"maps"}')).toBeNull();
   expect(parseDrop('nope')).toBeNull();
   expect(parseDrop(null)).toBeNull();
 });
 
 it('parseDrop checks every value against the game lists and grid sizes', () => {
-  expect(parseDrop('{"where":"bag","set":"mining","index":24}')).toBeNull();
-  expect(parseDrop('{"where":"bag","set":"mining","index":1.5}')).toBeNull();
-  expect(parseDrop('{"where":"bag","set":"mining","index":"1"}')).toBeNull();
-  expect(parseDrop('{"where":"stash","index":60}')).toBeNull();
+  expect(parseDrop('{"where":"bag","index":60}')).toBeNull();
+  expect(parseDrop('{"where":"bag","index":1.5}')).toBeNull();
+  expect(parseDrop('{"where":"bag","index":"1"}')).toBeNull();
+  expect(parseDrop('{"where":"stash","index":0.5}')).toBeNull();
+  expect(parseDrop('{"where":"maps","index":"3"}')).toBeNull();
+  expect(parseDrop('{"where":"materials","material":"gold"}')).toBeNull();
   expect(parseDrop('{"where":"gems","gem":"opal","grade":"tiny"}')).toBeNull();
   expect(parseDrop('{"where":"gems","gem":"ruby","grade":"huge"}')).toBeNull();
   expect(parseDrop('{"where":"worn","slot":"toString"}')).toBeNull();
-  expect(parseDrop('{"where":"stashTab","tab":"maps"}')).toBeNull();
+  expect(parseDrop('{"where":"stashTab","tab":"shop"}')).toBeNull();
   expect(parseDrop('{"where":"elsewhere"}')).toBeNull();
   expect(parseDrop('[]')).toBeNull();
   expect(parseDrop('null')).toBeNull();
@@ -53,15 +60,15 @@ it('parseDrop checks every value against the game lists and grid sizes', () => {
 });
 
 it('tapAction follows the tap table', () => {
-  const x: ItemLoc = { where: 'bag', set: 'mining', index: 3 };
+  const x: ItemLoc = { where: 'bag', index: 3 };
   const y: ItemLoc = { where: 'stash', index: 7 };
   // nothing held: tapping an item lifts it, tapping an empty cell, slot or tab does nothing
   expect(tapAction(null, x, true)).toEqual({ kind: 'hold' });
-  expect(tapAction(null, { where: 'bag', set: 'mining', index: 4 }, false)).toEqual({ kind: 'none' });
+  expect(tapAction(null, { where: 'bag', index: 4 }, false)).toEqual({ kind: 'none' });
   expect(tapAction(null, { where: 'worn', slot: 'boots' }, false)).toEqual({ kind: 'none' });
   expect(tapAction(null, { where: 'stashTab', tab: 'gems' }, false)).toEqual({ kind: 'none' });
   // X held: tapping X puts it back, anything else is a drop there
-  expect(tapAction(x, { where: 'bag', set: 'mining', index: 3 }, true)).toEqual({ kind: 'release' });
+  expect(tapAction(x, { where: 'bag', index: 3 }, true)).toEqual({ kind: 'release' });
   expect(tapAction(x, y, true)).toEqual({ kind: 'drop', to: y });
   expect(tapAction(x, { where: 'stashTab', tab: 'auto' }, false))
     .toEqual({ kind: 'drop', to: { where: 'stashTab', tab: 'auto' } });
@@ -96,17 +103,17 @@ it('mouse clicks keep their shortcuts, held item or not', () => {
 
 it('a hold lasts only while the lifted item is still where it was', () => {
   const s = migrated();
-  const loc: ItemLoc = { where: 'bag', set: 'mining', index: 0 };
-  const item = s.bags.mining[0];
+  const loc: ItemLoc = { where: 'bag', index: 0 };
+  const item = s.bag[0];
   if (item === null || item === undefined) throw new Error('fixture bag cell 0 is empty');
   const hold = { loc, id: item.id };
   expect(heldLoc(s, null)).toBeNull();
   expect(heldLoc(s, hold)).toEqual(loc);
   // sold, and new loot took the cell
-  s.bags.mining[0] = { ...item, id: s.nextId };
+  s.bag[0] = { ...item, id: s.nextId };
   expect(heldLoc(s, hold)).toBeNull();
   // sold, and the cell stayed empty
-  s.bags.mining[0] = null;
+  s.bag[0] = null;
   expect(heldLoc(s, hold)).toBeNull();
   // a Gems-tab stack is its slot: it lasts while the count is above 0
   const gems: ItemLoc = { where: 'gems', gem: 'ruby', grade: 'tiny' };

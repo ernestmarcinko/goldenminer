@@ -3,11 +3,12 @@ export const GEAR_SETS = ['mining', 'battle'] as const;
 export const MINING_SLOTS = ['pickaxe', 'lamp', 'gloves', 'boots'] as const;
 export const BATTLE_SLOTS = ['weapon', 'armor', 'helm', 'ring', 'amulet'] as const;
 export const MINING_STATS = ['digPower', 'goldYield', 'diamondYield', 'chestFind', 'gemFind', 'mapFind',
-  'lampSight', 'ticksPerClick', 'autoTickRate', 'offlineCap'] as const;
+  'lampSight', 'ticksPerClick', 'autoTickRate', 'offlineCap', 'hazardWard'] as const;
 export const BATTLE_STATS = ['damage', 'damagePct', 'attackSpeed', 'life', 'armor', 'critChance',
   'resistAll', 'soulFind', 'magicFind'] as const;
 export const GEM_TYPES = ['ruby', 'sapphire', 'emerald', 'amethyst', 'starstone'] as const;
 export const GEM_GRADES = ['tiny', 'small', 'big', 'giant', 'perfect'] as const;
+export const MATERIALS = ['copper', 'tin', 'iron', 'silver', 'mithril', 'starsteel', 'obsidian', 'voidCrystal'] as const;
 
 export type Rarity = (typeof RARITIES)[number];
 export type GearSet = (typeof GEAR_SETS)[number];
@@ -19,6 +20,7 @@ export type BattleStat = (typeof BATTLE_STATS)[number];
 export type StatKey = MiningStat | BattleStat;
 export type GemType = (typeof GEM_TYPES)[number];
 export type GemGrade = (typeof GEM_GRADES)[number];
+export type Material = (typeof MATERIALS)[number];
 
 export interface StatLine { stat: StatKey; value: number }
 export interface Gem { gem: GemType; grade: GemGrade }
@@ -27,7 +29,11 @@ export interface GearItem {
   id: number; type: 'gear'; slot: Slot; name: string; rarity: Rarity; ilvl: number;
   implicit: StatLine; affixes: StatLine[]; sockets: number; gems: Gem[]; uniqueId?: string;
 }
-export type Item = GearItem | GemItem;
+export interface MaterialItem { id: number; type: 'material'; material: Material; count: number }
+export interface MapItem { id: number; type: 'map'; tier: number; metre: number }
+export type Item = GearItem | GemItem | MaterialItem | MapItem;
+/** What stacks in a bag cell and counts up in its stash tab. */
+export type Stack = GemItem | MaterialItem;
 export type Cell = Item | null;
 
 export const SLOT_IMPLICIT: Readonly<Record<Slot, StatKey>> = {
@@ -46,4 +52,10 @@ export function statsOf(set: GearSet): readonly StatKey[] {
 }
 export function isGear(item: Item): item is GearItem {
   return item.type === 'gear';
+}
+export function isStack(item: Item): item is Stack {
+  return item.type === 'gem' || item.type === 'material';
+}
+export function isMap(item: Item): item is MapItem {
+  return item.type === 'map';
 }

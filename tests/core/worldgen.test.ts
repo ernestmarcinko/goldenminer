@@ -51,7 +51,7 @@ it('generation 1 keeps gear-dependent rolls; generation 2 ignores gear', () => {
     const stats = deriveStats(s);
     let chests = 0;
     for (let m = 0; m < 500; m++) {
-      s.deepest = m; s.depth = m; s.ahead = {};
+      s.deepest = m; s.ahead = {};
       fillAhead(s, stats);
       if (s.ahead[m + 1]?.feature === 'chest') chests++;
     }

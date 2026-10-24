@@ -17,6 +17,11 @@ it('a burst of ticks becomes a handful of particles', () => {
   expect(ps).toHaveLength(5);
 });
 
+it('a material vein pops up as the material', () => {
+  const events: TickEvent[] = [{ kind: 'find', find: { id: 1, depth: 4, kind: 'materialVein', material: 'tin', amount: 3, tick: 1 } }];
+  expect(particlesFromEvents(events, { x: 100, y: 200 }, 0, next)).toMatchObject([{ kind: 'materialVein', text: 'Tin ore!' }]);
+});
+
 it('old particles expire and the count stays bounded', () => {
   const many = Array.from({ length: 50 }, (_, i) => ({ id: i, kind: 'gold' as const, text: '+1', x: 0, y: 0, bornAt: i * 10 }));
   const kept = pruneParticles(many, 1500);

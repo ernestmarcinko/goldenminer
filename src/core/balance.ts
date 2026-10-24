@@ -1,5 +1,5 @@
-import type { GemGrade, Rarity, StatKey } from './items';
-import type { FeatureKind, Stats } from './types';
+import type { GemGrade, Material, Rarity, StatKey } from './items';
+import type { FeatureKind, Hazard, Stats } from './types';
 
 export const BASE_DIG_POWER = 10;
 export const BASE_AUTO_TICKS_PER_SECOND = 1;
@@ -10,7 +10,6 @@ export const MAX_CLICKS_PER_SECOND = 10;
 export const MAX_LAMP_SIGHT = 20;
 export const WALL_DETAIL_PERCENT = 6;
 export const FEATURE_CHANCE_TOTAL_CAP = 0.9;
-export const DIAMOND_CHANCE_CAP = 0.5;
 export const MAX_DIG_POWER = 5000;
 export const MIN_AUTO_TICKS_PER_SECOND = 0.1;
 export const MAX_AUTO_TICKS_PER_SECOND = 10;
@@ -33,20 +32,29 @@ export const BASE_ROLL_CHANCES: Pick<Stats, 'featureChances' | 'hardRockChance'>
 export const GUARANTEED_FIRST_MAP_METRE = 2;
 export const FINDS_LOG_LIMIT = 5000;
 
-export const BAG_SIZE = 24;
-export const STASH_SIZE = 60;
+export const BAG_SIZE = 60;
+export const STASH_PAGE_SIZE = 60;
+export const START_GENERAL_PAGES = 2;
+export const START_MAP_PAGES = 1;
+export const MAX_STASH_PAGES = 1000;
+export const STASH_PAGE_GOLD = 5000;
+/** The Gold price of the `n`th page bought in a General or Maps tab; each tab counts its own. */
+export function stashPagePrice(n: number): number {
+  return STASH_PAGE_GOLD * n * n;
+}
 // The item level a gem's value is worked out at, and the first tier each grade is found at.
 export const GEM_GRADE_LEVEL: Readonly<Record<GemGrade, number>> = { tiny: 2, small: 5, big: 8, giant: 12, perfect: 18 };
 export const GEM_GRADE_FROM_TIER: Readonly<Record<GemGrade, number>> = { tiny: 1, small: 4, big: 7, giant: 10, perfect: 15 };
 export const GEM_BAG_STACK = 25;
 export const GEM_STASH_STACK = 1_000_000;
+export const MATERIAL_BAG_STACK = 50;
+export const MATERIAL_STASH_STACK = 1_000_000;
 export const MAX_LOOT_RULES = 20;
 export const MAX_OVERFLOW = 10;
 export const MAX_SOCKETS = 3;
 export const MAX_AFFIXES = 4;
 
 export const LEVEL_CAP = 60;
-export const MAP_STASH_SIZE = 200;
 export const COMBAT_LOG_LIMIT = 20;
 export const RUN_LOOT_LIMIT = 30;
 export const MAX_LIFE = 1_000_000;
@@ -103,6 +111,8 @@ export const CHAMPION_DROPS = 1;
 export const CHAMPION_MAGIC_FIND = 3;
 export const MAP_DROP_BATTLE_CHANCE = 0.8;
 export const MAP_GEM_CHANCE = 0.04;
+// A kill rolls this chance rankReward times; each pass drops a material of the map's depth.
+export const MAP_MATERIAL_CHANCE = 0.25;
 // What the room clears of a map heal in all, as a share of max life: each clear heals its part, so every map heals the same.
 export const ROOM_REGEN_TOTAL = 1.5;
 // A map tick is fought in equal steps of at most this many seconds, so the tick rate never changes a fight.
@@ -121,14 +131,9 @@ export const TAB_HEARTBEAT_MS = 2000;
 export function hardness(metre: number): number {
   return 10 + 0.13 * metre;
 }
-export function goldPerTick(tier: number): number {
-  return 1 + Math.floor(tier / 2);
-}
-export function diamondChancePerTick(tier: number): number {
-  return Math.min(0.2, 0.01 * tier);
-}
+// Digging pays only from what it digs into: these veins are the whole of digging's Gold and Diamonds.
 export function goldVeinAmount(tier: number, u: number): number {
-  return Math.round(6 * tier * (0.8 + 0.4 * u));
+  return Math.round((200 + 110 * tier) * (0.8 + 0.4 * u));
 }
 export function diamondVeinAmount(tier: number): number {
   return 1 + Math.floor(tier / 2);
@@ -145,6 +150,7 @@ export const STAT_RANGES: Readonly<Record<StatKey, { base: number; perLevel: num
   ticksPerClick: { base: 1, perLevel: 0, cap: 1 },
   autoTickRate: { base: 3, perLevel: 1, cap: 50 },
   offlineCap: { base: 15, perLevel: 5, cap: 240 },
+  hazardWard: { base: 5, perLevel: 1, cap: 40 },
   damage: { base: 2, perLevel: 3 },
   damagePct: { base: 4, perLevel: 1 },
   attackSpeed: { base: 3, perLevel: 1, cap: 40 },
@@ -177,6 +183,31 @@ export const CHEST_BATTLE_CHANCE = 0.2;
 
 export const SELL_GOLD: Readonly<Record<Rarity, number>> = { normal: 5, magic: 12, rare: 30, legendary: 80 };
 export const GEM_SELL_GOLD = 20;
-export const SALVAGE_DIAMONDS: Readonly<Record<Rarity, number>> = { normal: 1, magic: 2, rare: 4, legendary: 10 };
-export const GEM_SALVAGE_DIAMONDS = 2;
+// Salvage gives low-tier materials only, so the deep ones stay worth digging for; Diamonds come from veins alone.
+export const SALVAGE_MATERIALS: Readonly<Record<Rarity, Partial<Record<Material, number>>>> = {
+  normal: { copper: 1 }, magic: { copper: 2, tin: 1 }, rare: { copper: 3, tin: 2, iron: 1 }, legendary: { tin: 3, iron: 3, silver: 1 },
+};
+export const GEM_SALVAGE_TIN = 1;
 export const LOOT_NOTES_KEPT = 30;
+
+// Material veins and hazards come from their own seeded layer, so they never disturb the feature roll.
+export const MATERIAL_TABLE: Readonly<Record<Material, { from: number; weight: number; amount: number }>> = {
+  copper: { from: 0, weight: 40, amount: 4 },
+  tin: { from: 0, weight: 30, amount: 3 },
+  iron: { from: 50, weight: 20, amount: 3 },
+  silver: { from: 150, weight: 12, amount: 2 },
+  mithril: { from: 300, weight: 8, amount: 2 },
+  starsteel: { from: 450, weight: 5, amount: 1 },
+  obsidian: { from: 700, weight: 3, amount: 1 },
+  voidCrystal: { from: 1000, weight: 1, amount: 1 },
+};
+export const MATERIAL_VEIN_CHANCE = 0.3;
+export const MATERIAL_RAMP_METRES = 500;
+export const MATERIAL_RAMP_CAP = 3;
+export const LAYER_SALT = 0x1a7e2;
+export const HAZARD_START_METRE = 300;
+export function hazardChance(metre: number): number {
+  return metre <= HAZARD_START_METRE ? 0 : Math.min(0.25, 0.05 + (metre - HAZARD_START_METRE) / 20_000);
+}
+export const HAZARD_SLOW: Readonly<Record<Hazard, number>> = { gas: 2, unstable: 1.6 };
+export const MAX_HAZARD_WARD = 75;

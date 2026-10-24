@@ -51,7 +51,7 @@ it('a tier-4 map kills a level-1 miner in the first room', () => {
 it('a cleared run levels up, consumes the map and keeps the tally', () => {
   const s = runMap(1, 0, 1);
   expect(s.level).toBeGreaterThanOrEqual(2);
-  expect(s.stash.maps).toEqual([]);
+  expect(s.stash.maps.every((m) => m === null)).toBe(true);
   expect(s.mapTally).toEqual({ cleared: 1, lost: 0 });
   expect(s.lastRun).toMatchObject({ room: s.lastRun?.bossRoom, seen: false, gained: { xp: 200 } });   // 12 normals + 1 champion ×3 + boss ×5 = 20 × 10 XP
   expect(s.activity).toEqual({ kind: 'dig' });
@@ -146,7 +146,7 @@ it('a strike draws its damage first, then its crit', () => {
 
 it('held loot does not freeze a run', () => {
   const { s, m } = started();
-  s.overflow.push({ bag: 'battle', item: gear(s, 'helm') });
+  s.overflow.push(gear(s, 'helm'));
   applyTicks(s, 1, at(s, 0.1));
   expect(m.life).toBeLessThan(m.maxLife);
   expect(s.tickCount).toBe(1);
@@ -171,7 +171,7 @@ it('the combat steps after a room clear fight on in the same tick', () => {
   run.hitCarry = 0.9;
   const events: TickEvent[] = [];
   applyTicks(s, 1, at(s, 0.1), events);   // 10 s in 40 steps: the first clears the room, the other 39 swing 9 times
-  expect(run.room).toBe(2);
+  expect(run.room).toBe(3);   // those 9 swings clear room 2 as well
   expect(strikes(events)).toHaveLength(10);
   expect(run.hitCarry).toBeCloseTo(0.9);   // 0.15 kept from the clear, plus 39 × 0.25, less 9 swings
   expect(events.some((e) => e.kind === 'hurt')).toBe(true);
@@ -281,7 +281,7 @@ it('the run result counts every item, not only the notes the run keeps', () => {
   run.items = 41;
   const before = run.log.length;
   clickHit(s);
-  const drops = run.log.slice(before).filter((l) => l.kind === 'drop').length;   // empty bags: one note per item
+  const drops = run.log.slice(before).filter((l) => l.kind === 'drop' && l.note.rarity !== 'material').length;   // empty bags: one note per item; ore stacks are not items
   expect(drops).toBeGreaterThanOrEqual(2);
   expect(run.loot).toHaveLength(RUN_LOOT_LIMIT);
   expect(s.lastRun?.items).toBe(41 + drops);
@@ -347,18 +347,18 @@ it('digging pauses during a run and resumes after it', () => {
   expect(s.lastRun).toMatchObject({ outcome: 'left', room: 1 });
   expect(s.mapTally).toEqual({ cleared: 0, lost: 1 });
   applyTicks(s, 1, deriveStats(s));
-  expect(s.gold).toBeGreaterThan(before.gold);
+  expect(s.progress).toBeGreaterThan(before.progress);
   expect(leaveMap(s)).toBe(false);
 });
 
-it('only one run at a time, and only maps from the stash', () => {
+it('only one run at a time, and only maps that are held', () => {
   const s = newGame(1, 0);
   const a = addMap(s, 1, 2);
   const b = addMap(s, 1, 3);
   expect(startMap(s, 999)).toBe('invalid');
   expect(startMap(s, a.id)).toBe('ok');
   expect(startMap(s, b.id)).toBe('busy');
-  expect(s.stash.maps.map((m) => m.id)).toEqual([b.id]);
+  expect(s.stash.maps.filter((m) => m !== null).map((m) => m.id)).toEqual([b.id]);
 });
 
 it('pumped play and one long catch-up give the same run', () => {

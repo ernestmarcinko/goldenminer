@@ -1,5 +1,5 @@
 import { GEM_GRADES } from './items';
-import type { Gem, GearItem, GemGrade, GemItem, GemType, GearSet, Slot, StatKey } from './items';
+import type { Gem, GemGrade, GemType, GearSet, Item, Material, Slot, StatKey } from './items';
 import { GEM_GRADE_FROM_TIER } from './balance';
 
 export const BASE_NAMES: Readonly<Record<Slot, readonly [string, string, string, string]>> = {
@@ -30,6 +30,7 @@ export const STAT_WORDS: Readonly<Record<StatKey, { prefix: string; suffix: stri
   ticksPerClick: { prefix: 'Eager', suffix: 'Haste' },
   autoTickRate: { prefix: 'Tireless', suffix: 'Toil' },
   offlineCap: { prefix: 'Patient', suffix: 'Dreams' },
+  hazardWard: { prefix: 'Masked', suffix: 'the Canary' },
   damage: { prefix: 'Heavy', suffix: 'Wounds' },
   damagePct: { prefix: 'Cruel', suffix: 'Ruin' },
   attackSpeed: { prefix: 'Swift', suffix: 'Speed' },
@@ -107,6 +108,16 @@ export function gemName(g: Gem): string {
   return `${GEM_GRADE_LABELS[g.grade]} ${GEM_LABELS[g.gem]}`;
 }
 
-export function itemName(item: GearItem | GemItem): string {
-  return item.type === 'gear' ? item.name : gemName(item);
+export const MATERIAL_LABELS: Readonly<Record<Material, string>> = {
+  copper: 'Copper ore', tin: 'Tin ore', iron: 'Iron ore', silver: 'Silver ore', mithril: 'Mithril', starsteel: 'Starsteel',
+  obsidian: 'Obsidian shard', voidCrystal: 'Void crystal',
+};
+
+export function itemName(item: Item): string {
+  switch (item.type) {
+    case 'gear': return item.name;
+    case 'gem': return gemName(item);
+    case 'material': return MATERIAL_LABELS[item.material];
+    case 'map': return `Tier ${item.tier} map`;
+  }
 }

@@ -2,7 +2,8 @@ import { expect, it } from 'vitest';
 import fixture4 from '../fixtures/save-schema-4.txt?raw';
 import { decodeSave } from '../../src/core/save';
 import type { MapItem, RunOutcome } from '../../src/core/types';
-import { gainsLine, mapGroups, runTitle, xpBar } from '../../src/ui/maps/mapsView';
+import { newGame } from '../../src/core/newGame';
+import { gainsLine, mapCount, mapDungeon, mapRows, runTitle, xpBar } from '../../src/ui/maps/mapsView';
 
 const map = (id: number, tier: number, metre = 1): MapItem => ({ id, type: 'map', tier, metre });
 
@@ -28,41 +29,54 @@ it('run results in words', () => {
   expect(gainsLine({ ...g, levels: 0 }, 1)).toBe('+200 XP · +5 Souls · +40 Gold · 1 item');
 });
 
-it('maps of the schema-4 fixture group by dungeon, the same metre in one row', () => {
-  const decoded = decodeSave(fixture4);
-  if (!decoded.ok) throw new Error('fixture does not decode');
-  const { seed, stash } = decoded.state;
-  const groups = mapGroups(seed, stash.maps);
+it('every map is a row: highest tier first, then name, then id, with where it lies', () => {
+  const state = newGame(9090, 0);
+  // two metres opening dungeons whose names differ; `early` sorts before `late`
+  const nameAt = (metre: number): string => mapDungeon(state.seed, { tier: 5, metre }).type.name;
+  const first = 1;
+  const other = Array.from({ length: 40 }, (_, i) => i + 1).find((m) => nameAt(m) !== nameAt(first));
+  if (other === undefined) throw new Error('no second dungeon found');
+  const [early, late] = nameAt(first).localeCompare(nameAt(other)) < 0 ? [first, other] : [other, first];
 
-  expect(stash.maps).toHaveLength(21);
-  expect(groups.reduce((n, g) => n + g.maps.reduce((c, m) => c + m.count, 0), 0)).toBe(21);
-  const tiers = groups.map((g) => g.tier);
-  expect(tiers).toEqual([...tiers].sort((a, b) => b - a));
-  expect(groups[0]?.tier).toBe(3);
-  expect(groups[0]?.name).toBe('The Gloaming Halls');
-  expect(groups[0]?.maps.find((m) => m.metre === 214)).toMatchObject({ rooms: 7, count: 14 });
-  // the 14 maps found at metre 214 are one row of one dungeon
-  const crowded = groups.flatMap((g) => g.maps).filter((m) => m.metre === 214);
-  expect(crowded).toHaveLength(1);
+  state.bag[3] = map(40, 2, 4);
+  // the lowest id lies in the dungeon that sorts last, so name order and id order disagree
+  state.stash.maps[0] = map(10, 5, late);
+  state.stash.maps[61] = map(30, 5, early);
+  state.stash.maps[1] = map(20, 5, early);
+  const rows = mapRows(state);
+
+  expect(rows.map((r) => r.id)).toEqual([20, 30, 10, 40]);
+  expect(rows.map((r) => r.tier)).toEqual([5, 5, 5, 2]);
+  expect(rows.slice(0, 3).map((r) => r.name)).toEqual([nameAt(early), nameAt(early), nameAt(late)]);
+  expect(rows[3]).toMatchObject({ id: 40, tier: 2, metre: 4, where: 'bag', page: 0 });
+  expect(rows.find((r) => r.id === 30)).toMatchObject({ where: 'maps', page: 2 });
+  expect(rows.find((r) => r.id === 20)).toMatchObject({ where: 'maps', page: 1 });
+  for (const r of rows) {
+    const src = [...state.bag, ...state.stash.maps].find((c) => c?.id === r.id) as MapItem;
+    const d = mapDungeon(state.seed, src);
+    expect(r).toMatchObject({ name: d.type.name, rooms: d.type.rooms });
+  }
 });
 
-it('groups order by tier then name, rows by their oldest map, and the same metre collapses', () => {
-  // seed 9090: metres 1, 3, 2 open the dungeons 0, 1, 2; metres 3 and 5 both open dungeon 1, metres 7 and 4 both dungeon 2
-  const maps = [
-    map(5, 1, 5), map(13, 20, 2), map(4, 2, 4), map(10, 1, 1), map(2, 2, 7), map(8, 1, 3), map(11, 20, 1),
-    map(9, 2, 4), map(12, 1, 3), map(7, 2, 3), map(3, 2, 1), map(1, 1, 3), map(6, 1, 2),
-  ];
-  const groups = mapGroups(9090, maps);
-  expect(groups.map((g) => `T${g.tier} ${g.name}`)).toEqual([
-    'T20 Grimhold Vaults', 'T20 Irongate Depths',
-    'T2 Slatereach Kilns', 'T2 The Crumbling Pits', 'T2 The Drowned Mudworks',
-    'T1 Mirevein Burrows', 'T1 The Smouldering Hollows', 'T1 The Whispering Warrens',
-  ]);
-  expect(groups.map((g) => g.key)).toEqual(['20:2', '20:0', '2:0', '2:2', '2:1', '1:0', '1:1', '1:2']);
-  expect(groups.map((g) => g.maps.map((m) => m.rooms))).toEqual([[4], [7], [4], [7, 7], [5], [4], [4, 4], [7]]);
-  // 3 maps at one metre and 1 at another; the oldest map of a metre stands for it
-  expect(groups[6]?.maps).toMatchObject([{ id: 1, metre: 3, count: 3 }, { id: 5, metre: 5, count: 1 }]);
-  // the order is by the oldest id, not by metre
-  expect(groups[3]?.maps).toMatchObject([{ id: 2, metre: 7, count: 1 }, { id: 4, metre: 4, count: 2 }]);
-  expect(groups).toHaveLength(8);
+it('a state with no maps has no rows', () => {
+  expect(mapRows(newGame(9090, 0))).toEqual([]);
+});
+
+it('the maps of the schema-4 fixture are all rows', () => {
+  const decoded = decodeSave(fixture4);
+  if (!decoded.ok) throw new Error('fixture does not decode');
+  const rows = mapRows(decoded.state);
+  expect(rows).toHaveLength(21);
+  const tiers = rows.map((r) => r.tier);
+  expect(tiers).toEqual([...tiers].sort((a, b) => b - a));
+});
+
+it('the map count covers the bag and the Maps tab, as the Maps screen lists them', () => {
+  const state = newGame(9090, 0);
+  expect(mapCount(state)).toBe(0);
+  state.bag[0] = map(1, 1);
+  state.bag[1] = map(2, 2);
+  state.stash.maps[0] = map(3, 1);
+  expect(mapCount(state)).toBe(3);
+  expect(mapCount(state)).toBe(mapRows(state).length);
 });

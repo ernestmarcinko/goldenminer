@@ -1,15 +1,22 @@
-import type { Cell, GearItem, GearSet, GemGrade, GemType, Rarity, Slot } from './items';
+import type { Cell, GearItem, GearSet, GemGrade, GemType, MapItem, Material, Rarity, Slot } from './items';
 
+export type { MapItem };
 export const FEATURE_KINDS = ['goldVein', 'diamondVein', 'chest', 'gem', 'map'] as const;
 export type FeatureKind = (typeof FEATURE_KINDS)[number];
+export const FIND_KINDS = [...FEATURE_KINDS, 'materialVein'] as const;
+export type FindKind = (typeof FIND_KINDS)[number];
+export const HAZARDS = ['gas', 'unstable'] as const;
+export type Hazard = (typeof HAZARDS)[number];
 export interface MetreRoll { feature: FeatureKind | null; amount: number; hardRock: boolean }
-/** Where an item lives: a bag cell, a General-tab cell, a Gems-tab stack, or a worn slot. */
+/** Where an item lives: a bag cell, a General or Maps cell (any page), a Gems or Materials stack, or a worn slot. */
 export type ItemLoc =
-  | { where: 'bag'; set: GearSet; index: number }
-  | { where: 'stash'; index: number }                   // a General-tab cell
+  | { where: 'bag'; index: number }
+  | { where: 'stash'; index: number }                   // a General cell, any page
+  | { where: 'maps'; index: number }                    // a Maps-tab cell, any page
   | { where: 'gems'; gem: GemType; grade: GemGrade }    // a Gems-tab stack
+  | { where: 'materials'; material: Material }          // a Materials-tab stack (virtual, id 0, while its count > 0)
   | { where: 'worn'; slot: Slot };
-export type DropTarget = ItemLoc | { where: 'stashTab'; tab: 'general' | 'gems' | 'auto' };
+export type DropTarget = ItemLoc | { where: 'stashTab'; tab: 'general' | 'gems' | 'maps' | 'materials' | 'auto' };
 export const LOOT_ACTIONS = ['keep', 'sell', 'salvage'] as const;
 export type LootAction = (typeof LOOT_ACTIONS)[number];
 export type LootTarget = GearSet | Slot | 'gem' | 'any';
@@ -23,8 +30,9 @@ export const DEFAULT_MOTION: MotionSettings = { floats: true, pops: true, lampFl
 export interface Settings { lootFilter: LootRule[]; bagFull: BagFullMode; motion: MotionSettings }
 export const LOOT_OUTCOMES = ['bag', 'stash', 'sold', 'salvaged', 'held'] as const;
 export type LootOutcome = (typeof LOOT_OUTCOMES)[number];
+/** `value` is the Gold for 'sold', the material units for 'salvaged', and the units found for a material note. */
 export interface LootNote {
-  name: string; rarity: Rarity | 'gem'; base: Slot | GemType; outcome: LootOutcome; value: number;
+  name: string; rarity: Rarity | 'gem' | 'material'; base: Slot | GemType | Material; outcome: LootOutcome; value: number;
 }
 export const ELEMENTS = ['physical', 'elemental'] as const;
 export type Element = (typeof ELEMENTS)[number];
@@ -34,7 +42,6 @@ export const CHAMPION_MODS = ['armored', 'swift', 'vampiric', 'fireTouched', 'br
 export type ChampionMod = (typeof CHAMPION_MODS)[number];
 export const RUN_OUTCOMES = ['cleared', 'died', 'left'] as const;
 export type RunOutcome = (typeof RUN_OUTCOMES)[number];
-export interface MapItem { id: number; type: 'map'; tier: number; metre: number }
 export interface MonsterState {
   name: string; species: number; rank: Rank; mods: ChampionMod[]; extra: number;   // extra: the look seed for champion/boss parts
   element: Element; life: number; maxLife: number; damage: number; intervalS: number; xp: number;
@@ -53,37 +60,38 @@ export interface MapRun {
   queue: MonsterState[];                           // monsters left in this room, the fighting one first; never empty
   life: number; hitCarry: number; monsterCarry: number;
   gained: RunGains; log: CombatLine[]; loot: LootNote[];   // loot keeps the newest RUN_LOOT_LIMIT notes
-  items: number;                                   // items dropped this run, every one counted
+  items: number;                                   // gear and gems dropped this run, every one counted (material stacks are not items)
 }
 export interface RunResult { map: MapItem; outcome: RunOutcome; room: number; bossRoom: number; gained: RunGains; items: number; seen: boolean }
 export type Activity = { kind: 'dig' } | { kind: 'map'; run: MapRun };
 export interface FindRecord {
-  id: number; depth: number; kind: FeatureKind; amount: number; tick: number; loot?: LootNote[]; bonus?: true;
+  id: number; depth: number; kind: FindKind; amount: number; tick: number; loot?: LootNote[]; bonus?: true;
+  material?: Material;                     // set exactly when kind is 'materialVein'
 }
 export type InvResult =
-  | 'ok' | 'bagFull' | 'stashFull' | 'noSocket' | 'invalid'
-  | 'wrongSet' | 'wrongSlot' | 'gemsOnly' | 'gearOnly' | 'stackFull';
+  | 'ok' | 'bagFull' | 'stashFull' | 'noSocket' | 'invalid' | 'busy'
+  | 'wrongSlot' | 'gemsOnly' | 'gearOnly' | 'mapsOnly' | 'materialsOnly' | 'stackFull';
 export interface GameState {
   seed: number;                            // the world seed: a pure function of worldSeed
   worldSeed: string;                       // the text the player sees and shares
   worldGen: 1 | 2;                         // 1 = pre-seed saves, 2 = procedural worlds
   rng: number; tickCount: number; lastTickAt: number;
   gold: number; diamonds: number;
-  depth: number; deepest: number;          // whole metres; 0 = surface; depth <= deepest
+  deepest: number;                         // whole metres dug; 0 = surface; the miner works the face below it
   progress: number;                        // 0..1 toward metre deepest+1 (the dig face)
-  galleryProgress: number;                 // 0..1 toward the next gallery find roll (depth < deepest)
   ahead: Record<number, MetreRoll>;        // pre-rolled metres deepest+1 .. deepest+lampSight
   finds: FindRecord[];                     // notable finds, oldest first, at most FINDS_LOG_LIMIT
   nextId: number;                          // next id for an item or a find; starts at 1
-  goldCarry: number;                       // 0..1: Gold earned but not yet whole
   equipped: Record<GearSet, Partial<Record<Slot, GearItem>>>;
-  bags: Record<GearSet, Cell[]>;           // exactly BAG_SIZE cells each; gear only in its own set's bag; gem stacks of 1..GEM_BAG_STACK
+  bag: Cell[];                             // exactly BAG_SIZE: gear of either set, gem stacks 1..GEM_BAG_STACK, material stacks 1..MATERIAL_BAG_STACK, maps
   stash: {
-    general: (GearItem | null)[];          // exactly STASH_SIZE cells, gear only
+    general: (GearItem | null)[];          // STASH_PAGE_SIZE × pages, START_GENERAL_PAGES..MAX_STASH_PAGES pages
     gems: Record<GemType, Record<GemGrade, number>>;   // the Gems tab: counts of 0..GEM_STASH_STACK
-    maps: MapItem[];                       // the Maps tab: at most MAP_STASH_SIZE, oldest first
+    maps: (MapItem | null)[];              // STASH_PAGE_SIZE × pages, START_MAP_PAGES..MAX_STASH_PAGES pages
+    materials: Record<Material, number>;   // 0..MATERIAL_STASH_STACK each
+    bought: { general: number; maps: number };   // pages bought with Gold; free pages never count
   };
-  overflow: { bag: GearSet; item: GearItem }[]; // gear waiting for room (bagFull 'stop')
+  overflow: GearItem[];                    // gear waiting for room (bagFull 'stop')
   lootTally: { kept: number; sold: number; salvaged: number };
   settings: Settings;                      // kept across ascension (Plan 6)
   level: number; xp: number;               // character level 1..LEVEL_CAP; xp toward the next level
@@ -95,13 +103,13 @@ export interface GameState {
 export interface Stats {
   digPower: number; autoTicksPerSecond: number; ticksPerClick: number; lampSight: number;
   offlineCapMs: number; featureChances: Record<FeatureKind, number>; hardRockChance: number;
-  goldMultiplier: number; diamondMultiplier: number;
+  goldMultiplier: number; diamondMultiplier: number; hazardWard: number;
   bonusChances: { chest: number; gem: number; map: number };   // find gear: extra finds on empty metres, drawn from state.rng
 }
 export type TickEvent =
   | { kind: 'gold'; amount: number }
   | { kind: 'diamond'; amount: number }
-  | { kind: 'metre'; depth: number; gallery: boolean }
+  | { kind: 'metre'; depth: number }
   | { kind: 'find'; find: FindRecord }
   | { kind: 'strike'; amount: number; crit: boolean; click: boolean }
   | { kind: 'hurt'; amount: number }
@@ -110,7 +118,7 @@ export interface OfflineSummary {
   elapsedMs: number; ticks: number; gold: number; diamonds: number; metres: number; capMs: number;
   souls: number; levels: number;
   maps: { cleared: number; lost: number };
-  finds: Record<FeatureKind, number>;
+  finds: Record<FindKind, number>;
   items: { kept: number; sold: number; salvaged: number };
-  stoppedBag: GearSet | null;
+  bagStopped: boolean;
 }

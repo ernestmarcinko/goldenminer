@@ -85,6 +85,7 @@
 .gm-log__line[data-rarity='magic'] { color: var(--gm-magic); }
 .gm-log__line[data-rarity='legendary'] { color: var(--gm-legendary); }
 .gm-log__line[data-rarity='gem'] { color: var(--gm-gem); }
+.gm-log__line[data-rarity='material'] { color: var(--gm-material); }
 
 .gm-pills { display: flex; gap: 8px; flex-wrap: wrap; }
 .gm-runpill { padding: 4px 10px; border-radius: 999px; font-size: 13px; }
@@ -97,6 +98,7 @@
 .gm-runloot__note[data-rarity='rare'] { color: var(--gm-rare); }
 .gm-runloot__note[data-rarity='legendary'] { color: var(--gm-legendary); }
 .gm-runloot__note[data-rarity='gem'] { color: var(--gm-gem); }
+.gm-runloot__note[data-rarity='material'] { color: var(--gm-material); }
 
 .gm-dialog__title[data-outcome='cleared'] { color: var(--gm-soul-bright); }
 .gm-dialog__title[data-outcome='died'] { color: var(--gm-down); }

@@ -2,11 +2,15 @@
 .gm-minimap__head { display: flex; justify-content: space-between; align-items: baseline; }
 .gm-minimap__title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 16px; }
 .gm-minimap__range { font-size: 11px; }
+.gm-minimap__scroll {
+  position: relative; width: 100%; overflow-x: hidden; overflow-y: auto;
+  box-sizing: border-box; border-radius: 10px; border: 1px solid var(--gm-line); background: var(--gm-ground);
+}
+.gm-minimap__scroll:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
+/* The full history, as tall as the model says. It clips what it draws so nothing adds to the scroll height;
+   `clip`, unlike `hidden`, leaves the scroll box as the band names' sticky container. */
 .gm-minimap__strip {
-  position: relative; display: flex; width: 100%; padding: 0; overflow: hidden; box-sizing: border-box;
-  border-radius: 10px; border: 1px solid var(--gm-line); background: var(--gm-ground);
-  cursor: pointer; font: inherit; color: inherit; text-align: left;
-  touch-action: manipulation; user-select: none; -webkit-user-select: none;
+  position: relative; display: flex; min-height: 100%; overflow: clip; user-select: none; -webkit-user-select: none;
 }
 .gm-minimap__ticks {
   position: relative; display: block; flex: 0 0 40px; background: var(--gm-header);
@@ -18,7 +22,9 @@
 }
 .gm-minimap__map { position: relative; display: block; flex: 1 1 auto; }
 .gm-minimap__band { position: absolute; left: 0; right: 0; display: block; }
-.gm-minimap__band-name { position: absolute; right: 6px; top: 4px; font-size: 10px; color: #cfc6b8; }
+.gm-minimap__band-name {
+  position: sticky; top: 0; display: block; padding: 4px 6px 0 0; text-align: right; font-size: 10px; color: #cfc6b8;
+}
 .gm-minimap__marker {
   position: absolute; left: 8px; transform: translateY(-50%); display: flex; align-items: center; gap: 6px;
   line-height: 0;
@@ -33,11 +39,13 @@
   position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center;
   background: #0f0d10;
   background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.03) 0 6px, rgba(255, 255, 255, 0) 6px 12px);
-  font-family: var(--gm-font-display); font-size: 28px; color: #4a4148;
+  overflow: hidden; font-family: var(--gm-font-display); font-size: 12px; line-height: 1; color: #4a4148;
 }
 .gm-minimap__you-line { position: absolute; left: 0; right: 0; height: 2px; display: block; background: var(--gm-gold); }
 .gm-minimap__you-tag {
-  position: absolute; right: 6px; padding: 1px 6px; border-radius: 4px; background: var(--gm-gold);
+  position: absolute; right: 6px; transform: translateY(calc(-100% - 4px)); padding: 1px 6px; border-radius: 4px; background: var(--gm-gold);
   color: #1b1410; font-size: 11px; font-weight: 600;
 }
+.gm-minimap__you-tag--below { transform: translateY(4px); }
+.gm-minimap__jump { align-self: stretch; }
 .gm-minimap__caption { margin: 0; font-size: 11px; line-height: 1.4; }

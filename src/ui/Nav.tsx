@@ -1,5 +1,6 @@
 import type { GameStore } from '../store/gameStore';
 import { formatNumber } from './format';
+import { mapCount } from './maps/mapsView';
 import { useGame } from './useGame';
 
 export type View = 'mine' | 'maps';
@@ -17,7 +18,7 @@ export function Nav({ store, view, onView }: { store: GameStore; view: View; onV
         aria-pressed={view === 'maps'}
         onClick={() => onView('maps')}
       >
-        Maps ({formatNumber(state.stash.maps.length)})
+        Maps ({formatNumber(mapCount(state))})
       </button>
     </nav>
   );

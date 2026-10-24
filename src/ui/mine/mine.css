@@ -40,6 +40,7 @@
 .gm-mine__band { font-family: var(--gm-font-display); font-weight: 400; font-size: 18px; }
 .gm-mine__progress { display: flex; flex-direction: column; gap: 6px; }
 .gm-mine__progress-text { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.gm-mine__hazard { color: var(--gm-legendary); font-size: 13px; }
 .gm-bar { height: 10px; border-radius: 5px; background: #2e2722; overflow: hidden; }
 .gm-bar__fill { height: 10px; background: var(--gm-gold); }
 
@@ -51,12 +52,13 @@
 .gm-particle[data-kind='gold'] { color: var(--gm-gold-bright); }
 .gm-particle[data-kind='diamond'] { color: var(--gm-diamond-bright); }
 .gm-particle[data-kind='chest'], .gm-particle[data-kind='map'], .gm-particle[data-kind='gem'],
-.gm-particle[data-kind='goldVein'], .gm-particle[data-kind='diamondVein'] {
+.gm-particle[data-kind='goldVein'], .gm-particle[data-kind='diamondVein'], .gm-particle[data-kind='materialVein'] {
   animation: gmPop 1.3s ease-out forwards; font-size: 18px; color: var(--gm-rare);
 }
 .gm-particle[data-kind='map'] { color: var(--gm-magic); }
 .gm-particle[data-kind='gem'] { color: var(--gm-legendary); }
 .gm-particle[data-kind='diamondVein'] { color: var(--gm-diamond-bright); }
+.gm-particle[data-kind='materialVein'] { color: var(--gm-material); }
 @media (prefers-reduced-motion: reduce) {
   .gm-particle, .gm-particle[data-kind] { animation: none; transform: translate(-50%, -50%); }
 }
@@ -77,6 +79,7 @@
 .gm-finds__note[data-rarity='rare'] { --gm-tone: var(--gm-rare); }
 .gm-finds__note[data-rarity='legendary'] { --gm-tone: var(--gm-legendary); }
 .gm-finds__note[data-rarity='gem'] { --gm-tone: var(--gm-gem); }
+.gm-finds__note[data-rarity='material'] { --gm-tone: var(--gm-material); }
 .gm-banner {
   padding: 14px 16px; border-radius: 10px; background: #3a2a17; border: 1px solid #6b4d27; color: var(--gm-text);
 }

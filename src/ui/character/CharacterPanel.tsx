@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { BAG_SIZE, STASH_SIZE } from '../../core/balance';
+import { BAG_SIZE } from '../../core/balance';
 import { filledCount } from '../../core/cells';
 import { setOfSlot, type GearSet } from '../../core/items';
 import { gearTotals } from '../../core/stats';
@@ -17,9 +17,10 @@ import { useItemDrag } from './useItemDrag';
 import { useItemInteractions } from './useItemInteractions';
 import './character.css';
 
-const SETS: readonly { set: GearSet; toggle: string; bag: string }[] = [
-  { set: 'mining', toggle: 'Mining set', bag: 'Mining bag' },
-  { set: 'battle', toggle: 'Battle set', bag: 'Battle bag' },
+// The toggle switches the paper doll and its stat line; the one bag holds both sets.
+const SETS: readonly { set: GearSet; toggle: string }[] = [
+  { set: 'mining', toggle: 'Mining set' },
+  { set: 'battle', toggle: 'Battle set' },
 ];
 
 type Dialog = 'stash' | 'filter' | null;
@@ -39,7 +40,7 @@ export function CharacterPanel({ store }: { store: GameStore }) {
   const stashSay = useRef<((text: string | null) => void) | null>(null);
   const drag = useItemDrag({ store, onResult: (text) => (stashSay.current ?? say)(text) });
   const { handlers, message, say, cards, tapCard, reset } = useItemInteractions({
-    store, state, shownSet: set, containerRef: panelRef, fallbackRef: bagHeadingRef, drag,
+    store, state, containerRef: panelRef, fallbackRef: bagHeadingRef, drag,
   });
 
   // a run starting shows the Battle set and its ending the Mining set; an equip shows the set it went into, so its glow is seen
@@ -65,8 +66,7 @@ export function CharacterPanel({ store }: { store: GameStore }) {
     setTimeout(() => back.current?.focus(), 0);
   };
 
-  const current = SETS.find((s) => s.set === set) ?? SETS[0];
-  const bag = state.bags[set];
+  const bag = state.bag;
   return (
     <section ref={panelRef} aria-label="Character" className="gm-char">
       <div className="gm-char__head">
@@ -94,7 +94,7 @@ export function CharacterPanel({ store }: { store: GameStore }) {
 
       <div className="gm-char__baghead">
         <h3 ref={bagHeadingRef} tabIndex={-1} className="gm-char__bag">
-          {current?.bag} <span className="gm-muted">{formatNumber(filledCount(bag))} / {formatNumber(BAG_SIZE)}</span>
+          Bag <span className="gm-muted">{formatNumber(filledCount(bag))} / {formatNumber(BAG_SIZE)}</span>
         </h3>
         <div className="gm-char__bagbtns">
           <button type="button" ref={filterButtonRef} className="gm-btn" onClick={() => setDialog('filter')}>
@@ -107,14 +107,14 @@ export function CharacterPanel({ store }: { store: GameStore }) {
             data-drop={dropAttr({ where: 'stashTab', tab: 'auto' })}
             onClick={() => { if (!drag.onTap({ where: 'stashTab', tab: 'auto' }, false)) setDialog('stash'); }}
           >
-            Stash {formatNumber(filledCount(state.stash.general))} / {formatNumber(STASH_SIZE)}
+            Stash {formatNumber(filledCount(state.stash.general))} / {formatNumber(state.stash.general.length)}
           </button>
         </div>
       </div>
       <ItemGrid
         items={bag}
         capacity={BAG_SIZE}
-        targetOf={(index) => ({ where: 'bag', set, index })}
+        targetOf={(index) => ({ where: 'bag', index })}
         handlers={handlers}
       />
       {tapCard}
@@ -126,7 +126,7 @@ export function CharacterPanel({ store }: { store: GameStore }) {
       </p>
 
       {cards}
-      {dialog === 'stash' && <StashDialog store={store} set={set} onClose={closeDialog} drag={drag} sayRef={stashSay} />}
+      {dialog === 'stash' && <StashDialog store={store} onClose={closeDialog} drag={drag} sayRef={stashSay} />}
       {dialog === 'filter' && <LootFilterDialog store={store} onClose={closeDialog} />}
     </section>
   );

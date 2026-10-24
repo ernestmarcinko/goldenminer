@@ -1,23 +1,24 @@
 import { compressToBase64, decompressFromBase64 } from 'lz-string';
 import {
-  BAG_SIZE, COMBAT_LOG_LIMIT, FINDS_LOG_LIMIT, GEM_BAG_STACK, GEM_STASH_STACK, LEVEL_CAP, MAP_STASH_SIZE, MAX_AFFIXES,
-  MAX_DAMAGE, MAX_LIFE, MAX_LOOT_RULES, MAX_OVERFLOW, MAX_SOCKETS, MONSTER_BUDGET, RUN_LOOT_LIMIT, STASH_SIZE,
+  BAG_SIZE, COMBAT_LOG_LIMIT, FINDS_LOG_LIMIT, GEM_BAG_STACK, GEM_STASH_STACK, LEVEL_CAP, MATERIAL_BAG_STACK,
+  MATERIAL_STASH_STACK, MAX_AFFIXES, MAX_DAMAGE, MAX_LIFE, MAX_LOOT_RULES, MAX_OVERFLOW, MAX_SOCKETS, MAX_STASH_PAGES,
+  MONSTER_BUDGET, RUN_LOOT_LIMIT, START_GENERAL_PAGES, START_MAP_PAGES, STASH_PAGE_SIZE,
 } from './balance';
 import { metreTier } from './bands';
-import { emptyGemCounts } from './cells';
+import { emptyGemCounts, emptyMaterialCounts, pageCount } from './cells';
 import { dungeonIndexAt, dungeonType } from './dungeons';
 import { gemGradeFor } from './itemData';
-import { GEAR_SETS, GEM_GRADES, GEM_TYPES, RARITIES, setOfSlot, slotsOf, statsOf } from './items';
-import type { Cell, GearItem, GearSet, GemItem, GemType, Item, Slot } from './items';
+import { GEAR_SETS, GEM_GRADES, GEM_TYPES, MATERIALS, RARITIES, setOfSlot, slotsOf, statsOf } from './items';
+import type { Cell, GearItem, GearSet, GemItem, GemType, MapItem, Slot } from './items';
 import { xpToNext } from './levels';
 import { isValidSeedText, seedFromText } from './seed';
 import { speciesOf } from './species';
 import {
-  BAG_FULL_MODES, CHAMPION_MODS, DEFAULT_MOTION, ELEMENTS, FEATURE_KINDS, LOOT_ACTIONS, LOOT_OUTCOMES, RANKS, RUN_OUTCOMES,
-  SHAFT_MOTIONS, type GameState, type MapItem,
+  BAG_FULL_MODES, CHAMPION_MODS, DEFAULT_MOTION, ELEMENTS, FEATURE_KINDS, FIND_KINDS, LOOT_ACTIONS, LOOT_OUTCOMES, RANKS,
+  RUN_OUTCOMES, SHAFT_MOTIONS, type GameState,
 } from './types';
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
@@ -26,6 +27,10 @@ export type DecodeResult =
 export type Migration = (state: unknown) => unknown;
 
 const MAX_MIGRATED_METRE = 30_000_000;
+// The schema-5 shapes the older migrations build; MIGRATIONS[5] turns them into today's.
+const OLD_BAG_SIZE = 24;
+const OLD_GENERAL_SIZE = 60;
+const OLD_MAPS_KEPT = 200;
 
 export const MIGRATIONS: Record<number, Migration> = {
   1: (state) => {
@@ -74,7 +79,7 @@ export const MIGRATIONS: Record<number, Migration> = {
         if (stack) stack.count += 1;
         else cells.push({ id: item.id, type: 'gem', gem: item.gem, grade, count: 1 });
       }
-      return padCells(cells, BAG_SIZE);
+      return padCells(cells, OLD_BAG_SIZE);
     };
     const general: unknown[] = [];
     for (const item of state.stash) {
@@ -92,7 +97,7 @@ export const MIGRATIONS: Record<number, Migration> = {
       ...state,
       equipped: { mining: wornOf(state.equipped.mining), battle: wornOf(state.equipped.battle) },
       bags: { mining: bagOf(state.bags.mining), battle: bagOf(state.bags.battle) },
-      stash: { general: padCells(general, STASH_SIZE), gems: tab },
+      stash: { general: padCells(general, OLD_GENERAL_SIZE), gems: tab },
       overflow,
     };
   },
@@ -111,9 +116,35 @@ export const MIGRATIONS: Record<number, Migration> = {
     return {
       ...state,
       nextId,
-      stash: { ...state.stash, maps: maps.slice(-MAP_STASH_SIZE) },
+      stash: { ...state.stash, maps: maps.slice(-OLD_MAPS_KEPT) },
       level: 1, xp: 0, souls: 0, activity: { kind: 'dig' }, lastRun: null, mapTally: { cleared: 0, lost: 0 },
     };
+  },
+  5: (state) => {
+    if (
+      !isObject(state) || !isObject(state.bags) || !Array.isArray(state.bags.mining) || !Array.isArray(state.bags.battle) ||
+      !isObject(state.stash) || !Array.isArray(state.stash.general) || !Array.isArray(state.stash.maps) ||
+      !Array.isArray(state.overflow)
+    ) return state;
+    // The two bags become one, the mining bag's items first; a valid schema-5 save carries at most 48.
+    const carried = [...state.bags.mining, ...state.bags.battle].filter((c) => c !== null);
+    if (carried.length > BAG_SIZE) return state;
+    const mapPages = Math.max(START_MAP_PAGES, Math.ceil(state.stash.maps.length / STASH_PAGE_SIZE));
+    const next: Record<string, unknown> = {
+      ...state,
+      bag: padCells(carried, BAG_SIZE),
+      stash: {
+        ...state.stash,
+        general: padCells(state.stash.general, START_GENERAL_PAGES * STASH_PAGE_SIZE),
+        maps: padCells(state.stash.maps, mapPages * STASH_PAGE_SIZE),
+        materials: emptyMaterialCounts(),
+        bought: { general: 0, maps: 0 },
+      },
+      overflow: state.overflow.map((held) => (isObject(held) ? held.item : held)),
+    };
+    // Galleries and the Gold carry are gone: the miner always works the face.
+    for (const key of ['depth', 'galleryProgress', 'goldCarry', 'bags']) delete next[key];
+    return next;
   },
 };
 
@@ -154,6 +185,7 @@ const isNonNegInt = (x: unknown): x is number => isNonNegFinite(x) && Number.isI
 const isUint32 = (x: unknown): x is number => isNonNegInt(x) && x <= 4294967295;
 const isUnitRange = (x: unknown): x is number => isNonNegFinite(x) && x < 1;
 const isFeatureKind = (x: unknown): boolean => isIn(FEATURE_KINDS, x);
+const isMaterial = (x: unknown): boolean => isIn(MATERIALS, x);
 
 function isMetreRoll(x: unknown): boolean {
   return (
@@ -174,8 +206,10 @@ const isItemLevel = (x: unknown): boolean => isNonNegInt(x) && x >= 1 && x <= 10
 function isFindRecord(x: unknown, nextId: number): boolean {
   if (!isObject(x)) return false;
   if (!isIdBelow(x.id, nextId)) return false;
-  if (!isNonNegInt(x.depth) || !isFeatureKind(x.kind) || !isNonNegFinite(x.amount) || !isNonNegInt(x.tick)) return false;
+  if (!isNonNegInt(x.depth) || !isIn(FIND_KINDS, x.kind) || !isNonNegFinite(x.amount) || !isNonNegInt(x.tick)) return false;
   if (x.bonus !== undefined && x.bonus !== true) return false;
+  // a material vein names its material, and no other find has one
+  if (x.kind === 'materialVein' ? !isMaterial(x.material) : x.material !== undefined) return false;
   if (x.loot === undefined) return true;
   return Array.isArray(x.loot) && x.loot.length <= 4 && x.loot.every(isLootNote);
 }
@@ -184,8 +218,10 @@ function isLootNote(x: unknown): boolean {
   return (
     isObject(x) &&
     typeof x.name === 'string' && x.name.length >= 1 && x.name.length <= 80 &&
-    isIn(ITEM_RARITIES, x.rarity) &&
-    (isIn(ALL_SLOTS, x.base) || isIn(GEM_TYPES, x.base)) &&
+    // a material note names its material, and no other note does
+    (x.rarity === 'material'
+      ? isMaterial(x.base)
+      : isIn(ITEM_RARITIES, x.rarity) && (isIn(ALL_SLOTS, x.base) || isIn(GEM_TYPES, x.base))) &&
     isIn(LOOT_OUTCOMES, x.outcome) &&
     isNonNegFinite(x.value)
   );
@@ -210,6 +246,12 @@ function isGemStack(x: unknown, nextId: number, seen: Set<number>): x is GemItem
   return isItemBase(x, nextId, seen, false);
 }
 
+function isMaterialStack(x: unknown, nextId: number, seen: Set<number>): boolean {
+  if (!isObject(x) || x.type !== 'material' || !isMaterial(x.material)) return false;
+  if (!isNonNegInt(x.count) || x.count < 1 || x.count > MATERIAL_BAG_STACK) return false;
+  return isItemBase(x, nextId, seen, false);
+}
+
 function isItemBase(x: Record<string, unknown>, nextId: number, seen: Set<number>, leveled = true): boolean {
   if (!isIdBelow(x.id, nextId) || seen.has(x.id) || (leveled && !isItemLevel(x.ilvl))) return false;
   seen.add(x.id);
@@ -229,8 +271,16 @@ function isGearItem(x: unknown, nextId: number, seen: Set<number>): x is GearIte
   return x.uniqueId === undefined || (typeof x.uniqueId === 'string' && x.uniqueId.length <= 40);
 }
 
-function isItem(x: unknown, nextId: number, seen: Set<number>): x is Item {
-  return isObject(x) && (x.type === 'gem' ? isGemStack(x, nextId, seen) : isGearItem(x, nextId, seen));
+// A bag cell holds anything: gear of either set, a gem or material stack, or a map.
+function isBagItem(x: unknown, nextId: number, seen: Set<number>): boolean {
+  if (!isObject(x)) return false;
+  switch (x.type) {
+    case 'gear': return isGearItem(x, nextId, seen);
+    case 'gem': return isGemStack(x, nextId, seen);
+    case 'material': return isMaterialStack(x, nextId, seen);
+    case 'map': return isMapItem(x, nextId, seen);
+    default: return false;
+  }
 }
 
 function isEquipped(x: unknown, set: GearSet, nextId: number, seen: Set<number>): boolean {
@@ -241,17 +291,27 @@ function isEquipped(x: unknown, set: GearSet, nextId: number, seen: Set<number>)
   );
 }
 
-function isBag(x: unknown, set: GearSet, nextId: number, seen: Set<number>): x is Cell[] {
+function isBag(x: unknown, nextId: number, seen: Set<number>): x is Cell[] {
+  return Array.isArray(x) && x.length === BAG_SIZE && x.every((c) => c === null || isBagItem(c, nextId, seen));
+}
+
+// A General or Maps tab: whole pages, at least the free ones and at most MAX_STASH_PAGES, each cell empty or `holds`.
+function isPagedTab(x: unknown, startPages: number, holds: (c: unknown) => boolean): x is unknown[] {
+  if (!Array.isArray(x) || x.length % STASH_PAGE_SIZE !== 0) return false;
+  const pages = pageCount(x);
+  return pages >= startPages && pages <= MAX_STASH_PAGES && x.every((c) => c === null || holds(c));
+}
+
+// The Materials tab: exactly one count for each material.
+function isMaterialTab(x: unknown): boolean {
   return (
-    Array.isArray(x) &&
-    x.length === BAG_SIZE &&
-    x.every((c) => c === null || (isItem(c, nextId, seen) && (c.type !== 'gear' || setOfSlot(c.slot) === set)))
+    isObject(x) &&
+    Object.keys(x).length === MATERIALS.length &&
+    MATERIALS.every((m) => isNonNegInt(x[m]) && x[m] <= MATERIAL_STASH_STACK)
   );
 }
 
-function isGeneral(x: unknown, nextId: number, seen: Set<number>): boolean {
-  return Array.isArray(x) && x.length === STASH_SIZE && x.every((c) => c === null || isGearItem(c, nextId, seen));
-}
+const isBoughtOf = (n: unknown, tab: unknown[]): boolean => isNonNegInt(n) && n <= pageCount(tab);
 
 // The Gems tab: exactly one count for each type and grade.
 function isGemTab(x: unknown): boolean {
@@ -363,20 +423,15 @@ function isRunResult(x: unknown, seed: number, nextId: number, seen: Set<number>
 }
 
 function isInventory(x: Record<string, unknown>, nextId: number, seen: Set<number>): boolean {
-  const { equipped, bags, stash, overflow, lootTally } = x;
+  const { equipped, bag, stash, overflow, lootTally } = x;
   if (!isObject(equipped) || !isEquipped(equipped.mining, 'mining', nextId, seen) || !isEquipped(equipped.battle, 'battle', nextId, seen)) return false;
-  if (!isObject(bags) || !isBag(bags.mining, 'mining', nextId, seen) || !isBag(bags.battle, 'battle', nextId, seen)) return false;
-  if (!isObject(stash) || !isGeneral(stash.general, nextId, seen) || !isGemTab(stash.gems)) return false;
-  if (!Array.isArray(stash.maps) || stash.maps.length > MAP_STASH_SIZE || !stash.maps.every((m) => isMapItem(m, nextId, seen))) return false;
-  if (!Array.isArray(overflow) || overflow.length > MAX_OVERFLOW) return false;
-  const heldOk = overflow.every(
-    (o) =>
-      isObject(o) &&
-      isIn(GEAR_SETS, o.bag) &&
-      isGearItem(o.item, nextId, seen) &&
-      setOfSlot(o.item.slot) === o.bag,
-  );
-  if (!heldOk) return false;
+  if (!isBag(bag, nextId, seen) || !isObject(stash)) return false;
+  const { general, maps, bought } = stash;
+  if (!isPagedTab(general, START_GENERAL_PAGES, (c) => isGearItem(c, nextId, seen))) return false;
+  if (!isPagedTab(maps, START_MAP_PAGES, (c) => isMapItem(c, nextId, seen))) return false;
+  if (!isGemTab(stash.gems) || !isMaterialTab(stash.materials)) return false;
+  if (!isObject(bought) || !isBoughtOf(bought.general, general) || !isBoughtOf(bought.maps, maps)) return false;
+  if (!Array.isArray(overflow) || overflow.length > MAX_OVERFLOW || !overflow.every((o) => isGearItem(o, nextId, seen))) return false;
   return (
     isObject(lootTally) && isNonNegInt(lootTally.kept) && isNonNegInt(lootTally.sold) && isNonNegInt(lootTally.salvaged)
   );
@@ -387,10 +442,9 @@ export function validateState(x: unknown): x is GameState {
   if (!isUint32(x.seed) || !isUint32(x.rng)) return false;
   if (typeof x.worldSeed !== 'string' || !isValidSeedText(x.worldSeed) || seedFromText(x.worldSeed) !== x.seed) return false;
   if (x.worldGen !== 1 && x.worldGen !== 2) return false;
-  if (!isNonNegInt(x.tickCount) || !isNonNegInt(x.depth) || !isNonNegInt(x.deepest)) return false;
-  if (x.depth > x.deepest) return false;
+  if (!isNonNegInt(x.tickCount) || !isNonNegInt(x.deepest)) return false;
   if (!isNonNegFinite(x.lastTickAt) || !isNonNegFinite(x.gold) || !isNonNegFinite(x.diamonds)) return false;
-  if (!isUnitRange(x.progress) || !isUnitRange(x.galleryProgress)) return false;
+  if (!isUnitRange(x.progress)) return false;
   if (!isObject(x.ahead)) return false;
   for (const [key, roll] of Object.entries(x.ahead)) {
     const metre = Number(key);
@@ -399,7 +453,7 @@ export function validateState(x: unknown): x is GameState {
   if (!isNonNegInt(x.nextId) || x.nextId < 1) return false;
   const { nextId } = x;
   const seen = new Set<number>();
-  if (!isUnitRange(x.goldCarry) || !isInventory(x, nextId, seen) || !isSettings(x.settings)) return false;
+  if (!isInventory(x, nextId, seen) || !isSettings(x.settings)) return false;
   if (!isNonNegInt(x.level) || x.level < 1 || x.level > LEVEL_CAP) return false;
   // Below the cap xp is under the next level's cost; at the cap (where xpToNext is 0) it stays 0.
   if (!isNonNegInt(x.xp) || (x.level === LEVEL_CAP ? x.xp !== 0 : x.xp >= xpToNext(x.level))) return false;

@@ -2,14 +2,14 @@ import { MAX_LOOT_RULES, OFFLINE_SUMMARY_MIN_TICKS } from '../core/balance';
 import { deriveBattleStats, type BattleStats } from '../core/battle';
 import { advance, ClickLimiter, clickTicks } from '../core/clock';
 import { clickHit } from '../core/combat';
-import { moveTo as coreMoveTo } from '../core/dig';
 import * as inv from '../core/inventory';
 import { itemName } from '../core/itemData';
 import { BATTLE_SLOTS, MINING_SLOTS, setOfSlot } from '../core/items';
-import type { GearItem, GearSet, Slot } from '../core/items';
+import type { GearItem, Slot } from '../core/items';
 import { drainOverflow } from '../core/loot';
 import { leaveMap as coreLeaveMap, startMap as coreStartMap } from '../core/maps';
 import { newGame } from '../core/newGame';
+import { buyStashPage as coreBuyStashPage } from '../core/stashPages';
 import { decodeSave, encodeSave, type DecodeResult } from '../core/save';
 import { freshWorld, isValidSeedText, seedFromText } from '../core/seed';
 import { deriveStats } from '../core/stats';
@@ -91,6 +91,7 @@ export class GameStore {
     for (const fn of [...this.listeners]) fn();
   }
 
+  // A loaded save may hold loot that now has room (schema 6 gave it a bigger bag), so `load` and `importSave` drain it.
   private replaceState(state: GameState): void {
     this._state = state;
     this._equipNotice = null;
@@ -150,6 +151,7 @@ export class GameStore {
       const result = decodeSave(raw);
       if (result.ok) {
         this.replaceState(result.state);
+        drainOverflow(this._state);
       } else {
         let backupKey = this.newestBackupKey(raw);
         let backedUp = true;
@@ -200,12 +202,6 @@ export class GameStore {
     return events;
   }
 
-  moveTo(depth: number): boolean {
-    const moved = coreMoveTo(this._state, depth);
-    if (moved) this.changed();
-    return moved;
-  }
-
   startMap(mapId: number): 'ok' | 'busy' | 'invalid' {
     const result = coreStartMap(this._state, mapId);
     if (result === 'ok') this.changed();
@@ -245,11 +241,21 @@ export class GameStore {
   equip(from: ItemLoc): InvResult { return this.act(() => inv.equip(this._state, from)); }
   unequip(slot: Slot, to?: ItemLoc): InvResult { return this.act(() => inv.unequip(this._state, slot, to)); }
   moveItem(from: ItemLoc, to: ItemLoc): InvResult { return this.act(() => inv.moveItem(this._state, from, to)); }
-  sendItem(from: ItemLoc, to: 'stash' | GearSet): InvResult { return this.act(() => inv.sendItem(this._state, from, to)); }
+  sendItem(from: ItemLoc, to: 'stash' | 'bag'): InvResult { return this.act(() => inv.sendItem(this._state, from, to)); }
   socketGem(gem: ItemLoc, into: ItemLoc): InvResult { return this.act(() => inv.socketGem(this._state, gem, into)); }
   sell(from: ItemLoc): InvResult { return this.act(() => inv.sell(this._state, from)); }
   salvage(from: ItemLoc): InvResult { return this.act(() => inv.salvage(this._state, from)); }
   drop(from: ItemLoc, to: DropTarget): InvResult { return this.act(() => inv.dropItem(this._state, from, to)); }
+
+  /** A bought page is new room, so held loot may come in. */
+  buyStashPage(tab: 'general' | 'maps'): 'ok' | 'noGold' | 'full' {
+    const result = coreBuyStashPage(this._state, tab);
+    if (result === 'ok') {
+      drainOverflow(this._state);
+      this.changed();
+    }
+    return result;
+  }
 
   setLootFilter(rules: LootRule[]): void {
     this._state.settings.lootFilter = rules.slice(0, MAX_LOOT_RULES).map((r) => ({ ...r }));
@@ -292,6 +298,7 @@ export class GameStore {
     const result = decodeSave(text);
     if (result.ok) {
       this.replaceState(result.state);
+      drainOverflow(this._state);
       this._unreadable = null;
       this.clearLoadFailed();
       this._summary = null;

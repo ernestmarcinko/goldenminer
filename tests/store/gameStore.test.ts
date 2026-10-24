@@ -3,6 +3,7 @@ import { GameStore } from '../../src/store/gameStore';
 import { MemoryStorage, SAVE_KEY, BACKUP_PREFIX, safeStorage } from '../../src/store/storage';
 import { decodeSave, encodeSave } from '../../src/core/save';
 import { compressToBase64 } from 'lz-string';
+import fixture5 from '../fixtures/save-schema-5.txt?raw';
 import { newGame } from '../../src/core/newGame';
 import { addMap, startMap } from '../../src/core/maps';
 import { advance } from '../../src/core/clock';
@@ -88,8 +89,12 @@ describe('GameStore', () => {
   });
 
   it('aggregates feedback between drains', () => {
-    const { store, now } = make(); store.load(); now.t = 5000; store.pump();
-    expect(store.drainFeedback().gold).toBe(5);
+    const { store, now } = make(); store.load();
+    store.state.ahead[1] = { feature: 'goldVein', amount: 7, hardRock: false };
+    now.t = 30_000; store.pump();   // 30 ticks dig metre 1 and its vein
+    const fb = store.drainFeedback();
+    expect(fb.gold).toBe(7);
+    expect(fb.finds.map((f) => f.kind)).toEqual(['goldVein']);
     expect(store.drainFeedback()).toEqual({ gold: 0, diamonds: 0, finds: [], strikes: [], hurt: 0 });
   });
 
@@ -153,15 +158,15 @@ describe('inventory intents', () => {
     store.load();
     const s = store.state;
     s.settings.bagFull = 'stop';
-    s.bags.mining = s.bags.mining.map(() => gem(s));
+    s.bag = s.bag.map(() => gem(s));
     s.stash.general = s.stash.general.map(() => gear(s, 'ring'));
     const held = gear(s, 'pickaxe');
-    s.overflow.push({ bag: 'mining', item: held });
+    s.overflow.push(held);
     const v = store.version;
-    expect(store.sell({ where: 'bag', set: 'mining', index: 0 })).toBe('ok');
+    expect(store.sell({ where: 'bag', index: 0 })).toBe('ok');
     expect(store.version).toBe(v + 1);
     expect(s.overflow).toEqual([]);
-    expect(s.bags.mining[0]).toBe(held);
+    expect(s.bag[0]).toBe(held);
   });
 
   it('a refused action changes nothing', () => {
@@ -176,15 +181,15 @@ describe('inventory intents', () => {
     const { store } = make();
     store.load();
     const s = store.state;
-    s.bags.mining[0] = gear(s, 'pickaxe', { name: 'Stonebiter' });
-    s.bags.mining[1] = gear(s, 'pickaxe');
-    s.bags.mining[2] = gear(s, 'lamp', { name: 'Oil Lamp Helm' });
+    s.bag[0] = gear(s, 'pickaxe', { name: 'Stonebiter' });
+    s.bag[1] = gear(s, 'pickaxe');
+    s.bag[2] = gear(s, 'lamp', { name: 'Oil Lamp Helm' });
     expect(store.equipNotice).toBeNull();
-    expect(store.equip({ where: 'bag', set: 'mining', index: 0 })).toBe('ok');
+    expect(store.equip({ where: 'bag', index: 0 })).toBe('ok');
     expect(store.equipNotice).toEqual({ id: 1, slot: 'pickaxe', name: 'Stonebiter', rarity: 'magic' });
-    expect(store.drop({ where: 'bag', set: 'mining', index: 1 }, { where: 'worn', slot: 'pickaxe' })).toBe('ok');
+    expect(store.drop({ where: 'bag', index: 1 }, { where: 'worn', slot: 'pickaxe' })).toBe('ok');
     expect(store.equipNotice?.id).toBe(1);
-    expect(store.drop({ where: 'bag', set: 'mining', index: 2 }, { where: 'worn', slot: 'lamp' })).toBe('ok');
+    expect(store.drop({ where: 'bag', index: 2 }, { where: 'worn', slot: 'lamp' })).toBe('ok');
     expect(store.equipNotice).toEqual({ id: 2, slot: 'lamp', name: 'Oil Lamp Helm', rarity: 'magic' });
   });
 
@@ -192,13 +197,13 @@ describe('inventory intents', () => {
     const { store } = make();
     store.load();
     const s = store.state;
-    s.bags.mining[0] = gear(s, 'pickaxe');
-    expect(store.equip({ where: 'bag', set: 'mining', index: 0 })).toBe('ok');
+    s.bag[0] = gear(s, 'pickaxe');
+    expect(store.equip({ where: 'bag', index: 0 })).toBe('ok');
     expect(store.equipNotice).not.toBeNull();
     expect(store.importSave(store.exportSave()).ok).toBe(true);
     expect(store.equipNotice).toBeNull();
-    store.state.bags.mining[0] = gear(store.state, 'lamp');
-    store.equip({ where: 'bag', set: 'mining', index: 0 });
+    store.state.bag[0] = gear(store.state, 'lamp');
+    store.equip({ where: 'bag', index: 0 });
     expect(store.equipNotice?.id).toBe(2);
     expect(store.newWorld(null)).toBe(true);
     expect(store.equipNotice).toBeNull();
@@ -208,11 +213,11 @@ describe('inventory intents', () => {
     const { store } = make();
     store.load();
     const s = store.state;
-    s.bags.mining[0] = gear(s, 'pickaxe');
-    s.bags.mining[1] = gear(s, 'boots');
-    expect(store.drop({ where: 'bag', set: 'mining', index: 1 }, { where: 'worn', slot: 'pickaxe' })).toBe('wrongSlot');
+    s.bag[0] = gear(s, 'pickaxe');
+    s.bag[1] = gear(s, 'boots');
+    expect(store.drop({ where: 'bag', index: 1 }, { where: 'worn', slot: 'pickaxe' })).toBe('wrongSlot');
     expect(store.equipNotice).toBeNull();
-    expect(store.equip({ where: 'bag', set: 'mining', index: 0 })).toBe('ok');
+    expect(store.equip({ where: 'bag', index: 0 })).toBe('ok');
     expect(store.unequip('pickaxe')).toBe('ok');
     expect(store.equipNotice?.id).toBe(1);
   });
@@ -221,16 +226,16 @@ describe('inventory intents', () => {
     const { store } = make();
     store.load();
     const s = store.state;
-    s.bags.mining[0] = gem(s, 'ruby', { count: 5 });
+    s.bag[0] = gem(s, 'ruby', { count: 5 });
     const v = store.version;
-    expect(store.sendItem({ where: 'bag', set: 'mining', index: 0 }, 'stash')).toBe('ok');
+    expect(store.sendItem({ where: 'bag', index: 0 }, 'stash')).toBe('ok');
     expect(s.stash.gems.ruby.tiny).toBe(5);
-    expect(store.sendItem({ where: 'gems', gem: 'ruby', grade: 'tiny' }, 'battle')).toBe('ok');
-    expect(s.bags.battle[0]).toMatchObject({ gem: 'ruby', count: 5 });
-    expect(store.moveItem({ where: 'bag', set: 'battle', index: 0 }, { where: 'bag', set: 'battle', index: 9 })).toBe('ok');
-    expect(store.salvage({ where: 'bag', set: 'battle', index: 9 })).toBe('ok');
+    expect(store.sendItem({ where: 'gems', gem: 'ruby', grade: 'tiny' }, 'bag')).toBe('ok');
+    expect(s.bag[0]).toMatchObject({ gem: 'ruby', count: 5 });
+    expect(store.moveItem({ where: 'bag', index: 0 }, { where: 'bag', index: 9 })).toBe('ok');
+    expect(store.salvage({ where: 'bag', index: 9 })).toBe('ok');
     expect(store.version).toBe(v + 4);
-    expect(store.moveItem({ where: 'bag', set: 'battle', index: 9 }, { where: 'stash', index: 0 })).toBe('invalid');
+    expect(store.moveItem({ where: 'bag', index: 9 }, { where: 'stash', index: 0 })).toBe('invalid');
     expect(store.version).toBe(v + 4);
   });
 
@@ -242,9 +247,9 @@ describe('inventory intents', () => {
     expect(store.state.settings.lootFilter).toHaveLength(MAX_LOOT_RULES);
     const s = store.state;
     s.settings.bagFull = 'stop';
-    s.bags.mining = s.bags.mining.map(() => gem(s));
+    s.bag = s.bag.map(() => gem(s));
     s.stash.general = s.stash.general.map(() => gear(s, 'ring'));
-    s.overflow.push({ bag: 'mining', item: gear(s, 'pickaxe') });
+    s.overflow.push(gear(s, 'pickaxe'));
     store.setBagFull('sellWorst');
     expect(s.overflow).toEqual([]);
   });
@@ -266,6 +271,73 @@ describe('inventory intents', () => {
     expect(store.state.settings.motion).toEqual({ floats: false, pops: false, lampFlicker: true, shaft: 'smooth' });
     // the next save must still be readable
     expect(make().store.importSave(store.exportSave()).ok).toBe(true);
+  });
+});
+
+describe('stash pages', () => {
+  it('buying a Maps page with enough Gold bumps the version and adds the cells', () => {
+    const { store } = make();
+    store.load();
+    store.state.gold = 5000;
+    const v = store.version;
+    expect(store.buyStashPage('maps')).toBe('ok');
+    expect(store.version).toBe(v + 1);
+    expect(store.state.stash.maps).toHaveLength(120);
+    expect(store.state.gold).toBe(0);
+  });
+
+  it('a refused purchase changes nothing', () => {
+    const { store } = make();
+    store.load();
+    store.state.gold = 4999;
+    const v = store.version;
+    expect(store.buyStashPage('general')).toBe('noGold');
+    expect(store.version).toBe(v);
+    expect(store.state.stash.general).toHaveLength(120);
+  });
+
+  it('a bought page lets held loot into it', () => {
+    const { store } = make();
+    store.load();
+    const s = store.state;
+    s.settings.bagFull = 'stop';
+    s.bag = s.bag.map(() => gem(s));
+    s.stash.general = s.stash.general.map(() => gear(s, 'ring'));
+    const held = gear(s, 'pickaxe');
+    s.overflow.push(held);
+    s.gold = 5000;
+    expect(store.buyStashPage('general')).toBe('ok');
+    expect(s.overflow).toEqual([]);
+    expect(s.stash.general[120]).toBe(held);
+  });
+});
+
+describe('a migrated save with held loot', () => {
+  // Schema 6 frees room (one bag of 60, two General pages), so the loot the old bags held can go in at once.
+  const decoded = () => { const r = decodeSave(fixture5.trim()); if (!r.ok) throw new Error(r.reason); return r.state; };
+
+  it('loading lets the held items into the room the migration made, and digging goes on', () => {
+    const before = decoded();
+    expect(before.overflow).toHaveLength(2);
+    const held = before.overflow.map((i) => i.id);
+    const now = { t: before.lastTickAt };
+    const { store, storage } = make(now);
+    storage.setItem(SAVE_KEY, fixture5.trim());
+    store.load();
+    const s = store.state;
+    expect(s.overflow).toEqual([]);
+    expect(s.bag.filter((c) => c !== null).map((c) => c.id)).toEqual(expect.arrayContaining(held));
+    expect(store.leaveMap()).toBe(true);
+    now.t += 2_000_000;
+    store.pump();
+    expect(s.deepest).toBeGreaterThan(before.deepest);
+  });
+
+  it('importing it does the same', () => {
+    const { store } = make();
+    store.load();
+    expect(store.importSave(fixture5.trim()).ok).toBe(true);
+    expect(store.state.overflow).toEqual([]);
   });
 });
 
@@ -379,8 +451,8 @@ describe('battle stats', () => {
     const { store } = make(); store.load();
     expect(store.battle).toEqual(deriveBattleStats(store.state));
     const before = store.battle.damageMin;
-    store.state.bags.battle[0] = gear(store.state, 'weapon');
-    expect(store.equip({ where: 'bag', set: 'battle', index: 0 })).toBe('ok');
+    store.state.bag[0] = gear(store.state, 'weapon');
+    expect(store.equip({ where: 'bag', index: 0 })).toBe('ok');
     expect(store.battle.damageMin).toBeGreaterThan(before);
     expect(store.battle).toEqual(deriveBattleStats(store.state));
   });
