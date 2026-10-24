@@ -1,20 +1,22 @@
 import type { Feedback } from '../../store/gameStore';
-import type { FeatureKind, MotionSettings, TickEvent } from '../../core/types';
+import { MATERIAL_LABELS } from '../../core/itemData';
+import type { FindKind, FindRecord, MotionSettings, TickEvent } from '../../core/types';
 import { formatNumber } from '../format';
 import { MINER_ROW, SHAFT_ROW_PX } from './shaftModel';
 
-export type ParticleKind = 'gold' | 'diamond' | FeatureKind;
+export type ParticleKind = 'gold' | 'diamond' | FindKind;
 export interface Particle { id: number; kind: ParticleKind; text: string; x: number; y: number; bornAt: number }
 
 const MAX_FIND_PARTICLES = 3;
 
-function findText(kind: FeatureKind, amount: number): string {
+function findText({ kind, amount, material }: FindRecord): string {
   switch (kind) {
     case 'chest': return 'Chest!';
     case 'map': return 'Map!';
     case 'gem': return 'Gem!';
     case 'goldVein': return `Gold vein +${formatNumber(amount)}`;
     case 'diamondVein': return `Diamonds +${formatNumber(amount)}`;
+    case 'materialVein': return `${MATERIAL_LABELS[material ?? 'copper']}!`;
   }
 }
 
@@ -31,11 +33,11 @@ export function particlesFromEvents(
   for (const e of events) {
     if (e.kind === 'gold') gold += e.amount;
     else if (e.kind === 'diamond') diamonds += e.amount;
-    else if (e.kind === 'find' && e.find.kind !== 'materialVein' && finds.length < MAX_FIND_PARTICLES) {
+    else if (e.kind === 'find' && finds.length < MAX_FIND_PARTICLES) {
       finds.push({
         id: nextId(),
         kind: e.find.kind,
-        text: findText(e.find.kind, e.find.amount),
+        text: findText(e.find),
         x: origin.x - 10,
         y: origin.y - 24 * (finds.length + 1),
         bornAt: nowMs,

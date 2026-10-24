@@ -151,7 +151,7 @@ describe('when the bag and the stash are full', () => {
     expect(s.overflow).toEqual([]);
     expect(s.bag[59]).toBe(pick);
     applyTicks(s, 1, stats);
-    expect(s.gold).toBeGreaterThan(before.gold);
+    expect(s.progress).toBeGreaterThan(before.progress);
   });
 
   it('a hold stops the rest of a multi-metre face tick', () => {

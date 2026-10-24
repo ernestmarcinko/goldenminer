@@ -5,6 +5,7 @@ import { bandLook, worldOf, type WallTile } from '../../core/mineLook';
 import type { FeatureKind } from '../../core/types';
 import { Sprite } from '../../sprites/Sprite';
 import type { SpriteName } from '../../sprites/atlas';
+import { baseSprite } from '../character/itemView';
 import { effectiveMotion, usePrefersReducedMotion } from '../settings/motion';
 import { useGame } from '../useGame';
 import {
@@ -42,7 +43,7 @@ function Wall({ tile }: { tile: WallTile }) {
 }
 
 function ShaftCell({ row, rock, deepest, progress }: { row: ShaftRow; rock: string; deepest: number; progress: number }) {
-  const feature = row.feature;
+  const { feature, material } = row;
   if (row.cell === 'dug') {
     return (
       <div className="gm-shaft__cell gm-shaft__cell--dug">
@@ -58,6 +59,11 @@ function ShaftCell({ row, rock, deepest, progress }: { row: ShaftRow; rock: stri
       {feature && (
         <span className="gm-shaft__feature" data-feature={feature} style={{ opacity: face ? 0.9 : 0.55 }}>
           <Sprite name={FEATURE_SPRITE[feature]} scale={2} />
+        </span>
+      )}
+      {material && (
+        <span className="gm-shaft__feature" data-feature="materialVein" style={{ opacity: face ? 0.9 : 0.55 }}>
+          <Sprite name={baseSprite(material)} scale={2} />
         </span>
       )}
       {face && progress > 0 && <span className="gm-shaft__crack" style={{ height: Math.round(progress * SHAFT_ROW_PX) }} />}
@@ -187,7 +193,7 @@ export function ShaftScene({ store }: { store: GameStore }) {
                 <ShaftCell row={row} rock={rock} deepest={deepest} progress={progress} />
                 {row.right.map((t, c) => <Wall key={c} tile={t} />)}
                 {row.label && (
-                  <span className="gm-shaft__label" data-feature={row.feature ?? 'hard'} style={{ opacity: Math.max(0.5, 1 - (k - 1) * 0.15) }}>
+                  <span className="gm-shaft__label" data-feature={row.feature ?? (row.material ? 'materialVein' : 'hard')} style={{ opacity: Math.max(0.5, 1 - (k - 1) * 0.15) }}>
                     {row.label}
                   </span>
                 )}

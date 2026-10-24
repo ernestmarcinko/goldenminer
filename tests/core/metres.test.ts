@@ -32,7 +32,7 @@ it('feature frequencies follow the base chances', () => {
 it('vein amounts scale with tier', () => {
   for (let m = 301; m < 450; m++) {
     const r = rollMetre(3, m, stats);
-    if (r.feature === 'goldVein') { expect(r.amount).toBeGreaterThanOrEqual(19); expect(r.amount).toBeLessThanOrEqual(29); }
+    if (r.feature === 'goldVein') { expect(r.amount).toBeGreaterThanOrEqual(512); expect(r.amount).toBeLessThanOrEqual(768); }
     if (r.feature === 'diamondVein') expect(r.amount).toBe(3);
   }
 });

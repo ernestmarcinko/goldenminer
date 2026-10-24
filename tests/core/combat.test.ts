@@ -171,7 +171,7 @@ it('the combat steps after a room clear fight on in the same tick', () => {
   run.hitCarry = 0.9;
   const events: TickEvent[] = [];
   applyTicks(s, 1, at(s, 0.1), events);   // 10 s in 40 steps: the first clears the room, the other 39 swing 9 times
-  expect(run.room).toBe(2);
+  expect(run.room).toBe(3);   // those 9 swings clear room 2 as well
   expect(strikes(events)).toHaveLength(10);
   expect(run.hitCarry).toBeCloseTo(0.9);   // 0.15 kept from the clear, plus 39 × 0.25, less 9 swings
   expect(events.some((e) => e.kind === 'hurt')).toBe(true);
@@ -347,7 +347,7 @@ it('digging pauses during a run and resumes after it', () => {
   expect(s.lastRun).toMatchObject({ outcome: 'left', room: 1 });
   expect(s.mapTally).toEqual({ cleared: 0, lost: 1 });
   applyTicks(s, 1, deriveStats(s));
-  expect(s.gold).toBeGreaterThan(before.gold);
+  expect(s.progress).toBeGreaterThan(before.progress);
   expect(leaveMap(s)).toBe(false);
 });
 

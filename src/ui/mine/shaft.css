@@ -55,6 +55,7 @@
 .gm-shaft__feature[data-feature='diamondVein'], .gm-shaft__feature[data-feature='gem'] { --gm-glow: var(--gm-diamond); }
 .gm-shaft__feature[data-feature='chest'] { --gm-glow: var(--gm-rare); }
 .gm-shaft__feature[data-feature='map'] { --gm-glow: var(--gm-magic); }
+.gm-shaft__feature[data-feature='materialVein'] { --gm-glow: var(--gm-material); }
 
 .gm-shaft__label {
   position: absolute; left: 324px; top: 50%; transform: translateY(-50%); z-index: 1;
@@ -66,6 +67,7 @@
 .gm-shaft__label[data-feature='chest'] { color: var(--gm-rare); }
 .gm-shaft__label[data-feature='map'] { color: var(--gm-magic); }
 .gm-shaft__label[data-feature='gem'] { color: var(--gm-legendary); }
+.gm-shaft__label[data-feature='materialVein'] { color: var(--gm-material); }
 
 .gm-shaft__vignette, .gm-shaft__fog { position: absolute; left: 0; right: 0; pointer-events: none; }
 .gm-shaft__vignette { top: 0; height: 160px; background: linear-gradient(180deg, rgba(10, 8, 6, 0.55), rgba(10, 8, 6, 0)); }

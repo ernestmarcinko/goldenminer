@@ -10,7 +10,6 @@ export const MAX_CLICKS_PER_SECOND = 10;
 export const MAX_LAMP_SIGHT = 20;
 export const WALL_DETAIL_PERCENT = 6;
 export const FEATURE_CHANCE_TOTAL_CAP = 0.9;
-export const DIAMOND_CHANCE_CAP = 0.5;
 export const MAX_DIG_POWER = 5000;
 export const MIN_AUTO_TICKS_PER_SECOND = 0.1;
 export const MAX_AUTO_TICKS_PER_SECOND = 10;
@@ -107,6 +106,8 @@ export const CHAMPION_DROPS = 1;
 export const CHAMPION_MAGIC_FIND = 3;
 export const MAP_DROP_BATTLE_CHANCE = 0.8;
 export const MAP_GEM_CHANCE = 0.04;
+// A kill rolls this chance rankReward times; each pass drops a material of the map's depth.
+export const MAP_MATERIAL_CHANCE = 0.25;
 // What the room clears of a map heal in all, as a share of max life: each clear heals its part, so every map heals the same.
 export const ROOM_REGEN_TOTAL = 1.5;
 // A map tick is fought in equal steps of at most this many seconds, so the tick rate never changes a fight.
@@ -125,14 +126,9 @@ export const TAB_HEARTBEAT_MS = 2000;
 export function hardness(metre: number): number {
   return 10 + 0.13 * metre;
 }
-export function goldPerTick(tier: number): number {
-  return 1 + Math.floor(tier / 2);
-}
-export function diamondChancePerTick(tier: number): number {
-  return Math.min(0.2, 0.01 * tier);
-}
+// Digging pays only from what it digs into: these veins are the whole of digging's Gold and Diamonds.
 export function goldVeinAmount(tier: number, u: number): number {
-  return Math.round(6 * tier * (0.8 + 0.4 * u));
+  return Math.round((200 + 110 * tier) * (0.8 + 0.4 * u));
 }
 export function diamondVeinAmount(tier: number): number {
   return 1 + Math.floor(tier / 2);

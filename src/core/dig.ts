@@ -1,15 +1,22 @@
-import {
-  DIAMOND_CHANCE_CAP, FINDS_LOG_LIMIT, HARD_ROCK_MULTIPLIER, LOOT_NOTES_KEPT, TICKS_PER_METRE_AT_PARITY,
-  diamondChancePerTick, goldPerTick, hardness,
-} from './balance';
-import { metreTier, tierAt } from './bands';
+import { FINDS_LOG_LIMIT, HARD_ROCK_MULTIPLIER, LOOT_NOTES_KEPT, TICKS_PER_METRE_AT_PARITY, hardness } from './balance';
+import { metreTier } from './bands';
 import { mapTick } from './combat';
 import { rollChest, rollGem } from './itemGen';
-import { receiveItem } from './loot';
+import type { Material } from './items';
+import { metreLayer } from './layer';
+import { receiveItem, receiveMaterial } from './loot';
 import { addMap } from './maps';
 import { fillAhead, metreChances, rollMetre } from './metres';
-import { mulberry32, nextRandom } from './rng';
+import { nextRandom } from './rng';
 import type { FindRecord, GameState, LootNote, MetreRoll, Stats, TickEvent } from './types';
+
+function logFind(state: GameState, find: FindRecord, events?: TickEvent[]): void {
+  state.finds.push(find);
+  const stale = state.finds[state.finds.length - 1 - LOOT_NOTES_KEPT];
+  if (stale !== undefined) delete stale.loot;
+  if (state.finds.length > FINDS_LOG_LIMIT) state.finds.splice(0, state.finds.length - FINDS_LOG_LIMIT);
+  events?.push({ kind: 'find', find });
+}
 
 export function collect(
   state: GameState, roll: MetreRoll, depth: number, tier: number, stats: Stats, events?: TickEvent[], bonus = false,
@@ -19,9 +26,11 @@ export function collect(
   if (roll.feature === 'goldVein') {
     amount = Math.round(roll.amount * stats.goldMultiplier);
     state.gold += amount;
+    if (amount > 0) events?.push({ kind: 'gold', amount });
   } else if (roll.feature === 'diamondVein') {
     amount = Math.round(roll.amount * stats.diamondMultiplier);
     state.diamonds += amount;
+    if (amount > 0) events?.push({ kind: 'diamond', amount });
   }
   const find: FindRecord = { id: state.nextId++, depth, kind: roll.feature, amount, tick: state.tickCount };
   if (bonus) find.bonus = true;
@@ -34,11 +43,18 @@ export function collect(
     loot.push(...receiveItem(state, rollGem(state, tier)));
   }
   if (loot.length > 0) find.loot = loot;
-  state.finds.push(find);
-  const stale = state.finds[state.finds.length - 1 - LOOT_NOTES_KEPT];
-  if (stale !== undefined) delete stale.loot;
-  if (state.finds.length > FINDS_LOG_LIMIT) state.finds.splice(0, state.finds.length - FINDS_LOG_LIMIT);
-  events?.push({ kind: 'find', find });
+  logFind(state, find, events);
+}
+
+/** A material vein from the seeded layer: its material goes to the bag (or the Materials tab) and is logged. */
+function collectMaterialVein(
+  state: GameState, vein: { material: Material; amount: number }, depth: number, events?: TickEvent[],
+): void {
+  receiveMaterial(state, vein.material, vein.amount);
+  const find: FindRecord = {
+    id: state.nextId++, depth, kind: 'materialVein', material: vein.material, amount: vein.amount, tick: state.tickCount,
+  };
+  logFind(state, find, events);
 }
 
 function faceRoll(state: GameState, stats: Stats): MetreRoll {
@@ -83,7 +99,12 @@ function digFace(state: GameState, stats: Stats, events?: TickEvent[]): void {
     const next = state.deepest + 1;
     const done = faceRoll(state, stats);
     collect(state, done, next, metreTier(next), stats, events);
-    if (state.worldGen === 2 && done.feature === null) collectBonus(state, next, stats, events);
+    // A material vein shows only where the seeded roll left the metre empty, and find gear adds its bonus after it.
+    if (done.feature === null) {
+      const vein = metreLayer(state.seed, next).vein;
+      if (vein !== null) collectMaterialVein(state, vein, next, events);
+      if (state.worldGen === 2) collectBonus(state, next, stats, events);
+    }
     delete state.ahead[next];
     state.deepest = next;
     fillAhead(state, stats);
@@ -99,7 +120,7 @@ function digFace(state: GameState, stats: Stats, events?: TickEvent[]): void {
 
 export function applyTicks(state: GameState, count: number, stats: Stats, events?: TickEvent[]): void {
   for (let i = 0; i < count; i++) {
-    // A running map takes the whole tick: no digging, no Gold, no Diamond draw; held loot doesn't pause it.
+    // A running map takes the whole tick, with no digging; held loot doesn't pause it.
     if (state.activity.kind === 'map') {
       mapTick(state, stats, events);
       state.tickCount += 1;
@@ -109,18 +130,7 @@ export function applyTicks(state: GameState, count: number, stats: Stats, events
       state.tickCount += 1;
       continue;
     }
-    const tier = tierAt(state.deepest);
-    const whole = Math.floor(goldPerTick(tier) * stats.goldMultiplier);
-    state.gold += whole;
-    if (whole > 0) events?.push({ kind: 'gold', amount: whole });
-
-    const draw = mulberry32(state.rng);
-    state.rng = draw.state;
-    if (draw.value < Math.min(DIAMOND_CHANCE_CAP, diamondChancePerTick(tier) * stats.diamondMultiplier)) {
-      state.diamonds += 1;
-      events?.push({ kind: 'diamond', amount: 1 });
-    }
-
+    // Digging pays nothing by the tick and draws nothing: Gold and Diamonds come from the veins it digs into.
     digFace(state, stats, events);
     state.tickCount += 1;
   }

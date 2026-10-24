@@ -110,8 +110,8 @@ it('a material item reads as a crafting material and where it is first found', (
   expect(itemSprite({ id: 4, type: 'material', material: 'voidCrystal', count: 1 })).toBe('voidCrystal');
 });
 
-it('a material loot note reads as the material and how many', () => {
+it('a material loot note reads as how many and where they went', () => {
   const n = { name: 'Copper ore', rarity: 'material', base: 'copper', value: 1240 } as const;
-  expect(lootNoteText({ ...n, outcome: 'bag' })).toBe('Copper ore ×1,240');
-  expect(lootNoteText({ ...n, outcome: 'stash' })).toBe('Copper ore ×1,240');
+  expect(lootNoteText({ ...n, outcome: 'bag' })).toBe('×1,240 to bag');
+  expect(lootNoteText({ ...n, outcome: 'stash' })).toBe('×1,240 to Materials tab');
 });

@@ -1,3 +1,6 @@
+import { MATERIAL_LABELS } from '../../core/itemData';
+import type { Material } from '../../core/items';
+import { metreLayer } from '../../core/layer';
 import { worldOf, wallTile, type WallTile } from '../../core/mineLook';
 import type { FeatureKind, GameState, ShaftMotion } from '../../core/types';
 
@@ -14,6 +17,7 @@ export interface ShaftRow {
   cell: ShaftCell;
   hard: boolean;
   feature: FeatureKind | null;
+  material: Material | null;               // a material vein, lit only where the roll holds no feature
   label: string | null;
   left: WallTile[];
   right: WallTile[];
@@ -27,8 +31,9 @@ const LABEL: Record<FeatureKind, string> = {
   map: 'Map',
 };
 
-function aheadLabel(k: number, feature: FeatureKind | null, hard: boolean): string | null {
+function aheadLabel(k: number, feature: FeatureKind | null, material: Material | null, hard: boolean): string | null {
   if (feature) return `+${k} m: ${LABEL[feature]}`;
+  if (material) return `+${k} m: ${MATERIAL_LABELS[material]}`;
   return hard ? `+${k} m: harder rock` : null;
 }
 
@@ -47,19 +52,21 @@ export function shaftModel(state: GameState, lampSight: number): { top: number; 
     else cell = 'dark';
 
     let feature: FeatureKind | null = null;
+    let material: Material | null = null;
     let hard = false;
     let label: string | null = null;
     if (cell === 'face' || cell === 'lit') {
       const roll = state.ahead[metre];
       feature = roll?.feature ?? null;
+      if (roll !== undefined && feature === null) material = metreLayer(state.seed, metre).vein?.material ?? null;
       hard = roll?.hardRock ?? false;
       const k = metre - deepest;
-      if (k >= 1 && k <= lampSight) label = aheadLabel(k, feature, hard);
+      if (k >= 1 && k <= lampSight) label = aheadLabel(k, feature, material, hard);
     }
 
     const walls = (side: 0 | 1): WallTile[] =>
       cell === 'surface' ? [] : Array.from({ length: WALL_COLUMNS }, (_, c) => wallTile(world, metre, side, c));
-    rows.push({ metre, cell, hard, feature, label, left: walls(0), right: walls(1) });
+    rows.push({ metre, cell, hard, feature, material, label, left: walls(0), right: walls(1) });
   }
   return { top, rows };
 }

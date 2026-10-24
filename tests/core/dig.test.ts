@@ -3,17 +3,105 @@ import { newGame } from '../../src/core/newGame';
 import { deriveStats } from '../../src/core/stats';
 import { applyTicks } from '../../src/core/dig';
 import { validateState } from '../../src/core/save';
-import type { TickEvent } from '../../src/core/types';
-import { FINDS_LOG_LIMIT } from '../../src/core/balance';
+import type { GameState, Stats, TickEvent } from '../../src/core/types';
+import { BASE_ROLL_CHANCES, FINDS_LOG_LIMIT, goldVeinAmount } from '../../src/core/balance';
+import { metreLayer } from '../../src/core/layer';
+import { rollMetre } from '../../src/core/metres';
 
 const fresh = () => newGame(1, 0);
 const stats = deriveStats(fresh());
 
-it('one tick at the surface pays 1 Gold and digs a fraction of a metre', () => {
+it('one tick at the surface digs a fraction of a metre', () => {
   const s = fresh();
   applyTicks(s, 1, stats);
-  expect(s.gold).toBe(1);
   expect(s.progress).toBeCloseTo(10 / (10.13 * 25), 6);
+});
+
+it('digging pays no Gold or Diamonds by the tick', () => {
+  let seed = 1;
+  while (metreLayer(seed, 1).vein !== null) seed++;
+  const s = newGame(seed, 0);
+  s.ahead[1] = { feature: null, amount: 0, hardRock: false };
+  applyTicks(s, 10, stats);
+  expect([s.gold, s.diamonds]).toEqual([0, 0]);
+});
+
+it('a gold vein pays goldVeinAmount × the Gold multiplier and says so', () => {
+  const s = fresh();
+  s.ahead[1] = { feature: 'goldVein', amount: 640, hardRock: false };
+  const events: TickEvent[] = [];
+  while (s.deepest < 1) applyTicks(s, 1, stats, events);
+  expect(stats.goldMultiplier).toBe(1);
+  expect(s.gold).toBe(640);
+  expect(events).toContainEqual({ kind: 'gold', amount: 640 });
+});
+
+it('goldVeinAmount', () => {
+  expect(goldVeinAmount(4, 0.5)).toBe(640);
+  expect(goldVeinAmount(1, 0)).toBe(248);
+});
+
+// The first metre of `seed` whose seeded roll is (or isn't) empty and whose layer holds a material vein.
+function veinMetre(seed: number, empty: boolean, chances: Pick<Stats, 'featureChances' | 'hardRockChance'> = BASE_ROLL_CHANCES): number {
+  for (let m = 1; ; m++) {
+    if ((rollMetre(seed, m, chances).feature === null) === empty && metreLayer(seed, m).vein !== null) return m;
+  }
+}
+
+// Puts the face at `m`, rolled from the seed, and digs it.
+function digTo(s: GameState, m: number, withStats: Stats = stats): void {
+  s.deepest = m - 1;
+  s.ahead = {};
+  while (s.deepest < m) applyTicks(s, 1, withStats);
+}
+
+it('a material vein on an empty metre is collected and logged', () => {
+  const s = newGame(11, 0);
+  const m = veinMetre(11, true);
+  const vein = metreLayer(11, m).vein!;
+  digTo(s, m);
+  expect(s.finds.at(-1)).toMatchObject({ kind: 'materialVein', material: vein.material, amount: vein.amount, depth: m });
+  expect(s.bag.some((c) => c?.type === 'material' && c.material === vein.material)).toBe(true);
+});
+
+it('a metre with a seeded feature never gives a material vein', () => {
+  const s = newGame(11, 0);
+  const m = veinMetre(11, false);
+  digTo(s, m);
+  expect(s.finds.some((f) => f.depth === m && f.kind === 'materialVein')).toBe(false);
+  expect(s.finds.some((f) => f.depth === m)).toBe(true);
+});
+
+it('find gear still adds bonus finds on material-vein metres', () => {
+  const s = newGame(11, 0);
+  expect(s.worldGen).toBe(2);
+  const m = veinMetre(11, true);
+  digTo(s, m, { ...stats, bonusChances: { ...stats.bonusChances, chest: 1 } });
+  const at = s.finds.filter((f) => f.depth === m);
+  expect(at.some((f) => f.kind === 'materialVein')).toBe(true);
+  expect(at.some((f) => f.kind === 'chest' && f.bonus === true)).toBe(true);
+});
+
+it('worldGen 1 worlds get material veins too', () => {
+  const s = newGame(11, 0);
+  s.worldGen = 1;
+  const m = veinMetre(11, true, stats);
+  const vein = metreLayer(11, m).vein!;
+  digTo(s, m);
+  expect(s.finds.at(-1)).toMatchObject({ kind: 'materialVein', material: vein.material, amount: vein.amount, depth: m });
+});
+
+it('the face keeps its seeded features', () => {
+  const s = newGame(21, 0);
+  while (s.deepest < 300) applyTicks(s, 100, stats);
+  const seeded = s.finds.filter((f) => !f.bonus && f.kind !== 'materialVein' && f.depth >= 3 && f.depth <= 300);
+  const expected: { depth: number; kind: string }[] = [];
+  for (let m = 3; m <= 300; m++) {
+    const feature = rollMetre(21, m, BASE_ROLL_CHANCES).feature;
+    if (feature !== null) expected.push({ depth: m, kind: feature });
+  }
+  expect(seeded.map((f) => ({ depth: f.depth, kind: f.kind }))).toEqual(expected);
+  expect(s.finds.some((f) => f.kind === 'materialVein')).toBe(true);
 });
 
 it('the first map is found within 60 ticks', () => {
@@ -36,8 +124,8 @@ it('veins pay out and are logged', () => {
   const events: TickEvent[] = [];
   while (s.deepest < 1) applyTicks(s, 1, stats, events);
   expect(s.finds[0]).toMatchObject({ depth: 1, kind: 'goldVein', amount: 19 });
-  expect(s.gold).toBe(19 + s.tickCount * 1);
-  expect(events.filter((e) => e.kind === 'gold')).toHaveLength(s.tickCount);
+  expect(s.gold).toBe(19);
+  expect(events.filter((e) => e.kind === 'gold')).toEqual([{ kind: 'gold', amount: 19 }]);
   expect(events).toContainEqual({ kind: 'metre', depth: 1 });
 });
 
@@ -80,30 +168,22 @@ it('an infinite or zero dig power neither hangs nor corrupts the state', () => {
   }
 });
 
-it('Gold yield pays whole Gold each tick', () => {
-  const s = fresh();
-  const events: TickEvent[] = [];
-  applyTicks(s, 2, { ...stats, goldMultiplier: 2.5 }, events);
-  expect(s.gold).toBe(4);
-  expect(events.flatMap((e) => (e.kind === 'gold' ? [e.amount] : []))).toEqual([2, 2]);
-});
-
 it('veins pay their yield and log what was paid', () => {
   const s = fresh();
   s.ahead[1] = { feature: 'goldVein', amount: 19, hardRock: false };
   const rich = { ...stats, goldMultiplier: 1.5 };
   while (s.deepest < 1) applyTicks(s, 1, rich);
   expect(s.finds[0]).toMatchObject({ kind: 'goldVein', amount: 29 });
-  expect(s.gold).toBe(s.tickCount + 29);
+  expect(s.gold).toBe(29);
 });
 
-it('Diamond yield raises the chance per tick, up to the cap', () => {
+it('a diamond vein pays its yield and says so', () => {
   const s = fresh();
+  s.ahead[1] = { feature: 'diamondVein', amount: 3, hardRock: false };
   const events: TickEvent[] = [];
-  applyTicks(s, 2000, { ...stats, diamondMultiplier: 100 }, events);
-  const share = events.filter((e) => e.kind === 'diamond').length / 2000;
-  expect(share).toBeGreaterThan(0.45);
-  expect(share).toBeLessThan(0.55);
+  while (s.deepest < 1) applyTicks(s, 1, { ...stats, diamondMultiplier: 2 }, events);
+  expect(s.diamonds).toBe(6);
+  expect(events.filter((e) => e.kind === 'diamond')).toEqual([{ kind: 'diamond', amount: 6 }]);
 });
 
 it('leftover progress carries over at the next metre’s hardness', () => {

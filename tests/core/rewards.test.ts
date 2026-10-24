@@ -78,11 +78,11 @@ function runOf(s: GameState): MapRun {
   return s.activity.run;
 }
 
-// A started tier-1 run (seed `seed`), and a hand-built monster of `rank` ready to fall.
-function kill(seed: number, rank: Rank, prepare?: (s: GameState) => void) {
+// A started run (seed `seed`, a tier-1 map unless `map` says otherwise), and a hand-built monster of `rank` ready to fall.
+function kill(seed: number, rank: Rank, prepare?: (s: GameState) => void, map = { tier: 1, metre: 2 }) {
   const s = newGame(seed, 0);
   prepare?.(s);
-  startMap(s, addMap(s, 1, 2).id);
+  startMap(s, addMap(s, map.tier, map.metre).id);
   const run = runOf(s);
   const m: MonsterState = {
     name: 'Test Monster', species: 0, rank, mods: [], extra: 0, element: 'physical',
@@ -109,9 +109,10 @@ it('each rank drops its guaranteed items plus one more when the chance draw pass
     for (let seed = 1; seed <= 120; seed++) {
       const { run, chancePasses } = kill(seed, rank);
       seen[chancePasses ? 'pass' : 'miss'] += 1;
-      // Gem notes are on the run too: items rolled with a rarity draw are counted by the spy.
+      // Gem and material notes are on the run too: items rolled with a rarity draw are counted by the spy.
       expect(spy.rarityArgs.length, `${rank} seed ${seed}`).toBe(GUARANTEED[rank] + (chancePasses ? 1 : 0));
-      expect(run.loot.length, `${rank} seed ${seed}`).toBe(spy.rarityArgs.length + spy.gems);
+      const items = run.loot.filter((n) => n.rarity !== 'material');
+      expect(items.length, `${rank} seed ${seed}`).toBe(spy.rarityArgs.length + spy.gems);
     }
     expect(seen.pass, rank).toBeGreaterThan(0);
     expect(seen.miss, rank).toBeGreaterThan(0);
@@ -138,7 +139,7 @@ it('about 80% of map gear is battle gear, and gems land in the bag', () => {
   for (let seed = 1; seed <= 400; seed++) {
     const { s } = kill(seed, 'boss');
     for (const c of s.bag) {
-      if (c === null) continue;
+      if (c === null || c.type === 'material') continue;
       if (!isGear(c)) gems++;
       else if (setOfSlot(c.slot) === 'battle') battle++;
       else mining++;
@@ -161,6 +162,28 @@ it('a gem drop is noted on the run and in the log like an item', () => {
     expect(dropLines(run), `seed ${seed}`).toBe(run.loot.length);
   }
   expect(found).toBeGreaterThan(0);
+});
+
+const materialsOf = (run: MapRun) => run.loot.filter((n) => n.rarity === 'material').map((n) => n.base);
+
+it('map kills drop materials of the map\'s depth', () => {
+  const deep = new Set<string>();
+  const shallow = new Set<string>();
+  for (let seed = 1; seed <= 400; seed++) {
+    for (const m of materialsOf(kill(seed, 'boss', undefined, { tier: 7, metre: 1100 }).run)) deep.add(m);
+    for (const m of materialsOf(kill(seed, 'boss', undefined, { tier: 1, metre: 20 }).run)) shallow.add(m);
+  }
+  expect(deep.has('voidCrystal')).toBe(true);
+  expect(shallow.size).toBeGreaterThan(0);
+  expect([...shallow].every((m) => m === 'copper' || m === 'tin')).toBe(true);
+});
+
+it('normal kills roll one material chance', () => {
+  let dropped = 0;
+  for (let seed = 1; seed <= 2000; seed++) {
+    if (materialsOf(kill(seed, 'normal').run).length > 0) dropped++;
+  }
+  expect(Math.abs(dropped / 2000 - 0.25)).toBeLessThan(0.03);
 });
 
 it('with MAX_OVERFLOW items already held under stop, a further drop is sold and nothing more is held', () => {

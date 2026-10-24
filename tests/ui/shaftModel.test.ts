@@ -1,4 +1,6 @@
 import { expect, it } from 'vitest';
+import { MATERIAL_LABELS } from '../../src/core/itemData';
+import { metreLayer } from '../../src/core/layer';
 import { newGame } from '../../src/core/newGame';
 import { MINER_ROW, SHAFT_ROWS, shaftModel, shaftShift } from '../../src/ui/mine/shaftModel';
 
@@ -30,4 +32,19 @@ it('the shaft moves once per change, however many metres', () => {
   expect(shaftShift(10, 400, 'step', 0)).toEqual({ fromPx: 0, toPx: 0, animate: false });
   expect(shaftShift(10, 10, 'smooth', 0.5)).toEqual({ fromPx: -28, toPx: -28, animate: false });
   expect(shaftShift(10, 11, 'off', 0.5)).toEqual({ fromPx: 0, toPx: 0, animate: false });
+});
+
+it('a material vein ahead is lit on a metre whose roll holds no feature', () => {
+  const s = newGame(11, 0);
+  let m = 10;
+  while (metreLayer(11, m).vein === null || metreLayer(11, m + 1).vein === null) m++;
+  const vein = metreLayer(11, m).vein!;
+  s.deepest = m - 2;
+  s.ahead = {
+    [m - 1]: { feature: null, amount: 0, hardRock: true }, [m]: { feature: null, amount: 0, hardRock: false },
+    [m + 1]: { feature: 'chest', amount: 0, hardRock: false },
+  };
+  const rows = shaftModel(s, 3).rows;
+  expect(rows.find((r) => r.metre === m)).toMatchObject({ feature: null, material: vein.material, label: `+2 m: ${MATERIAL_LABELS[vein.material]}` });
+  expect(rows.find((r) => r.metre === m + 1)).toMatchObject({ feature: 'chest', material: null, label: '+3 m: Chest' });
 });

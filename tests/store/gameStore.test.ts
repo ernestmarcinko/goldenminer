@@ -89,8 +89,12 @@ describe('GameStore', () => {
   });
 
   it('aggregates feedback between drains', () => {
-    const { store, now } = make(); store.load(); now.t = 5000; store.pump();
-    expect(store.drainFeedback().gold).toBe(5);
+    const { store, now } = make(); store.load();
+    store.state.ahead[1] = { feature: 'goldVein', amount: 7, hardRock: false };
+    now.t = 30_000; store.pump();   // 30 ticks dig metre 1 and its vein
+    const fb = store.drainFeedback();
+    expect(fb.gold).toBe(7);
+    expect(fb.finds.map((f) => f.kind)).toEqual(['goldVein']);
     expect(store.drainFeedback()).toEqual({ gold: 0, diamonds: 0, finds: [], strikes: [], hurt: 0 });
   });
 

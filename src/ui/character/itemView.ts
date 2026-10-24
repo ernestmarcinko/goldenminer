@@ -1,5 +1,5 @@
 import { hardness, MATERIAL_TABLE, TICKS_PER_METRE_AT_PARITY } from '../../core/balance';
-import { GEM_GRADE_LABELS, gemName, MATERIAL_LABELS } from '../../core/itemData';
+import { GEM_GRADE_LABELS, gemName } from '../../core/itemData';
 import { BATTLE_STATS, isGear, setOfSlot } from '../../core/items';
 import type { GearItem, GemType, Item, Material, Slot, StatKey } from '../../core/items';
 import { gemEffect, itemTotals } from '../../core/stats';
@@ -175,7 +175,8 @@ export function lootNoteText(note: LootNote): string {
   switch (note.outcome) {
     case 'bag':
     case 'stash':
-      if (note.rarity === 'material') return `${MATERIAL_LABELS[note.base as Material]} ×${formatNumber(note.value)}`;
+      // The note's name is already the material, so the text says only how many and where they went.
+      if (note.rarity === 'material') return `×${formatNumber(note.value)} ${note.outcome === 'bag' ? 'to bag' : 'to Materials tab'}`;
       return note.outcome === 'bag' ? 'to bag' : 'to stash';
     case 'sold': return `sold +${formatNumber(note.value)} Gold`;
     case 'salvaged': return `salvaged into ${plural(note.value, 'material', 'materials')}`;
