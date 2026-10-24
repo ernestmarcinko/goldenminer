@@ -31,7 +31,9 @@ export interface Gem { gem: GemType; grade: GemGrade }
 export interface GemItem extends Gem { id: number; type: 'gem'; count: number }
 export interface GearItem {
   id: number; type: 'gear'; slot: Slot; name: string; rarity: Rarity; ilvl: number;
-  implicit: StatLine; affixes: StatLine[]; sockets: number; gems: Gem[]; uniqueId?: string;
+  implicit: StatLine; affixes: ModLine[]; sockets: number; gems: Gem[]; uniqueId?: string;
+  /** Set by tempering: the item takes no more crafts. */
+  sealed?: true;
 }
 export interface MaterialItem { id: number; type: 'material'; material: Material; count: number }
 export interface MapItem { id: number; type: 'map'; tier: number; metre: number }

@@ -52,7 +52,11 @@ export const MATERIAL_STASH_STACK = 1_000_000;
 export const MAX_LOOT_RULES = 20;
 export const MAX_OVERFLOW = 10;
 export const MAX_SOCKETS = 3;
-export const MAX_AFFIXES = 4;
+// An item holds at most 3 prefixes and 3 suffixes; crafted lines count outside them.
+export const MAX_SIDE_LINES = 3;
+export const MAX_CRAFTED_LINES = 2;
+// A crafted line may sit above an item's tier cap, by up to this many tiers.
+export const MAX_TIER_OVER_CAP = 2;
 
 export const LEVEL_CAP = 60;
 export const COMBAT_LOG_LIMIT = 20;
@@ -178,7 +182,8 @@ export const STAT_TIERS: Readonly<Record<StatKey, { base: number; step: number }
 export const DEFAULT_STAT_WEIGHT = 10;
 export const STAT_WEIGHTS: Readonly<Partial<Record<StatKey, number>>> = { ticksPerClick: 2, lampSight: 4 };
 export const RARITY_WEIGHTS: Readonly<Record<Rarity, number>> = { normal: 60, magic: 30, rare: 9, legendary: 1 };
-export const RARE_FOURTH_AFFIX_CHANCE = 0.5;
+export const MAGIC_LINE_WEIGHTS: readonly [number, number][] = [[1, 50], [2, 50]];
+export const RARE_LINE_WEIGHTS: readonly [number, number][] = [[4, 50], [5, 35], [6, 15]];
 export const SOCKET_WEIGHTS: readonly number[] = [40, 35, 18, 7];
 export const CHEST_SECOND_ITEM_CHANCE = 0.2;
 export const CHEST_BATTLE_CHANCE = 0.2;

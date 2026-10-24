@@ -35,13 +35,49 @@ it('item lines list the implicit, affixes, gems and empty sockets', () => {
   });
   expect(itemLines(item)).toEqual([
     { text: '+8 dig power', tone: 'plain' },
-    { text: '−10% chest find', tone: 'down' },
+    { text: 'T1 −10% chest find', tone: 'down' },
     { text: 'Small Ruby: +13% Gold yield', tone: 'gem' },
     { text: '1 empty socket', tone: 'muted' },
   ]);
   expect(itemLines(gem(s, 'ruby', { grade: 'small' }))).toEqual([
     { text: 'In mining gear: +13% Gold yield', tone: 'plain' },
     { text: 'In battle gear: +13% damage', tone: 'plain' },
+  ]);
+});
+
+it('card lines show each line\'s tier, prefixes first, then suffixes, then crafted lines', () => {
+  const s = newGame(1, 0);
+  const item = gear(s, 'pickaxe', {
+    rarity: 'rare', implicit: { stat: 'digPower', value: 8 },
+    affixes: [
+      { stat: 'chestFind', value: 9, tier: 2 },
+      { stat: 'sellBonus', value: 20, tier: 9, crafted: true },
+      { stat: 'goldYield', value: 12, tier: 3 },
+    ],
+  });
+  expect(itemLines(item)).toEqual([
+    { text: '+8 dig power', tone: 'plain' },
+    { text: 'T3 +12% Gold yield', tone: 'plain' },
+    { text: 'T2 +9% chest find', tone: 'plain' },
+    { text: 'T9 +20% Gold from selling (crafted)', tone: 'plain' },
+  ]);
+  expect(itemLines(gear(s, 'pickaxe', { affixes: [{ stat: 'digPowerPct', value: 12, tier: 3 }] }))[1]?.text).toBe('T3 +12% dig power');
+  expect(itemLines(gear(s, 'gloves', { affixes: [{ stat: 'digPower', value: 12, tier: 3 }] }))[1]?.text).toBe('T3 +12 dig power');
+});
+
+it('a legendary line has no tier, and a sealed item says so', () => {
+  const s = newGame(1, 0);
+  const legend = gear(s, 'pickaxe', { rarity: 'legendary', implicit: { stat: 'digPower', value: 8 }, affixes: [{ stat: 'chestFind', value: -10, tier: 0 }] });
+  expect(itemLines(legend)).toEqual([
+    { text: '+8 dig power', tone: 'plain' },
+    { text: '−10% chest find', tone: 'down' },
+  ]);
+  const sealed = gear(s, 'pickaxe', { implicit: { stat: 'digPower', value: 8 }, affixes: [{ stat: 'goldYield', value: 4, tier: 1 }], sockets: 1, sealed: true });
+  expect(itemLines(sealed)).toEqual([
+    { text: '+8 dig power', tone: 'plain' },
+    { text: 'T1 +4% Gold yield', tone: 'plain' },
+    { text: '1 empty socket', tone: 'muted' },
+    { text: 'Tempered: it can\'t be crafted any more.', tone: 'muted' },
   ]);
 });
 

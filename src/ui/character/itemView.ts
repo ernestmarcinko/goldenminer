@@ -1,7 +1,7 @@
 import { hardness, MATERIAL_TABLE, TICKS_PER_METRE_AT_PARITY } from '../../core/balance';
 import { GEM_GRADE_LABELS, gemName, itemName } from '../../core/itemData';
-import { BATTLE_STATS, isGear, setOfSlot } from '../../core/items';
-import type { GearItem, GemType, Item, Material, Slot, StatKey } from '../../core/items';
+import { BATTLE_STATS, MOD_SIDE, isGear, setOfSlot } from '../../core/items';
+import type { GearItem, GemType, Item, Material, ModLine, Slot, StatKey } from '../../core/items';
 import { gemEffect, itemTotals } from '../../core/stats';
 import type { GameState, LootNote, Stats } from '../../core/types';
 import type { SpriteName } from '../../sprites/atlas';
@@ -57,6 +57,18 @@ export function statText(stat: StatKey, value: number): string {
 
 const lineText = (l: { stat: StatKey; value: number }): string => statText(l.stat, l.value);
 
+/** A legendary's hand-written lines have no tier to show. */
+function modText(l: ModLine, legendary: boolean): string {
+  const text = legendary ? lineText(l) : `T${formatNumber(l.tier)} ${lineText(l)}`;
+  return l.crafted ? `${text} (crafted)` : text;
+}
+
+/** Prefixes first, then suffixes, then crafted lines, each group in its rolled order. */
+function cardOrder(lines: readonly ModLine[]): ModLine[] {
+  const rank = (l: ModLine) => (l.crafted ? 2 : MOD_SIDE[l.stat] === 'prefix' ? 0 : 1);
+  return [...lines].sort((a, b) => rank(a) - rank(b));
+}
+
 export type Tone = 'plain' | 'up' | 'down' | 'gem' | 'muted';
 export interface ViewLine { text: string; tone: Tone }
 
@@ -100,11 +112,12 @@ export function itemLines(item: Item): ViewLine[] {
     ];
   }
   const lines: ViewLine[] = [{ text: lineText(item.implicit), tone: item.implicit.value < 0 ? 'down' : 'plain' }];
-  for (const a of item.affixes) lines.push({ text: lineText(a), tone: a.value < 0 ? 'down' : 'plain' });
+  for (const a of cardOrder(item.affixes)) lines.push({ text: modText(a, item.rarity === 'legendary'), tone: a.value < 0 ? 'down' : 'plain' });
   const set = setOfSlot(item.slot);
   for (const g of item.gems) lines.push({ text: `${gemName(g)}: ${lineText(gemEffect(g, set))}`, tone: 'gem' });
   const empty = item.sockets - item.gems.length;
   if (empty > 0) lines.push({ text: plural(empty, 'empty socket', 'empty sockets'), tone: 'muted' });
+  if (item.sealed) lines.push({ text: 'Tempered: it can\'t be crafted any more.', tone: 'muted' });
   return lines;
 }
 

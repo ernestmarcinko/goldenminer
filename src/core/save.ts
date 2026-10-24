@@ -1,24 +1,28 @@
 import { compressToBase64, decompressFromBase64 } from 'lz-string';
 import {
   BAG_SIZE, COMBAT_LOG_LIMIT, FINDS_LOG_LIMIT, GEM_BAG_STACK, GEM_STASH_STACK, LEVEL_CAP, MATERIAL_BAG_STACK,
-  MATERIAL_STASH_STACK, MAX_AFFIXES, MAX_DAMAGE, MAX_LIFE, MAX_LOOT_RULES, MAX_OVERFLOW, MAX_SOCKETS, MAX_STASH_PAGES,
-  MONSTER_BUDGET, RUN_LOOT_LIMIT, START_GENERAL_PAGES, START_MAP_PAGES, STASH_PAGE_SIZE,
+  MATERIAL_STASH_STACK, MAX_CRAFTED_LINES, MAX_DAMAGE, MAX_LIFE, MAX_LOOT_RULES, MAX_OVERFLOW, MAX_SIDE_LINES, MAX_SOCKETS,
+  MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MONSTER_BUDGET, RUN_LOOT_LIMIT, START_GENERAL_PAGES, START_MAP_PAGES, STASH_PAGE_SIZE,
 } from './balance';
 import { metreTier } from './bands';
 import { emptyGemCounts, emptyMaterialCounts, pageCount } from './cells';
 import { dungeonIndexAt, dungeonType } from './dungeons';
 import { gemGradeFor } from './itemData';
-import { GEAR_SETS, GEM_GRADES, GEM_TYPES, MATERIALS, RARITIES, setOfSlot, slotsOf, statsOf } from './items';
-import type { Cell, GearItem, GearSet, GemItem, GemType, MapItem, Slot } from './items';
+import { sideCount } from './itemGen';
+import {
+  BATTLE_STATS, GEAR_SETS, GEM_GRADES, GEM_TYPES, MATERIALS, MINING_STATS, MOD_SIDE, RARITIES, setOfSlot, slotsOf, statsOf,
+} from './items';
+import type { Cell, GearItem, GearSet, GemItem, GemType, MapItem, ModLine, Slot, StatKey } from './items';
 import { xpToNext } from './levels';
 import { isValidSeedText, seedFromText } from './seed';
 import { speciesOf } from './species';
+import { tierFor } from './tiers';
 import {
   BAG_FULL_MODES, CHAMPION_MODS, DEFAULT_MOTION, ELEMENTS, FEATURE_KINDS, FIND_KINDS, LOOT_ACTIONS, LOOT_OUTCOMES, RANKS,
   RUN_OUTCOMES, SHAFT_MOTIONS, type GameState,
 } from './types';
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
@@ -146,7 +150,56 @@ export const MIGRATIONS: Record<number, Migration> = {
     for (const key of ['depth', 'galleryProgress', 'goldCarry', 'bags']) delete next[key];
     return next;
   },
+  6: (state) => {
+    if (
+      !isObject(state) || !Array.isArray(state.bag) || !isObject(state.stash) || !Array.isArray(state.stash.general) ||
+      !isObject(state.equipped) || !isObject(state.equipped.mining) || !isObject(state.equipped.battle) ||
+      !Array.isArray(state.overflow)
+    ) return state;
+    let malformed = false;
+    const tiered = (cell: unknown): unknown => {
+      if (!isObject(cell) || cell.type !== 'gear') return cell;
+      const affixes = tieredLines(cell);
+      if (affixes === null) malformed = true;
+      return { ...cell, affixes };
+    };
+    const wornOf = (worn: Record<string, unknown>) =>
+      Object.fromEntries(Object.entries(worn).map(([slot, item]) => [slot, tiered(item)]));
+    const next = {
+      ...state,
+      bag: state.bag.map(tiered),
+      stash: { ...state.stash, general: state.stash.general.map(tiered) },
+      equipped: { ...state.equipped, mining: wornOf(state.equipped.mining), battle: wornOf(state.equipped.battle) },
+      overflow: state.overflow.map(tiered),
+    };
+    return malformed ? state : next;
+  },
 };
+
+const ALL_STATS: readonly StatKey[] = [...MINING_STATS, ...BATTLE_STATS];
+/**
+ * A schema-6 item's lines, each with the tier its value falls in, held to what the item could roll with a craft.
+ * Every line keeps its value and place; one past its side's room becomes a crafted line, so none is lost.
+ * Null when the item is malformed: an absurd value is left for the validator, and the tier maths never sees it.
+ */
+function tieredLines(item: Record<string, unknown>): ModLine[] | null {
+  const { affixes, ilvl, rarity } = item;
+  if (!Array.isArray(affixes) || !isItemLevel(ilvl) || !isIn(RARITIES, rarity)) return null;
+  const room = rarity === 'magic' ? 1 : MAX_SIDE_LINES;
+  const used = { prefix: 0, suffix: 0 };
+  const lines: ModLine[] = [];
+  for (const a of affixes) {
+    if (!isObject(a) || !isIn(ALL_STATS, a.stat) || typeof a.value !== 'number' || !Number.isInteger(a.value)) return null;
+    const stat = a.stat as StatKey;
+    const tier = rarity === 'legendary' ? 0 : Math.min(tierFor(stat, a.value), (ilvl as number) + MAX_TIER_OVER_CAP);
+    const line: ModLine = { ...a, stat, value: a.value, tier };
+    const side = MOD_SIDE[stat];
+    if (used[side] < room) used[side]++;
+    else line.crafted = true;
+    lines.push(line);
+  }
+  return lines;
+}
 
 interface OldGem { id: number; type: 'gem'; gem: GemType; ilvl: number }
 const isOldGem = (x: unknown): x is OldGem =>
@@ -235,6 +288,22 @@ function isStatLine(x: unknown, allowed: readonly string[]): boolean {
   );
 }
 
+// Tier 0 marks a legendary's hand-written line, and only those. A line may sit up to MAX_TIER_OVER_CAP above the item's cap:
+// crafted lines roll there, and an old value can fall there.
+function isModLine(x: unknown, allowed: readonly string[], legendary: boolean, ilvl: number): x is ModLine {
+  if (!isStatLine(x, allowed) || !isObject(x) || !isNonNegInt(x.tier) || (x.crafted !== undefined && x.crafted !== true)) return false;
+  return legendary ? x.tier === 0 : x.tier >= 1 && x.tier <= ilvl + MAX_TIER_OVER_CAP;
+}
+
+// At most 3 lines a side (1 on a magic item), and crafted lines on top of them.
+function isLineSet(lines: ModLine[], rarity: string): boolean {
+  const room = rarity === 'magic' ? 1 : MAX_SIDE_LINES;
+  return (
+    sideCount(lines, 'prefix') <= room && sideCount(lines, 'suffix') <= room &&
+    lines.filter((l) => l.crafted === true).length <= MAX_CRAFTED_LINES
+  );
+}
+
 // A socketed gem keeps only its type and grade.
 function isSocketed(x: unknown): boolean {
   return isObject(x) && isIn(GEM_TYPES, x.gem) && isIn(GEM_GRADES, x.grade);
@@ -265,7 +334,10 @@ function isGearItem(x: unknown, nextId: number, seen: Set<number>): x is GearIte
   if (!isIn(RARITIES, x.rarity)) return false;
   const allowed = statsOf(setOfSlot(x.slot as Slot));
   if (!isStatLine(x.implicit, allowed)) return false;
-  if (!Array.isArray(x.affixes) || x.affixes.length > MAX_AFFIXES || !x.affixes.every((a) => isStatLine(a, allowed))) return false;
+  const legendary = x.rarity === 'legendary';
+  const ilvl = x.ilvl as number;
+  if (!Array.isArray(x.affixes) || !x.affixes.every((a) => isModLine(a, allowed, legendary, ilvl))) return false;
+  if (!isLineSet(x.affixes, x.rarity as string) || (x.sealed !== undefined && x.sealed !== true)) return false;
   if (!isNonNegInt(x.sockets) || x.sockets > MAX_SOCKETS) return false;
   if (!Array.isArray(x.gems) || x.gems.length > x.sockets || !x.gems.every(isSocketed)) return false;
   return x.uniqueId === undefined || (typeof x.uniqueId === 'string' && x.uniqueId.length <= 40);
