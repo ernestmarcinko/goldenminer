@@ -51,3 +51,9 @@ it('blocks when the lock was lost, without saving', () => {
   expect(onBlocked).toHaveBeenCalledTimes(1);
   expect(store.save).not.toHaveBeenCalled();
 });
+
+it('starting the loop does not load: the app loads before it starts', () => {
+  const { store, loop } = setup();
+  expect(store.load).not.toHaveBeenCalled();
+  loop.stop();
+});

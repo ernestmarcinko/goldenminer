@@ -13,6 +13,10 @@ npm test         # unit tests
 npm run build    # production build in dist/
 ```
 
+## Gear
+
+Chests and gems drop mining and battle gear, which the character panel shows. Hover an item to compare it with what you wear, click to equip it, Alt+click to sell it, Shift+click to stash it, and right-click (or tap) to see every action. The loot filter sells or salvages new items by rule.
+
 ## Saves
 
 The game autosaves every 30 seconds and when the tab is hidden or closed. The Save button in the header exports the save as text, imports one, or starts over. Only one tab can play at a time.

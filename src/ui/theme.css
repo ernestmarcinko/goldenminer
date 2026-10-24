@@ -13,6 +13,10 @@
   --gm-magic: #8fb0ff;
   --gm-rare: #f0d455;
   --gm-legendary: #ff9b45;
+  --gm-normal: #cfc6b8;
+  --gm-gem: #7fd3e8;
+  --gm-up: #6fcf97;
+  --gm-down: #ff8a7a;
 
   --gm-font-display: Cinzel, serif;
   --gm-font-ui: 'IBM Plex Sans', system-ui, sans-serif;

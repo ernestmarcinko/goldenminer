@@ -78,7 +78,7 @@ it('moveTo rejects depths that were never reached', () => {
 
 it('the finds log is capped', () => {
   const s = fresh();
-  s.finds = Array.from({ length: FINDS_LOG_LIMIT }, (_, i) => ({ depth: 0, kind: 'chest' as const, amount: 0, tick: i }));
+  s.finds = Array.from({ length: FINDS_LOG_LIMIT }, (_, i) => ({ id: i + 1, depth: 0, kind: 'chest' as const, amount: 0, tick: i }));
   s.ahead[1] = { feature: 'gem', amount: 0, hardRock: false };
   while (s.deepest < 1) applyTicks(s, 1, stats);
   expect(s.finds).toHaveLength(FINDS_LOG_LIMIT);
@@ -96,4 +96,39 @@ it('an infinite or zero dig power neither hangs nor corrupts the state', () => {
     applyTicks(s, 5, { ...stats, digPower });
     expect(validateState(s)).toBe(true);
   }
+});
+
+it('Gold yield pays fractions through a carry', () => {
+  const s = fresh();
+  const events: TickEvent[] = [];
+  applyTicks(s, 2, { ...stats, goldMultiplier: 1.5 }, events);
+  expect([s.gold, s.goldCarry]).toEqual([3, 0]);
+  expect(events.flatMap((e) => (e.kind === 'gold' ? [e.amount] : []))).toEqual([1, 2]);
+});
+
+it('veins pay their yield and log what was paid', () => {
+  const s = fresh();
+  s.ahead[1] = { feature: 'goldVein', amount: 19, hardRock: false };
+  const rich = { ...stats, goldMultiplier: 1.5 };
+  while (s.deepest < 1) applyTicks(s, 1, rich);
+  expect(s.finds[0]).toMatchObject({ kind: 'goldVein', amount: 29 });
+  expect(s.gold).toBe(Math.floor(s.tickCount * 1.5) + 29);
+});
+
+it('Diamond yield raises the chance per tick, up to the cap', () => {
+  const s = fresh();
+  const events: TickEvent[] = [];
+  applyTicks(s, 2000, { ...stats, diamondMultiplier: 100 }, events);
+  const share = events.filter((e) => e.kind === 'diamond').length / 2000;
+  expect(share).toBeGreaterThan(0.45);
+  expect(share).toBeLessThan(0.55);
+});
+
+it('leftover progress carries over at the next metre’s hardness', () => {
+  const s = fresh();
+  s.ahead[1] = { feature: null, amount: 0, hardRock: false };
+  s.ahead[2] = { feature: null, amount: 0, hardRock: true };
+  applyTicks(s, 1, { ...stats, digPower: 1.5 * 10.13 * 25 }); // 1.5 metres of metre 1's work
+  expect(s.deepest).toBe(1);
+  expect(s.progress).toBeCloseTo((0.5 * 10.13) / (10.26 * 1.5), 6);
 });

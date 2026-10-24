@@ -17,7 +17,7 @@ export interface LoopEnv {
 
 const realEnv = (): LoopEnv => ({ doc: document, win: window });
 
-/** Loads the game and runs the pump, autosave and heartbeat. */
+/** Runs the pump, autosave and heartbeat. */
 export function startGame(
   store: GameStore,
   lock: TabLock,
@@ -82,7 +82,6 @@ export function startGame(
     }
   }
 
-  store.load();
   timers.push(setInterval(() => store.pump(), PUMP_MS));
   timers.push(setInterval(guardedSave, AUTOSAVE_INTERVAL_MS));
   timers.push(setInterval(owns, TAB_HEARTBEAT_MS));

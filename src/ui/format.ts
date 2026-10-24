@@ -7,6 +7,16 @@ export function formatNumber(n: number): string {
   return numberFormat.format(n);
 }
 
+const rateFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
+
+export function formatRate(n: number): string {
+  return rateFormat.format(n);
+}
+
+export function plural(n: number, one: string, many: string): string {
+  return `${formatNumber(n)} ${n === 1 ? one : many}`;
+}
+
 export function formatDuration(ms: number): string {
   const totalMinutes = Math.floor(ms / 60_000);
   const hours = Math.floor(totalMinutes / 60);

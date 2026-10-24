@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { depthAtY, depthForClick, minimapModel } from '../../src/ui/mine/minimap';
+import { depthAtY, depthForClick, depthForKey, minimapModel } from '../../src/ui/mine/minimap';
 import { newGame } from '../../src/core/newGame';
 
 function at(depth: number, deepest = depth) {
@@ -18,10 +18,10 @@ it('the window keeps the miner about 57% down', () => {
 it('nearby finds share one marker, most important kind first', () => {
   const s = at(340);
   s.finds = [
-    { depth: 301, kind: 'chest', amount: 0, tick: 1 },
-    { depth: 302, kind: 'map', amount: 0, tick: 2 },
-    { depth: 330, kind: 'goldVein', amount: 20, tick: 3 },
-    { depth: 10, kind: 'map', amount: 0, tick: 4 },
+    { id: 1, depth: 301, kind: 'chest', amount: 0, tick: 1 },
+    { id: 2, depth: 302, kind: 'map', amount: 0, tick: 2 },
+    { id: 3, depth: 330, kind: 'goldVein', amount: 20, tick: 3 },
+    { id: 4, depth: 10, kind: 'map', amount: 0, tick: 4 },
   ];
   const { markers } = minimapModel(s, 2);
   expect(markers).toEqual([
@@ -47,4 +47,18 @@ it('keyboard-synthesised clicks are ignored, pointer clicks map to a depth', () 
   expect(depthForClick(m, { detail: 0, clientX: 50, clientY: 300, stripTop: 100 }, 340)).toBeNull();
   expect(depthForClick(m, { detail: 1, clientX: 0, clientY: 0, stripTop: 100 }, 340)).toBeNull();
   expect(depthForClick(m, { detail: 1, clientX: 50, clientY: 100, stripTop: 100 }, 340)).toBe(250);
+});
+
+it('arrow, page, Home and End keys climb within the explored depths', () => {
+  expect(depthForKey('ArrowUp', 10, 40)).toBe(9);
+  expect(depthForKey('ArrowDown', 40, 40)).toBe(40);
+  expect(depthForKey('PageUp', 5, 40)).toBe(0);
+  expect(depthForKey('PageDown', 10, 40)).toBe(20);
+  expect(depthForKey('Home', 10, 40)).toBe(0);
+  expect(depthForKey('End', 10, 40)).toBe(40);
+  expect(depthForKey('a', 10, 40)).toBeNull();
+});
+
+it('only metres within the current lamp sight are shown ahead', () => {
+  expect(minimapModel(at(340), 1).ahead).toEqual([{ y: (340.5 - 290) * 6, kind: 'chest' }]);
 });

@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import type { GameStore } from '../store/gameStore';
 import type { TabLock } from '../store/tabLock';
 import { startGame, type GameLoop } from './gameLoop';
+import { CharacterPanel } from './character/CharacterPanel';
 import { Header } from './Header';
 import { MineView } from './mine/MineView';
 import { Notices } from './Notices';
@@ -11,7 +12,13 @@ import { TabBlocked } from './TabBlocked';
 import { useGame } from './useGame';
 
 export function App({ store, lock }: { store: GameStore; lock: TabLock }) {
-  const [blocked, setBlocked] = useState(() => !lock.tryAcquire());
+  // Loading happens in the initializer, not an effect, so the first paint already shows the loaded game.
+  // StrictMode runs it twice in dev, which is harmless.
+  const [blocked, setBlocked] = useState(() => {
+    if (!lock.tryAcquire()) return true;
+    store.load();
+    return false;
+  });
   const loop = useRef<GameLoop | null>(null);
   useLayoutEffect(() => {
     if (blocked) return undefined;
@@ -28,6 +35,7 @@ export function App({ store, lock }: { store: GameStore; lock: TabLock }) {
       <TabBlocked
         onPlayHere={() => {
           lock.takeOver();
+          store.load();
           setBlocked(false);
         }}
       />
@@ -44,7 +52,8 @@ function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: ()
       <Header store={store} onOpenSave={() => setSaveOpen(true)} />
       <Notices store={store} />
       <main className="gm-app__main">
-        <MineView store={store} />
+        <div className="gm-app__play"><MineView store={store} /></div>
+        <div className="gm-app__side"><CharacterPanel store={store} /></div>
       </main>
       {offlineSummary && <OfflineSummary summary={offlineSummary} onClose={() => store.dismissSummary()} />}
       {saveOpen && <SaveMenu store={store} runAsOwner={runAsOwner} onClose={() => setSaveOpen(false)} />}

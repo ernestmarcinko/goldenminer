@@ -2,6 +2,7 @@ import type { GameStore } from '../../store/gameStore';
 import type { FeatureKind } from '../../core/types';
 import { Sprite } from '../../sprites/Sprite';
 import type { SpriteName } from '../../sprites/atlas';
+import { lootNoteText } from '../character/itemView';
 import { formatNumber } from '../format';
 import { useGame } from '../useGame';
 import './mine.css';
@@ -33,9 +34,19 @@ export function FindsFeed({ store }: { store: GameStore }) {
       ) : (
         <ul className="gm-finds__list">
           {shown.map((f) => (
-            <li key={`${f.tick}-${f.depth}-${f.kind}`} className="gm-finds__item">
+            <li key={f.id} className="gm-finds__item">
               <Sprite name={ICONS[f.kind]} scale={2} />
-              <span className="gm-finds__label">{label(f.kind, f.amount)}</span>
+              <span className="gm-finds__label">
+                {label(f.kind, f.amount)}{f.loot && f.loot.length > 0 ? ':' : ''}
+                {f.loot?.map((n, i) => (
+                  <span key={i}>
+                    {' '}
+                    <span className="gm-finds__note" data-rarity={n.rarity}>{n.name}</span>
+                    {' '}
+                    <span className="gm-muted">({lootNoteText(n)})</span>
+                  </span>
+                ))}
+              </span>
               <span className="gm-muted gm-small">at {formatNumber(f.depth)} m</span>
             </li>
           ))}

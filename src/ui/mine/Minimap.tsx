@@ -1,11 +1,11 @@
-import type { MouseEvent } from 'react';
+import type { KeyboardEvent, MouseEvent } from 'react';
 import type { FeatureKind } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
 import { Sprite } from '../../sprites/Sprite';
 import type { SpriteName } from '../../sprites/atlas';
 import { formatNumber } from '../format';
 import { useGame } from '../useGame';
-import { depthForClick, MINIMAP_METRES, MINIMAP_PX_PER_METRE, minimapModel } from './minimap';
+import { depthForClick, depthForKey, MINIMAP_METRES, MINIMAP_PX_PER_METRE, minimapModel } from './minimap';
 import './minimap.css';
 
 const ICONS: Record<FeatureKind, SpriteName> = {
@@ -25,6 +25,13 @@ export function Minimap({ store }: { store: GameStore }) {
     if (depth !== null) store.moveTo(depth);
   };
 
+  const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
+    const depth = depthForKey(e.key, state.depth, state.deepest);
+    if (depth === null) return;
+    e.preventDefault();
+    store.moveTo(depth);
+  };
+
   return (
     <section aria-label="Minimap" className="gm-minimap">
       <div className="gm-minimap__head">
@@ -34,9 +41,10 @@ export function Minimap({ store }: { store: GameStore }) {
       <button
         type="button"
         className="gm-minimap__strip"
-        aria-label="Minimap: choose a depth to dig at"
+        aria-label="Minimap: choose a depth to dig at. Arrow keys move one metre, Page Up and Page Down ten, Home and End jump to the surface and the dig face."
         style={{ height: MINIMAP_METRES * MINIMAP_PX_PER_METRE }}
         onClick={onClick}
+        onKeyDown={onKeyDown}
       >
         <span className="gm-minimap__ticks">
           {model.ticks.map((t) => (

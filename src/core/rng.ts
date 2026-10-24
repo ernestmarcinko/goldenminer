@@ -13,3 +13,23 @@ export function hash2(seed: number, n: number): number {
   h ^= h >>> 16;
   return h >>> 0;
 }
+
+export function nextRandom(s: { rng: number }): number {
+  const r = mulberry32(s.rng);
+  s.rng = r.state;
+  return r.value;
+}
+
+export function pickWeighted<T>(s: { rng: number }, entries: readonly (readonly [T, number])[]): T {
+  let total = 0;
+  for (const [, w] of entries) total += w;
+  const pick = nextRandom(s) * total;
+  let cumulative = 0;
+  for (const [value, w] of entries) {
+    cumulative += w;
+    if (pick < cumulative) return value;
+  }
+  const last = entries[entries.length - 1];
+  if (last === undefined) throw new Error('pickWeighted needs at least one entry');
+  return last[0];
+}

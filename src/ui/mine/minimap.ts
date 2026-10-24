@@ -68,6 +68,7 @@ export function minimapModel(state: GameState, lampSight: number): MinimapModel 
   const ahead = Object.keys(state.ahead)
     .map(Number)
     .sort((a, b) => a - b)
+    .filter((metre) => metre <= state.deepest + lampSight)
     .flatMap((metre): MinimapModel['ahead'] => {
       const roll = state.ahead[metre];
       if (!roll) return [];
@@ -82,6 +83,20 @@ export function minimapModel(state: GameState, lampSight: number): MinimapModel 
 export function depthAtY(model: MinimapModel, y: number, deepest: number): number {
   const d = Math.round(model.top + y / MINIMAP_PX_PER_METRE);
   return Math.min(Math.max(d, 0), deepest);
+}
+
+export function depthForKey(key: string, depth: number, deepest: number): number | null {
+  let target: number;
+  switch (key) {
+    case 'ArrowUp': target = depth - 1; break;
+    case 'ArrowDown': target = depth + 1; break;
+    case 'PageUp': target = depth - 10; break;
+    case 'PageDown': target = depth + 10; break;
+    case 'Home': target = 0; break;
+    case 'End': target = deepest; break;
+    default: return null;
+  }
+  return Math.min(Math.max(target, 0), deepest);
 }
 
 export function depthForClick(
