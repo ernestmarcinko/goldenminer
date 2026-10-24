@@ -1,4 +1,4 @@
-import { ARMORED_TAKEN, COMBAT_LOG_LIMIT, ROOM_REGEN, RUN_LOOT_LIMIT, VAMPIRIC_HEAL } from './balance';
+import { ARMORED_TAKEN, COMBAT_LOG_LIMIT, COMBAT_STEP_S, ROOM_REGEN, RUN_LOOT_LIMIT, VAMPIRIC_HEAL } from './balance';
 import { deriveBattleStats, mitigate, type BattleStats } from './battle';
 import { dungeonLayout } from './dungeons';
 import { gainXp } from './levels';
@@ -84,29 +84,26 @@ function strike(state: GameState, run: MapRun, b: BattleStats, click: boolean, e
   return 'room';
 }
 
-/** One tick of a map: the miner's auto hits, then (unless the room fell) the fighting monster's attacks. */
-export function mapTick(state: GameState, stats: Stats, events?: TickEvent[]): void {
-  if (state.activity.kind !== 'map') return;
-  const run = state.activity.run;
-  const dt = 1 / stats.autoTicksPerSecond;
-  if (!(dt > 0) || !Number.isFinite(dt)) return;
-  let b = deriveBattleStats(state);
-
+/**
+ * One combat step of `dt` seconds: the miner's auto hits, then (unless the room fell) the fighting monster's attacks.
+ * Returns the battle stats to use next, re-derived after a level-up.
+ */
+function combatStep(state: GameState, run: MapRun, b: BattleStats, dt: number, events?: TickEvent[]): BattleStats {
   run.hitCarry += b.attacksPerSecond * dt;
   while (run.hitCarry >= 1) {
     run.hitCarry -= 1;
     const level = state.level;
     const outcome = strike(state, run, b, false, events);
-    if (outcome === 'end') return;
+    if (outcome === 'end') return b;
     if (outcome === 'room') {
       run.hitCarry -= Math.floor(run.hitCarry);
-      return;   // the new room doesn't attack this tick
+      return state.level !== level ? deriveBattleStats(state) : b;   // the new room doesn't attack this step
     }
     if (state.level !== level) b = deriveBattleStats(state);
   }
 
   const m = run.queue[0];
-  if (m === undefined) return;
+  if (m === undefined) return b;
   run.monsterCarry += dt / m.intervalS;
   while (run.monsterCarry >= 1) {
     run.monsterCarry -= 1;
@@ -121,8 +118,20 @@ export function mapTick(state: GameState, stats: Stats, events?: TickEvent[]): v
     }
     if (run.life <= 0) {
       endRun(state, run, 'died', events);
-      return;
+      return b;
     }
+  }
+  return b;
+}
+
+/** One tick of a map: `1 / autoTicksPerSecond` seconds of combat, fought in equal steps of at most COMBAT_STEP_S. */
+export function mapTick(state: GameState, stats: Stats, events?: TickEvent[]): void {
+  const dt = 1 / stats.autoTicksPerSecond;
+  if (!(dt > 0) || !Number.isFinite(dt)) return;
+  const steps = Math.ceil(dt / COMBAT_STEP_S);
+  let b = deriveBattleStats(state);
+  for (let i = 0; i < steps && state.activity.kind === 'map'; i++) {
+    b = combatStep(state, state.activity.run, b, dt / steps, events);
   }
 }
 

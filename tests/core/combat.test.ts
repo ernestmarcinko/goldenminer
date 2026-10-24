@@ -152,16 +152,53 @@ it('held loot does not freeze a run', () => {
   expect(s.tickCount).toBe(1);
 });
 
-it('a room cleared early in a tick drops the hit carry, and the new room waits', () => {
+it('a room clear ends its combat step: the unspent swings drop and the new room waits', () => {
   const { s, run } = started({ life: 1 });
+  s.equipped.battle.weapon = gear(s, 'weapon', { affixes: [{ stat: 'attackSpeed', value: 1000 }] });   // 5 swings a second
+  run.hitCarry = 0.9;
   const events: TickEvent[] = [];
-  applyTicks(s, 1, at(s, 0.1), events);   // 10 s: about 10 swings, the first one clears the room
+  applyTicks(s, 1, at(s, 4), events);   // one 0.25 s step: the carry reaches 2.15, and the first swing clears the room
   expect(run.room).toBe(2);
-  expect(run.hitCarry).toBeLessThan(1);
+  expect(run.hitCarry).toBeCloseTo(0.15);   // the second whole swing is dropped, the fraction kept
+  expect(run.monsterCarry).toBe(0);
   expect(strikes(events)).toHaveLength(1);
   expect(events.some((e) => e.kind === 'hurt')).toBe(false);
-  expect(run.queue.every((q) => q.life === q.maxLife)).toBe(true);
   expect(run.queue).toEqual(dungeonLayout(s.seed, run.map).rooms[1]?.map((lm) => monsterState(1, lm)));
+});
+
+it('the combat steps after a room clear fight on in the same tick', () => {
+  const { s, run } = started({ life: 1 });
+  run.hitCarry = 0.9;
+  const events: TickEvent[] = [];
+  applyTicks(s, 1, at(s, 0.1), events);   // 10 s in 40 steps: the first clears the room, the other 39 swing 9 times
+  expect(run.room).toBe(2);
+  expect(strikes(events)).toHaveLength(10);
+  expect(run.hitCarry).toBeCloseTo(0.9);   // 0.15 kept from the clear, plus 39 × 0.25, less 9 swings
+  expect(events.some((e) => e.kind === 'hurt')).toBe(true);
+});
+
+it('the tick rate never changes how long a fight lasts', () => {
+  // A tier-2 map kills a naked miner; the time it takes must not depend on how coarse the ticks are.
+  const medianDeath = (rate: number) => {
+    const times: number[] = [];
+    for (let seed = 1; seed <= 20; seed++) {
+      const s = newGame(seed, 0);
+      expect(startMap(s, addMap(s, 2, 10 + seed).id)).toBe('ok');
+      const stats = at(s, rate);
+      while (s.activity.kind === 'map') applyTicks(s, 1, stats);
+      expect(s.lastRun?.outcome, `seed ${seed} rate ${rate}`).toBe('died');
+      times.push((s.tickCount - 0.5) / rate);   // the death fell somewhere in the last tick: count half of it
+    }
+    times.sort((x, y) => x - y);
+    return ((times[9] ?? 0) + (times[10] ?? 0)) / 2;
+  };
+  const base = medianDeath(1);
+  expect(base).toBeGreaterThan(20);
+  for (const rate of [0.1, 10]) {
+    const median = medianDeath(rate);
+    expect(median, `rate ${rate}`).toBeGreaterThan(base * 0.75);
+    expect(median, `rate ${rate}`).toBeLessThan(base * 1.25);
+  }
 });
 
 it('a kill resets the monster carry', () => {
