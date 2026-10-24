@@ -1,18 +1,16 @@
 import { useRef, useState } from 'react';
-import { BAG_SIZE } from '../../core/balance';
+import { BAG_SIZE, STASH_SIZE } from '../../core/balance';
 import type { GearSet } from '../../core/items';
 import { gearTotals } from '../../core/stats';
 import type { GameStore } from '../../store/gameStore';
 import { formatNumber } from '../format';
 import { useGame } from '../useGame';
-import { ItemCard } from './ItemCard';
 import { ItemGrid } from './ItemGrid';
-import type { ItemHandlers } from './ItemGrid';
-import { actionForIntent, itemActions, resultText, runAction } from './itemActions';
-import type { ActionSpec, ItemTarget } from './itemActions';
 import { battleStatLine, miningStatLine } from './itemView';
+import { LootFilterDialog } from './LootFilterDialog';
 import { PaperDoll } from './PaperDoll';
-import { useItemPopover } from './useItemPopover';
+import { StashDialog } from './StashDialog';
+import { useItemInteractions } from './useItemInteractions';
 import './character.css';
 
 const SETS: readonly { set: GearSet; toggle: string; bag: string }[] = [
@@ -20,33 +18,24 @@ const SETS: readonly { set: GearSet; toggle: string; bag: string }[] = [
   { set: 'battle', toggle: 'Battle set', bag: 'Battle bag' },
 ];
 
-const targetKey = (t: ItemTarget): string =>
-  t.where === 'worn' ? `worn-${t.slot}` : t.where === 'bag' ? `bag-${t.set}-${t.index}` : `stash-${t.index}`;
+type Dialog = 'stash' | 'filter' | null;
 
 export function CharacterPanel({ store }: { store: GameStore }) {
   const { state, stats } = useGame(store);
   const [set, setSet] = useState<GearSet>('mining');
-  const [message, setMessage] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<Dialog>(null);
   const panelRef = useRef<HTMLElement>(null);
   const bagHeadingRef = useRef<HTMLHeadingElement>(null);
-  const popover = useItemPopover(panelRef);
-  const { inspect, clear, openMenu, closeMenu } = popover;
+  const stashButtonRef = useRef<HTMLButtonElement>(null);
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
+  const { handlers, message, cards, reset } = useItemInteractions({
+    store, state, shownSet: set, containerRef: panelRef, fallbackRef: bagHeadingRef,
+  });
 
-  const perform = (target: ItemTarget, action: ActionSpec, fromCard = false): void => {
-    setMessage(resultText(runAction(store, target, action, set)));
-    clear();
-    closeMenu(fromCard, bagHeadingRef.current);
-  };
-
-  const handlers: ItemHandlers = {
-    onInspect: inspect,
-    onClear: clear,
-    onMenu: (target, el) => openMenu(target, el),
-    onPick: (target, intent, el) => {
-      const chosen = actionForIntent(itemActions(state, target, set), target, intent);
-      if (chosen === 'menu') openMenu(target, el);
-      else if (chosen !== undefined) perform(target, chosen);
-    },
+  const closeDialog = (): void => {
+    const back = dialog === 'stash' ? stashButtonRef : filterButtonRef;
+    setDialog(null);
+    setTimeout(() => back.current?.focus(), 0);
   };
 
   const current = SETS.find((s) => s.set === set) ?? SETS[0];
@@ -62,7 +51,7 @@ export function CharacterPanel({ store }: { store: GameStore }) {
               type="button"
               className="gm-char__tab"
               aria-pressed={set === s.set}
-              onClick={() => { setSet(s.set); setMessage(null); clear(); closeMenu(); }}
+              onClick={() => { setSet(s.set); reset(); }}
             >
               {s.toggle}
             </button>
@@ -76,9 +65,19 @@ export function CharacterPanel({ store }: { store: GameStore }) {
         {set === 'mining' ? miningStatLine(stats, state.deepest) : battleStatLine(gearTotals(state, 'battle'))}
       </div>
 
-      <h3 ref={bagHeadingRef} tabIndex={-1} className="gm-char__bag">
-        {current?.bag} <span className="gm-muted">{formatNumber(bag.length)} / {formatNumber(BAG_SIZE)}</span>
-      </h3>
+      <div className="gm-char__baghead">
+        <h3 ref={bagHeadingRef} tabIndex={-1} className="gm-char__bag">
+          {current?.bag} <span className="gm-muted">{formatNumber(bag.length)} / {formatNumber(BAG_SIZE)}</span>
+        </h3>
+        <div className="gm-char__bagbtns">
+          <button type="button" ref={filterButtonRef} className="gm-btn" onClick={() => setDialog('filter')}>
+            Loot filter
+          </button>
+          <button type="button" ref={stashButtonRef} className="gm-btn" onClick={() => setDialog('stash')}>
+            Stash {formatNumber(state.stash.length)} / {formatNumber(STASH_SIZE)}
+          </button>
+        </div>
+      </div>
       <ItemGrid
         items={bag}
         capacity={BAG_SIZE}
@@ -91,23 +90,9 @@ export function CharacterPanel({ store }: { store: GameStore }) {
         everything. On a touch screen, tap an item.
       </p>
 
-      {popover.hover && (
-        <ItemCard
-          state={state} target={popover.hover.target} shownSet={set}
-          left={popover.hover.left} top={popover.hover.top}
-        />
-      )}
-      {popover.menu && (
-        <ItemCard
-          key={targetKey(popover.menu.target)}
-          state={state} target={popover.menu.target} shownSet={set}
-          left={popover.menu.left} top={popover.menu.top}
-          menu={{
-            onAction: (a) => { if (popover.menu) perform(popover.menu.target, a, true); },
-            onClose: () => closeMenu(true, bagHeadingRef.current),
-          }}
-        />
-      )}
+      {cards}
+      {dialog === 'stash' && <StashDialog store={store} set={set} onClose={closeDialog} />}
+      {dialog === 'filter' && <LootFilterDialog store={store} onClose={closeDialog} />}
     </section>
   );
 }

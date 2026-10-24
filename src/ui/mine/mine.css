@@ -86,4 +86,13 @@
   display: flex; align-items: center; gap: 10px; min-height: 44px; box-sizing: border-box;
   padding: 6px 8px; border-radius: 6px; background: #241e19;
 }
+.gm-finds__note { color: var(--gm-tone, var(--gm-normal)); }
+.gm-finds__note[data-rarity='magic'] { --gm-tone: var(--gm-magic); }
+.gm-finds__note[data-rarity='rare'] { --gm-tone: var(--gm-rare); }
+.gm-finds__note[data-rarity='legendary'] { --gm-tone: var(--gm-legendary); }
+.gm-finds__note[data-rarity='gem'] { --gm-tone: var(--gm-gem); }
+.gm-banner {
+  padding: 14px 16px; border-radius: 10px; background: #3a2a17; border: 1px solid #6b4d27; color: var(--gm-text);
+}
+.gm-finds__item > .gm-small { flex: 0 0 auto; white-space: nowrap; }
 .gm-finds__label { flex: 1 1 auto; min-width: 0; }

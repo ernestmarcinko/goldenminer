@@ -23,6 +23,13 @@ export function OfflineSummary({ summary, onClose }: { summary: Summary; onClose
         {summary.elapsedMs > summary.capMs && (
           <p>You were away longer than {formatDuration(summary.capMs)}, so only that much counted.</p>
         )}
+        {(summary.items.kept > 0 || summary.items.sold > 0 || summary.items.salvaged > 0) && (
+          <p>
+            Items: {formatNumber(summary.items.kept)} kept · {formatNumber(summary.items.sold)} sold ·{' '}
+            {formatNumber(summary.items.salvaged)} salvaged
+          </p>
+        )}
+        {summary.stoppedFull && <p>Digging stopped because your bags and the stash were full.</p>}
         {finds.length > 0 && (
           <ul className="gm-dialog__list">
             {finds.map((k) => (

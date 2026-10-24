@@ -12,6 +12,11 @@ export function MineView({ store }: { store: GameStore }) {
   const pct = Math.round(Math.min(1, Math.max(0, inGallery ? state.galleryProgress : state.progress)) * 100);
   return (
     <div className="gm-mine">
+      {state.overflow.length > 0 && (
+        <div role="status" className="gm-banner">
+          Your bags and the stash are full, so digging has stopped. Sell, salvage or stash something to carry on.
+        </div>
+      )}
       <div className="gm-mine__top">
         <section aria-label="The mine" className="gm-mine__scene">
           <MineScene store={store} />
