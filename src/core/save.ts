@@ -165,13 +165,18 @@ export const MIGRATIONS: Record<number, Migration> = {
     };
     const wornOf = (worn: Record<string, unknown>) =>
       Object.fromEntries(Object.entries(worn).map(([slot, item]) => [slot, tiered(item)]));
-    const next = {
+    const next: Record<string, unknown> = {
       ...state,
       bag: state.bag.map(tiered),
       stash: { ...state.stash, general: state.stash.general.map(tiered) },
       equipped: { ...state.equipped, mining: wornOf(state.equipped.mining), battle: wornOf(state.equipped.battle) },
       overflow: state.overflow.map(tiered),
     };
+    // A run in progress starts its life-regeneration carry empty.
+    const { activity } = state;
+    if (isObject(activity) && activity.kind === 'map' && isObject(activity.run)) {
+      next.activity = { ...activity, run: { ...activity.run, regenCarry: 0 } };
+    }
     return malformed ? state : next;
   },
 };
@@ -475,7 +480,8 @@ function isMapRun(x: unknown, seed: number, nextId: number, seen: Set<number>): 
   const tier = isObject(x.map) && typeof x.map.tier === 'number' ? x.map.tier : 1;
   if (!Array.isArray(queue) || queue.length < 1 || queue.length > MONSTER_BUDGET || !queue.every((m) => isMonster(m, tier))) return false;
   if ((queue[0].rank === 'boss') !== (room === bossRoom)) return false;
-  if (!isNonNegInt(x.life) || x.life < 1 || x.life > MAX_LIFE || !isUnitRange(x.hitCarry) || !isUnitRange(x.monsterCarry)) return false;
+  if (!isNonNegInt(x.life) || x.life < 1 || x.life > MAX_LIFE) return false;
+  if (!isUnitRange(x.hitCarry) || !isUnitRange(x.monsterCarry) || !isUnitRange(x.regenCarry)) return false;
   if (!isGains(x.gained) || !isNonNegInt(x.items)) return false;
   if (!Array.isArray(x.log) || x.log.length > COMBAT_LOG_LIMIT || !x.log.every(isCombatLine)) return false;
   return Array.isArray(x.loot) && x.loot.length <= RUN_LOOT_LIMIT && x.loot.every(isLootNote);

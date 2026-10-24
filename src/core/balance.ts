@@ -209,6 +209,9 @@ export const MATERIAL_TABLE: Readonly<Record<Material, { from: number; weight: n
   voidCrystal: { from: 1000, weight: 1, amount: 1 },
 };
 export const MATERIAL_VEIN_CHANCE = 0.3;
+// Ore find: each 100 % of it gives ORE_BONUS_BASE chance of a bonus material vein on a metre the seed left empty.
+export const ORE_BONUS_BASE = 0.3;
+export const MAX_ORE_BONUS_CHANCE = 0.6;
 export const MATERIAL_RAMP_METRES = 500;
 export const MATERIAL_RAMP_CAP = 3;
 export const LAYER_SALT = 0x1a7e2;

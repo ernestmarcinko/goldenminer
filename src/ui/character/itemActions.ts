@@ -3,9 +3,9 @@ import { firstEmpty, itemAt } from '../../core/cells';
 import { MATERIAL_LABELS } from '../../core/itemData';
 import { BATTLE_SLOTS, isGear, MATERIALS, MINING_SLOTS, setOfSlot } from '../../core/items';
 import type { GearItem, GemItem, Item, MaterialItem } from '../../core/items';
-import { salvageYield, sellValue } from '../../core/loot';
-import { gemEffect } from '../../core/stats';
-import type { GameState, InvResult, ItemLoc } from '../../core/types';
+import { salvagePay, sellPay } from '../../core/loot';
+import { deriveStats, gemEffect } from '../../core/stats';
+import type { GameState, InvResult, ItemLoc, Stats } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
 import { formatNumber } from '../format';
 import type { ClickIntent } from './itemView';
@@ -56,8 +56,8 @@ function bagTakesMaterial(state: GameState, item: MaterialItem): boolean {
 }
 
 /** What salvage gives, in material order: "+3 Copper ore, +2 Tin ore". */
-function yieldText(item: Item): string {
-  const y = salvageYield(item);
+function yieldText(item: Item, stats: Stats): string {
+  const y = salvagePay(item, stats);
   return MATERIALS.flatMap((m) => {
     const n = y[m];
     return n === undefined || n <= 0 ? [] : [`+${formatNumber(n)} ${MATERIAL_LABELS[m]}`];
@@ -96,11 +96,12 @@ export function itemActions(state: GameState, target: ItemTarget): ActionSpec[] 
     ];
   }
   const all = target.where === 'gems';
+  const stats = deriveStats(state);   // the labels show what sell bonus and salvage yield will pay
   const sell: ActionSpec = {
-    id: 'sell', label: `Sell${all ? ' all' : ''} (+${formatNumber(sellValue(item))} Gold)`, disabled: false,
+    id: 'sell', label: `Sell${all ? ' all' : ''} (+${formatNumber(sellPay(item, stats))} Gold)`, disabled: false,
   };
   const salvage: ActionSpec = {
-    id: 'salvage', label: `Salvage${all ? ' all' : ''} (${yieldText(item)})`, disabled: false,
+    id: 'salvage', label: `Salvage${all ? ' all' : ''} (${yieldText(item, stats)})`, disabled: false,
   };
   if (item.type === 'gem' && target.where === 'gems') {
     const take: ActionSpec = {

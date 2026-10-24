@@ -20,7 +20,7 @@ import { deriveStats } from '../../src/core/stats';
 import { tierFor, tierRange } from '../../src/core/tiers';
 import { MOD_SIDE } from '../../src/core/items';
 import type { Cell, GemGrade, GemType, MapItem, ModLine } from '../../src/core/items';
-import type { BagFullMode, ChampionMod, FindRecord, GameState, LootAction, RunOutcome } from '../../src/core/types';
+import type { BagFullMode, ChampionMod, FindRecord, GameState, LootAction, MapRun, RunOutcome } from '../../src/core/types';
 import { gear, gem } from '../helpers/items';
 
 const raw = (env: unknown) => compressToBase64(JSON.stringify(env));
@@ -343,7 +343,7 @@ function running(): GameState {
   const s = newGame(1, 0);
   const map = looseMap(s, 2, 2);
   s.activity = { kind: 'map', run: {
-    map, room: 1, bossRoom: 6, life: 40, hitCarry: 0, monsterCarry: 0, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [], items: 0,
+    map, room: 1, bossRoom: 6, life: 40, hitCarry: 0, monsterCarry: 0, regenCarry: 0, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [], items: 0,
     queue: [{ name: 'Mud Slime', species: 1, rank: 'normal', mods: [], extra: 7, element: 'elemental', life: 30, maxLife: 37, damage: 4, intervalS: 2, xp: 28 }],
   } };
   return s;
@@ -379,6 +379,8 @@ it('rejects impossible maps, runs and levels', () => {
     ['a negative item count', (s) => { const r = run(s); if (r) r.items = -1; }],
     ['no item count', (s) => { const r = run(s); if (r) delete (r as Partial<typeof r>).items; }],
     ['a whole hit carried', (s) => { const r = run(s); if (r) r.hitCarry = 1; }],
+    ['a whole life regenerated and carried', (s) => { const r = run(s); if (r) r.regenCarry = 1; }],
+    ['no regeneration carry', (s) => { const r = run(s); if (r) delete (r as Partial<typeof r>).regenCarry; }],
     ['a map id reused in the stash', (s) => { const r = run(s); if (r) s.stash.maps[3] = { ...r.map }; }],
     ['an unknown outcome', (s) => { const m = looseMap(s, 1, 2); s.lastRun = { map: m, outcome: 'won' as RunOutcome, room: 6, bossRoom: 6, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, items: 0, seen: false }; }],
     ['a Maps tab of 61 cells', (s) => { s.stash.maps.push(null); }],
@@ -611,4 +613,13 @@ it('a schema-6 line whose value is far above its item level keeps the value, at 
   if (!r.ok) throw new Error(`rejected: ${r.reason}`);
   const after = [...r.state.bag, ...r.state.stash.general].find((c) => c?.id === item.id);
   expect(after?.type === 'gear' && after.affixes[0]).toEqual({ stat: line.stat, value: line.value, tier: item.ilvl + MAX_TIER_OVER_CAP });
+});
+
+it('a schema-6 run in progress loads with an empty life-regeneration carry', () => {
+  const s = running();
+  if (s.activity.kind !== 'map') throw new Error('no run');
+  delete (s.activity.run as Partial<MapRun>).regenCarry;
+  const r = decodeSave(raw({ schema: 6, savedAt: 0, state: s }));
+  if (!r.ok) throw new Error(`rejected: ${r.reason}`);
+  expect(r.state.activity.kind === 'map' && r.state.activity.run.regenCarry).toBe(0);
 });

@@ -27,6 +27,8 @@ Chests and gems drop mining and battle gear. One bag of 60 cells holds every ite
 
 Gear now has up to 3 prefixes and 3 suffixes. A magic item has one or two lines, at most one of each, and a rare item four to six. Every line has a tier, shown on the item's card as T1, T2 and so on, and deeper finds can roll higher tiers without limit, though the low tiers stay the likeliest.
 
+The newer modifiers work like this. On mining gear, percent dig power multiplies all your dig power. Vein yield adds to every vein: Gold, Diamonds and ore. Ore find gives a chance of a bonus ore vein on metres that hold nothing else, a 30 % chance at +100 % and at most 60 %. Sell bonus and salvage yield raise what selling and salvaging pay. On battle gear, elemental damage adds to every hit, and Armored monsters don't soften it. Critical damage raises the 1.5× critical multiplier. Percent life and percent armor multiply your life and armor. Life per second heals you in maps, life per kill heals you on each kill, and XP raises the XP that kills give.
+
 Salvage gives crafting materials (Copper and Tin ore, and more for better items) instead of Diamonds. Materials stack 50 to a bag cell and up to a million in the Materials tab of the stash. A material you find tops up its stack in your bag, and opens a new one only when you carry none, so the rest goes straight to the Materials tab and idle digging never fills the bag with ore.
 
 ## Worlds

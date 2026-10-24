@@ -3,7 +3,7 @@ import { firstEmpty, itemAt, sameLoc } from './cells';
 import { isGear, isMap, isStack, setOfSlot } from './items';
 import type { Cell, GearItem, GemItem, Item, Slot, Stack } from './items';
 import { fillAhead } from './metres';
-import { salvageYield, sellValue, stashMaterials } from './loot';
+import { salvagePay, sellPay, stashMaterials } from './loot';
 import { deriveStats } from './stats';
 import type { DropTarget, GameState, InvResult, ItemLoc } from './types';
 
@@ -226,14 +226,14 @@ function discard(state: GameState, from: ItemLoc): GearItem | GemItem | undefine
 export function sell(state: GameState, from: ItemLoc): InvResult {
   const item = discard(state, from);
   if (item === undefined) return 'invalid';
-  state.gold += sellValue(item);
+  state.gold += sellPay(item, deriveStats(state));
   return 'ok';
 }
 
 export function salvage(state: GameState, from: ItemLoc): InvResult {
   const item = discard(state, from);
   if (item === undefined) return 'invalid';
-  stashMaterials(state, salvageYield(item));
+  stashMaterials(state, salvagePay(item, deriveStats(state)));
   return 'ok';
 }
 

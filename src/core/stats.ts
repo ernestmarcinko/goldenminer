@@ -2,6 +2,7 @@ import {
   BASE_AUTO_TICKS_PER_SECOND, BASE_DIG_POWER, BASE_FEATURE_CHANCES, BASE_HARD_ROCK_CHANCE,
   BASE_LAMP_SIGHT, BASE_OFFLINE_CAP_MS, BASE_TICKS_PER_CLICK, FEATURE_CHANCE_TOTAL_CAP, MAX_LAMP_SIGHT, MAX_HAZARD_WARD,
   GEM_GRADE_LEVEL, MAX_AUTO_TICKS_PER_SECOND, MIN_AUTO_TICKS_PER_SECOND, MAX_DIG_POWER, MAX_OFFLINE_CAP_MS, MAX_TICKS_PER_CLICK, MIN_OFFLINE_CAP_MS,
+  MAX_ORE_BONUS_CHANCE, ORE_BONUS_BASE,
 } from './balance';
 import { BATTLE_STATS, MINING_STATS, setOfSlot } from './items';
 import type { Gem, GearItem, GearSet, StatKey, StatLine } from './items';
@@ -64,7 +65,7 @@ export function deriveStats(state: GameState): Stats {
     bonusChances.map *= scale;
   }
   return {
-    digPower: clamp(BASE_DIG_POWER + g.digPower, 1, MAX_DIG_POWER),
+    digPower: clamp((BASE_DIG_POWER + g.digPower) * pct(g.digPowerPct), 1, MAX_DIG_POWER),
     autoTicksPerSecond: Math.min(MAX_AUTO_TICKS_PER_SECOND, Math.max(MIN_AUTO_TICKS_PER_SECOND, BASE_AUTO_TICKS_PER_SECOND * pct(g.autoTickRate))),
     ticksPerClick: clamp(BASE_TICKS_PER_CLICK + g.ticksPerClick, 1, MAX_TICKS_PER_CLICK),
     lampSight: clamp(BASE_LAMP_SIGHT + g.lampSight, 0, MAX_LAMP_SIGHT),
@@ -75,5 +76,9 @@ export function deriveStats(state: GameState): Stats {
     diamondMultiplier: pct(g.diamondYield),
     hazardWard: clamp(g.hazardWard, 0, MAX_HAZARD_WARD),
     bonusChances,
+    veinMultiplier: pct(g.veinYield),
+    oreBonusChance: clamp(ORE_BONUS_BASE * g.oreFind / 100, 0, MAX_ORE_BONUS_CHANCE),
+    sellMultiplier: pct(g.sellBonus),
+    salvageMultiplier: pct(g.salvageYield),
   };
 }

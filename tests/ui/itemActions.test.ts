@@ -244,3 +244,12 @@ it('one bag: unequip and To bag need a free cell in it', () => {
   expect(itemActions(s, worn)[0]).toMatchObject({ id: 'unequip', disabled: true });
   expect(itemActions(s, general)[1]).toMatchObject({ id: 'toBag', disabled: true });
 });
+
+it('the sell and salvage labels show what sell bonus and salvage yield will pay', () => {
+  const s = newGame(1, 0);
+  s.equipped.mining.gloves = gear(s, 'gloves', { affixes: [{ stat: 'sellBonus', value: 50 }, { stat: 'salvageYield', value: 100 }] });
+  s.bag[0] = gear(s, 'pickaxe', { rarity: 'magic', ilvl: 4 });
+  expect(labels(itemActions(s, bag(0)))).toEqual([
+    ['equip', 'Equip'], ['sell', 'Sell (+72 Gold)'], ['salvage', 'Salvage (+4 Copper ore, +2 Tin ore)'], ['toStash', 'To stash'],
+  ]);
+});

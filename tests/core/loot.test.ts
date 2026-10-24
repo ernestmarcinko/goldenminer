@@ -3,7 +3,8 @@ import { LOOT_NOTES_KEPT } from '../../src/core/balance';
 import { filledCount } from '../../src/core/cells';
 import { applyTicks } from '../../src/core/dig';
 import { itemName } from '../../src/core/itemData';
-import { drainOverflow, lootAction, receiveItem, salvageYield, sellValue } from '../../src/core/loot';
+import { salvage, sell } from '../../src/core/inventory';
+import { drainOverflow, lootAction, receiveItem, salvagePay, salvageYield, sellPay, sellValue } from '../../src/core/loot';
 import { newGame } from '../../src/core/newGame';
 import { deriveStats } from '../../src/core/stats';
 import { summarize } from '../../src/core/summary';
@@ -269,4 +270,59 @@ it('sell-the-worst never sells a gem stack', () => {
   s.bag[7] = n;
   receiveItem(s, gear(s, 'gloves', { rarity: 'magic' }));
   expect(s.bag[7]).toMatchObject({ slot: 'gloves' });
+});
+
+/** A fresh state wearing gloves of `stat`. */
+function wearing(stat: 'sellBonus' | 'salvageYield', value: number): GameState {
+  const s = newGame(1, 0);
+  s.equipped.mining.gloves = gear(s, 'gloves', { affixes: [{ stat, value }] });
+  return s;
+}
+
+it('sell bonus raises what selling pays, by hand and by the loot filter', () => {
+  const s = wearing('sellBonus', 50);
+  const boots = gear(s, 'boots', { rarity: 'rare', ilvl: 5 });
+  expect(sellValue(boots)).toBe(150);
+  expect(sellPay(boots, deriveStats(s))).toBe(225);
+  s.bag[0] = boots;
+  expect(sell(s, { where: 'bag', index: 0 })).toBe('ok');
+  expect(s.gold).toBe(225);
+  s.settings.lootFilter = [{ rarity: 'rare', target: 'any', action: 'sell' }];
+  expect(receiveItem(s, gear(s, 'boots', { rarity: 'rare', ilvl: 5 }))).toEqual([expect.objectContaining({ outcome: 'sold', value: 225 })]);
+  expect(s.gold).toBe(450);
+});
+
+it('sell bonus raises sell-the-worst, held loot sold by the filter, and a found gem stack sold for want of room', () => {
+  const s = wearing('sellBonus', 50);
+  fill(s);
+  const pick = gear(s, 'pickaxe', { rarity: 'magic', ilvl: 5 });
+  expect(receiveItem(s, pick).map((n) => [n.outcome, n.value])).toEqual([['sold', 38], ['stash', 0]]);   // round(25 × 1.5)
+  expect(s.gold).toBe(38);
+
+  const held = wearing('sellBonus', 50);
+  held.settings.bagFull = 'stop';
+  fill(held);
+  receiveItem(held, gear(held, 'pickaxe', { rarity: 'normal', ilvl: 5 }));
+  held.settings.lootFilter = [{ rarity: 'normal', target: 'any', action: 'sell' }];
+  drainOverflow(held);
+  expect(held.gold).toBe(38);
+
+  const gems = wearing('sellBonus', 50);
+  gems.bag = gems.bag.map(() => gear(gems, 'boots'));
+  gems.stash.gems.emerald.tiny = 1_000_000;
+  expect(receiveItem(gems, gem(gems, 'emerald'))).toEqual([expect.objectContaining({ outcome: 'sold', value: 60 })]);
+  expect(gems.gold).toBe(60);
+});
+
+it('salvage yield raises each material salvage gives, rounded', () => {
+  const s = wearing('salvageYield', 100);
+  const ring = gear(s, 'ring', { rarity: 'rare', ilvl: 10 });
+  expect(salvagePay(ring, deriveStats(s))).toEqual({ copper: 18, tin: 12, iron: 6 });
+  expect(salvagePay(ring, deriveStats(wearing('salvageYield', 50)))).toEqual({ copper: 14, tin: 9, iron: 5 });   // 13.5, 9 and 4.5
+  s.bag[0] = ring;
+  expect(salvage(s, { where: 'bag', index: 0 })).toBe('ok');
+  expect([s.stash.materials.copper, s.stash.materials.tin, s.stash.materials.iron]).toEqual([18, 12, 6]);
+  s.settings.lootFilter = [{ rarity: 'rare', target: 'any', action: 'salvage' }];
+  expect(receiveItem(s, gear(s, 'ring', { rarity: 'rare', ilvl: 10 }))).toEqual([expect.objectContaining({ outcome: 'salvaged', value: 36 })]);
+  expect(s.stash.materials.copper).toBe(36);
 });
