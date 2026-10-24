@@ -95,3 +95,9 @@ export const RARE_FOURTH_AFFIX_CHANCE = 0.5;
 export const SOCKET_WEIGHTS: readonly number[] = [40, 35, 18, 7];
 export const CHEST_SECOND_ITEM_CHANCE = 0.2;
 export const CHEST_BATTLE_CHANCE = 0.2;
+
+export const SELL_GOLD: Readonly<Record<Rarity, number>> = { normal: 5, magic: 12, rare: 30, legendary: 80 };
+export const GEM_SELL_GOLD = 20;
+export const SALVAGE_DIAMONDS: Readonly<Record<Rarity, number>> = { normal: 1, magic: 2, rare: 4, legendary: 10 };
+export const GEM_SALVAGE_DIAMONDS = 2;
+export const LOOT_NOTES_KEPT = 30;

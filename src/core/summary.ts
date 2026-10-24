@@ -11,5 +11,11 @@ export function summarize(before: GameState, after: GameState, elapsedMs: number
     diamonds: after.diamonds - before.diamonds,
     metres: after.deepest - before.deepest,
     finds,
+    items: {
+      kept: after.lootTally.kept - before.lootTally.kept,
+      sold: after.lootTally.sold - before.lootTally.sold,
+      salvaged: after.lootTally.salvaged - before.lootTally.salvaged,
+    },
+    stoppedFull: after.overflow.length > 0,
   };
 }

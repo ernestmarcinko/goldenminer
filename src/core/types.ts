@@ -46,4 +46,6 @@ export type TickEvent =
 export interface OfflineSummary {
   elapsedMs: number; ticks: number; gold: number; diamonds: number; metres: number; capMs: number;
   finds: Record<FeatureKind, number>;
+  items: { kept: number; sold: number; salvaged: number };
+  stoppedFull: boolean;
 }
