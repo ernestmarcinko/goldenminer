@@ -100,6 +100,7 @@ function stowGear(state: GameState, item: GearItem, bagSet: GearSet): LootNote[]
 
 // A found gem is one gem: it tops up a bag stack, takes an empty cell, else joins the Gems tab, else is sold.
 function stowGem(state: GameState, gem: GemItem, bag: Cell[]): LootNote[] {
+  if (gem.count !== 1) throw new Error('stowGem takes one gem at a time');
   const stack = bag.find(
     (c): c is GemItem => c?.type === 'gem' && c.gem === gem.gem && c.grade === gem.grade && c.count < GEM_BAG_STACK,
   );

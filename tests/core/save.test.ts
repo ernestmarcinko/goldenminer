@@ -117,7 +117,7 @@ it('rejects impossible inventories', () => {
     ['a whole Gold left in the carry', (s) => { s.goldCarry = 1; }],
     ['held loot for the wrong bag', (s) => { s.overflow.push({ bag: 'mining', item: gear(s, 'ring') }); }],
     ['11 held items', (s) => { for (let i = 0; i < MAX_OVERFLOW + 1; i++) s.overflow.push({ bag: 'mining', item: gear(s, 'pickaxe') }); }],
-    ['a held gem', (s) => { s.overflow.push({ bag: 'mining', item: gem(s) as never }); }],
+    ['a held gem', (s) => { s.overflow.push({ bag: 'battle', item: gem(s) as never }); }],
   ];
   for (const [name, mutate] of cases) {
     const s = stocked();
@@ -187,6 +187,39 @@ it('migration keeps every gem and every gear id', () => {
     + Object.values(st.stash.gems).reduce((n, g) => n + Object.values(g).reduce((a, b) => a + b, 0), 0)
     + Object.values(st.equipped.mining).reduce((n, it) => n + (it?.gems.length ?? 0), 0);
   expect(total(r.state)).toBe(25);   // the old save holds 15 bag gems, 9 stash gems and 1 socketed gem
+});
+
+it('migration keeps every gear id', () => {
+  const r = decodeSave(fixture3.trim());
+  if (!r.ok) throw new Error(r.reason);
+  const old = JSON.parse(decompressFromBase64(fixture3.trim())).state;
+  type OldItem = { id: number; type: string; gems?: unknown[] } | null;
+  const oldGear = (list: OldItem[]) => list.filter((i): i is NonNullable<OldItem> => i !== null && i.type === 'gear');
+  const oldAll = [
+    ...oldGear(old.bags.mining), ...oldGear(old.bags.battle), ...oldGear(old.stash),
+    ...oldGear(old.overflow.map((o: { item: OldItem }) => o.item)),
+    ...oldGear([...Object.values(old.equipped.mining), ...Object.values(old.equipped.battle)] as OldItem[]),
+  ];
+  const st = r.state;
+  const newAll = [
+    ...st.bags.mining, ...st.bags.battle, ...st.stash.general, ...st.overflow.map((o) => o.item),
+    ...Object.values(st.equipped.mining), ...Object.values(st.equipped.battle),
+  ].filter((i) => i != null && i.type === 'gear');
+  const ids = (list: { id: number }[]) => list.map((i) => i.id).sort((a, b) => a - b);
+  expect(ids(newAll)).toEqual(ids(oldAll));
+  expect(newAll).toHaveLength(17);
+  const equippedGems = (equipped: Record<string, { gems?: unknown[] } | undefined>[]) =>
+    equipped.flatMap((set) => Object.values(set)).reduce((n, it) => n + (it?.gems?.length ?? 0), 0);
+  expect(equippedGems([st.equipped.mining, st.equipped.battle])).toBe(equippedGems([old.equipped.mining, old.equipped.battle]));
+  const socketed = (list: { gems?: unknown[] }[]) => list.reduce((n, it) => n + (it.gems?.length ?? 0), 0);
+  expect(socketed(newAll as { gems?: unknown[] }[])).toBe(socketed(oldAll));
+});
+
+it('a schema-3 bag gem with an impossible item level is rejected', () => {
+  const env = JSON.parse(decompressFromBase64(fixture3.trim()));
+  const gemCell = env.state.bags.mining.find((i: { type: string }) => i.type === 'gem');
+  gemCell.ilvl = 0;
+  expect(decodeSave(raw(env))).toEqual({ ok: false, reason: 'invalid' });
 });
 
 it('old held gems reach the Gems tab, and 24 identical gems become one stack', () => {

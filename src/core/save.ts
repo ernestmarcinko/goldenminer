@@ -93,7 +93,7 @@ export const MIGRATIONS: Record<number, Migration> = {
 
 interface OldGem { id: number; type: 'gem'; gem: GemType; ilvl: number }
 const isOldGem = (x: unknown): x is OldGem =>
-  isObject(x) && x.type === 'gem' && isIn(GEM_TYPES, x.gem) && typeof x.ilvl === 'number';
+  isObject(x) && x.type === 'gem' && isIn(GEM_TYPES, x.gem) && isItemLevel(x.ilvl);
 // Schema-3 socketed gems were whole items; schema 4 keeps only the type and grade.
 function withSocketed(item: unknown): unknown {
   if (!isObject(item) || !Array.isArray(item.gems)) return item;

@@ -218,6 +218,18 @@ it('found gems stack in the bag, then go to the Gems tab, and never wait', () =>
   expect(s.overflow).toEqual([]);
 });
 
+it('sell-the-worst skips single gems even when they rank below the new item', () => {
+  const s = newGame(1, 0);
+  const gems = s.bags.mining.map(() => gem(s, 'ruby'));
+  s.bags.mining = [...gems];
+  s.stash.general = s.stash.general.map(() => gear(s, 'pickaxe', { rarity: 'legendary' }));
+  s.settings.bagFull = 'sellWorst';
+  const notes = receiveItem(s, gear(s, 'boots', { rarity: 'rare' }), 'mining');
+  expect(notes).toEqual([expect.objectContaining({ outcome: 'sold' })]);
+  expect(s.bags.mining).toEqual(gems);
+  expect(s.bags.mining.every((c) => c?.type === 'gem' && c.count === 1)).toBe(true);
+});
+
 it('sell-the-worst never sells a gem stack', () => {
   const s = newGame(1, 0);
   s.bags.mining = s.bags.mining.map(() => gem(s, 'ruby', { count: 25 }));
