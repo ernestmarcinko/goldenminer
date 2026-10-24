@@ -17,6 +17,13 @@
   --gm-gem: #7fd3e8;
   --gm-up: #6fcf97;
   --gm-down: #ff8a7a;
+  --gm-soul: #b39cff;
+  --gm-soul-bright: #e6deff;
+  --gm-life: #6fcf97;
+  --gm-enemy-life: #e2604f;
+  --gm-badge-bg: #d6c9ff;
+  --gm-badge-fg: #2c2440;
+  --gm-soul-panel: #2a2338;
 
   --gm-font-display: 'Metamorphous', serif;
   --gm-font-ui: 'Alegreya Sans', system-ui, sans-serif;

@@ -17,6 +17,12 @@
 .gm-pill__value { font-family: var(--gm-font-mono); }
 .gm-pill__value--gold { color: var(--gm-gold); }
 .gm-pill__value--diamond { color: var(--gm-diamond); }
+.gm-pill__value--soul { color: var(--gm-soul); }
+.gm-header__level { display: flex; flex-direction: column; gap: 4px; min-width: 220px; flex: 1 1 220px; max-width: 320px; }
+.gm-header__level-text { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.gm-header__xpbar { height: 8px; border-radius: 4px; background: #2e2722; overflow: hidden; }
+.gm-header__xpfill { height: 8px; background: var(--gm-life); }
+.gm-header__paused { font-size: 13px; }
 .gm-header__depth { margin-left: auto; text-align: right; }
 .gm-header__settings {
   min-height: 44px; min-width: 44px; padding: 8px 16px; box-sizing: border-box; cursor: pointer; font: inherit;
@@ -74,5 +80,6 @@
 .gm-banner {
   padding: 14px 16px; border-radius: 10px; background: #3a2a17; border: 1px solid #6b4d27; color: var(--gm-text);
 }
+.gm-banner--run { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
 .gm-finds__item > .gm-small { flex: 0 0 auto; white-space: nowrap; }
 .gm-finds__label { flex: 1 1 auto; min-width: 0; }

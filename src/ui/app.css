@@ -6,6 +6,18 @@
 .gm-app__play { flex: 999 1 640px; min-width: 0; }
 .gm-app__side { flex: 1 1 420px; max-width: 480px; min-width: 0; }
 
+.gm-nav {
+  display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 24px; background: var(--gm-header); border-bottom: 1px solid var(--gm-line);
+}
+.gm-nav__tab {
+  min-height: 44px; min-width: 44px; padding: 0 16px; box-sizing: border-box; cursor: pointer; border-radius: 8px;
+  border: 1px solid transparent; background: transparent; color: var(--gm-text); font: inherit;
+}
+.gm-nav__tab:hover { border-color: var(--gm-line); }
+.gm-nav__tab:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
+.gm-nav__tab[aria-pressed='true'] { background: #2e2617; border-color: var(--gm-gold); color: var(--gm-gold-bright); font-weight: 600; }
+.gm-nav__tab--maps[aria-pressed='true'] { background: var(--gm-soul-panel); border-color: var(--gm-soul); color: var(--gm-soul-bright); }
+
 .gm-btn {
   min-height: 44px; min-width: 44px; padding: 8px 16px; box-sizing: border-box; cursor: pointer;
   border-radius: 8px; border: 1px solid var(--gm-line); background: var(--gm-panel-raised);
@@ -57,6 +69,7 @@
 @media (max-width: 600px) {
   .gm-app__main { padding: 12px 12px 24px; }
   .gm-notice { padding: 10px 12px; flex-wrap: wrap; }
+  .gm-nav { padding: 8px 12px; }
 }
 
 /* appears and goes without animating; bottom-centre, so it clears the header and the character panel at the right */

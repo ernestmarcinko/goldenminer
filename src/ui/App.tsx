@@ -1,10 +1,12 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { GameStore } from '../store/gameStore';
 import type { TabLock } from '../store/tabLock';
 import { startGame, type GameLoop } from './gameLoop';
 import { CharacterPanel } from './character/CharacterPanel';
 import { Header } from './Header';
+import { MapsView } from './maps/MapsView';
 import { MineView } from './mine/MineView';
+import { Nav, type View } from './Nav';
 import { Notices } from './Notices';
 import { OfflineSummary } from './OfflineSummary';
 import { SettingsDialog } from './settings/SettingsDialog';
@@ -47,13 +49,31 @@ export function App({ store, lock }: { store: GameStore; lock: TabLock }) {
 
 function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: () => void) => boolean }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const { offlineSummary } = useGame(store);
+  const { offlineSummary, state } = useGame(store);
+  const running = state.activity.kind === 'map';
+  const [view, setView] = useState<View>(running ? 'maps' : 'mine');
+  // starting a run, from the Maps view or the stash, brings the player to the map
+  const wasRunning = useRef(running);
+  useEffect(() => {
+    if (running && !wasRunning.current) setView('maps');
+    wasRunning.current = running;
+  }, [running]);
   return (
     <div className="gm-app">
       <Header store={store} onOpenSettings={() => setSettingsOpen(true)} />
+      <Nav store={store} view={view} onView={setView} />
       <Notices store={store} />
       <main className="gm-app__main">
-        <div className="gm-app__play"><MineView store={store} /></div>
+        <div className="gm-app__play">
+          {view === 'mine' ? (
+            <MineView store={store} onBackToMap={() => setView('maps')} />
+          ) : running ? (
+            // the run screen arrives in Task 9
+            <section aria-label="Map run"><h2>Run in progress</h2></section>
+          ) : (
+            <MapsView store={store} />
+          )}
+        </div>
         <div className="gm-app__side"><CharacterPanel store={store} /></div>
       </main>
       <Toast store={store} />
