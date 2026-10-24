@@ -9,6 +9,7 @@ import { Notices } from './Notices';
 import { OfflineSummary } from './OfflineSummary';
 import { SettingsDialog } from './settings/SettingsDialog';
 import { TabBlocked } from './TabBlocked';
+import { Toast } from './Toast';
 import { useGame } from './useGame';
 
 export function App({ store, lock }: { store: GameStore; lock: TabLock }) {
@@ -55,8 +56,10 @@ function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: ()
         <div className="gm-app__play"><MineView store={store} /></div>
         <div className="gm-app__side"><CharacterPanel store={store} /></div>
       </main>
-      {offlineSummary && <OfflineSummary summary={offlineSummary} onClose={() => store.dismissSummary()} />}
+      <Toast store={store} />
+      {/* last, so it paints over Settings just as it sits on top of the dialog stack (an import can raise it there) */}
       {settingsOpen && <SettingsDialog store={store} runAsOwner={runAsOwner} onClose={() => setSettingsOpen(false)} />}
+      {offlineSummary && <OfflineSummary summary={offlineSummary} onClose={() => store.dismissSummary()} />}
     </div>
   );
 }

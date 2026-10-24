@@ -7,6 +7,7 @@ export const MINING_STATS = ['digPower', 'goldYield', 'diamondYield', 'chestFind
 export const BATTLE_STATS = ['damage', 'damagePct', 'attackSpeed', 'life', 'armor', 'critChance',
   'resistAll', 'soulFind', 'magicFind'] as const;
 export const GEM_TYPES = ['ruby', 'sapphire', 'emerald', 'amethyst', 'starstone'] as const;
+export const GEM_GRADES = ['tiny', 'small', 'big', 'giant', 'perfect'] as const;
 
 export type Rarity = (typeof RARITIES)[number];
 export type GearSet = (typeof GEAR_SETS)[number];
@@ -17,14 +18,17 @@ export type MiningStat = (typeof MINING_STATS)[number];
 export type BattleStat = (typeof BATTLE_STATS)[number];
 export type StatKey = MiningStat | BattleStat;
 export type GemType = (typeof GEM_TYPES)[number];
+export type GemGrade = (typeof GEM_GRADES)[number];
 
 export interface StatLine { stat: StatKey; value: number }
-export interface GemItem { id: number; type: 'gem'; gem: GemType; ilvl: number }
+export interface Gem { gem: GemType; grade: GemGrade }
+export interface GemItem extends Gem { id: number; type: 'gem'; count: number }
 export interface GearItem {
   id: number; type: 'gear'; slot: Slot; name: string; rarity: Rarity; ilvl: number;
-  implicit: StatLine; affixes: StatLine[]; sockets: number; gems: GemItem[]; uniqueId?: string;
+  implicit: StatLine; affixes: StatLine[]; sockets: number; gems: Gem[]; uniqueId?: string;
 }
 export type Item = GearItem | GemItem;
+export type Cell = Item | null;
 
 export const SLOT_IMPLICIT: Readonly<Record<Slot, StatKey>> = {
   pickaxe: 'digPower', lamp: 'lampSight', gloves: 'goldYield', boots: 'offlineCap',

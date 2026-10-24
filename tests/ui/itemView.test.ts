@@ -17,24 +17,26 @@ it('kind lines', () => {
   const s = newGame(1, 0);
   expect(itemKindLine(gear(s, 'pickaxe', { rarity: 'rare', ilvl: 4, sockets: 2, gems: [gem(s)] }))).toBe('Rare pickaxe · item level 4 · 1/2 sockets');
   expect(itemKindLine(gear(s, 'lamp', { rarity: 'normal', ilvl: 1 }))).toBe('Normal lamp helm · item level 1');
-  expect(itemKindLine(gem(s, 'ruby', { ilvl: 5 }))).toBe('Gem · item level 5 · socket into any gear');
+  expect(itemKindLine(gem(s, 'ruby', { grade: 'small' }))).toBe('Gem · Small · socket into any gear');
+  expect(itemKindLine(gem(s, 'ruby', { grade: 'small', count: 12 }))).toBe('Gem · Small · socket into any gear · 12 in this stack');
+  expect(itemKindLine(gem(s, 'ruby', { grade: 'small', count: 1234 }))).toBe('Gem · Small · socket into any gear · 1,234 in this stack');
 });
 
 it('item lines list the implicit, affixes, gems and empty sockets', () => {
   const s = newGame(1, 0);
   const item = gear(s, 'pickaxe', {
     implicit: { stat: 'digPower', value: 8 }, affixes: [{ stat: 'chestFind', value: -10 }],
-    sockets: 2, gems: [gem(s, 'ruby', { ilvl: 4 })],
+    sockets: 2, gems: [gem(s, 'ruby', { grade: 'small' })],
   });
   expect(itemLines(item)).toEqual([
     { text: '+8 dig power', tone: 'plain' },
     { text: '−10% chest find', tone: 'down' },
-    { text: 'Small Ruby: +12% Gold yield', tone: 'gem' },
+    { text: 'Small Ruby: +14% Gold yield', tone: 'gem' },
     { text: '1 empty socket', tone: 'muted' },
   ]);
-  expect(itemLines(gem(s, 'ruby', { ilvl: 4 }))).toEqual([
-    { text: 'In mining gear: +12% Gold yield', tone: 'plain' },
-    { text: 'In battle gear: +8% damage', tone: 'plain' },
+  expect(itemLines(gem(s, 'ruby', { grade: 'small' }))).toEqual([
+    { text: 'In mining gear: +14% Gold yield', tone: 'plain' },
+    { text: 'In battle gear: +9% damage', tone: 'plain' },
   ]);
 });
 

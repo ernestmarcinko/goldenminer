@@ -1,17 +1,24 @@
 import { useRef } from 'react';
+import { sameLoc } from '../../core/cells';
 import { isGear } from '../../core/items';
-import type { Item } from '../../core/items';
+import type { Cell, Item } from '../../core/items';
 import { itemName } from '../../core/itemData';
 import { Sprite } from '../../sprites/Sprite';
+import { formatCompact, formatNumber } from '../format';
+import { clickRoute, dropAttr } from './dragDrop';
 import type { ItemTarget } from './itemActions';
-import { clickIntent, itemSprite, rarityOf } from './itemView';
+import { itemSprite, rarityOf } from './itemView';
 import type { ClickIntent } from './itemView';
+import type { ItemDrag } from './useItemDrag';
 
 export interface ItemHandlers {
+  drag: ItemDrag;
   onPick: (target: ItemTarget, intent: ClickIntent, el: HTMLElement) => void;
   onInspect: (target: ItemTarget, el: HTMLElement) => void;
   onClear: () => void;
   onMenu: (target: ItemTarget, el: HTMLElement) => void;
+  /** A touch tap lifted the item: its card opens below the grid. */
+  onLift: (target: ItemTarget, el: HTMLElement) => void;
 }
 
 const MAX_DOTS = 3;
@@ -25,45 +32,73 @@ function SocketDots({ item }: { item: Item }) {
   return <span className="gm-item__dots" aria-hidden="true">{dots}</span>;
 }
 
+/** The count on a gem stack; hidden from assistive tech because the button's label carries the exact number. */
+function StackCount({ item }: { item: Item }) {
+  if (isGear(item) || item.count <= 1) return null;
+  return <span className="gm-item__count" aria-hidden="true">{formatCompact(item.count)}</span>;
+}
+
 export function ItemButton({ item, target, handlers, scale, className, label }: {
   item: Item; target: ItemTarget; handlers: ItemHandlers; scale: number; className: string; label: string;
 }) {
   const pointerType = useRef('mouse');
+  const { drag } = handlers;
   return (
     <button
       type="button"
       className={className}
       data-rarity={rarityOf(item)}
-      aria-label={label}
-      onPointerDown={(e) => { pointerType.current = e.pointerType; }}
+      data-drop={dropAttr(target)}
+      data-held={drag.held !== null && sameLoc(drag.held, target) ? '' : undefined}
+      aria-label={isGear(item) || item.count <= 1 ? label : `${label}, ${formatNumber(item.count)}`}
+      onPointerDown={(e) => { pointerType.current = e.pointerType; drag.onPointerDown(target, e); }}
       onClick={(e) => {
-        const intent = clickIntent({
+        if (drag.consumeClick()) return;
+        const route = clickRoute({
           altKey: e.altKey, shiftKey: e.shiftKey, detail: e.detail, pointerType: pointerType.current,
-        });
-        handlers.onPick(target, intent, e.currentTarget);
+        }, drag.held !== null);
+        if (route.kind === 'pick') handlers.onPick(target, route.intent, e.currentTarget);
+        else if (drag.onTap(target, true) && route.kind === 'lift') handlers.onLift(target, e.currentTarget);
       }}
       onContextMenu={(e) => { e.preventDefault(); handlers.onMenu(target, e.currentTarget); }}
       onMouseEnter={(e) => { if (pointerType.current !== 'touch') handlers.onInspect(target, e.currentTarget); }}
       onMouseLeave={handlers.onClear}
-      onFocus={(e) => handlers.onInspect(target, e.currentTarget)}
+      // after a touch, focus coming back from the card shows no tooltip: it would cover cells and shift the page
+      onFocus={(e) => { if (pointerType.current !== 'touch') handlers.onInspect(target, e.currentTarget); }}
       onBlur={handlers.onClear}
     >
       <Sprite name={itemSprite(item)} scale={scale} />
       <SocketDots item={item} />
+      <StackCount item={item} />
     </button>
+  );
+}
+
+/** An empty cell or slot: a drop target that a touch tap can place the lifted item on. Not in the tab order. */
+export function EmptyTarget({ target, drag, className, label }: {
+  target: ItemTarget; drag: ItemDrag; className: string; label?: string;
+}) {
+  return (
+    <div
+      className={className}
+      data-drop={dropAttr(target)}
+      role={label !== undefined ? 'img' : undefined}
+      aria-label={label}
+      onClick={() => drag.onTap(target, false)}
+    />
   );
 }
 
 /** A fixed-size grid of item cells; `targetOf` says where cell `i` lives so any container can use it. */
 export function ItemGrid({ items, capacity, targetOf, handlers, className }: {
-  items: readonly Item[]; capacity: number; targetOf: (index: number) => ItemTarget; handlers: ItemHandlers;
+  items: readonly Cell[]; capacity: number; targetOf: (index: number) => ItemTarget; handlers: ItemHandlers;
   className?: string;
 }) {
   const cells = [];
   for (let i = 0; i < capacity; i++) {
     const item = items[i];
-    cells.push(item === undefined ? (
-      <div key={i} className="gm-cell gm-cell--empty" />
+    cells.push(item === undefined || item === null ? (
+      <EmptyTarget key={i} target={targetOf(i)} drag={handlers.drag} className="gm-cell gm-cell--empty" />
     ) : (
       <ItemButton
         key={i}

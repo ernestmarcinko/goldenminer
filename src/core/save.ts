@@ -1,11 +1,18 @@
 import { compressToBase64, decompressFromBase64 } from 'lz-string';
-import { BAG_SIZE, FINDS_LOG_LIMIT, MAX_AFFIXES, MAX_LOOT_RULES, MAX_OVERFLOW, MAX_SOCKETS, STASH_SIZE } from './balance';
-import { GEAR_SETS, GEM_TYPES, RARITIES, setOfSlot, slotsOf, statsOf } from './items';
-import type { GearItem, GearSet, Slot } from './items';
+import {
+  BAG_SIZE, FINDS_LOG_LIMIT, GEM_BAG_STACK, GEM_STASH_STACK, MAX_AFFIXES, MAX_LOOT_RULES, MAX_OVERFLOW, MAX_SOCKETS,
+  STASH_SIZE,
+} from './balance';
+import { emptyGemCounts } from './cells';
+import { gemGradeFor } from './itemData';
+import { GEAR_SETS, GEM_GRADES, GEM_TYPES, RARITIES, setOfSlot, slotsOf, statsOf } from './items';
+import type { Cell, GearItem, GearSet, GemItem, GemType, Item, Slot } from './items';
 import { isValidSeedText, seedFromText } from './seed';
-import { DEFAULT_MOTION, SHAFT_MOTIONS, type GameState } from './types';
+import {
+  BAG_FULL_MODES, DEFAULT_MOTION, FEATURE_KINDS, LOOT_ACTIONS, LOOT_OUTCOMES, SHAFT_MOTIONS, type GameState,
+} from './types';
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
@@ -39,9 +46,61 @@ export const MIGRATIONS: Record<number, Migration> = {
       settings: { ...state.settings, motion: { ...DEFAULT_MOTION } },
     };
   },
+  3: (state) => {
+    if (
+      !isObject(state) || !isObject(state.equipped) || !isObject(state.bags) || !Array.isArray(state.bags.mining) ||
+      !Array.isArray(state.bags.battle) || !Array.isArray(state.stash) || !Array.isArray(state.overflow)
+    ) return state;
+    const tab = emptyGemCounts();
+    const toTab = (g: OldGem): void => { tab[g.gem][gemGradeFor(g.ilvl)] += 1; };
+    // Identical bag gems merge into stacks at the first one's place; the gaps close, then the grid is padded.
+    const bagOf = (old: unknown[]): unknown[] => {
+      const cells: unknown[] = [];
+      for (const item of old) {
+        if (!isOldGem(item)) { cells.push(withSocketed(item)); continue; }
+        const grade = gemGradeFor(item.ilvl);
+        const stack = cells.find(
+          (c): c is GemItem =>
+            isObject(c) && c.type === 'gem' && c.gem === item.gem && c.grade === grade && isNonNegInt(c.count) &&
+            c.count < GEM_BAG_STACK,
+        );
+        if (stack) stack.count += 1;
+        else cells.push({ id: item.id, type: 'gem', gem: item.gem, grade, count: 1 });
+      }
+      return padCells(cells, BAG_SIZE);
+    };
+    const general: unknown[] = [];
+    for (const item of state.stash) {
+      if (isOldGem(item)) toTab(item);
+      else general.push(withSocketed(item));
+    }
+    const overflow: unknown[] = [];
+    for (const held of state.overflow) {
+      if (isObject(held) && isOldGem(held.item)) toTab(held.item);
+      else overflow.push(isObject(held) ? { ...held, item: withSocketed(held.item) } : held);
+    }
+    const wornOf = (worn: unknown): unknown =>
+      isObject(worn) ? Object.fromEntries(Object.entries(worn).map(([slot, item]) => [slot, withSocketed(item)])) : worn;
+    return {
+      ...state,
+      equipped: { mining: wornOf(state.equipped.mining), battle: wornOf(state.equipped.battle) },
+      bags: { mining: bagOf(state.bags.mining), battle: bagOf(state.bags.battle) },
+      stash: { general: padCells(general, STASH_SIZE), gems: tab },
+      overflow,
+    };
+  },
 };
 
-const FEATURE_KINDS: readonly string[] = ['goldVein', 'diamondVein', 'chest', 'gem', 'map'];
+interface OldGem { id: number; type: 'gem'; gem: GemType; ilvl: number }
+const isOldGem = (x: unknown): x is OldGem =>
+  isObject(x) && x.type === 'gem' && isIn(GEM_TYPES, x.gem) && isItemLevel(x.ilvl);
+// Schema-3 socketed gems were whole items; schema 4 keeps only the type and grade.
+function withSocketed(item: unknown): unknown {
+  if (!isObject(item) || !Array.isArray(item.gems)) return item;
+  return { ...item, gems: item.gems.map((g: unknown) => (isOldGem(g) ? { gem: g.gem, grade: gemGradeFor(g.ilvl) } : g)) };
+}
+const padCells = (cells: unknown[], size: number): unknown[] =>
+  cells.length >= size ? cells : [...cells, ...Array.from({ length: size - cells.length }, () => null)];
 
 export function encodeSave(state: GameState, nowMs: number): string {
   return compressToBase64(JSON.stringify({ schema: SCHEMA_VERSION, savedAt: nowMs, state }));
@@ -68,7 +127,7 @@ const isNonNegFinite = (x: unknown): x is number => typeof x === 'number' && Num
 const isNonNegInt = (x: unknown): x is number => isNonNegFinite(x) && Number.isInteger(x);
 const isUint32 = (x: unknown): x is number => isNonNegInt(x) && x <= 4294967295;
 const isUnitRange = (x: unknown): x is number => isNonNegFinite(x) && x < 1;
-const isFeatureKind = (x: unknown): boolean => typeof x === 'string' && FEATURE_KINDS.includes(x);
+const isFeatureKind = (x: unknown): boolean => isIn(FEATURE_KINDS, x);
 
 function isMetreRoll(x: unknown): boolean {
   return (
@@ -80,7 +139,6 @@ function isMetreRoll(x: unknown): boolean {
 }
 
 const ITEM_RARITIES: readonly string[] = [...RARITIES, 'gem'];
-const LOOT_OUTCOMES: readonly string[] = ['bag', 'stash', 'sold', 'salvaged', 'held'];
 const LOOT_TARGETS: readonly string[] = [...GEAR_SETS, 'gem', 'any'];
 const ALL_SLOTS: readonly string[] = GEAR_SETS.flatMap((set) => slotsOf(set));
 const isIn = (list: readonly string[], x: unknown): boolean => typeof x === 'string' && list.includes(x);
@@ -115,13 +173,19 @@ function isStatLine(x: unknown, allowed: readonly string[]): boolean {
   );
 }
 
-function isGem(x: unknown, nextId: number, seen: Set<number>): boolean {
-  if (!isObject(x) || x.type !== 'gem' || !isIn(GEM_TYPES, x.gem)) return false;
-  return isItemBase(x, nextId, seen);
+// A socketed gem keeps only its type and grade.
+function isSocketed(x: unknown): boolean {
+  return isObject(x) && isIn(GEM_TYPES, x.gem) && isIn(GEM_GRADES, x.grade);
 }
 
-function isItemBase(x: Record<string, unknown>, nextId: number, seen: Set<number>): boolean {
-  if (!isIdBelow(x.id, nextId) || seen.has(x.id) || !isItemLevel(x.ilvl)) return false;
+function isGemStack(x: unknown, nextId: number, seen: Set<number>): x is GemItem {
+  if (!isObject(x) || x.type !== 'gem' || !isSocketed(x)) return false;
+  if (!isNonNegInt(x.count) || x.count < 1 || x.count > GEM_BAG_STACK) return false;
+  return isItemBase(x, nextId, seen, false);
+}
+
+function isItemBase(x: Record<string, unknown>, nextId: number, seen: Set<number>, leveled = true): boolean {
+  if (!isIdBelow(x.id, nextId) || seen.has(x.id) || (leveled && !isItemLevel(x.ilvl))) return false;
   seen.add(x.id);
   return true;
 }
@@ -135,12 +199,12 @@ function isGearItem(x: unknown, nextId: number, seen: Set<number>): x is GearIte
   if (!isStatLine(x.implicit, allowed)) return false;
   if (!Array.isArray(x.affixes) || x.affixes.length > MAX_AFFIXES || !x.affixes.every((a) => isStatLine(a, allowed))) return false;
   if (!isNonNegInt(x.sockets) || x.sockets > MAX_SOCKETS) return false;
-  if (!Array.isArray(x.gems) || x.gems.length > x.sockets || !x.gems.every((g) => isGem(g, nextId, seen))) return false;
+  if (!Array.isArray(x.gems) || x.gems.length > x.sockets || !x.gems.every(isSocketed)) return false;
   return x.uniqueId === undefined || (typeof x.uniqueId === 'string' && x.uniqueId.length <= 40);
 }
 
-function isItem(x: unknown, nextId: number, seen: Set<number>): boolean {
-  return isObject(x) && (x.type === 'gem' ? isGem(x, nextId, seen) : isGearItem(x, nextId, seen));
+function isItem(x: unknown, nextId: number, seen: Set<number>): x is Item {
+  return isObject(x) && (x.type === 'gem' ? isGemStack(x, nextId, seen) : isGearItem(x, nextId, seen));
 }
 
 function isEquipped(x: unknown, set: GearSet, nextId: number, seen: Set<number>): boolean {
@@ -151,11 +215,31 @@ function isEquipped(x: unknown, set: GearSet, nextId: number, seen: Set<number>)
   );
 }
 
-function isBag(x: unknown, set: GearSet, nextId: number, seen: Set<number>): boolean {
+function isBag(x: unknown, set: GearSet, nextId: number, seen: Set<number>): x is Cell[] {
   return (
     Array.isArray(x) &&
-    x.length <= BAG_SIZE &&
-    x.every((item) => isItem(item, nextId, seen) && (item.type !== 'gear' || setOfSlot(item.slot) === set))
+    x.length === BAG_SIZE &&
+    x.every((c) => c === null || (isItem(c, nextId, seen) && (c.type !== 'gear' || setOfSlot(c.slot) === set)))
+  );
+}
+
+function isGeneral(x: unknown, nextId: number, seen: Set<number>): boolean {
+  return Array.isArray(x) && x.length === STASH_SIZE && x.every((c) => c === null || isGearItem(c, nextId, seen));
+}
+
+// The Gems tab: exactly one count for each type and grade.
+function isGemTab(x: unknown): boolean {
+  return (
+    isObject(x) &&
+    Object.keys(x).length === GEM_TYPES.length &&
+    GEM_TYPES.every((type) => {
+      const counts = x[type];
+      return (
+        isObject(counts) &&
+        Object.keys(counts).length === GEM_GRADES.length &&
+        GEM_GRADES.every((g) => isNonNegInt(counts[g]) && counts[g] <= GEM_STASH_STACK)
+      );
+    })
   );
 }
 
@@ -168,7 +252,7 @@ function isMotion(x: unknown): boolean {
 }
 
 function isSettings(x: unknown): boolean {
-  if (!isObject(x) || !isIn(['sellWorst', 'stop'], x.bagFull) || !isMotion(x.motion)) return false;
+  if (!isObject(x) || !isIn(BAG_FULL_MODES, x.bagFull) || !isMotion(x.motion)) return false;
   return (
     Array.isArray(x.lootFilter) &&
     x.lootFilter.length <= MAX_LOOT_RULES &&
@@ -177,7 +261,7 @@ function isSettings(x: unknown): boolean {
         isObject(r) &&
         (r.rarity === 'any' || isIn(RARITIES, r.rarity)) &&
         (isIn(LOOT_TARGETS, r.target) || isIn(ALL_SLOTS, r.target)) &&
-        isIn(['keep', 'sell', 'salvage'], r.action),
+        isIn(LOOT_ACTIONS, r.action),
     )
   );
 }
@@ -187,14 +271,14 @@ function isInventory(x: Record<string, unknown>, nextId: number): boolean {
   const { equipped, bags, stash, overflow, lootTally } = x;
   if (!isObject(equipped) || !isEquipped(equipped.mining, 'mining', nextId, seen) || !isEquipped(equipped.battle, 'battle', nextId, seen)) return false;
   if (!isObject(bags) || !isBag(bags.mining, 'mining', nextId, seen) || !isBag(bags.battle, 'battle', nextId, seen)) return false;
-  if (!Array.isArray(stash) || stash.length > STASH_SIZE || !stash.every((i) => isItem(i, nextId, seen))) return false;
+  if (!isObject(stash) || !isGeneral(stash.general, nextId, seen) || !isGemTab(stash.gems)) return false;
   if (!Array.isArray(overflow) || overflow.length > MAX_OVERFLOW) return false;
   const heldOk = overflow.every(
     (o) =>
       isObject(o) &&
       isIn(GEAR_SETS, o.bag) &&
-      isItem(o.item, nextId, seen) &&
-      (!isObject(o.item) || o.item.type !== 'gear' || setOfSlot(o.item.slot as Slot) === o.bag),
+      isGearItem(o.item, nextId, seen) &&
+      setOfSlot(o.item.slot) === o.bag,
   );
   if (!heldOk) return false;
   return (

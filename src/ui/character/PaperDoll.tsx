@@ -3,7 +3,7 @@ import type { GearSet, Slot } from '../../core/items';
 import { itemName } from '../../core/itemData';
 import type { GameState } from '../../core/types';
 import { Sprite } from '../../sprites/Sprite';
-import { ItemButton } from './ItemGrid';
+import { EmptyTarget, ItemButton } from './ItemGrid';
 import type { ItemHandlers } from './ItemGrid';
 import { SLOT_LABELS } from './itemView';
 
@@ -12,12 +12,17 @@ const LAYOUT: Record<GearSet, { left: readonly Slot[]; right: readonly Slot[] }>
   battle: { left: [BATTLE_SLOTS[0], BATTLE_SLOTS[1]], right: [BATTLE_SLOTS[2], BATTLE_SLOTS[3], BATTLE_SLOTS[4]] },
 };
 
-function SlotView({ state, slot, handlers }: { state: GameState; slot: Slot; handlers: ItemHandlers }) {
+function SlotView({ state, slot, handlers, flash }: { state: GameState; slot: Slot; handlers: ItemHandlers; flash: boolean }) {
   const item = state.equipped[setOfSlot(slot)][slot];
   return (
-    <div className="gm-slot">
+    <div className="gm-slot" data-flash={flash || undefined}>
       {item === undefined ? (
-        <div className="gm-slot__box gm-slot__box--empty" role="img" aria-label={`${SLOT_LABELS[slot]}: empty`} />
+        <EmptyTarget
+          target={{ where: 'worn', slot }}
+          drag={handlers.drag}
+          className="gm-slot__box gm-slot__box--empty"
+          label={`${SLOT_LABELS[slot]}: empty`}
+        />
       ) : (
         <ItemButton
           item={item}
@@ -33,16 +38,19 @@ function SlotView({ state, slot, handlers }: { state: GameState; slot: Slot; han
   );
 }
 
-export function PaperDoll({ state, set, handlers }: { state: GameState; set: GearSet; handlers: ItemHandlers }) {
+/** `flashSlot` is the slot an item just went into, which glows for a moment. */
+export function PaperDoll({ state, set, handlers, flashSlot }: {
+  state: GameState; set: GearSet; handlers: ItemHandlers; flashSlot: Slot | null;
+}) {
   const { left, right } = LAYOUT[set];
   return (
     <div className="gm-doll">
       <div className="gm-doll__col gm-doll__col--left">
-        {left.map((s) => <SlotView key={s} state={state} slot={s} handlers={handlers} />)}
+        {left.map((s) => <SlotView key={s} state={state} slot={s} handlers={handlers} flash={s === flashSlot} />)}
       </div>
       <div className="gm-doll__figure"><Sprite name="miner" scale={6} /></div>
       <div className="gm-doll__col">
-        {right.map((s) => <SlotView key={s} state={state} slot={s} handlers={handlers} />)}
+        {right.map((s) => <SlotView key={s} state={state} slot={s} handlers={handlers} flash={s === flashSlot} />)}
       </div>
     </div>
   );

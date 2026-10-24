@@ -1,29 +1,31 @@
 import {
-  BAG_SIZE, GEM_SALVAGE_DIAMONDS, GEM_SELL_GOLD, MAX_OVERFLOW, SALVAGE_DIAMONDS, SELL_GOLD, STASH_SIZE,
+  GEM_BAG_STACK, GEM_GRADE_LEVEL, GEM_SALVAGE_DIAMONDS, GEM_SELL_GOLD, GEM_STASH_STACK, MAX_OVERFLOW,
+  SALVAGE_DIAMONDS, SELL_GOLD,
 } from './balance';
+import { firstEmpty } from './cells';
 import { itemName } from './itemData';
 import { isGear, setOfSlot } from './items';
-import type { GearSet, Item, Rarity } from './items';
-import type { Container, GameState, LootAction, LootNote, LootOutcome, LootRule } from './types';
+import type { Cell, GearItem, GearSet, Gem, GemItem, Item, Rarity } from './items';
+import type { GameState, LootAction, LootNote, LootOutcome, LootRule } from './types';
 
-const GEM_RANK = 1;
+const tierFactor = (level: number): number => 1 + Math.floor(level / 5);
 
-function tierFactor(ilvl: number): number {
-  return 1 + Math.floor(ilvl / 5);
+export function gemSellValue(g: Gem): number {
+  return GEM_SELL_GOLD * GEM_GRADE_LEVEL[g.grade];
+}
+
+export function gemSalvageValue(g: Gem): number {
+  return GEM_SALVAGE_DIAMONDS * tierFactor(GEM_GRADE_LEVEL[g.grade]);
 }
 
 export function sellValue(item: Item): number {
-  if (!isGear(item)) return GEM_SELL_GOLD * item.ilvl;
-  return item.gems.reduce((sum, g) => sum + sellValue(g), SELL_GOLD[item.rarity] * item.ilvl);
+  if (!isGear(item)) return gemSellValue(item) * item.count;
+  return item.gems.reduce((sum, g) => sum + gemSellValue(g), SELL_GOLD[item.rarity] * item.ilvl);
 }
 
 export function salvageValue(item: Item): number {
-  if (!isGear(item)) return GEM_SALVAGE_DIAMONDS * tierFactor(item.ilvl);
-  return item.gems.reduce((sum, g) => sum + salvageValue(g), SALVAGE_DIAMONDS[item.rarity] * tierFactor(item.ilvl));
-}
-
-export function itemsIn(state: GameState, c: Container): Item[] {
-  return c === 'stash' ? state.stash : state.bags[c];
+  if (!isGear(item)) return gemSalvageValue(item) * item.count;
+  return item.gems.reduce((sum, g) => sum + gemSalvageValue(g), SALVAGE_DIAMONDS[item.rarity] * tierFactor(item.ilvl));
 }
 
 export function lootAction(rules: LootRule[], item: Item): LootAction {
@@ -55,45 +57,78 @@ function tally(state: GameState, notes: LootNote[]): LootNote[] {
 
 const RARITY_RANK: Readonly<Record<Rarity, number>> = { normal: 0, magic: 1, rare: 2, legendary: 3 };
 
-function rankOf(item: Item): number {
-  return isGear(item) ? RARITY_RANK[item.rarity] : GEM_RANK;
-}
-
 // Lower rarity rank sells first, then lower Gold; the new item wins exact ties.
-function isWorse(a: Item, b: Item): boolean {
-  const ra = rankOf(a);
-  const rb = rankOf(b);
+function isWorse(a: GearItem, b: GearItem): boolean {
+  const ra = RARITY_RANK[a.rarity];
+  const rb = RARITY_RANK[b.rarity];
   return ra < rb || (ra === rb && sellValue(a) < sellValue(b));
 }
 
-function sellWorst(state: GameState, item: Item, bagSet: GearSet): LootNote[] {
+// Only gear is ever sold to make room, from the item's own bag and the General tab; the new item takes the cell.
+function sellWorst(state: GameState, item: GearItem, bagSet: GearSet): LootNote[] {
   const bag = state.bags[bagSet];
-  let worst: { list: Item[]; index: number; sold: Item } | null = null;
+  let worst: { list: Cell[]; index: number; sold: GearItem } | null = null;
   let worstItem = item;
-  for (const list of [bag, state.stash]) {
+  for (const list of [bag, state.stash.general]) {
     for (const [index, sold] of list.entries()) {
-      if (isWorse(sold, worstItem)) { worst = { list, index, sold }; worstItem = sold; }
+      if (sold !== null && isGear(sold) && isWorse(sold, worstItem)) { worst = { list, index, sold }; worstItem = sold; }
     }
   }
   const worstValue = sellValue(worstItem);
   state.gold += worstValue;
   if (worst === null) return [note(item, 'sold', worstValue)];
   const { list, index, sold } = worst;
-  list.splice(index, 1, item);
+  list[index] = item;
   return [note(sold, 'sold', worstValue), note(item, list === bag ? 'bag' : 'stash')];
 }
 
-function stow(state: GameState, item: Item, bagSet: GearSet): LootNote[] | null {
+function stowGear(state: GameState, item: GearItem, bagSet: GearSet): LootNote[] | null {
   const bag = state.bags[bagSet];
-  if (bag.length < BAG_SIZE) {
-    bag.push(item);
+  const inBag = firstEmpty(bag);
+  if (inBag >= 0) {
+    bag[inBag] = item;
     return [note(item, 'bag')];
   }
-  if (state.stash.length < STASH_SIZE) {
-    state.stash.push(item);
+  const general = state.stash.general;
+  const inGeneral = firstEmpty(general);
+  if (inGeneral >= 0) {
+    general[inGeneral] = item;
     return [note(item, 'stash')];
   }
   return null;
+}
+
+// A found stack tops up bag stacks, then fills the first empty cell (one stack, under the incoming id), then joins the
+// Gems tab; whatever is left is sold. One note, for where the first gem went (a sold remainder still pays out).
+function stowGem(state: GameState, gem: GemItem, bag: Cell[]): LootNote[] {
+  let left = gem.count;
+  let first: LootOutcome | null = null;
+  for (const c of bag) {
+    if (left === 0) break;
+    if (c?.type !== 'gem' || c.gem !== gem.gem || c.grade !== gem.grade || c.count >= GEM_BAG_STACK) continue;
+    const take = Math.min(GEM_BAG_STACK - c.count, left);
+    c.count += take;
+    left -= take;
+    first ??= 'bag';
+  }
+  const empty = firstEmpty(bag);
+  if (left > 0 && empty >= 0) {
+    const take = Math.min(GEM_BAG_STACK, left);
+    bag[empty] = { ...gem, count: take };
+    left -= take;
+    first ??= 'bag';
+  }
+  const counts = state.stash.gems[gem.gem];
+  const room = Math.min(left, GEM_STASH_STACK - counts[gem.grade]);
+  if (room > 0) {
+    counts[gem.grade] += room;
+    left -= room;
+    first ??= 'stash';
+  }
+  if (left === 0) return [note(gem, first ?? 'bag')];
+  const value = gemSellValue(gem) * left;
+  state.gold += value;
+  return [note(gem, first ?? 'sold', first === null ? value : 0)];
 }
 
 export function receiveItem(state: GameState, item: Item, gemBag: GearSet): LootNote[] {
@@ -109,7 +144,8 @@ export function receiveItem(state: GameState, item: Item, gemBag: GearSet): Loot
     state.diamonds += value;
     return tally(state, [note(item, 'salvaged', value)]);
   }
-  const stowed = stow(state, item, bagSet);
+  if (!isGear(item)) return tally(state, stowGem(state, item, state.bags[bagSet]));
+  const stowed = stowGear(state, item, bagSet);
   if (stowed !== null) return tally(state, stowed);
   if (state.settings.bagFull === 'stop' && state.overflow.length < MAX_OVERFLOW) {
     state.overflow.push({ bag: bagSet, item });
@@ -133,7 +169,7 @@ export function drainOverflow(state: GameState): void {
       state.overflow.shift();
       continue;
     }
-    if (stow(state, first.item, first.bag) === null) {
+    if (stowGear(state, first.item, first.bag) === null) {
       if (state.settings.bagFull === 'stop') return;
       sellWorst(state, first.item, first.bag);
     }

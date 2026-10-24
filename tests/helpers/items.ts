@@ -7,5 +7,5 @@ export function gear(s: GameState, slot: Slot, p: Partial<GearItem> = {}): GearI
     implicit: { stat: SLOT_IMPLICIT[slot], value: 5 }, affixes: [], sockets: 0, gems: [], ...p };
 }
 export function gem(s: GameState, type: GemType = 'ruby', p: Partial<GemItem> = {}): GemItem {
-  return { id: s.nextId++, type: 'gem', gem: type, ilvl: 4, ...p };
+  return { id: s.nextId++, type: 'gem', gem: type, grade: 'tiny', count: 1, ...p };
 }

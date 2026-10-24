@@ -1,4 +1,6 @@
-import type { GearItem, GemItem, GemType, GearSet, Slot, StatKey } from './items';
+import { GEM_GRADES } from './items';
+import type { Gem, GearItem, GemGrade, GemItem, GemType, GearSet, Slot, StatKey } from './items';
+import { GEM_GRADE_FROM_TIER } from './balance';
 
 export const BASE_NAMES: Readonly<Record<Slot, readonly [string, string, string, string]>> = {
   pickaxe: ['Copper Pick', 'Iron Pick', 'Steel Pick', 'Mithril Pick'],
@@ -90,18 +92,19 @@ export const GEM_LABELS: Readonly<Record<GemType, string>> = {
   ruby: 'Ruby', sapphire: 'Sapphire', emerald: 'Emerald', amethyst: 'Amethyst', starstone: 'Starstone',
 };
 
-export const GEM_SIZES: readonly (readonly [number, string])[] = [
-  [1, 'Tiny'], [4, 'Small'], [7, 'Big'], [10, 'Giant'], [15, 'Perfect'],
-];
+export const GEM_GRADE_LABELS: Readonly<Record<GemGrade, string>> = {
+  tiny: 'Tiny', small: 'Small', big: 'Big', giant: 'Giant', perfect: 'Perfect',
+};
 
-export function gemSizeName(ilvl: number): string {
-  let name = 'Tiny';
-  for (const [from, label] of GEM_SIZES) if (ilvl >= from) name = label;
-  return name;
+/** The highest grade whose first tier is at or below `level`; Tiny below tier 1. */
+export function gemGradeFor(level: number): GemGrade {
+  let grade: GemGrade = 'tiny';
+  for (const g of GEM_GRADES) if (level >= GEM_GRADE_FROM_TIER[g]) grade = g;
+  return grade;
 }
 
-export function gemName(gem: GemItem): string {
-  return `${gemSizeName(gem.ilvl)} ${GEM_LABELS[gem.gem]}`;
+export function gemName(g: Gem): string {
+  return `${GEM_GRADE_LABELS[g.grade]} ${GEM_LABELS[g.gem]}`;
 }
 
 export function itemName(item: GearItem | GemItem): string {

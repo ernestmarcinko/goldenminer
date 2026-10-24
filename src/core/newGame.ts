@@ -1,4 +1,5 @@
 import { GUARANTEED_FIRST_MAP_METRE } from './balance';
+import { emptyInventory } from './cells';
 import { fillAhead } from './metres';
 import { hash2 } from './rng';
 import { deriveStats } from './stats';
@@ -12,8 +13,7 @@ export function newGame(seed: number, nowMs: number, options: NewGameOptions = {
     rng: hash2(options.lootSeed ?? seed, 0x5eed), tickCount: 0, lastTickAt: nowMs,
     gold: 0, diamonds: 0, depth: 0, deepest: 0, progress: 0, galleryProgress: 0,
     ahead: {}, finds: [],
-    nextId: 1, goldCarry: 0, equipped: { mining: {}, battle: {} }, bags: { mining: [], battle: [] },
-    stash: [], overflow: [], lootTally: { kept: 0, sold: 0, salvaged: 0 },
+    nextId: 1, goldCarry: 0, ...emptyInventory(), lootTally: { kept: 0, sold: 0, salvaged: 0 },
     settings: { lootFilter: [], bagFull: 'sellWorst', motion: { ...DEFAULT_MOTION } },
   };
   fillAhead(state, deriveStats(state));

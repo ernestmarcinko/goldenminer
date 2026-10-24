@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { BAG_SIZE, STASH_SIZE, statRange } from '../../src/core/balance';
-import { LEGENDARIES, STAT_WORDS, baseName, gemName, gemSizeName } from '../../src/core/itemData';
+import { statRange } from '../../src/core/balance';
+import { emptyInventory, firstEmpty } from '../../src/core/cells';
+import { LEGENDARIES, STAT_WORDS, baseName, gemName } from '../../src/core/itemData';
 import { rollChest, rollGear, rollGem } from '../../src/core/itemGen';
 import { SLOT_IMPLICIT, setOfSlot, statsOf, type GearItem, type GearSet, type Rarity } from '../../src/core/items';
 import { newGame } from '../../src/core/newGame';
@@ -20,8 +21,10 @@ describe('stat ranges', () => {
   });
 });
 
-it('gem sizes grow with depth', () => {
-  expect([1, 3, 4, 7, 10, 15, 99].map(gemSizeName)).toEqual(['Tiny', 'Tiny', 'Small', 'Big', 'Giant', 'Perfect', 'Perfect']);
+it('gems roll the grade their tier allows, one at a time', () => {
+  const gems = [1, 4, 7, 10, 15].map((tier) => rollGem(newGame(1, 0), tier));
+  expect(gems.map((g) => g.grade)).toEqual(['tiny', 'small', 'big', 'giant', 'perfect']);
+  expect(gems.every((g) => g.count === 1)).toBe(true);
   expect(gemName(rollGem(newGame(1, 0), 5))).toMatch(/^Small (Ruby|Sapphire|Emerald|Amethyst|Starstone)$/);
 });
 
@@ -130,17 +133,21 @@ it.each([1, 60])('generated items at ilvl %i always pass the save validator', (i
   for (let i = 0; i < 100; i++) items.push(rollGem(s, ilvl));
   const flush = () => {
     expect(validateState(s)).toBe(true);
-    s.bags.mining = [];
-    s.bags.battle = [];
-    s.stash = [];
+    Object.assign(s, emptyInventory());
+  };
+  // Gear takes its bag, then General; a gem takes the mining bag; a full inventory is checked and emptied.
+  const place = (item: Item): boolean => {
+    const bag = item.type === 'gear' ? s.bags[setOfSlot(item.slot)] : s.bags.mining;
+    const inBag = firstEmpty(bag);
+    if (inBag >= 0) { bag[inBag] = item; return true; }
+    const inGeneral = firstEmpty(s.stash.general);
+    if (item.type === 'gear' && inGeneral >= 0) { s.stash.general[inGeneral] = item; return true; }
+    return false;
   };
   for (const item of items) {
-    const bag = item.type === 'gear' ? s.bags[setOfSlot(item.slot)] : s.bags.mining;
-    if (bag.length < BAG_SIZE) bag.push(item);
-    else if (s.stash.length < STASH_SIZE) s.stash.push(item);
-    else {
+    if (!place(item)) {
       flush();
-      bag.push(item);
+      place(item);
     }
   }
   flush();

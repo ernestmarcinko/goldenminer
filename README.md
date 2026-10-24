@@ -15,7 +15,7 @@ npm run build    # production build in dist/
 
 ## Gear
 
-Chests and gems drop mining and battle gear, which the character panel shows. Hover an item to compare it with what you wear, click to equip it, Alt+click to sell it, Shift+click to stash it, and right-click (or tap) to see every action. The loot filter sells or salvages new items by rule.
+Chests and gems drop mining and battle gear, which the character panel shows. Hover an item to compare it with what you wear, click to equip it, Alt+click to sell it, Shift+click to stash it, and right-click to see every action. Drag an item onto a cell to move it (a taken cell swaps; an identical gem stack merges), onto a paper-doll slot to equip it, onto a stash tab or the Stash button to stash it, or drag a gem onto gear to socket it; a refused drop snaps back with a short message. On a touch screen, tap an item to pick it up and see every action, then tap a cell, a slot or a tab to put it there, or tap it again to put it back. The loot filter sells or salvages new items by rule.
 
 ## Worlds
 

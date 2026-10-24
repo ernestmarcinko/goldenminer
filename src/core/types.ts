@@ -1,25 +1,37 @@
-import type { GearItem, GearSet, GemType, Item, Rarity, Slot } from './items';
+import type { Cell, GearItem, GearSet, GemGrade, GemType, Rarity, Slot } from './items';
 
-export type FeatureKind = 'goldVein' | 'diamondVein' | 'chest' | 'gem' | 'map';
+export const FEATURE_KINDS = ['goldVein', 'diamondVein', 'chest', 'gem', 'map'] as const;
+export type FeatureKind = (typeof FEATURE_KINDS)[number];
 export interface MetreRoll { feature: FeatureKind | null; amount: number; hardRock: boolean }
-export type Container = GearSet | 'stash';
-export type LootAction = 'keep' | 'sell' | 'salvage';
+/** Where an item lives: a bag cell, a General-tab cell, a Gems-tab stack, or a worn slot. */
+export type ItemLoc =
+  | { where: 'bag'; set: GearSet; index: number }
+  | { where: 'stash'; index: number }                   // a General-tab cell
+  | { where: 'gems'; gem: GemType; grade: GemGrade }    // a Gems-tab stack
+  | { where: 'worn'; slot: Slot };
+export type DropTarget = ItemLoc | { where: 'stashTab'; tab: 'general' | 'gems' | 'auto' };
+export const LOOT_ACTIONS = ['keep', 'sell', 'salvage'] as const;
+export type LootAction = (typeof LOOT_ACTIONS)[number];
 export type LootTarget = GearSet | Slot | 'gem' | 'any';
 export interface LootRule { rarity: Rarity | 'any'; target: LootTarget; action: LootAction }
-export type BagFullMode = 'sellWorst' | 'stop';
+export const BAG_FULL_MODES = ['sellWorst', 'stop'] as const;
+export type BagFullMode = (typeof BAG_FULL_MODES)[number];
 export const SHAFT_MOTIONS = ['step', 'smooth', 'off'] as const;
 export type ShaftMotion = (typeof SHAFT_MOTIONS)[number];
 export interface MotionSettings { floats: boolean; pops: boolean; lampFlicker: boolean; shaft: ShaftMotion }
 export const DEFAULT_MOTION: MotionSettings = { floats: true, pops: true, lampFlicker: true, shaft: 'step' };
 export interface Settings { lootFilter: LootRule[]; bagFull: BagFullMode; motion: MotionSettings }
-export type LootOutcome = 'bag' | 'stash' | 'sold' | 'salvaged' | 'held';
+export const LOOT_OUTCOMES = ['bag', 'stash', 'sold', 'salvaged', 'held'] as const;
+export type LootOutcome = (typeof LOOT_OUTCOMES)[number];
 export interface LootNote {
   name: string; rarity: Rarity | 'gem'; base: Slot | GemType; outcome: LootOutcome; value: number;
 }
 export interface FindRecord {
   id: number; depth: number; kind: FeatureKind; amount: number; tick: number; loot?: LootNote[]; bonus?: true;
 }
-export type InvResult = 'ok' | 'bagFull' | 'stashFull' | 'noSocket' | 'invalid';
+export type InvResult =
+  | 'ok' | 'bagFull' | 'stashFull' | 'noSocket' | 'invalid'
+  | 'wrongSet' | 'wrongSlot' | 'gemsOnly' | 'gearOnly' | 'stackFull';
 export interface GameState {
   seed: number;                            // the world seed: a pure function of worldSeed
   worldSeed: string;                       // the text the player sees and shares
@@ -34,9 +46,12 @@ export interface GameState {
   nextId: number;                          // next id for an item or a find; starts at 1
   goldCarry: number;                       // 0..1: Gold earned but not yet whole
   equipped: Record<GearSet, Partial<Record<Slot, GearItem>>>;
-  bags: Record<GearSet, Item[]>;           // at most BAG_SIZE each; gear only in its own set's bag
-  stash: Item[];                           // at most STASH_SIZE
-  overflow: { bag: GearSet; item: Item }[]; // loot waiting for room (bagFull 'stop')
+  bags: Record<GearSet, Cell[]>;           // exactly BAG_SIZE cells each; gear only in its own set's bag; gem stacks of 1..GEM_BAG_STACK
+  stash: {
+    general: (GearItem | null)[];          // exactly STASH_SIZE cells, gear only
+    gems: Record<GemType, Record<GemGrade, number>>;   // the Gems tab: counts of 0..GEM_STASH_STACK
+  };
+  overflow: { bag: GearSet; item: GearItem }[]; // gear waiting for room (bagFull 'stop')
   lootTally: { kept: number; sold: number; salvaged: number };
   settings: Settings;                      // kept across ascension (Plan 6)
 }

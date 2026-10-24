@@ -30,30 +30,51 @@
 .gm-slot__label { font-size: 11px; color: var(--gm-muted); }
 .gm-slot__box { width: 60px; height: 60px; border-radius: 8px; }
 .gm-slot__box--empty { box-sizing: border-box; border: 2px dashed var(--gm-line); background: transparent; }
+/* an item just went into this slot: a static green glow, shown for a moment */
+.gm-slot[data-flash] .gm-slot__box { box-shadow: 0 0 0 3px rgba(111, 207, 151, 0.55), 0 0 18px rgba(111, 207, 151, 0.45); }
 
 .gm-item {
   position: relative; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
   padding: 0; border-radius: 6px; background: #241e19; border: 2px solid var(--gm-normal); cursor: pointer;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
-.gm-item:hover { background: #3a2f20; }
+button.gm-item:hover { background: #3a2f20; }
 .gm-slot__box.gm-item { border-radius: 8px; }
-.gm-item[data-rarity='magic'], .gm-card[data-rarity='magic'] { --gm-tone: var(--gm-magic); }
-.gm-item[data-rarity='rare'], .gm-card[data-rarity='rare'] { --gm-tone: var(--gm-rare); }
-.gm-item[data-rarity='legendary'], .gm-card[data-rarity='legendary'] { --gm-tone: var(--gm-legendary); }
-.gm-item[data-rarity='gem'], .gm-card[data-rarity='gem'] { --gm-tone: var(--gm-gem); }
-.gm-item[data-rarity='normal'], .gm-card[data-rarity='normal'] { --gm-tone: var(--gm-normal); }
+.gm-item[data-rarity='magic'], .gm-card[data-rarity='magic'], .gm-card__equipped[data-rarity='magic'] { --gm-tone: var(--gm-magic); }
+.gm-item[data-rarity='rare'], .gm-card[data-rarity='rare'], .gm-card__equipped[data-rarity='rare'] { --gm-tone: var(--gm-rare); }
+.gm-item[data-rarity='legendary'], .gm-card[data-rarity='legendary'], .gm-card__equipped[data-rarity='legendary'] { --gm-tone: var(--gm-legendary); }
+.gm-item[data-rarity='gem'], .gm-card[data-rarity='gem'], .gm-card__equipped[data-rarity='gem'] { --gm-tone: var(--gm-gem); }
+.gm-item[data-rarity='normal'], .gm-card[data-rarity='normal'], .gm-card__equipped[data-rarity='normal'] { --gm-tone: var(--gm-normal); }
 .gm-item { border-color: var(--gm-tone); }
 .gm-item__dots { position: absolute; left: 0; right: 0; bottom: 2px; display: flex; justify-content: center; gap: 2px; }
 .gm-item__dot { width: 6px; height: 6px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--gm-muted); background: transparent; }
 .gm-item__dot[data-gem] { border-color: #0f0d0b; }
-.gm-item__dot[data-gem='ruby'] { background: #e0574a; }
-.gm-item__dot[data-gem='sapphire'] { background: #3f6fc8; }
-.gm-item__dot[data-gem='emerald'] { background: #3fae6a; }
-.gm-item__dot[data-gem='amethyst'] { background: #8a6fe0; }
-.gm-item__dot[data-gem='starstone'] { background: #e8d27a; }
+.gm-item__dot[data-gem], .gm-gemtab__name { --gm-gem-color: var(--gm-gem); }
+.gm-item__dot[data-gem='ruby'], .gm-gemtab__name[data-gem='ruby'] { --gm-gem-color: #e0574a; }
+.gm-item__dot[data-gem='sapphire'], .gm-gemtab__name[data-gem='sapphire'] { --gm-gem-color: #3f6fc8; }
+.gm-item__dot[data-gem='emerald'], .gm-gemtab__name[data-gem='emerald'] { --gm-gem-color: #3fae6a; }
+.gm-item__dot[data-gem='amethyst'], .gm-gemtab__name[data-gem='amethyst'] { --gm-gem-color: #8a6fe0; }
+.gm-item__dot[data-gem='starstone'], .gm-gemtab__name[data-gem='starstone'] { --gm-gem-color: #e8d27a; }
+.gm-item__dot[data-gem] { background: var(--gm-gem-color); }
+.gm-item__count {
+  position: absolute; right: 3px; bottom: 1px; font-family: var(--gm-font-mono); font-size: 11px; line-height: 1.2;
+  color: var(--gm-text); text-shadow: 0 1px 2px #000; pointer-events: none;
+}
+.gm-item--dim { opacity: 0.3; cursor: default; }
+/* drag and drop: the cell being dragged, the target under the pointer and the ghost that follows it, nudged so
+   the target's outline shows */
+.gm-item[data-drag-source] { opacity: 0.4; }
+[data-drop-over] { outline: 2px dashed var(--gm-up); outline-offset: -3px; }
+.gm-stash__tab[data-drop-over] { outline-offset: -4px; }
+.gm-ghost {
+  position: fixed; z-index: 100; pointer-events: none; opacity: 0.85; border-color: var(--gm-tone);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.7); transform: translate(12px, 12px) rotate(-4deg);
+}
+/* a touch tap lifts an item until it is placed or put back */
+.gm-item[data-held] { z-index: 1; transform: translateY(-6px); box-shadow: 0 0 0 3px var(--gm-gold), 0 10px 18px rgba(0, 0, 0, 0.6); }
 
 .gm-grid { display: grid; grid-template-columns: repeat(6, minmax(44px, 52px)); gap: 6px; }
-.gm-grid--stash { grid-template-columns: repeat(auto-fill, minmax(44px, 52px)); }
+.gm-grid--stash { grid-template-columns: repeat(8, minmax(44px, 52px)); }
 .gm-cell { width: 100%; aspect-ratio: 1; min-width: 44px; }
 .gm-cell--empty { box-sizing: border-box; border-radius: 6px; background: #1a1613; border: 1px solid #2e2722; }
 
@@ -63,6 +84,14 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6); pointer-events: none;
 }
 .gm-card[role='dialog'] { pointer-events: auto; }
+/* the card a touch tap opens: in the flow below the grid, so the targets above stay uncovered */
+.gm-card.gm-card--inline { position: static; width: 100%; box-shadow: none; }
+.gm-card__label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gm-muted); }
+/* a hover card and the worn item's card, side by side as one placed pair */
+.gm-cardpair { position: absolute; z-index: 2; display: flex; align-items: flex-start; gap: 8px; pointer-events: none; }
+.gm-cardpair > .gm-card { position: static; }
+.gm-card--equipped { opacity: 0.92; border-color: var(--gm-line); }
+.gm-card__equipped { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px solid var(--gm-line); }
 .gm-card__name { font-family: var(--gm-font-display); font-weight: 400; font-size: 15px; color: var(--gm-tone, var(--gm-normal)); }
 .gm-card__kind { font-size: 12px; color: var(--gm-muted); }
 .gm-card__lines { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
@@ -83,6 +112,31 @@
 .gm-card__btn--quiet { border-color: transparent; background: transparent; color: var(--gm-muted); }
 
 .gm-stash { position: relative; display: flex; flex-direction: column; gap: 12px; }
+.gm-overlay.gm-overlay--top { align-items: flex-start; padding-top: max(16px, 6vh); }
+.gm-dialog.gm-stash { max-width: 900px; }
+.gm-stash .gm-char__status:empty { min-height: 0; margin-top: -12px; }
+.gm-stash__body { display: flex; align-items: flex-start; gap: 24px; }
+.gm-stash__main { display: flex; flex-direction: column; min-width: 0; }
+.gm-stash__tabs { display: flex; gap: 4px; }
+.gm-stash__tab {
+  min-height: 44px; padding: 0 14px; border-radius: 8px 8px 0 0; border: 1px solid var(--gm-line); border-bottom: 0;
+  background: var(--gm-header); color: var(--gm-normal); font: inherit; font-weight: 700; cursor: pointer;
+}
+.gm-stash__tab[aria-selected='true'] { background: var(--gm-panel-raised); border-color: var(--gm-gold); color: var(--gm-gold-bright); }
+.gm-stash__tab:focus-visible, .gm-stash__panel:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: -2px; }
+.gm-stash__panel {
+  box-sizing: border-box; padding: 10px; border-radius: 0 8px 8px 8px; background: var(--gm-panel-raised);
+  border: 1px solid var(--gm-gold);
+}
+.gm-stash__empty { margin: 0; max-width: 300px; }
+.gm-stash__bag { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.gm-stash__bag .gm-char__toggle { align-self: flex-start; }
+
+.gm-gemtab { display: grid; grid-template-columns: 72px repeat(5, minmax(44px, 52px)); gap: 6px; align-items: center; }
+.gm-gemtab__cell { display: grid; aspect-ratio: 1; min-width: 44px; }
+.gm-gemtab__cell > .gm-cell { height: 100%; }
+.gm-gemtab__head { font-size: 12px; color: var(--gm-muted); text-align: center; }
+.gm-gemtab__name { font-size: 13px; color: var(--gm-gem-color); }
 
 .gm-rules { display: flex; flex-direction: column; gap: 8px; }
 .gm-rule { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; border-radius: 8px; background: #241e19; }
@@ -109,6 +163,14 @@
 .gm-fullmode__opt { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
 .gm-fullmode__opt input { width: 18px; height: 18px; margin: 0; accent-color: var(--gm-gold); }
 
+@media (max-width: 760px) {
+  .gm-stash__body { flex-direction: column; align-items: stretch; gap: 16px; }
+}
 @media (max-width: 600px) {
   .gm-char { padding: 12px; }
+  .gm-grid--stash { grid-template-columns: repeat(6, minmax(44px, 52px)); }
+  .gm-stash__panel { padding: 8px; }
+  .gm-stash__tab { padding: 0 10px; }
+  .gm-gemtab { grid-template-columns: 56px repeat(5, minmax(44px, 52px)); gap: 4px; }
+  .gm-gemtab__name { font-size: 12px; }
 }

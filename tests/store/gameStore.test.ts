@@ -5,9 +5,9 @@ import { decodeSave, encodeSave } from '../../src/core/save';
 import { compressToBase64 } from 'lz-string';
 import { newGame } from '../../src/core/newGame';
 import { seedFromText } from '../../src/core/seed';
-import { BAG_SIZE, MAX_LOOT_RULES, STASH_SIZE } from '../../src/core/balance';
+import { MAX_LOOT_RULES } from '../../src/core/balance';
 import type { LootRule } from '../../src/core/types';
-import { gem } from '../helpers/items';
+import { gear, gem } from '../helpers/items';
 
 function make(now = { t: 0 }, storage = new MemoryStorage(), available = true) {
   const store = new GameStore({ storage, storageAvailable: available, now: () => now.t, newSeed: () => 7 });
@@ -147,15 +147,15 @@ describe('inventory intents', () => {
     store.load();
     const s = store.state;
     s.settings.bagFull = 'stop';
-    for (let i = 0; i < BAG_SIZE; i++) s.bags.mining.push(gem(s));
-    for (let i = 0; i < STASH_SIZE; i++) s.stash.push(gem(s));
-    const held = gem(s, 'emerald');
+    s.bags.mining = s.bags.mining.map(() => gem(s));
+    s.stash.general = s.stash.general.map(() => gear(s, 'ring'));
+    const held = gear(s, 'pickaxe');
     s.overflow.push({ bag: 'mining', item: held });
     const v = store.version;
-    expect(store.sell('mining', 0)).toBe('ok');
+    expect(store.sell({ where: 'bag', set: 'mining', index: 0 })).toBe('ok');
     expect(store.version).toBe(v + 1);
     expect(s.overflow).toEqual([]);
-    expect(s.bags.mining.at(-1)).toBe(held);
+    expect(s.bags.mining[0]).toBe(held);
   });
 
   it('a refused action changes nothing', () => {
@@ -166,6 +166,68 @@ describe('inventory intents', () => {
     expect(store.version).toBe(v);
   });
 
+  it('equipping into an empty slot leaves a notice; a swap does not', () => {
+    const { store } = make();
+    store.load();
+    const s = store.state;
+    s.bags.mining[0] = gear(s, 'pickaxe', { name: 'Stonebiter' });
+    s.bags.mining[1] = gear(s, 'pickaxe');
+    s.bags.mining[2] = gear(s, 'lamp', { name: 'Oil Lamp Helm' });
+    expect(store.equipNotice).toBeNull();
+    expect(store.equip({ where: 'bag', set: 'mining', index: 0 })).toBe('ok');
+    expect(store.equipNotice).toEqual({ id: 1, slot: 'pickaxe', name: 'Stonebiter', rarity: 'magic' });
+    expect(store.drop({ where: 'bag', set: 'mining', index: 1 }, { where: 'worn', slot: 'pickaxe' })).toBe('ok');
+    expect(store.equipNotice?.id).toBe(1);
+    expect(store.drop({ where: 'bag', set: 'mining', index: 2 }, { where: 'worn', slot: 'lamp' })).toBe('ok');
+    expect(store.equipNotice).toEqual({ id: 2, slot: 'lamp', name: 'Oil Lamp Helm', rarity: 'magic' });
+  });
+
+  it('replacing the game clears the equip notice', () => {
+    const { store } = make();
+    store.load();
+    const s = store.state;
+    s.bags.mining[0] = gear(s, 'pickaxe');
+    expect(store.equip({ where: 'bag', set: 'mining', index: 0 })).toBe('ok');
+    expect(store.equipNotice).not.toBeNull();
+    expect(store.importSave(store.exportSave()).ok).toBe(true);
+    expect(store.equipNotice).toBeNull();
+    store.state.bags.mining[0] = gear(store.state, 'lamp');
+    store.equip({ where: 'bag', set: 'mining', index: 0 });
+    expect(store.equipNotice?.id).toBe(2);
+    expect(store.newWorld(null)).toBe(true);
+    expect(store.equipNotice).toBeNull();
+  });
+
+  it('a refused equip leaves no notice, and unequipping does not either', () => {
+    const { store } = make();
+    store.load();
+    const s = store.state;
+    s.bags.mining[0] = gear(s, 'pickaxe');
+    s.bags.mining[1] = gear(s, 'boots');
+    expect(store.drop({ where: 'bag', set: 'mining', index: 1 }, { where: 'worn', slot: 'pickaxe' })).toBe('wrongSlot');
+    expect(store.equipNotice).toBeNull();
+    expect(store.equip({ where: 'bag', set: 'mining', index: 0 })).toBe('ok');
+    expect(store.unequip('pickaxe')).toBe('ok');
+    expect(store.equipNotice?.id).toBe(1);
+  });
+
+  it('the other moves go through the store and bump the version', () => {
+    const { store } = make();
+    store.load();
+    const s = store.state;
+    s.bags.mining[0] = gem(s, 'ruby', { count: 5 });
+    const v = store.version;
+    expect(store.sendItem({ where: 'bag', set: 'mining', index: 0 }, 'stash')).toBe('ok');
+    expect(s.stash.gems.ruby.tiny).toBe(5);
+    expect(store.sendItem({ where: 'gems', gem: 'ruby', grade: 'tiny' }, 'battle')).toBe('ok');
+    expect(s.bags.battle[0]).toMatchObject({ gem: 'ruby', count: 5 });
+    expect(store.moveItem({ where: 'bag', set: 'battle', index: 0 }, { where: 'bag', set: 'battle', index: 9 })).toBe('ok');
+    expect(store.salvage({ where: 'bag', set: 'battle', index: 9 })).toBe('ok');
+    expect(store.version).toBe(v + 4);
+    expect(store.moveItem({ where: 'bag', set: 'battle', index: 9 }, { where: 'stash', index: 0 })).toBe('invalid');
+    expect(store.version).toBe(v + 4);
+  });
+
   it('settings keep at most 20 rules, and switching to sellWorst drains held loot', () => {
     const { store } = make();
     store.load();
@@ -174,9 +236,9 @@ describe('inventory intents', () => {
     expect(store.state.settings.lootFilter).toHaveLength(MAX_LOOT_RULES);
     const s = store.state;
     s.settings.bagFull = 'stop';
-    for (let i = 0; i < BAG_SIZE; i++) s.bags.mining.push(gem(s));
-    for (let i = 0; i < STASH_SIZE; i++) s.stash.push(gem(s));
-    s.overflow.push({ bag: 'mining', item: gem(s) });
+    s.bags.mining = s.bags.mining.map(() => gem(s));
+    s.stash.general = s.stash.general.map(() => gear(s, 'ring'));
+    s.overflow.push({ bag: 'mining', item: gear(s, 'pickaxe') });
     store.setBagFull('sellWorst');
     expect(s.overflow).toEqual([]);
   });

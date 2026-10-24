@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDuration, formatNumber, formatRate, plural } from '../../src/ui/format';
+import { formatCompact, formatDuration, formatNumber, formatRate, plural } from '../../src/ui/format';
 
 describe('formatNumber', () => {
   it('uses en-US separators and never exponents', () => {
@@ -32,5 +32,13 @@ describe('plural', () => {
     expect(plural(1, 'chest', 'chests')).toBe('1 chest');
     expect(plural(0, 'chest', 'chests')).toBe('0 chests');
     expect(plural(1500, 'tick', 'ticks')).toBe('1,500 ticks');
+  });
+});
+
+describe('formatCompact', () => {
+  it('shortens thousands and millions to one decimal', () => {
+    expect(formatCompact(999)).toBe('999');
+    expect(formatCompact(1240)).toBe('1.2K');
+    expect(formatCompact(1_000_000)).toBe('1M');
   });
 });
