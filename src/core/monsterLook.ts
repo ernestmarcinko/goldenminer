@@ -1,7 +1,7 @@
 import { hash2, hashN } from './rng';
 import { BODIES, EYES, HEADS, HORNS, LEGS, MIDDLE_HORNS, MOUTHS, SPIKES, TAILS, WINGS, type Part, type Socket } from './monsterParts';
 import { speciesOf, type BodyKind } from './species';
-import type { MonsterState } from './types';
+import type { MonsterState, Rank } from './types';
 
 /** Monsters are drawn on a square canvas of this many pixels; the body's anchor sits at BODY_AT. */
 const LOOK_SIZE = 24;
@@ -78,7 +78,8 @@ function lookKey(seed: number, tier: number, speciesIndex: number): number {
   return hashN(seed, SALT_LOOK, tier, speciesIndex);
 }
 
-function speciesChoice(seed: number, tier: number, speciesIndex: number): LookChoice {
+/** The kit indices of a species' look, from (seed, tier, species index). */
+export function speciesChoice(seed: number, tier: number, speciesIndex: number): LookChoice {
   const key = lookKey(seed, tier, speciesIndex);
   const body = speciesOf(tier)[speciesIndex]?.body ?? 'blob';
   const pick = (n: number, length: number) => (length > 0 ? hash2(key, n) % length : 0);
@@ -121,28 +122,31 @@ export function speciesLook(seed: number, tier: number, speciesIndex: number): L
   };
 }
 
-/** Champions add one spikes or horns part and an aura; bosses add two or three (horns first) and are drawn twice as large. */
-export function monsterLook(seed: number, tier: number, m: Pick<MonsterState, 'species' | 'rank' | 'extra'>): MonsterLook {
-  const palette = lookPalette(lookKey(seed, tier, m.species));
-  const choice = speciesChoice(seed, tier, m.species);
-  if (m.rank === 'normal') return { grid: compose(layout(choice)), palette, aura: null, scale: 1 };
-  // A head carries at most one side pair and one middle piece, so an extra horn never lands on the species' own.
+/**
+ * The extra parts a rank adds to a species' choice, picked by the monster's `extra`: none for a normal monster,
+ * one spikes or horns part for a champion, two or three (horns first) for a boss.
+ * A head carries at most one side pair and one middle piece, so an extra horn never lands on the species' own.
+ */
+export function rankExtras(choice: LookChoice, rank: Rank, extra: number): Extra[] {
+  if (rank === 'normal') return [];
   const middle = (i: number) => MIDDLE_HORNS.includes(i);
   const shuffled = (kind: Extra['kind'], length: number, salt: number): Extra[] => Array.from({ length }, (_, index) => ({ kind, index }))
-    .map((e) => ({ e, key: hash2(m.extra, salt + e.index) })).sort((x, y) => x.key - y.key).map((x) => x.e);
+    .map((e) => ({ e, key: hash2(extra, salt + e.index) })).sort((x, y) => x.key - y.key).map((x) => x.e);
   const spikes = shuffled('spikes', SPIKES.length, 100);
   const own = choice.horns;
   const horns = shuffled('horns', HORNS.length, 200).filter((e) => own === null || middle(e.index) !== middle(own));
-  let extras: Extra[];
-  if (m.rank === 'boss') {
-    const count = 2 + (hash2(m.extra, 1) % 2);
-    extras = [...horns.slice(0, 1), ...spikes].slice(0, count);
-  } else {
-    const pool = [...spikes, ...horns];
-    const pick = pool[hash2(m.extra, 2) % pool.length];
-    extras = pick === undefined ? [] : [pick];
-  }
-  const grid = compose(layout({ ...choice, extras }));
+  if (rank === 'boss') return [...horns.slice(0, 1), ...spikes].slice(0, 2 + (hash2(extra, 1) % 2));
+  const pool = [...spikes, ...horns];
+  const pick = pool[hash2(extra, 2) % pool.length];
+  return pick === undefined ? [] : [pick];
+}
+
+/** Champions add one extra part and an aura; bosses add two or three and are drawn twice as large. */
+export function monsterLook(seed: number, tier: number, m: Pick<MonsterState, 'species' | 'rank' | 'extra'>): MonsterLook {
+  const palette = lookPalette(lookKey(seed, tier, m.species));
+  const choice = speciesChoice(seed, tier, m.species);
+  const grid = compose(layout({ ...choice, extras: rankExtras(choice, m.rank, m.extra) }));
+  if (m.rank === 'normal') return { grid, palette, aura: null, scale: 1 };
   if (m.rank === 'boss') return { grid, palette, aura: null, scale: 2 };
   return { grid, palette, aura: AURAS[hash2(m.extra, 0) % AURAS.length] ?? null, scale: 1 };
 }

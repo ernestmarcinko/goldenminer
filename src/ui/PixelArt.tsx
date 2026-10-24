@@ -42,6 +42,11 @@ function image(grid: readonly string[], palette: Record<string, string>, aura: s
   return canvas;
 }
 
+/** Production draws a bad scale at the nearest whole size, at least 1, rather than blurring it. */
+export function pixelScale(scale: number): number {
+  return Number.isFinite(scale) ? Math.max(1, Math.round(scale)) : 1;
+}
+
 /** A code-drawn pixel grid (generated monsters) on a canvas at an integer scale. */
 export function PixelArt({ grid, palette, scale, aura, label }: {
   grid: readonly string[]; palette: Record<string, string>; scale: number; aura?: string | null; label?: string;
@@ -49,9 +54,10 @@ export function PixelArt({ grid, palette, scale, aura, label }: {
   if (import.meta.env.DEV && (!Number.isInteger(scale) || scale <= 0)) {
     throw new Error(`PixelArt scale must be a positive integer, got ${scale}`);
   }
+  const px = pixelScale(scale);
   const ref = useRef<HTMLCanvasElement>(null);
-  const width = (grid[0]?.length ?? 0) * scale;
-  const height = grid.length * scale;
+  const width = (grid[0]?.length ?? 0) * px;
+  const height = grid.length * px;
   useLayoutEffect(() => {
     const ctx = ref.current?.getContext('2d');
     if (!ctx) return;

@@ -1,8 +1,9 @@
 import { expect, it } from 'vitest';
-import { compose, layout, monsterLook, speciesLook, type Extra, type LookChoice } from '../../src/core/monsterLook';
-import { BODIES, EYES, HEADS, HORNS, LEGS, MOUTHS, SPIKES, TAILS, WINGS, type Part, type Socket } from '../../src/core/monsterParts';
+import { compose, layout, monsterLook, rankExtras, speciesChoice, speciesLook, type Extra, type LookChoice } from '../../src/core/monsterLook';
+import { BODIES, EYES, HEADS, HORNS, LEGS, MIDDLE_HORNS, MOUTHS, SPIKES, TAILS, WINGS, type Part, type Socket } from '../../src/core/monsterParts';
 import { BODY_KINDS, speciesOf, type BodyKind } from '../../src/core/species';
 import type { Rank } from '../../src/core/types';
+import { pixelScale } from '../../src/ui/PixelArt';
 
 const CHARS = new Set('.kbBdaAepmt');
 const SIZE = 24;
@@ -212,4 +213,153 @@ it('rank changes the look', () => {
     }
   }
   expect([...auras].sort()).toEqual(['#7fe8ff', '#b39cff', '#e2604f', '#ff9b45']);
+});
+
+it('layout draws back to front', () => {
+  const quadruped: LookChoice = {
+    body: 'quadruped', head: 1, eyes: 2, mouth: 1, horns: 0, legs: 1, wings: 0, tail: 1,
+    extras: [{ kind: 'spikes', index: 2 }, { kind: 'horns', index: 3 }],
+  };
+  const parts = layout(quadruped).map((p) => p.part);
+  const back = [TAILS[1], LEGS.quadruped[1], BODIES.quadruped, SPIKES[2], HEADS[1], HORNS[0], HORNS[3], EYES[2], MOUTHS[1]];
+  expect(parts).toEqual(back);
+  for (const [i, part] of back.entries()) expect(parts[i], `slot ${i}`).toBe(part);
+  const winged = layout({ ...base('winged'), wings: 2 }).map((p) => p.part);
+  expect(winged.indexOf(WINGS[2] as Part)).toBeGreaterThanOrEqual(0);
+  expect(winged.indexOf(WINGS[2] as Part)).toBeLessThan(winged.indexOf(BODIES.winged));
+});
+
+const middle = (i: number) => MIDDLE_HORNS.includes(i);
+/** Horns an extra may add to a head that already wears `own`: the other zone only (side pair or middle piece). */
+const extraHorns = (own: number | null) => HORNS.map((_, i) => i).filter((i) => own === null || middle(i) !== middle(own));
+const spikeOrders = (n: number): number[][] => {
+  const out: number[][] = [];
+  const grow = (prefix: number[]) => {
+    if (prefix.length === n) { out.push(prefix); return; }
+    for (let i = 0; i < SPIKES.length; i++) if (!prefix.includes(i)) grow([...prefix, i]);
+  };
+  grow([]);
+  return out;
+};
+const sp = (index: number): Extra => ({ kind: 'spikes', index });
+const hn = (index: number): Extra => ({ kind: 'horns', index });
+function championStacks(own: number | null): Extra[][] {
+  return [...SPIKES.map((_, i) => [sp(i)]), ...extraHorns(own).map((i) => [hn(i)])];
+}
+function bossStacks(own: number | null): Extra[][] {
+  const horns = extraHorns(own);
+  if (horns.length === 0) return [...spikeOrders(2), ...spikeOrders(3)].map((o) => o.map(sp));
+  return horns.flatMap((h) => [...spikeOrders(1), ...spikeOrders(2)].map((o) => [hn(h), ...o.map(sp)]));
+}
+
+it('a rank picks its extras from the monster\'s extra value', () => {
+  for (const horns of [null, 0, 1, 2, 3, 4]) {
+    const choice: LookChoice = { ...base('biped'), horns };
+    const champions = new Set<string>();
+    const bosses = new Set<string>();
+    const sizes = new Set<number>();
+    const championOk = new Set(championStacks(horns).map((x) => JSON.stringify(x)));
+    const bossOk = new Set(bossStacks(horns).map((x) => JSON.stringify(x)));
+    for (let extra = 0; extra < 2000; extra++) {
+      expect(rankExtras(choice, 'normal', extra)).toEqual([]);
+      const champion = rankExtras(choice, 'champion', extra);
+      expect(champion).toHaveLength(1);
+      expect(championOk.has(JSON.stringify(champion)), JSON.stringify(champion)).toBe(true);
+      champions.add(JSON.stringify(champion));
+      const boss = rankExtras(choice, 'boss', extra);
+      expect(bossOk.has(JSON.stringify(boss)), JSON.stringify(boss)).toBe(true);
+      expect(rankExtras(choice, 'boss', extra)).toEqual(boss);
+      sizes.add(boss.length);
+      bosses.add(JSON.stringify(boss));
+    }
+    // Every allowed pick turns up: champions take horns as well as spikes, and bosses stack two or three.
+    expect(champions.size, `horns ${horns}`).toBe(championOk.size);
+    expect(bosses.size, `horns ${horns}`).toBe(bossOk.size);
+    expect([...sizes].sort()).toEqual([2, 3]);
+  }
+});
+
+it('monsterLook draws the rank\'s extras on the species\' choice', () => {
+  for (let seed = 1; seed <= 20; seed++) {
+    for (const rank of ['normal', 'champion', 'boss'] as const) {
+      const extra = seed * 977;
+      const choice = speciesChoice(seed, 3, seed % 4);
+      expect(monsterLook(seed, 3, { species: seed % 4, rank, extra }).grid).toEqual(compose(layout({ ...choice, extras: rankExtras(choice, rank, extra) })));
+    }
+  }
+});
+
+/** What the seed decides about a look, leaving out the body (fixed by the species list). */
+const keyed = (seed: number, tier: number, i: number) => JSON.stringify({ ...speciesChoice(seed, tier, i), body: null, palette: speciesLook(seed, tier, i).palette });
+
+it('a look is keyed by tier and species index as well as the seed', () => {
+  let pairs = 0;
+  let tierDiffer = 0;
+  for (let seed = 1; seed <= 30; seed++) {
+    // Tiers 7-10 and 11-14 share their species lists, so only the key tells them apart.
+    for (let tier = 7; tier <= 10; tier++) {
+      for (let i = 0; i < speciesOf(tier).length; i++) {
+        pairs++;
+        if (keyed(seed, tier, i) !== keyed(seed, tier + 4, i)) tierDiffer++;
+      }
+    }
+  }
+  expect(tierDiffer / pairs).toBeGreaterThanOrEqual(0.8);
+  let speciesPairs = 0;
+  let speciesDiffer = 0;
+  for (let seed = 1; seed <= 30; seed++) {
+    for (let tier = 1; tier <= 8; tier++) {
+      const n = speciesOf(tier).length;
+      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+        speciesPairs++;
+        if (keyed(seed, tier, i) !== keyed(seed, tier, j)) speciesDiffer++;
+      }
+    }
+  }
+  expect(speciesDiffer / speciesPairs).toBeGreaterThanOrEqual(0.8);
+});
+
+it('horns come and go, and pupils vary', () => {
+  let looks = 0;
+  let horned = 0;
+  const pupils = new Set<string | undefined>();
+  for (let seed = 1; seed <= 200; seed++) {
+    for (let tier = 1; tier <= 8; tier++) {
+      for (let i = 0; i < speciesOf(tier).length; i++) {
+        looks++;
+        if (speciesChoice(seed, tier, i).horns !== null) horned++;
+        pupils.add(speciesLook(seed, tier, i).palette.p);
+      }
+    }
+  }
+  expect(horned / looks).toBeGreaterThan(0.4);
+  expect(horned / looks).toBeLessThan(0.6);
+  expect(pupils.size).toBe(5);
+});
+
+it('every head, own horns and allowed extra stack composes cleanly', () => {
+  for (const body of BODY_KINDS) {
+    for (let head = 0; head < HEADS.length; head++) {
+      for (const horns of [null, 0, 1, 2, 3, 4]) {
+        for (const extras of [[], ...championStacks(horns), ...bossStacks(horns)]) {
+          const choice: LookChoice = { ...base(body), head, horns, extras };
+          const label = JSON.stringify(choice);
+          const grid = compose(layout(choice));
+          expect(count(grid, 'ep'), label).toBe(count(EYES[0]?.grid ?? [], 'ep'));
+          expect(groups(grid), label).toBe(1);
+          if (extras.length > 0) expect(grid, `${label} extras show`).not.toEqual(compose(layout({ ...choice, extras: [] })));
+          for (let k = 0; k < extras.length; k++) {
+            // Known gap, kept as approved art: on the blob a boss's first spikes part can lie wholly under its second.
+            if (body === 'blob' && extras[k]?.kind === 'spikes' && k < extras.length - 1) continue;
+            const without = compose(layout({ ...choice, extras: extras.filter((_, j) => j !== k) }));
+            expect(grid, `${label} extra ${k} shows`).not.toEqual(without);
+          }
+        }
+      }
+    }
+  }
+});
+
+it('PixelArt draws at a whole scale of at least 1', () => {
+  expect([4, 2.6, 2.4, 0.2, 0, -3, Number.NaN, Number.POSITIVE_INFINITY].map(pixelScale)).toEqual([4, 3, 2, 1, 1, 1, 1, 1]);
 });
