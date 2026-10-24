@@ -8,6 +8,7 @@ export function xpToNext(level: number): number {
 
 /** Adds XP and levels the miner up while there is enough; returns the levels gained. XP is 0 at the cap. */
 export function gainXp(state: Pick<GameState, 'level' | 'xp'>, amount: number): number {
+  if (!Number.isFinite(amount) || amount < 0) return 0;
   state.xp += amount;
   let gained = 0;
   while (state.level < LEVEL_CAP && state.xp >= xpToNext(state.level)) {

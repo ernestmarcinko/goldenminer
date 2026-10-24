@@ -330,6 +330,7 @@ it('rejects impossible maps, runs and levels', () => {
     ['zero life', (s) => { const r = run(s); if (r) r.life = 0; }],
     ['monster life above max', (s) => { const m = first(s); if (m) m.life = 99; }],
     ['an unknown modifier', (s) => { const m = first(s); if (m) { m.rank = 'champion'; m.mods = ['cursed' as ChampionMod]; } }],
+    ['a species the tier does not have', (s) => { const m = first(s); if (m) m.species = 99; }],
     ['modifiers on a normal', (s) => { const m = first(s); if (m) m.mods = ['brutal']; }],
     ['three modifiers', (s) => { const m = first(s); if (m) { m.rank = 'champion'; m.mods = ['brutal', 'swift', 'armored']; } }],
     ['boss room 9', (s) => { const r = run(s); if (r) r.bossRoom = 9; }],

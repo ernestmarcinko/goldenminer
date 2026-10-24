@@ -11,6 +11,7 @@ import { GEAR_SETS, GEM_GRADES, GEM_TYPES, RARITIES, setOfSlot, slotsOf, statsOf
 import type { Cell, GearItem, GearSet, GemItem, GemType, Item, Slot } from './items';
 import { xpToNext } from './levels';
 import { isValidSeedText, seedFromText } from './seed';
+import { speciesOf } from './species';
 import {
   BAG_FULL_MODES, CHAMPION_MODS, DEFAULT_MOTION, ELEMENTS, FEATURE_KINDS, LOOT_ACTIONS, LOOT_OUTCOMES, RANKS, RUN_OUTCOMES,
   SHAFT_MOTIONS, type GameState, type MapItem,
@@ -296,9 +297,10 @@ function isMapItem(x: unknown, nextId: number, seen: Set<number>): x is MapItem 
   return isItemBase(x, nextId, seen, false);
 }
 
-function isMonster(x: unknown): boolean {
+function isMonster(x: unknown, tier: number): boolean {
   if (!isObject(x)) return false;
   if (typeof x.name !== 'string' || x.name.length < 1 || x.name.length > 80 || !isNonNegInt(x.species)) return false;
+  if (x.species >= speciesOf(tier).length) return false;
   if (!isIn(RANKS, x.rank) || !isUint32(x.extra) || !isIn(ELEMENTS, x.element)) return false;
   if (
     !Array.isArray(x.mods) || x.mods.length > 2 || (x.mods.length > 0 && x.rank !== 'champion') ||
@@ -337,7 +339,8 @@ const isRoomIn = (x: unknown, bossRoom: number): x is number => isNonNegInt(x) &
 function isMapRun(x: unknown, nextId: number, seen: Set<number>): boolean {
   if (!isObject(x) || !isMapItem(x.map, nextId, seen) || !isBossRoom(x.bossRoom) || !isRoomIn(x.room, x.bossRoom)) return false;
   const { queue, room, bossRoom } = x;
-  if (!Array.isArray(queue) || queue.length < 1 || queue.length > MONSTER_BUDGET || !queue.every(isMonster)) return false;
+  const tier = isObject(x.map) && typeof x.map.tier === 'number' ? x.map.tier : 1;
+  if (!Array.isArray(queue) || queue.length < 1 || queue.length > MONSTER_BUDGET || !queue.every((m) => isMonster(m, tier))) return false;
   if ((queue[0].rank === 'boss') !== (room === bossRoom)) return false;
   if (!isNonNegInt(x.life) || x.life < 1 || x.life > MAX_LIFE || !isUnitRange(x.hitCarry) || !isUnitRange(x.monsterCarry)) return false;
   if (!isGains(x.gained)) return false;
