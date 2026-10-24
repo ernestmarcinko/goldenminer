@@ -15,6 +15,8 @@ export interface CardMenu {
   onClose: () => void;
   /** Keyboard focus moved out of the card, so it closes without taking focus back. */
   onLeave: () => void;
+  /** Set while this card's item is lifted by a touch tap. */
+  onPutBack?: () => void;
 }
 
 function Lines({ lines }: { lines: ViewLine[] }) {
@@ -74,6 +76,9 @@ export function ItemCard({ state, target, shownSet, left, top, menu }: {
           <Lines lines={compare.lines} />
         </div>
       )}
+      {menu?.onPutBack !== undefined && (
+        <div className="gm-card__note">Picked up: tap a cell, a slot or a tab to put it there.</div>
+      )}
       {menu ? (
         <div className="gm-card__actions">
           {itemActions(state, target, shownSet).map((a, i) => (
@@ -87,6 +92,9 @@ export function ItemCard({ state, target, shownSet, left, top, menu }: {
               {a.label}
             </button>
           ))}
+          {menu.onPutBack !== undefined && (
+            <button type="button" className="gm-card__btn" onClick={menu.onPutBack}>Put back</button>
+          )}
           <button type="button" className="gm-card__btn gm-card__btn--quiet" onClick={menu.onClose}>Close</button>
         </div>
       ) : (

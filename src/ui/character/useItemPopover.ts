@@ -9,8 +9,8 @@ export interface Placed { target: ItemTarget; left: number; top: number }
 export function useItemPopover(containerRef: RefObject<HTMLElement | null>) {
   const [hover, setHover] = useState<Placed | null>(null);
   const [menu, setMenu] = useState<Placed | null>(null);
-  const menuOpen = useRef(false);
-  menuOpen.current = menu !== null;
+  const menuNow = useRef<Placed | null>(null);
+  menuNow.current = menu;
   const opener = useRef<HTMLElement | null>(null);
 
   const place = useCallback((target: ItemTarget, el: HTMLElement): Placed | null => {
@@ -26,7 +26,7 @@ export function useItemPopover(containerRef: RefObject<HTMLElement | null>) {
   }, [containerRef]);
 
   const inspect = useCallback((target: ItemTarget, el: HTMLElement) => {
-    if (menuOpen.current) return;
+    if (menuNow.current !== null) return;
     setHover(place(target, el));
   }, [place]);
 
@@ -47,16 +47,30 @@ export function useItemPopover(containerRef: RefObject<HTMLElement | null>) {
     setTimeout(() => { if (el?.isConnected) el.focus(); else fallback?.focus(); }, 0);
   }, []);
 
+  /**
+   * Focus left the card. It closes once the current click is over: closing it can scroll the page, and the click
+   * that moved focus would then land on whatever moved under the pointer. A card opened meanwhile stays.
+   */
+  const leaveMenu = useCallback(() => {
+    const leaving = menuNow.current;
+    setTimeout(() => setMenu((m) => (m === leaving ? null : m)), 0);
+  }, []);
+
   const isOpen = menu !== null;
   useEffect(() => {
     if (!isOpen) return undefined;
-    const onDown = (e: PointerEvent): void => {
+    // on click (or right-click), not pointerdown, for the same reason as leaveMenu
+    const onOutside = (e: MouseEvent): void => {
       if (e.target instanceof Element && e.target.closest('[data-item-card]') !== null) return;
       setMenu(null);
     };
-    document.addEventListener('pointerdown', onDown);
-    return () => document.removeEventListener('pointerdown', onDown);
+    document.addEventListener('click', onOutside, true);
+    document.addEventListener('contextmenu', onOutside, true);
+    return () => {
+      document.removeEventListener('click', onOutside, true);
+      document.removeEventListener('contextmenu', onOutside, true);
+    };
   }, [isOpen]);
 
-  return { hover, menu, inspect, clear, openMenu, closeMenu };
+  return { hover, menu, inspect, clear, openMenu, closeMenu, leaveMenu };
 }

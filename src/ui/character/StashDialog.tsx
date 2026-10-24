@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import type { KeyboardEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { KeyboardEvent, RefObject } from 'react';
 import { BAG_SIZE, STASH_SIZE } from '../../core/balance';
 import { filledCount } from '../../core/cells';
 import type { GearSet } from '../../core/items';
@@ -7,10 +7,12 @@ import type { GameStore } from '../../store/gameStore';
 import { formatNumber } from '../format';
 import { useDialog } from '../useDialog';
 import { useGame } from '../useGame';
+import { dropAttr } from './dragDrop';
 import { GemTab } from './GemTab';
 import { ItemGrid } from './ItemGrid';
 import { STASH_TABS, tabLabel } from './stashView';
 import type { StashTab } from './stashView';
+import type { ItemDrag } from './useItemDrag';
 import { useItemInteractions } from './useItemInteractions';
 
 const BAGS: readonly { set: GearSet; toggle: string }[] = [
@@ -20,8 +22,14 @@ const BAGS: readonly { set: GearSet; toggle: string }[] = [
 
 const tabId = (tab: StashTab): string => `gm-stash-tab-${tab}`;
 
-/** The stash in tabs, with the bag beside it; both share the same tooltips, clicks and action card. */
-export function StashDialog({ store, set, onClose }: { store: GameStore; set: GearSet; onClose: () => void }) {
+/**
+ * The stash in tabs, with the bag beside it; both share the same tooltips, clicks and action card. While it is open,
+ * `sayRef` points at its status line, so drop results show here rather than in the panel underneath.
+ */
+export function StashDialog({ store, set, onClose, drag, sayRef }: {
+  store: GameStore; set: GearSet; onClose: () => void; drag: ItemDrag;
+  sayRef: RefObject<((text: string | null) => void) | null>;
+}) {
   const { state } = useGame(store);
   const [tab, setTab] = useState<StashTab>('general');
   const [bagSet, setBagSet] = useState<GearSet>(set);
@@ -29,9 +37,13 @@ export function StashDialog({ store, set, onClose }: { store: GameStore; set: Ge
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const tabRefs = useRef<Partial<Record<StashTab, HTMLButtonElement | null>>>({});
-  const { handlers, message, cards, reset } = useItemInteractions({
-    store, state, shownSet: bagSet, containerRef: dialogRef, fallbackRef: titleRef,
+  const { handlers, message, say, cards, reset } = useItemInteractions({
+    store, state, shownSet: bagSet, containerRef: dialogRef, fallbackRef: titleRef, drag,
   });
+  useEffect(() => {
+    sayRef.current = say;
+    return () => { sayRef.current = null; };
+  }, [say, sayRef]);
 
   const openTab = (next: StashTab, focus = false): void => {
     setTab(next);
@@ -83,7 +95,8 @@ export function StashDialog({ store, set, onClose }: { store: GameStore; set: Ge
                   aria-selected={tab === t}
                   aria-controls="gm-stash-panel"
                   tabIndex={tab === t ? 0 : -1}
-                  onClick={() => openTab(t)}
+                  data-drop={t === 'maps' ? undefined : dropAttr({ where: 'stashTab', tab: t })}
+                  onClick={() => { if (t === 'maps' || !drag.onTap({ where: 'stashTab', tab: t }, false)) openTab(t); }}
                 >
                   {tabLabel(state, t)}
                 </button>

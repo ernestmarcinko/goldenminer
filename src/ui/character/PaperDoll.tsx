@@ -3,7 +3,7 @@ import type { GearSet, Slot } from '../../core/items';
 import { itemName } from '../../core/itemData';
 import type { GameState } from '../../core/types';
 import { Sprite } from '../../sprites/Sprite';
-import { ItemButton } from './ItemGrid';
+import { EmptyTarget, ItemButton } from './ItemGrid';
 import type { ItemHandlers } from './ItemGrid';
 import { SLOT_LABELS } from './itemView';
 
@@ -17,7 +17,12 @@ function SlotView({ state, slot, handlers }: { state: GameState; slot: Slot; han
   return (
     <div className="gm-slot">
       {item === undefined ? (
-        <div className="gm-slot__box gm-slot__box--empty" role="img" aria-label={`${SLOT_LABELS[slot]}: empty`} />
+        <EmptyTarget
+          target={{ where: 'worn', slot }}
+          drag={handlers.drag}
+          className="gm-slot__box gm-slot__box--empty"
+          label={`${SLOT_LABELS[slot]}: empty`}
+        />
       ) : (
         <ItemButton
           item={item}

@@ -34,6 +34,7 @@
 .gm-item {
   position: relative; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
   padding: 0; border-radius: 6px; background: #241e19; border: 2px solid var(--gm-normal); cursor: pointer;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
 button.gm-item:hover { background: #3a2f20; }
 .gm-slot__box.gm-item { border-radius: 8px; }
@@ -58,6 +59,17 @@ button.gm-item:hover { background: #3a2f20; }
   color: var(--gm-text); text-shadow: 0 1px 2px #000; pointer-events: none;
 }
 .gm-item--dim { opacity: 0.3; cursor: default; }
+/* drag and drop: the cell being dragged, the target under the pointer and the ghost that follows it, nudged so
+   the target's outline shows */
+.gm-item[data-drag-source] { opacity: 0.4; }
+[data-drop-over] { outline: 2px dashed var(--gm-up); outline-offset: -3px; }
+.gm-stash__tab[data-drop-over] { outline-offset: -4px; }
+.gm-ghost {
+  position: fixed; z-index: 100; pointer-events: none; opacity: 0.85; border-color: var(--gm-tone);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.7); transform: translate(12px, 12px) rotate(-4deg);
+}
+/* a touch tap lifts an item until it is placed or put back */
+.gm-item[data-held] { z-index: 1; transform: translateY(-6px); box-shadow: 0 0 0 3px var(--gm-gold), 0 10px 18px rgba(0, 0, 0, 0.6); }
 
 .gm-grid { display: grid; grid-template-columns: repeat(6, minmax(44px, 52px)); gap: 6px; }
 .gm-grid--stash { grid-template-columns: repeat(8, minmax(44px, 52px)); }

@@ -6,11 +6,13 @@ import { gearTotals } from '../../core/stats';
 import type { GameStore } from '../../store/gameStore';
 import { formatNumber } from '../format';
 import { useGame } from '../useGame';
+import { dropAttr } from './dragDrop';
 import { ItemGrid } from './ItemGrid';
 import { battleStatLine, miningStatLine } from './itemView';
 import { LootFilterDialog } from './LootFilterDialog';
 import { PaperDoll } from './PaperDoll';
 import { StashDialog } from './StashDialog';
+import { useItemDrag } from './useItemDrag';
 import { useItemInteractions } from './useItemInteractions';
 import './character.css';
 
@@ -29,12 +31,16 @@ export function CharacterPanel({ store }: { store: GameStore }) {
   const bagHeadingRef = useRef<HTMLHeadingElement>(null);
   const stashButtonRef = useRef<HTMLButtonElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
-  const { handlers, message, cards, reset } = useItemInteractions({
-    store, state, shownSet: set, containerRef: panelRef, fallbackRef: bagHeadingRef,
+  // one drag controller for the panel and the stash; a drop result shows on the stash's status line while it is open
+  const stashSay = useRef<((text: string | null) => void) | null>(null);
+  const drag = useItemDrag({ store, onResult: (text) => (stashSay.current ?? say)(text) });
+  const { handlers, message, say, cards, reset } = useItemInteractions({
+    store, state, shownSet: set, containerRef: panelRef, fallbackRef: bagHeadingRef, drag,
   });
 
   const closeDialog = (): void => {
     const back = dialog === 'stash' ? stashButtonRef : filterButtonRef;
+    if (dialog === 'stash') drag.release();
     setDialog(null);
     setTimeout(() => back.current?.focus(), 0);
   };
@@ -74,7 +80,13 @@ export function CharacterPanel({ store }: { store: GameStore }) {
           <button type="button" ref={filterButtonRef} className="gm-btn" onClick={() => setDialog('filter')}>
             Loot filter
           </button>
-          <button type="button" ref={stashButtonRef} className="gm-btn" onClick={() => setDialog('stash')}>
+          <button
+            type="button"
+            ref={stashButtonRef}
+            className="gm-btn"
+            data-drop={dropAttr({ where: 'stashTab', tab: 'auto' })}
+            onClick={() => { if (!drag.onTap({ where: 'stashTab', tab: 'auto' }, false)) setDialog('stash'); }}
+          >
             Stash {formatNumber(filledCount(state.stash.general))} / {formatNumber(STASH_SIZE)}
           </button>
         </div>
@@ -87,12 +99,13 @@ export function CharacterPanel({ store }: { store: GameStore }) {
       />
       <div className="gm-char__status gm-small" role="status">{message}</div>
       <p className="gm-char__hint gm-muted gm-small">
-        Hover an item to inspect it, click to equip. Alt+click sells, Shift+click stashes, right-click shows
-        everything. On a touch screen, tap an item.
+        Hover an item to inspect it, click to equip, or drag it to a cell, a slot or the Stash button. Alt+click sells,
+        Shift+click stashes, right-click shows everything. On a touch screen, tap an item to pick it up, then tap where
+        it goes.
       </p>
 
       {cards}
-      {dialog === 'stash' && <StashDialog store={store} set={set} onClose={closeDialog} />}
+      {dialog === 'stash' && <StashDialog store={store} set={set} onClose={closeDialog} drag={drag} sayRef={stashSay} />}
       {dialog === 'filter' && <LootFilterDialog store={store} onClose={closeDialog} />}
     </section>
   );

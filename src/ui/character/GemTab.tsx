@@ -2,6 +2,7 @@ import { itemAt } from '../../core/cells';
 import { itemName } from '../../core/itemData';
 import { Sprite } from '../../sprites/Sprite';
 import type { GameState } from '../../core/types';
+import { dropAttr } from './dragDrop';
 import type { ItemHandlers } from './ItemGrid';
 import { ItemButton } from './ItemGrid';
 import { baseSprite } from './itemView';
@@ -31,11 +32,22 @@ function GemLine({ row, state, handlers }: { row: GemRow; state: GameState; hand
       {row.cells.map((cell) => {
         const target = { where: 'gems', gem: row.gem, grade: cell.grade } as const;
         const item = itemAt(state, target);
-        // The wrapper stays mounted as the count crosses 0 and 1, so a drop target can rely on it.
+        // The wrapper stays mounted as the count crosses 0 and 1, so it carries the drop target.
         return (
-          <div key={cell.grade} className="gm-gemtab__cell" data-gem={row.gem} data-grade={cell.grade}>
+          <div
+            key={cell.grade}
+            className="gm-gemtab__cell"
+            data-gem={row.gem}
+            data-grade={cell.grade}
+            data-drop={dropAttr(target)}
+          >
             {item === undefined ? (
-              <div className="gm-cell gm-item gm-item--dim" data-rarity="gem" aria-hidden="true">
+              <div
+                className="gm-cell gm-item gm-item--dim"
+                data-rarity="gem"
+                aria-hidden="true"
+                onClick={() => handlers.drag.onTap(target, false)}
+              >
                 <Sprite name={baseSprite(row.gem)} scale={3} />
               </div>
             ) : (

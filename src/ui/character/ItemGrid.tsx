@@ -1,14 +1,18 @@
 import { useRef } from 'react';
+import { sameLoc } from '../../core/cells';
 import { isGear } from '../../core/items';
 import type { Cell, Item } from '../../core/items';
 import { itemName } from '../../core/itemData';
 import { Sprite } from '../../sprites/Sprite';
 import { formatCompact, formatNumber } from '../format';
+import { dropAttr } from './dragDrop';
 import type { ItemTarget } from './itemActions';
 import { clickIntent, itemSprite, rarityOf } from './itemView';
 import type { ClickIntent } from './itemView';
+import type { ItemDrag } from './useItemDrag';
 
 export interface ItemHandlers {
+  drag: ItemDrag;
   onPick: (target: ItemTarget, intent: ClickIntent, el: HTMLElement) => void;
   onInspect: (target: ItemTarget, el: HTMLElement) => void;
   onClear: () => void;
@@ -36,14 +40,23 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
   item: Item; target: ItemTarget; handlers: ItemHandlers; scale: number; className: string; label: string;
 }) {
   const pointerType = useRef('mouse');
+  const { drag } = handlers;
   return (
     <button
       type="button"
       className={className}
       data-rarity={rarityOf(item)}
+      data-drop={dropAttr(target)}
+      data-held={drag.held !== null && sameLoc(drag.held, target) ? '' : undefined}
       aria-label={isGear(item) || item.count <= 1 ? label : `${label}, ${formatNumber(item.count)}`}
-      onPointerDown={(e) => { pointerType.current = e.pointerType; }}
+      onPointerDown={(e) => { pointerType.current = e.pointerType; drag.onPointerDown(target, e); }}
       onClick={(e) => {
+        if (drag.consumeClick()) return;
+        // a touch tap lifts the item and opens its card; with an item already lifted it places or puts back
+        if (pointerType.current === 'touch' && e.detail !== 0) {
+          const lifting = drag.held === null;
+          if (drag.onTap(target, true) && !lifting) return;
+        }
         const intent = clickIntent({
           altKey: e.altKey, shiftKey: e.shiftKey, detail: e.detail, pointerType: pointerType.current,
         });
@@ -52,13 +65,29 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
       onContextMenu={(e) => { e.preventDefault(); handlers.onMenu(target, e.currentTarget); }}
       onMouseEnter={(e) => { if (pointerType.current !== 'touch') handlers.onInspect(target, e.currentTarget); }}
       onMouseLeave={handlers.onClear}
-      onFocus={(e) => handlers.onInspect(target, e.currentTarget)}
+      // after a touch, focus coming back from the card shows no tooltip: it would cover cells and shift the page
+      onFocus={(e) => { if (pointerType.current !== 'touch') handlers.onInspect(target, e.currentTarget); }}
       onBlur={handlers.onClear}
     >
       <Sprite name={itemSprite(item)} scale={scale} />
       <SocketDots item={item} />
       <StackCount item={item} />
     </button>
+  );
+}
+
+/** An empty cell or slot: a drop target that a touch tap can place the lifted item on. Not in the tab order. */
+export function EmptyTarget({ target, drag, className, label }: {
+  target: ItemTarget; drag: ItemDrag; className: string; label?: string;
+}) {
+  return (
+    <div
+      className={className}
+      data-drop={dropAttr(target)}
+      role={label !== undefined ? 'img' : undefined}
+      aria-label={label}
+      onClick={() => drag.onTap(target, false)}
+    />
   );
 }
 
@@ -71,7 +100,7 @@ export function ItemGrid({ items, capacity, targetOf, handlers, className }: {
   for (let i = 0; i < capacity; i++) {
     const item = items[i];
     cells.push(item === undefined || item === null ? (
-      <div key={i} className="gm-cell gm-cell--empty" />
+      <EmptyTarget key={i} target={targetOf(i)} drag={handlers.drag} className="gm-cell gm-cell--empty" />
     ) : (
       <ItemButton
         key={i}
