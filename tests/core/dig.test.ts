@@ -268,6 +268,18 @@ it('vein yield raises every vein: Gold and material', () => {
   expect(t.bag.find((c) => c?.type === 'material' && c.material === 'copper')).toMatchObject({ count: 5 });
 });
 
+it('vein yield raises a diamond vein too, on top of Diamond yield', () => {
+  const s = fresh();
+  s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'veinYield', value: 50 }] });
+  const st = deriveStats(s);
+  expect(st.veinMultiplier).toBeCloseTo(1.5);
+  s.ahead[1] = { feature: 'diamondVein', amount: 3, hardRock: false };
+  const events: TickEvent[] = [];
+  while (s.deepest < 1) applyTicks(s, 1, { ...st, diamondMultiplier: 2 }, events);
+  expect(s.diamonds).toBe(9);   // 3 × 2 × 1.5
+  expect(events.filter((e) => e.kind === 'diamond')).toEqual([{ kind: 'diamond', amount: 9 }]);
+});
+
 /** Whether the seed left metre `m` empty of everything: no seeded feature and no layer vein. */
 const emptyMetre = (seed: number, m: number) => rollMetre(seed, m, BASE_ROLL_CHANCES).feature === null && metreLayer(seed, m).vein === null;
 

@@ -314,6 +314,18 @@ it('sell bonus raises sell-the-worst, held loot sold by the filter, and a found 
   expect(gems.gold).toBe(60);
 });
 
+it('salvage yield raises held loot the filter now salvages', () => {
+  const s = wearing('salvageYield', 100);
+  s.settings.bagFull = 'stop';
+  fill(s);
+  receiveItem(s, gear(s, 'ring', { rarity: 'rare', ilvl: 10 }));
+  expect(s.overflow).toHaveLength(1);
+  s.settings.lootFilter = [{ rarity: 'rare', target: 'any', action: 'salvage' }];
+  drainOverflow(s);
+  expect(s.overflow).toEqual([]);
+  expect([s.stash.materials.copper, s.stash.materials.tin, s.stash.materials.iron]).toEqual([18, 12, 6]);   // 9, 6 and 3, doubled
+});
+
 it('salvage yield raises each material salvage gives, rounded', () => {
   const s = wearing('salvageYield', 100);
   const ring = gear(s, 'ring', { rarity: 'rare', ilvl: 10 });
