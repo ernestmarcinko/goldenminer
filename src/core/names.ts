@@ -9,7 +9,7 @@ export const SYLLABLE_START: readonly string[] = [
 ];
 export const SYLLABLE_MIDDLE: readonly string[] = ['a', 'o', 'ar', 'ul', 'om', 'il', 'ir', 'or'];
 export const SYLLABLE_END: readonly string[] = [
-  'vash', 'mar', 'dok', 'rin', 'gath', 'bel', 'dun', 'rik', 'mund', 'zul',
+  'vash', 'mar', 'dok', 'rin', 'gath', 'bor', 'dun', 'rik', 'mund', 'zul',
   'gan', 'loth', 'ver', 'kas', 'mok', 'ran', 'tar', 'vek',
 ];
 
@@ -59,13 +59,31 @@ function placeSlot(tier: number): 1 | 2 | 3 | 4 | 5 | 6 | 7 {
   return t === 1 || t === 2 || t === 3 || t === 4 || t === 5 || t === 6 ? t : 7;
 }
 
+// A middle that would stutter ("Gororan", "Bramamar") or double a consonant into the end ("Thulommok") is left out.
+const STUTTER = /(..+)\1/i;
+
+export function creatureWord(start: string, middle: string, end: string): string {
+  const word = start + middle + end;
+  if (middle === '' || (!STUTTER.test(word) && middle.slice(-1) !== end.charAt(0))) return word;
+  return start + end;
+}
+
 export function creatureName(h: number): string {
   const middle = (h >>> 24) % 3 === 0 ? pick(SYLLABLE_MIDDLE, h >>> 16) : '';
-  return pick(SYLLABLE_START, h) + middle + pick(SYLLABLE_END, h >>> 8);
+  return creatureWord(pick(SYLLABLE_START, h), middle, pick(SYLLABLE_END, h >>> 8));
 }
 
 export function championName(h: number): string {
   return `${creatureName(h)} the ${pick(EPITHETS, hash2(h, SALT_EPITHET))}`;
+}
+
+/** Every dungeon name a tier can have, in list order: the adjective form, then the compounds. */
+export function allDungeonNames(tier: number): string[] {
+  const places = DUNGEON_PLACES[placeSlot(tier)];
+  return [
+    ...DUNGEON_ADJECTIVES.flatMap((a) => places.map((p) => `The ${a} ${p}`)),
+    ...DUNGEON_PREFIXES.flatMap((pre) => DUNGEON_SUFFIXES.flatMap((suf) => places.map((p) => `${pre}${suf} ${p}`))),
+  ];
 }
 
 export function dungeonName(h: number, tier: number): string {

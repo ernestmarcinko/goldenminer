@@ -1,5 +1,5 @@
 import { CHAMPION_UNITS, MAX_ROOMS, MIN_ROOMS, MONSTER_BUDGET } from './balance';
-import { bossName, championName, dungeonName } from './names';
+import { allDungeonNames, bossName, championName, dungeonName } from './names';
 import { hashN, mulberry32 } from './rng';
 import { speciesOf } from './species';
 import { CHAMPION_MODS, ELEMENTS, type ChampionMod, type Element, type Rank } from './types';
@@ -36,16 +36,21 @@ const SALT_MODS = 0x30d5;
 
 const FLOOR_PATTERNS = [0, 1, 2, 3] as const;
 
+const NAME_ATTEMPTS = 32;
+
+/** The first candidate not yet taken; after NAME_ATTEMPTS clashes, the first unused name of the tier in list order. */
+export function uniqueName(taken: readonly string[], tier: number, candidate: (attempt: number) => string): string {
+  for (let attempt = 0; attempt < NAME_ATTEMPTS; attempt++) {
+    const name = candidate(attempt);
+    if (!taken.includes(name)) return name;
+  }
+  return allDungeonNames(tier).find((name) => !taken.includes(name)) ?? '';
+}
+
 function typeNames(seed: number, tier: number): string[] {
   const names: string[] = [];
   for (let index = 0; index < 3; index++) {
-    for (let attempt = 0; ; attempt++) {
-      const name = dungeonName(hashN(seed, SALT_NAME, tier, index, attempt), tier);
-      if (!names.includes(name)) {
-        names.push(name);
-        break;
-      }
-    }
+    names.push(uniqueName(names, tier, (attempt) => dungeonName(hashN(seed, SALT_NAME, tier, index, attempt), tier)));
   }
   return names;
 }
@@ -99,6 +104,27 @@ function roomOrder(seed: number, metre: number, rooms: number): number[] {
   return order;
 }
 
+/**
+ * Splits the monster budget over the rooms: champions go first, to the first `champions` rooms of `order`, then each
+ * normal unit goes to the room with the smallest total, the earlier room in `order` on a tie.
+ */
+export function spreadUnits(order: readonly number[], rooms: number, champions: number): { normals: number[]; champion: boolean[] } {
+  const champion = new Array<boolean>(rooms).fill(false);
+  const normals = new Array<number>(rooms).fill(0);
+  const totals = new Array<number>(rooms).fill(0);
+  for (const r of order.slice(0, champions)) {
+    champion[r] = true;
+    totals[r] = CHAMPION_UNITS;
+  }
+  for (let unit = 0; unit < MONSTER_BUDGET - champions * CHAMPION_UNITS; unit++) {
+    let best = order[0] ?? 0;
+    for (const r of order) if ((totals[r] ?? 0) < (totals[best] ?? 0)) best = r;
+    totals[best] = (totals[best] ?? 0) + 1;
+    normals[best] = (normals[best] ?? 0) + 1;
+  }
+  return { normals, champion };
+}
+
 function championMods(h: number): ChampionMod[] {
   const n = CHAMPION_MODS.length;
   const first = (h >>> 8) % n;
@@ -114,21 +140,7 @@ export function dungeonLayout(
   const type = dungeonType(seed, tier, index);
   const order = roomOrder(seed, metre, type.rooms);
 
-  // Champions are placed first, then the normal units go one at a time to the emptiest room (earlier in the order on a tie).
-  const champions = tier >= 8 ? 2 : 1;
-  const hasChampion = new Array<boolean>(type.rooms).fill(false);
-  const normals = new Array<number>(type.rooms).fill(0);
-  const totals = new Array<number>(type.rooms).fill(0);
-  for (const r of order.slice(0, champions)) {
-    hasChampion[r] = true;
-    totals[r] = CHAMPION_UNITS;
-  }
-  for (let unit = 0; unit < MONSTER_BUDGET - champions * CHAMPION_UNITS; unit++) {
-    let best = order[0] ?? 0;
-    for (const r of order) if ((totals[r] ?? 0) < (totals[best] ?? 0)) best = r;
-    totals[best] = (totals[best] ?? 0) + 1;
-    normals[best] = (normals[best] ?? 0) + 1;
-  }
+  const { normals, champion: hasChampion } = spreadUnits(order, type.rooms, tier >= 8 ? 2 : 1);
 
   const band = speciesOf(tier);
   const rooms = normals.map((n, room) => {
