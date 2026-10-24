@@ -48,10 +48,11 @@ export function sideCount(lines: readonly ModLine[], side: Side): number {
 
 /**
  * Rolls `count` new lines for an item that already has `existing`, and returns only the new ones.
- * An item left with at most 2 lines is magic, so it holds one prefix and one suffix at most.
+ * `perSide` is the room on each side, 1 for a magic item; crafted lines never take it up.
  */
-export function rollLines(state: Gen, slot: Slot, ilvl: number, count: number, existing: readonly ModLine[] = []): ModLine[] {
-  const perSide = existing.length + count <= 2 ? 1 : MAX_SIDE_LINES;
+export function rollLines(
+  state: Gen, slot: Slot, ilvl: number, count: number, existing: readonly ModLine[] = [], perSide = MAX_SIDE_LINES,
+): ModLine[] {
   const implicit = SLOT_IMPLICIT[slot];
   const lines = [...existing];
   const added: ModLine[] = [];
@@ -109,7 +110,7 @@ export function rollGear(state: Gen, ilvl: number, set: GearSet, rarity: Rarity 
     implicit = { stat: implicitStat, value: rollValue(state, implicitStat, cap) };
     const count = rarity === 'magic' ? pickWeighted(state, MAGIC_LINE_WEIGHTS)
       : rarity === 'rare' ? pickWeighted(state, RARE_LINE_WEIGHTS) : 0;
-    affixes = rollLines(state, slot, ilvl, count);
+    affixes = rollLines(state, slot, ilvl, count, [], rarity === 'magic' ? 1 : MAX_SIDE_LINES);
     name = rarity === 'magic' ? magicName(slot, ilvl, affixes) : rarity === 'rare' ? rareName(state, slot) : baseName(slot, ilvl);
   }
   const sockets = rollSockets(state);

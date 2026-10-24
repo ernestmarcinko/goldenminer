@@ -600,3 +600,15 @@ it('a schema-6 line with an absurd value is rejected, not hung on', () => {
     expect(decodeSave(compressToBase64(text)), String(value)).toEqual({ ok: false, reason: 'invalid' });
   }
 });
+
+it('a schema-6 line whose value is far above its item level keeps the value, at the highest tier the item allows', () => {
+  const env = JSON.parse(decompressFromBase64(fixture6.trim()));
+  const item = [...env.state.bag, ...env.state.stash.general].find((c) => c?.type === 'gear' && c.rarity === 'rare');
+  const line = item.affixes[0];
+  line.value = tierRange(line.stat, item.ilvl + 5).lo;
+  expect(tierFor(line.stat, line.value)).toBe(item.ilvl + 5);
+  const r = decodeSave(compressToBase64(JSON.stringify(env)));
+  if (!r.ok) throw new Error(`rejected: ${r.reason}`);
+  const after = [...r.state.bag, ...r.state.stash.general].find((c) => c?.id === item.id);
+  expect(after?.type === 'gear' && after.affixes[0]).toEqual({ stat: line.stat, value: line.value, tier: item.ilvl + MAX_TIER_OVER_CAP });
+});

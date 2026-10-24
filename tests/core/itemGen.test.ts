@@ -98,8 +98,8 @@ it('magic names take a prefix word and a suffix word', () => {
 it('rolled lines add to what an item has without breaking its sides', () => {
   const s = newGame(4, 0);
   for (let i = 0; i < 500; i++) {
-    const one = rollLines(s, 'pickaxe', 6, 1);
-    const two = rollLines(s, 'pickaxe', 6, 1, one);
+    const one = rollLines(s, 'pickaxe', 6, 1, [], 1);
+    const two = rollLines(s, 'pickaxe', 6, 1, one, 1);
     expect(MOD_SIDE[two[0]!.stat]).not.toBe(MOD_SIDE[one[0]!.stat]);          // a magic item's second line takes the free side
     const rare = rollLines(s, 'pickaxe', 6, 4, [...one, ...two]);
     const all = [...one, ...two, ...rare];
@@ -110,6 +110,26 @@ it('rolled lines add to what an item has without breaking its sides', () => {
   const line = rollModLine(s, 'goldYield', 1);
   expect(line).toEqual({ stat: 'goldYield', value: line.value, tier: 1 });
   expect(rareName(s, 'pickaxe')).toMatch(new RegExp(`^(${RARE_FIRST.join('|')}) (${RARE_SECOND.pickaxe.join('|')})$`));
+});
+
+it('a magic item\'s room counts only its own lines, never a crafted one', () => {
+  const s = newGame(6, 0);
+  const crafted: ModLine = { stat: 'goldYield', value: 40, tier: 8, crafted: true };
+  for (let i = 0; i < 500; i++) {
+    const added = rollLines(s, 'pickaxe', 6, 2, [crafted], 1);
+    expect(added.every((a) => a.crafted !== true && a.stat !== 'goldYield')).toBe(true);
+    expect([sideCount(added, 'prefix'), sideCount(added, 'suffix')]).toEqual([1, 1]);
+  }
+});
+
+it('with room for 3 a side, a new line can land on either side', () => {
+  const s = newGame(6, 0);
+  const sides = new Set<string>();
+  for (let i = 0; i < 200; i++) {
+    const [line] = rollLines(s, 'pickaxe', 6, 1, [{ stat: 'goldYield', value: 5, tier: 1 }], 3);
+    sides.add(MOD_SIDE[line!.stat]);
+  }
+  expect([...sides].sort()).toEqual(['prefix', 'suffix']);
 });
 
 it('rarity, socket and line-count odds follow the weights', () => {
