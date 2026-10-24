@@ -4,6 +4,7 @@ import { MemoryStorage, SAVE_KEY, BACKUP_PREFIX, safeStorage } from '../../src/s
 import { decodeSave, encodeSave } from '../../src/core/save';
 import { compressToBase64 } from 'lz-string';
 import { newGame } from '../../src/core/newGame';
+import { seedFromText } from '../../src/core/seed';
 import { BAG_SIZE, MAX_LOOT_RULES, STASH_SIZE } from '../../src/core/balance';
 import type { LootRule } from '../../src/core/types';
 import { gem } from '../helpers/items';
@@ -17,7 +18,8 @@ describe('GameStore', () => {
   it('starts a new game when there is no save', () => {
     const { store } = make();
     store.load();
-    expect(store.state.seed).toBe(7);
+    expect(store.state.worldSeed).toMatch(/^[a-z]+-[a-z]+-\d{1,3}$/);
+    expect(store.state.seed).toBe(seedFromText(store.state.worldSeed));
     expect(store.notice).toBeNull();
     expect(store.offlineSummary).toBeNull();
   });
@@ -98,7 +100,7 @@ describe('GameStore', () => {
     expect(store.unreadableSave).toBe('garbage');
     store.save();
     expect(storage.getItem(SAVE_KEY)).toBe('garbage');
-    store.hardReset();
+    store.newWorld(null);
     expect(store.unreadableSave).toBeNull();
     expect(storage.getItem(SAVE_KEY)).not.toBe('garbage');
     expect(decodeSave(storage.getItem(SAVE_KEY) ?? '').ok).toBe(true);
@@ -118,7 +120,7 @@ describe('GameStore', () => {
     const again = make(now, storage).store; again.load();
     expect(again.notice).toEqual({ kind: 'loadFailed', reason: 'future', backupKey: BACKUP_PREFIX + '42' });
     expect(storage.getItem(BACKUP_PREFIX + '9000')).toBeNull();
-    store.hardReset();
+    store.newWorld(null);
     expect(store.notice).toBeNull();
     expect(storage.getItem(SAVE_KEY)).not.toBe(future);
     expect(decodeSave(storage.getItem(SAVE_KEY) ?? '').ok).toBe(true);
@@ -134,7 +136,7 @@ describe('GameStore', () => {
     storage.setItem(SAVE_KEY, 'garbage');
     store.load();
     expect(store.notice?.kind).toBe('loadFailed');
-    store.hardReset();
+    store.newWorld(null);
     expect(store.notice).toBeNull();
   });
 });
@@ -177,5 +179,15 @@ describe('inventory intents', () => {
     s.overflow.push({ bag: 'mining', item: gem(s) });
     store.setBagFull('sellWorst');
     expect(s.overflow).toEqual([]);
+  });
+
+  it('a new world from typed text, or refused when empty', () => {
+    const { store } = make(); store.load();
+    expect(store.newWorld('  Golden Mole ')).toBe(true);
+    expect([store.state.worldSeed, store.state.seed]).toEqual(['Golden Mole', 2_552_287_895]);
+    expect(store.newWorld('   ')).toBe(false);
+    expect(store.state.worldSeed).toBe('Golden Mole');
+    expect(store.newWorld(null)).toBe(true);
+    expect(store.state.worldSeed).toMatch(/^[a-z]+-[a-z]+-\d{1,3}$/);
   });
 });

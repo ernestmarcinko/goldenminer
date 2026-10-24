@@ -2,9 +2,10 @@ import { compressToBase64, decompressFromBase64 } from 'lz-string';
 import { BAG_SIZE, FINDS_LOG_LIMIT, MAX_AFFIXES, MAX_LOOT_RULES, MAX_OVERFLOW, MAX_SOCKETS, STASH_SIZE } from './balance';
 import { GEAR_SETS, GEM_TYPES, RARITIES, setOfSlot, slotsOf, statsOf } from './items';
 import type { GearItem, GearSet, Slot } from './items';
-import type { GameState } from './types';
+import { isValidSeedText, seedFromText } from './seed';
+import { DEFAULT_MOTION, SHAFT_MOTIONS, type GameState } from './types';
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
@@ -27,6 +28,15 @@ export const MIGRATIONS: Record<number, Migration> = {
       overflow: [],
       lootTally: { kept: 0, sold: 0, salvaged: 0 },
       settings: { lootFilter: [], bagFull: 'sellWorst' },
+    };
+  },
+  2: (state) => {
+    if (!isObject(state) || typeof state.seed !== 'number' || !isObject(state.settings)) return state;
+    return {
+      ...state,
+      worldSeed: String(state.seed),
+      worldGen: 1,
+      settings: { ...state.settings, motion: { ...DEFAULT_MOTION } },
     };
   },
 };
@@ -81,6 +91,7 @@ function isFindRecord(x: unknown, nextId: number): boolean {
   if (!isObject(x)) return false;
   if (!isIdBelow(x.id, nextId)) return false;
   if (!isNonNegInt(x.depth) || !isFeatureKind(x.kind) || !isNonNegFinite(x.amount) || !isNonNegInt(x.tick)) return false;
+  if (x.bonus !== undefined && x.bonus !== true) return false;
   if (x.loot === undefined) return true;
   return Array.isArray(x.loot) && x.loot.length <= 4 && x.loot.every(isLootNote);
 }
@@ -148,8 +159,16 @@ function isBag(x: unknown, set: GearSet, nextId: number, seen: Set<number>): boo
   );
 }
 
+function isMotion(x: unknown): boolean {
+  return (
+    isObject(x) &&
+    typeof x.floats === 'boolean' && typeof x.pops === 'boolean' && typeof x.lampFlicker === 'boolean' &&
+    isIn(SHAFT_MOTIONS, x.shaft)
+  );
+}
+
 function isSettings(x: unknown): boolean {
-  if (!isObject(x) || !isIn(['sellWorst', 'stop'], x.bagFull)) return false;
+  if (!isObject(x) || !isIn(['sellWorst', 'stop'], x.bagFull) || !isMotion(x.motion)) return false;
   return (
     Array.isArray(x.lootFilter) &&
     x.lootFilter.length <= MAX_LOOT_RULES &&
@@ -186,6 +205,8 @@ function isInventory(x: Record<string, unknown>, nextId: number): boolean {
 export function validateState(x: unknown): x is GameState {
   if (!isObject(x)) return false;
   if (!isUint32(x.seed) || !isUint32(x.rng)) return false;
+  if (typeof x.worldSeed !== 'string' || !isValidSeedText(x.worldSeed) || seedFromText(x.worldSeed) !== x.seed) return false;
+  if (x.worldGen !== 1 && x.worldGen !== 2) return false;
   if (!isNonNegInt(x.tickCount) || !isNonNegInt(x.depth) || !isNonNegInt(x.deepest)) return false;
   if (x.depth > x.deepest) return false;
   if (!isNonNegFinite(x.lastTickAt) || !isNonNegFinite(x.gold) || !isNonNegFinite(x.diamonds)) return false;

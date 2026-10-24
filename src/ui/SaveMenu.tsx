@@ -82,7 +82,7 @@ export function SaveMenu({ store, runAsOwner, onClose }: Props) {
                 type="button"
                 className="gm-btn gm-btn--danger"
                 onClick={() => {
-                  runAsOwner(() => store.hardReset());
+                  runAsOwner(() => store.newWorld(null));
                   setConfirmReset(false);
                   onClose();
                 }}

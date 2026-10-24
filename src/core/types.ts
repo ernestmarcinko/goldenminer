@@ -7,17 +7,24 @@ export type LootAction = 'keep' | 'sell' | 'salvage';
 export type LootTarget = GearSet | Slot | 'gem' | 'any';
 export interface LootRule { rarity: Rarity | 'any'; target: LootTarget; action: LootAction }
 export type BagFullMode = 'sellWorst' | 'stop';
-export interface Settings { lootFilter: LootRule[]; bagFull: BagFullMode }
+export const SHAFT_MOTIONS = ['step', 'smooth', 'off'] as const;
+export type ShaftMotion = (typeof SHAFT_MOTIONS)[number];
+export interface MotionSettings { floats: boolean; pops: boolean; lampFlicker: boolean; shaft: ShaftMotion }
+export const DEFAULT_MOTION: MotionSettings = { floats: true, pops: true, lampFlicker: true, shaft: 'step' };
+export interface Settings { lootFilter: LootRule[]; bagFull: BagFullMode; motion: MotionSettings }
 export type LootOutcome = 'bag' | 'stash' | 'sold' | 'salvaged' | 'held';
 export interface LootNote {
   name: string; rarity: Rarity | 'gem'; base: Slot | GemType; outcome: LootOutcome; value: number;
 }
 export interface FindRecord {
-  id: number; depth: number; kind: FeatureKind; amount: number; tick: number; loot?: LootNote[];
+  id: number; depth: number; kind: FeatureKind; amount: number; tick: number; loot?: LootNote[]; bonus?: true;
 }
 export type InvResult = 'ok' | 'bagFull' | 'stashFull' | 'noSocket' | 'invalid';
 export interface GameState {
-  seed: number; rng: number; tickCount: number; lastTickAt: number;
+  seed: number;                            // the world seed: a pure function of worldSeed
+  worldSeed: string;                       // the text the player sees and shares
+  worldGen: 1 | 2;                         // 1 = pre-seed saves, 2 = procedural worlds
+  rng: number; tickCount: number; lastTickAt: number;
   gold: number; diamonds: number;
   depth: number; deepest: number;          // whole metres; 0 = surface; depth <= deepest
   progress: number;                        // 0..1 toward metre deepest+1 (the dig face)

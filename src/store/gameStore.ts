@@ -6,10 +6,11 @@ import type { GearSet, Slot } from '../core/items';
 import { drainOverflow } from '../core/loot';
 import { newGame } from '../core/newGame';
 import { decodeSave, encodeSave, type DecodeResult } from '../core/save';
+import { freshWorld, isValidSeedText, seedFromText } from '../core/seed';
 import { deriveStats } from '../core/stats';
 import { summarize } from '../core/summary';
 import type {
-  BagFullMode, Container, FindRecord, GameState, InvResult, LootRule, OfflineSummary, Stats, TickEvent,
+  BagFullMode, Container, FindRecord, GameState, InvResult, LootRule, MotionSettings, OfflineSummary, Stats, TickEvent,
 } from '../core/types';
 import { BACKUP_PREFIX, SAVE_KEY, type StorageLike } from './storage';
 
@@ -43,7 +44,7 @@ export class GameStore {
   private limiter = new ClickLimiter();
 
   constructor(private readonly deps: Deps) {
-    this._state = newGame(deps.newSeed(), deps.now());
+    this._state = freshWorld(deps.newSeed, deps.now());
     this._stats = deriveStats(this._state);
   }
 
@@ -117,7 +118,7 @@ export class GameStore {
     this._summary = null;
     this.feedback = emptyFeedback();
     if (raw === null) {
-      this.replaceState(newGame(this.deps.newSeed(), now()));
+      this.replaceState(freshWorld(this.deps.newSeed, now()));
     } else {
       const result = decodeSave(raw);
       if (result.ok) {
@@ -129,7 +130,7 @@ export class GameStore {
           backupKey = BACKUP_PREFIX + now();
           try { storage.setItem(backupKey, raw); } catch { backedUp = false; }
         }
-        this.replaceState(newGame(this.deps.newSeed(), now()));
+        this.replaceState(freshWorld(this.deps.newSeed, now()));
         this._unreadable = backedUp && result.reason !== 'future' ? null : raw;
         this._notice = { kind: 'loadFailed', reason: result.reason, backupKey: backedUp ? backupKey : null };
       }
@@ -242,14 +243,31 @@ export class GameStore {
     return result;
   }
 
-  hardReset(): void {
+  /** Starts a new world from typed seed text, or a random one for `null`; refuses text with no usable characters. */
+  newWorld(seedText: string | null): boolean {
+    const { newSeed, now } = this.deps;
+    let world: GameState;
+    if (seedText === null) {
+      world = freshWorld(newSeed, now());
+    } else if (isValidSeedText(seedText)) {
+      const text = seedText.trim();
+      world = newGame(seedFromText(text), now(), { seedText: text, lootSeed: newSeed() });
+    } else {
+      return false;
+    }
     this._unreadable = null;
     this.clearLoadFailed();
-    this.replaceState(newGame(this.deps.newSeed(), this.deps.now()));
+    this.replaceState(world);
     this._summary = null;
     this.feedback = emptyFeedback();
     this.changed();
     this.save();
+    return true;
+  }
+
+  setMotion(patch: Partial<MotionSettings>): void {
+    this._state.settings.motion = { ...this._state.settings.motion, ...patch };
+    this.changed();
   }
 
   dismissSummary(): void {
