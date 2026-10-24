@@ -5,6 +5,7 @@ import {
 import { metreTier, tierAt } from './bands';
 import { rollChest, rollGem } from './itemGen';
 import { receiveItem } from './loot';
+import { addMap } from './maps';
 import { fillAhead, metreChances, rollGallery, rollMetre } from './metres';
 import { mulberry32, nextRandom } from './rng';
 import type { FindRecord, GameState, LootNote, MetreRoll, Stats, TickEvent } from './types';
@@ -24,7 +25,9 @@ export function collect(
   const find: FindRecord = { id: state.nextId++, depth, kind: roll.feature, amount, tick: state.tickCount };
   if (bonus) find.bonus = true;
   const loot: LootNote[] = [];
-  if (roll.feature === 'chest') {
+  if (roll.feature === 'map') {
+    addMap(state, tier, depth);
+  } else if (roll.feature === 'chest') {
     for (const item of rollChest(state, tier)) loot.push(...receiveItem(state, item, 'mining'));
   } else if (roll.feature === 'gem') {
     loot.push(...receiveItem(state, rollGem(state, tier), 'mining'));

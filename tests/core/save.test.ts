@@ -3,14 +3,16 @@ import { compressToBase64, decompressFromBase64 } from 'lz-string';
 import fixture from '../fixtures/save-schema-1.txt?raw';
 import fixture2 from '../fixtures/save-schema-2.txt?raw';
 import fixture3 from '../fixtures/save-schema-3.txt?raw';
+import fixture4 from '../fixtures/save-schema-4.txt?raw';
 import { applyTicks } from '../../src/core/dig';
 import { BAG_SIZE, MAX_LOOT_RULES, MAX_OVERFLOW, STASH_SIZE } from '../../src/core/balance';
 import { emptyInventory, firstEmpty } from '../../src/core/cells';
+import { addMap } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
 import { decodeSave, encodeSave, migrate, SCHEMA_VERSION } from '../../src/core/save';
 import { deriveStats } from '../../src/core/stats';
 import type { Cell, GemGrade, GemType } from '../../src/core/items';
-import type { BagFullMode, FindRecord, GameState, LootAction } from '../../src/core/types';
+import type { BagFullMode, ChampionMod, FindRecord, GameState, LootAction, RunOutcome } from '../../src/core/types';
 import { gear, gem } from '../helpers/items';
 
 const raw = (env: unknown) => compressToBase64(JSON.stringify(env));
@@ -55,9 +57,9 @@ it('migrates a real schema-1 save', () => {
   if (!r.ok) throw new Error(`fixture rejected: ${r.reason}`);
   const s = r.state;
   expect(r.savedAt).toBe(1_761_206_300_000);
-  expect(s).toMatchObject({ gold: 10_972, diamonds: 119, depth: 123, deepest: 125, tickCount: 6300, goldCarry: 0, nextId: 31 });
+  expect(s).toMatchObject({ gold: 10_972, diamonds: 119, depth: 123, deepest: 125, tickCount: 6300, goldCarry: 0, nextId: 36 });
   const empty = emptyInventory();
-  expect([s.equipped, s.bags, s.stash, s.overflow, s.lootTally, s.settings]).toEqual([
+  expect([s.equipped, s.bags, { ...s.stash, maps: [] }, s.overflow, s.lootTally, s.settings]).toEqual([
     empty.equipped, empty.bags, empty.stash, empty.overflow,
     { kept: 0, sold: 0, salvaged: 0 },
     { lootFilter: [], bagFull: 'sellWorst', motion: { floats: true, pops: true, lampFlicker: true, shaft: 'step' } },
@@ -131,6 +133,7 @@ it('migrates a real schema-2 save into world generation 1', () => {
   if (!r.ok) throw new Error(`fixture rejected: ${r.reason}`);
   expect(r.state).toMatchObject({ seed: 9090, worldSeed: '9090', worldGen: 1, gold: 22_975, deepest: 215 });
   expect(r.state.settings.motion).toEqual({ floats: true, pops: true, lampFlicker: true, shaft: 'step' });
+  expect(r.state.nextId).toBe(86);
 });
 
 it('rejects a seed text that does not match the seed', () => {
@@ -166,7 +169,7 @@ it('migrates a real schema-3 save: gems become graded stacks in fixed slots', ()
   const r = decodeSave(fixture3.trim());
   if (!r.ok) throw new Error(`fixture rejected: ${r.reason}`);
   const s = r.state;
-  expect(s).toMatchObject({ worldSeed: '9090', worldGen: 1, gold: 81_754, diamonds: 1_170, nextId: 248 });
+  expect(s).toMatchObject({ worldSeed: '9090', worldGen: 1, gold: 81_754, diamonds: 1_170, nextId: 267 });
   const label = (c: Cell) => (c === null ? null : c.type === 'gem' ? `${c.gem}×${c.count}` : c.slot);
   expect(s.bags.mining.map(label)).toEqual([
     'boots', 'starstone×7', 'amethyst×4', 'lamp', 'sapphire×3', 'boots', 'boots', 'emerald×1', 'pickaxe', 'pickaxe',
@@ -279,4 +282,64 @@ it('the schema-3 migration leaves a state that is not the old shape alone', () =
   const s = newGame(1, 0);
   expect(decodeSave(raw({ schema: 3, savedAt: 0, state: s }))).toEqual({ ok: true, state: s, savedAt: 0 });
   expect(decodeSave(raw({ schema: 3, savedAt: 0, state: { ...s, overflow: 'x' } }))).toEqual({ ok: false, reason: 'invalid' });
+});
+
+it('migrates a real schema-4 save: past map finds become maps', () => {
+  const r = decodeSave(fixture4.trim());
+  if (!r.ok) throw new Error(`fixture rejected: ${r.reason}`);
+  const s = r.state;
+  expect(s).toMatchObject({ worldSeed: '9090', gold: 94_523, diamonds: 1_375, deepest: 215, tickCount: 47_235, level: 1, xp: 0, souls: 0, lastRun: null, nextId: 309 });
+  expect(s.activity).toEqual({ kind: 'dig' });
+  expect(s.stash.maps.map((m) => m.id)).toEqual(Array.from({ length: 21 }, (_, i) => 288 + i));
+  expect(s.stash.maps.map((m) => [m.tier, m.metre]).slice(0, 8)).toEqual([[1, 2], [1, 3], [1, 4], [1, 36], [1, 47], [2, 66], [2, 79], [3, 214]]);
+  expect(s.stash.maps.slice(7).every((m) => m.tier === 3 && m.metre === 214)).toBe(true);
+});
+
+it('older fixtures gain their maps too', () => {
+  const r1 = decodeSave(fixture.trim());
+  const r2 = decodeSave(fixture2.trim());
+  if (!r1.ok || !r2.ok) throw new Error('fixture rejected');
+  expect(r1.state.stash.maps.map((m) => m.id)).toEqual([31, 32, 33, 34, 35]);
+  expect(r1.state.nextId).toBe(36);
+  expect(r2.state.stash.maps.map((m) => [m.id, m.tier, m.metre])).toEqual([[79, 1, 2], [80, 1, 3], [81, 1, 4], [82, 1, 36], [83, 1, 47], [84, 2, 66], [85, 2, 79]]);
+});
+
+it('rejects impossible maps, runs and levels', () => {
+  const running = (): GameState => {
+    const s = newGame(1, 0);
+    const map = addMap(s, 2, 60);
+    s.stash.maps = [];
+    s.activity = { kind: 'map', run: {
+      map, room: 1, bossRoom: 6, life: 40, hitCarry: 0, monsterCarry: 0, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [],
+      queue: [{ name: 'Mud Slime', species: 1, rank: 'normal', mods: [], extra: 7, element: 'elemental', life: 30, maxLife: 37, damage: 4, intervalS: 2, xp: 28 }],
+    } };
+    return s;
+  };
+  expect(decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: running() })).ok).toBe(true);
+  const run = (s: GameState) => (s.activity.kind === 'map' ? s.activity.run : null);
+  const first = (s: GameState) => run(s)?.queue[0];
+  const cases: [string, (s: GameState) => void][] = [
+    ['level 61', (s) => { s.level = 61; }],
+    ['xp past the next level', (s) => { s.xp = 100; }],
+    ['negative souls', (s) => { s.souls = -1; }],
+    ['an empty room', (s) => { run(s)?.queue.splice(0); }],
+    ['a boss in room 1', (s) => { const m = first(s); if (m) m.rank = 'boss'; }],
+    ['a normal in the boss room', (s) => { const r = run(s); if (r) r.room = 6; }],
+    ['zero life', (s) => { const r = run(s); if (r) r.life = 0; }],
+    ['monster life above max', (s) => { const m = first(s); if (m) m.life = 99; }],
+    ['an unknown modifier', (s) => { const m = first(s); if (m) { m.rank = 'champion'; m.mods = ['cursed' as ChampionMod]; } }],
+    ['modifiers on a normal', (s) => { const m = first(s); if (m) m.mods = ['brutal']; }],
+    ['three modifiers', (s) => { const m = first(s); if (m) { m.rank = 'champion'; m.mods = ['brutal', 'swift', 'armored']; } }],
+    ['boss room 9', (s) => { const r = run(s); if (r) r.bossRoom = 9; }],
+    ['a whole hit carried', (s) => { const r = run(s); if (r) r.hitCarry = 1; }],
+    ['a map id reused in the stash', (s) => { const r = run(s); if (r) s.stash.maps.push({ ...r.map }); }],
+    ['an unknown outcome', (s) => { const m = addMap(s, 1, 1); s.stash.maps.pop(); s.lastRun = { map: m, outcome: 'won' as RunOutcome, room: 6, bossRoom: 6, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, items: 0, seen: false }; }],
+    ['201 maps', (s) => { for (let i = 0; i < 201; i++) s.stash.maps.push({ id: s.nextId++, type: 'map', tier: 1, metre: 1 }); }],
+    ['a map at metre 0', (s) => { s.stash.maps.push({ id: s.nextId++, type: 'map', tier: 1, metre: 0 }); }],
+  ];
+  for (const [name, mutate] of cases) {
+    const s = running();
+    mutate(s);
+    expect(decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: s })), name).toEqual({ ok: false, reason: 'invalid' });
+  }
 });

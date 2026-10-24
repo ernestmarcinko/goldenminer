@@ -26,6 +26,36 @@ export type LootOutcome = (typeof LOOT_OUTCOMES)[number];
 export interface LootNote {
   name: string; rarity: Rarity | 'gem'; base: Slot | GemType; outcome: LootOutcome; value: number;
 }
+export const ELEMENTS = ['physical', 'elemental'] as const;
+export type Element = (typeof ELEMENTS)[number];
+export const RANKS = ['normal', 'champion', 'boss'] as const;
+export type Rank = (typeof RANKS)[number];
+export const CHAMPION_MODS = ['armored', 'swift', 'vampiric', 'fireTouched', 'brutal', 'thickSkinned'] as const;
+export type ChampionMod = (typeof CHAMPION_MODS)[number];
+export const RUN_OUTCOMES = ['cleared', 'died', 'left'] as const;
+export type RunOutcome = (typeof RUN_OUTCOMES)[number];
+export interface MapItem { id: number; type: 'map'; tier: number; metre: number }
+export interface MonsterState {
+  name: string; species: number; rank: Rank; mods: ChampionMod[]; extra: number;   // extra: the look seed for champion/boss parts
+  element: Element; life: number; maxLife: number; damage: number; intervalS: number; xp: number;
+}
+export type CombatLine =
+  | { kind: 'hit'; monster: string; amount: number; crit: boolean; click: boolean }
+  | { kind: 'hurt'; monster: string; amount: number }
+  | { kind: 'heal'; monster: string; amount: number }
+  | { kind: 'kill'; monster: string; xp: number; souls: number }
+  | { kind: 'room'; room: number }
+  | { kind: 'level'; level: number }
+  | { kind: 'drop'; note: LootNote };
+export interface RunGains { xp: number; souls: number; gold: number; levels: number }
+export interface MapRun {
+  map: MapItem; room: number; bossRoom: number;   // rooms 1..bossRoom; bossRoom = regular rooms + 1 (5..8)
+  queue: MonsterState[];                           // monsters left in this room, the fighting one first; never empty
+  life: number; hitCarry: number; monsterCarry: number;
+  gained: RunGains; log: CombatLine[]; loot: LootNote[];
+}
+export interface RunResult { map: MapItem; outcome: RunOutcome; room: number; bossRoom: number; gained: RunGains; items: number; seen: boolean }
+export type Activity = { kind: 'dig' } | { kind: 'map'; run: MapRun };
 export interface FindRecord {
   id: number; depth: number; kind: FeatureKind; amount: number; tick: number; loot?: LootNote[]; bonus?: true;
 }
@@ -50,10 +80,16 @@ export interface GameState {
   stash: {
     general: (GearItem | null)[];          // exactly STASH_SIZE cells, gear only
     gems: Record<GemType, Record<GemGrade, number>>;   // the Gems tab: counts of 0..GEM_STASH_STACK
+    maps: MapItem[];                       // the Maps tab: at most MAP_STASH_SIZE, oldest first
   };
   overflow: { bag: GearSet; item: GearItem }[]; // gear waiting for room (bagFull 'stop')
   lootTally: { kept: number; sold: number; salvaged: number };
   settings: Settings;                      // kept across ascension (Plan 6)
+  level: number; xp: number;               // character level 1..LEVEL_CAP; xp toward the next level
+  souls: number;
+  activity: Activity;                      // digging, or running a map
+  lastRun: RunResult | null;               // the most recent run, until the player has seen it
+  mapTally: { cleared: number; lost: number };
 }
 export interface Stats {
   digPower: number; autoTicksPerSecond: number; ticksPerClick: number; lampSight: number;

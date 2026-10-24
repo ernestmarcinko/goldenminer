@@ -45,6 +45,18 @@ export const MAX_OVERFLOW = 10;
 export const MAX_SOCKETS = 3;
 export const MAX_AFFIXES = 4;
 
+export const LEVEL_CAP = 60;
+export const MAP_STASH_SIZE = 200;
+export const COMBAT_LOG_LIMIT = 20;
+export const RUN_LOOT_LIMIT = 30;
+export const MAX_LIFE = 1_000_000;
+export const MAX_DAMAGE = 1_000_000;
+// A map's layout: every map holds the same monster budget; a champion costs CHAMPION_UNITS of it.
+export const MONSTER_BUDGET = 15;
+export const CHAMPION_UNITS = 3;
+export const MIN_ROOMS = 4;
+export const MAX_ROOMS = 7;
+
 export const AUTOSAVE_INTERVAL_MS = 30_000;
 export const OFFLINE_SUMMARY_MIN_TICKS = 300;
 export const TAB_LOCK_STALE_MS = 5000;
