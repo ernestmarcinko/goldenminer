@@ -1,23 +1,53 @@
-import { useRef } from 'react';
-import { STASH_SIZE } from '../../core/balance';
+import { useRef, useState } from 'react';
+import type { KeyboardEvent } from 'react';
+import { BAG_SIZE, STASH_SIZE } from '../../core/balance';
 import { filledCount } from '../../core/cells';
 import type { GearSet } from '../../core/items';
 import type { GameStore } from '../../store/gameStore';
 import { formatNumber } from '../format';
 import { useDialog } from '../useDialog';
 import { useGame } from '../useGame';
+import { GemTab } from './GemTab';
 import { ItemGrid } from './ItemGrid';
+import { STASH_TABS, tabLabel } from './stashView';
+import type { StashTab } from './stashView';
 import { useItemInteractions } from './useItemInteractions';
 
-/** The stash: every item in it, with the same tooltips, clicks and action card as the bags. */
+const BAGS: readonly { set: GearSet; toggle: string }[] = [
+  { set: 'mining', toggle: 'Mining bag' },
+  { set: 'battle', toggle: 'Battle bag' },
+];
+
+const tabId = (tab: StashTab): string => `gm-stash-tab-${tab}`;
+
+/** The stash in tabs, with the bag beside it; both share the same tooltips, clicks and action card. */
 export function StashDialog({ store, set, onClose }: { store: GameStore; set: GearSet; onClose: () => void }) {
   const { state } = useGame(store);
+  const [tab, setTab] = useState<StashTab>('general');
+  const [bagSet, setBagSet] = useState<GearSet>(set);
   const closeRef = useDialog<HTMLButtonElement>(onClose);
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const { handlers, message, cards } = useItemInteractions({
-    store, state, shownSet: set, containerRef: dialogRef, fallbackRef: titleRef,
+  const tabRefs = useRef<Partial<Record<StashTab, HTMLButtonElement | null>>>({});
+  const { handlers, message, cards, reset } = useItemInteractions({
+    store, state, shownSet: bagSet, containerRef: dialogRef, fallbackRef: titleRef,
   });
+
+  const openTab = (next: StashTab, focus = false): void => {
+    setTab(next);
+    reset();
+    if (focus) tabRefs.current[next]?.focus();
+  };
+  const onTabKey = (e: KeyboardEvent): void => {
+    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+    if (step === 0) return;
+    e.preventDefault();
+    const next = STASH_TABS[(STASH_TABS.indexOf(tab) + step + STASH_TABS.length) % STASH_TABS.length];
+    if (next !== undefined) openTab(next, true);
+  };
+
+  const bag = state.bags[bagSet];
+  const bagLabel = BAGS.find((b) => b.set === bagSet)?.toggle ?? 'Bag';
   return (
     <div className="gm-overlay">
       <div
@@ -28,20 +58,72 @@ export function StashDialog({ store, set, onClose }: { store: GameStore; set: Ge
         aria-labelledby="gm-stash-title"
       >
         <div className="gm-dialog__head">
-          <h2 id="gm-stash-title" ref={titleRef} tabIndex={-1} className="gm-dialog__title">
-            Stash {formatNumber(filledCount(state.stash.general))} / {formatNumber(STASH_SIZE)}
-          </h2>
+          <h2 id="gm-stash-title" ref={titleRef} tabIndex={-1} className="gm-dialog__title">Stash</h2>
           <button type="button" ref={closeRef} className="gm-btn" onClick={onClose}>
             Close
           </button>
         </div>
-        <ItemGrid
-          className="gm-grid--stash"
-          items={state.stash.general}
-          capacity={STASH_SIZE}
-          targetOf={(index) => ({ where: 'stash', index })}
-          handlers={handlers}
-        />
+        <div className="gm-stash__body">
+          <div className="gm-stash__main">
+            <div role="tablist" aria-label="Stash tabs" className="gm-stash__tabs" onKeyDown={onTabKey}>
+              {STASH_TABS.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  id={tabId(t)}
+                  ref={(el) => { tabRefs.current[t] = el; }}
+                  className="gm-stash__tab"
+                  aria-selected={tab === t}
+                  aria-controls="gm-stash-panel"
+                  tabIndex={tab === t ? 0 : -1}
+                  onClick={() => openTab(t)}
+                >
+                  {tabLabel(state, t)}
+                </button>
+              ))}
+            </div>
+            <div role="tabpanel" id="gm-stash-panel" aria-labelledby={tabId(tab)} className="gm-stash__panel">
+              {tab === 'general' && (
+                <ItemGrid
+                  className="gm-grid--stash"
+                  items={state.stash.general}
+                  capacity={STASH_SIZE}
+                  targetOf={(index) => ({ where: 'stash', index })}
+                  handlers={handlers}
+                />
+              )}
+              {tab === 'gems' && <GemTab state={state} handlers={handlers} />}
+              {tab === 'maps' && (
+                <p className="gm-stash__empty gm-muted">No maps yet. Maps are kept here once dungeons open.</p>
+              )}
+            </div>
+          </div>
+          <div className="gm-stash__bag">
+            <div role="group" aria-label="Bag" className="gm-char__toggle">
+              {BAGS.map((b) => (
+                <button
+                  key={b.set}
+                  type="button"
+                  className="gm-char__tab"
+                  aria-pressed={bagSet === b.set}
+                  onClick={() => { setBagSet(b.set); reset(); }}
+                >
+                  {b.toggle}
+                </button>
+              ))}
+            </div>
+            <ItemGrid
+              items={bag}
+              capacity={BAG_SIZE}
+              targetOf={(index) => ({ where: 'bag', set: bagSet, index })}
+              handlers={handlers}
+            />
+            <div className="gm-muted gm-small">
+              {bagLabel} {formatNumber(filledCount(bag))} / {formatNumber(BAG_SIZE)}
+            </div>
+          </div>
+        </div>
         <div className="gm-char__status gm-small" role="status">{message}</div>
         {cards}
       </div>

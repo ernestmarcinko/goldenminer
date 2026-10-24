@@ -13,6 +13,13 @@ export function formatRate(n: number): string {
   return rateFormat.format(n);
 }
 
+const compactFormat = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
+
+/** Short counts for item cells ("1.2K", "1M"); every other number goes through `formatNumber`. */
+export function formatCompact(n: number): string {
+  return compactFormat.format(n);
+}
+
 export function plural(n: number, one: string, many: string): string {
   return `${formatNumber(n)} ${n === 1 ? one : many}`;
 }

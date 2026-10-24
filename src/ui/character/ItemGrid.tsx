@@ -3,6 +3,7 @@ import { isGear } from '../../core/items';
 import type { Cell, Item } from '../../core/items';
 import { itemName } from '../../core/itemData';
 import { Sprite } from '../../sprites/Sprite';
+import { formatCompact, formatNumber } from '../format';
 import type { ItemTarget } from './itemActions';
 import { clickIntent, itemSprite, rarityOf } from './itemView';
 import type { ClickIntent } from './itemView';
@@ -25,6 +26,12 @@ function SocketDots({ item }: { item: Item }) {
   return <span className="gm-item__dots" aria-hidden="true">{dots}</span>;
 }
 
+/** The count on a gem stack; hidden from assistive tech because the button's label carries the exact number. */
+function StackCount({ item }: { item: Item }) {
+  if (isGear(item) || item.count <= 1) return null;
+  return <span className="gm-item__count" aria-hidden="true">{formatCompact(item.count)}</span>;
+}
+
 export function ItemButton({ item, target, handlers, scale, className, label }: {
   item: Item; target: ItemTarget; handlers: ItemHandlers; scale: number; className: string; label: string;
 }) {
@@ -34,7 +41,7 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
       type="button"
       className={className}
       data-rarity={rarityOf(item)}
-      aria-label={label}
+      aria-label={isGear(item) || item.count <= 1 ? label : `${label}, ${formatNumber(item.count)}`}
       onPointerDown={(e) => { pointerType.current = e.pointerType; }}
       onClick={(e) => {
         const intent = clickIntent({
@@ -50,6 +57,7 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
     >
       <Sprite name={itemSprite(item)} scale={scale} />
       <SocketDots item={item} />
+      <StackCount item={item} />
     </button>
   );
 }
