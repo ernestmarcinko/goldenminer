@@ -4,6 +4,7 @@ import { MemoryStorage, SAVE_KEY, BACKUP_PREFIX, safeStorage } from '../../src/s
 import { decodeSave, encodeSave } from '../../src/core/save';
 import { compressToBase64 } from 'lz-string';
 import { newGame } from '../../src/core/newGame';
+import { addMap } from '../../src/core/maps';
 import { seedFromText } from '../../src/core/seed';
 import { MAX_LOOT_RULES } from '../../src/core/balance';
 import type { LootRule } from '../../src/core/types';
@@ -84,7 +85,7 @@ describe('GameStore', () => {
   it('aggregates feedback between drains', () => {
     const { store, now } = make(); store.load(); now.t = 5000; store.pump();
     expect(store.drainFeedback().gold).toBe(5);
-    expect(store.drainFeedback()).toEqual({ gold: 0, diamonds: 0, finds: [] });
+    expect(store.drainFeedback()).toEqual({ gold: 0, diamonds: 0, finds: [], strikes: [], hurt: 0 });
   });
 
   it('never loses an unreadable save when its backup cannot be written', () => {
@@ -260,5 +261,37 @@ describe('inventory intents', () => {
     expect(store.state.settings.motion).toEqual({ floats: false, pops: false, lampFlicker: true, shaft: 'smooth' });
     // the next save must still be readable
     expect(make().store.importSave(store.exportSave()).ok).toBe(true);
+  });
+});
+
+describe('maps', () => {
+  it('a click in a map is a hit, never a dig, and still capped', () => {
+    const { store } = make(); store.load();
+    const map = addMap(store.state, 1, 2);
+    expect(store.startMap(map.id)).toBe('ok');
+    const ticks = store.state.tickCount;
+    const events = store.click();
+    expect(events.some((e) => e.kind === 'strike' && e.click)).toBe(true);
+    expect(store.state.tickCount).toBe(ticks);
+    for (let i = 0; i < 20; i++) store.click();
+    const hits = store.state.activity.kind === 'map' ? store.state.activity.run.log.filter((l) => l.kind === 'hit' && l.click).length : 0;
+    expect(hits).toBeLessThanOrEqual(10);
+  });
+
+  it('leaving and dismissing', () => {
+    const { store } = make(); store.load();
+    store.startMap(addMap(store.state, 1, 2).id);
+    expect(store.leaveMap()).toBe(true);
+    expect(store.state.lastRun).toMatchObject({ outcome: 'left', seen: false });
+    store.dismissRun();
+    expect(store.state.lastRun?.seen).toBe(true);
+  });
+
+  it('auto strikes reach the feedback', () => {
+    const { store, now } = make(); store.load();
+    store.startMap(addMap(store.state, 1, 2).id);
+    now.t = 3000; store.pump();
+    const fb = store.drainFeedback();
+    expect(fb.strikes.length).toBeGreaterThan(0);
   });
 });

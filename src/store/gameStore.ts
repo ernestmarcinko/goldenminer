@@ -1,11 +1,14 @@
 import { MAX_LOOT_RULES, OFFLINE_SUMMARY_MIN_TICKS } from '../core/balance';
+import { deriveBattleStats, type BattleStats } from '../core/battle';
 import { advance, ClickLimiter, clickTicks } from '../core/clock';
+import { clickHit } from '../core/combat';
 import { moveTo as coreMoveTo } from '../core/dig';
 import * as inv from '../core/inventory';
 import { itemName } from '../core/itemData';
 import { BATTLE_SLOTS, MINING_SLOTS, setOfSlot } from '../core/items';
 import type { GearItem, GearSet, Slot } from '../core/items';
 import { drainOverflow } from '../core/loot';
+import { leaveMap as coreLeaveMap, startMap as coreStartMap } from '../core/maps';
 import { newGame } from '../core/newGame';
 import { decodeSave, encodeSave, type DecodeResult } from '../core/save';
 import { freshWorld, isValidSeedText, seedFromText } from '../core/seed';
@@ -19,7 +22,15 @@ import { BACKUP_PREFIX, SAVE_KEY, type StorageLike } from './storage';
 /** Gear just worn into a slot that was empty; `id` counts up so the UI can tell one from the next. */
 export interface EquipNotice { id: number; slot: Slot; name: string; rarity: GearItem['rarity'] }
 
-export interface Feedback { gold: number; diamonds: number; finds: FindRecord[] }
+export interface Feedback {
+  gold: number;
+  diamonds: number;
+  finds: FindRecord[];
+  /** The newest auto strikes of a map; click strikes are not here, the click already showed them. */
+  strikes: { amount: number; crit: boolean }[];
+  /** Damage the player took, summed. */
+  hurt: number;
+}
 
 export type Notice =
   | { kind: 'loadFailed'; reason: 'corrupt' | 'future' | 'invalid'; backupKey: string | null }
@@ -35,12 +46,14 @@ interface Deps {
 }
 
 const MAX_FINDS = 3;
+const MAX_STRIKES = 6;
 const ALL_SLOTS: readonly Slot[] = [...MINING_SLOTS, ...BATTLE_SLOTS];
-const emptyFeedback = (): Feedback => ({ gold: 0, diamonds: 0, finds: [] });
+const emptyFeedback = (): Feedback => ({ gold: 0, diamonds: 0, finds: [], strikes: [], hurt: 0 });
 
 export class GameStore {
   private _state: GameState;
   private _stats: Stats;
+  private _battle: BattleStats;
   private _version = 0;
   private _summary: OfflineSummary | null = null;
   private _notice: Notice = null;
@@ -54,10 +67,12 @@ export class GameStore {
   constructor(private readonly deps: Deps) {
     this._state = freshWorld(deps.newSeed, deps.now());
     this._stats = deriveStats(this._state);
+    this._battle = deriveBattleStats(this._state);
   }
 
   get state(): GameState { return this._state; }
   get stats(): Stats { return this._stats; }
+  get battle(): BattleStats { return this._battle; }
   get version(): number { return this._version; }
   get offlineSummary(): OfflineSummary | null { return this._summary; }
   get notice(): Notice { return this._notice; }
@@ -71,6 +86,7 @@ export class GameStore {
 
   private changed(): void {
     this._stats = deriveStats(this._state);
+    this._battle = deriveBattleStats(this._state);
     this._version++;
     for (const fn of [...this.listeners]) fn();
   }
@@ -79,6 +95,7 @@ export class GameStore {
     this._state = state;
     this._equipNotice = null;
     this._stats = deriveStats(state);
+    this._battle = deriveBattleStats(state);
   }
 
   /** Advances to now; returns the ticks applied. Clones a "before" snapshot only when a summary is possible. */
@@ -166,14 +183,19 @@ export class GameStore {
       if (e.kind === 'gold') fb.gold += e.amount;
       else if (e.kind === 'diamond') fb.diamonds += e.amount;
       else if (e.kind === 'find') fb.finds.push(e.find);
+      else if (e.kind === 'strike' && !e.click) fb.strikes.push({ amount: e.amount, crit: e.crit });
+      else if (e.kind === 'hurt') fb.hurt += e.amount;
     }
     if (fb.finds.length > MAX_FINDS) fb.finds = fb.finds.slice(-MAX_FINDS);
+    if (fb.strikes.length > MAX_STRIKES) fb.strikes = fb.strikes.slice(-MAX_STRIKES);
   }
 
   click(): TickEvent[] {
     if (!this.limiter.tryClick(this.deps.now())) return [];
     const events: TickEvent[] = [];
-    clickTicks(this._state, this._stats, events);
+    // A map click is one strike; digging ticks would fast-forward the fight.
+    if (this._state.activity.kind === 'map') clickHit(this._state, events);
+    else clickTicks(this._state, this._stats, events);
     this.changed();
     return events;
   }
@@ -182,6 +204,23 @@ export class GameStore {
     const moved = coreMoveTo(this._state, depth);
     if (moved) this.changed();
     return moved;
+  }
+
+  startMap(mapId: number): ReturnType<typeof coreStartMap> {
+    const result = coreStartMap(this._state, mapId);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
+  leaveMap(): boolean {
+    const left = coreLeaveMap(this._state);
+    if (left) this.changed();
+    return left;
+  }
+
+  dismissRun(): void {
+    if (this._state.lastRun !== null) this._state.lastRun.seen = true;
+    this.changed();
   }
 
   /** Runs an inventory change; if it filled a slot that was empty, that is the new equip notice. */
