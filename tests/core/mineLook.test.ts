@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { bandAt } from '../../src/core/bands';
-import { bandLook, bandTitle, wallTile } from '../../src/core/mineLook';
+import { bandLook, bandTitle, DEEP_ADJECTIVES, DEEP_NOUNS, wallTile } from '../../src/core/mineLook';
 
 const g2 = (seed: number) => ({ seed, gen: 2 as const });
 
@@ -35,4 +35,15 @@ it('wall details are rare and belong to their band', () => {
   }
   expect(details / tiles).toBeGreaterThan(0.045);
   expect(details / tiles).toBeLessThan(0.075);
+});
+
+it('neighbouring deep bands are not chained together', () => {
+  const words = (t: string) => t.split(' ');
+  let chained = 0;
+  for (let seed = 1; seed <= 40; seed++) {
+    const a = words(bandTitle(g2(seed), bandAt(1000 + 300 * 3)));
+    const b = words(bandTitle(g2(seed), bandAt(1000 + 300 * 4)));
+    if (b[1] === DEEP_ADJECTIVES[DEEP_NOUNS.indexOf(a[2] ?? '')]) chained++;
+  }
+  expect(chained).toBeLessThan(10);
 });

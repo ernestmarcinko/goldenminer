@@ -12,14 +12,21 @@ export function worldOf(state: Pick<GameState, 'seed' | 'worldGen'>): WorldRef {
   return { seed: state.seed, gen: state.worldGen };
 }
 
+// Each deep-band feature gets its own salt so neighbouring bands are not chained.
+const SALT_ADJECTIVE = 0xdee9;
+const SALT_NOUN = 0x1d0e;
+const SALT_HUE = 0xc010;
+const SALT_SATURATION = 0x5a7a;
+const SALT_DETAILS = 0xde7a;
+
 const DEEP_START = 1000;
 const DEEP_BAND_HEIGHT = 300;
 
-const DEEP_ADJECTIVES: readonly string[] = [
+export const DEEP_ADJECTIVES: readonly string[] = [
   'Weeping', 'Ashen', 'Hollow', 'Silent', 'Gloaming', 'Sunless', 'Shattered', 'Drowned',
   'Whispering', 'Brimstone', 'Pale', 'Starless', 'Ember', 'Frozen', 'Bleeding', 'Forgotten',
 ];
-const DEEP_NOUNS: readonly string[] = [
+export const DEEP_NOUNS: readonly string[] = [
   'Deep', 'Seam', 'Vault', 'Maw', 'Reach', 'Hollows', 'Chasm', 'Depths',
   'Warren', 'Rift', 'Grotto', 'Abyss', 'Underdark', 'Lode', 'Cradle', 'Gulf',
 ];
@@ -56,8 +63,8 @@ function deepIndex(band: Band): number {
 export function bandTitle(world: WorldRef, band: Band): string {
   if (band.start < DEEP_START || world.gen === 1) return band.name;
   const k = deepIndex(band);
-  const adjective = DEEP_ADJECTIVES[hash2(world.seed, 0xdee9 + k) % DEEP_ADJECTIVES.length];
-  const noun = DEEP_NOUNS[hash2(world.seed, 0xdeea + k) % DEEP_NOUNS.length];
+  const adjective = DEEP_ADJECTIVES[hash2(world.seed ^ SALT_ADJECTIVE, k) % DEEP_ADJECTIVES.length];
+  const noun = DEEP_NOUNS[hash2(world.seed ^ SALT_NOUN, k) % DEEP_NOUNS.length];
   return `The ${adjective} ${noun}`;
 }
 
@@ -69,11 +76,11 @@ export function bandLook(world: WorldRef, band: Band): { palette: Palette; detai
     return { palette: [palette[0], palette[1], palette[2], palette[3]], details: [...details] };
   }
   const k = deepIndex(band);
-  const hue = hash2(world.seed, 0xc010 + k) % 360;
-  const saturation = 14 + (hash2(world.seed, 0xc011 + k) % 14);
+  const hue = hash2(world.seed ^ SALT_HUE, k) % 360;
+  const saturation = 14 + (hash2(world.seed ^ SALT_SATURATION, k) % 14);
   const [l0, l1, l2, l3] = DEEP_LIGHTNESS;
   const hsl = (l: number) => `hsl(${hue}, ${saturation}%, ${l}%)`;
-  const pick = hash2(world.seed, 0xc012 + k);
+  const pick = hash2(world.seed ^ SALT_DETAILS, k);
   const first = pick % DEEP_DETAIL_POOL.length;
   const second = (first + 1 + ((pick >>> 8) % (DEEP_DETAIL_POOL.length - 1))) % DEEP_DETAIL_POOL.length;
   const details: DetailKind[] = [];
