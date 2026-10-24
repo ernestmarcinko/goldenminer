@@ -1,0 +1,89 @@
+.gm-muted { color: var(--gm-muted); }
+.gm-small { font-size: 12px; }
+
+.gm-header {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px;
+  padding: 14px 24px; background: var(--gm-header); border-bottom: 1px solid var(--gm-line);
+}
+.gm-header__title {
+  font-family: var(--gm-font-display); font-weight: 700; font-size: 22px;
+  letter-spacing: 0.04em; color: var(--gm-gold);
+}
+.gm-header__pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.gm-pill {
+  display: flex; align-items: center; gap: 8px; min-height: 44px; box-sizing: border-box;
+  padding: 6px 12px; border-radius: 999px; background: var(--gm-panel-raised); border: 1px solid var(--gm-line);
+}
+.gm-pill__value { font-family: var(--gm-font-mono); }
+.gm-pill__value--gold { color: var(--gm-gold); }
+.gm-pill__value--diamond { color: var(--gm-diamond); }
+.gm-header__depth { margin-left: auto; text-align: right; }
+.gm-header__save {
+  min-height: 44px; min-width: 44px; padding: 8px 16px; box-sizing: border-box; cursor: pointer; font: inherit;
+  font-weight: 500; border-radius: 8px; border: 1px solid var(--gm-line); background: var(--gm-panel-raised); color: var(--gm-text);
+}
+.gm-header__save:hover { border-color: var(--gm-gold); }
+.gm-header__depth-now { font-family: var(--gm-font-mono); font-size: 18px; }
+
+.gm-mine { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.gm-mine__top { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.gm-mine__scene { flex: 999 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.gm-mine__minimap-slot { flex: 1 1 200px; max-width: 240px; min-width: 0; }
+.gm-mine__minimap-slot:empty { display: none; }
+.gm-mine__progress { display: flex; flex-direction: column; gap: 6px; }
+.gm-mine__progress-text { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.gm-bar { height: 10px; border-radius: 5px; background: #2e2722; overflow: hidden; }
+.gm-bar__fill { height: 10px; background: var(--gm-gold); }
+
+.gm-scene {
+  position: relative; display: block; width: 100%; min-height: 44px; padding: 0; overflow: hidden;
+  border-radius: 12px; border: 1px solid var(--gm-line); background: var(--gm-ground); cursor: pointer;
+  font: inherit; color: inherit;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none;
+}
+.gm-scene__grid { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); grid-auto-rows: 44px; }
+.gm-tile { position: relative; }
+.gm-tile__fleck { position: absolute; left: 30%; top: 35%; width: 6px; height: 6px; }
+.gm-scene__glow {
+  position: absolute; left: 50%; top: 380px; width: 340px; height: 340px; transform: translate(-50%, -50%);
+  border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 214, 120, 0.28) 0%, rgba(255, 214, 120, 0.1) 40%, rgba(255, 214, 120, 0) 70%);
+}
+.gm-scene__rope { position: absolute; left: calc(5 / 14 * 100% + 6px); top: 0; width: 2px; height: 330px; background: #8a6a40; }
+.gm-scene__miner { position: absolute; left: 50%; top: 316px; transform: translateX(-50%); line-height: 0; }
+.gm-scene__label, .gm-scene__hint {
+  position: absolute; padding: 4px 10px; border-radius: 6px; background: rgba(15, 13, 11, 0.8); font-size: 12px;
+}
+.gm-scene__label { left: 12px; top: 10px; color: var(--gm-text); text-align: left; max-width: calc(100% - 24px); }
+.gm-scene__hint { right: 12px; bottom: 10px; color: var(--gm-gold-bright); }
+
+.gm-particle {
+  position: absolute; pointer-events: none; white-space: nowrap;
+  font-family: var(--gm-font-mono); font-weight: 500; font-size: 16px; text-shadow: 0 2px 0 #000;
+  animation: gmFloat 1.3s ease-out forwards;
+}
+.gm-particle[data-kind='gold'] { color: var(--gm-gold-bright); }
+.gm-particle[data-kind='diamond'] { color: var(--gm-diamond-bright); }
+.gm-particle[data-kind='chest'], .gm-particle[data-kind='map'], .gm-particle[data-kind='gem'],
+.gm-particle[data-kind='goldVein'], .gm-particle[data-kind='diamondVein'] {
+  animation: gmPop 1.3s ease-out forwards; font-size: 18px; color: var(--gm-rare);
+}
+.gm-particle[data-kind='map'] { color: var(--gm-magic); }
+.gm-particle[data-kind='gem'] { color: var(--gm-legendary); }
+.gm-particle[data-kind='diamondVein'] { color: var(--gm-diamond-bright); }
+@media (prefers-reduced-motion: reduce) {
+  .gm-particle, .gm-particle[data-kind] { animation: none; transform: translate(-50%, -50%); }
+}
+
+.gm-finds {
+  display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 12px;
+  background: var(--gm-panel); border: 1px solid var(--gm-line);
+}
+.gm-finds__title { margin: 0; font-family: var(--gm-font-display); font-size: 16px; }
+.gm-finds__empty { margin: 0; }
+.gm-finds__list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 6px; }
+.gm-finds__item {
+  display: flex; align-items: center; gap: 10px; min-height: 44px; box-sizing: border-box;
+  padding: 6px 8px; border-radius: 6px; background: #241e19;
+}
+.gm-finds__label { flex: 1 1 auto; min-width: 0; }

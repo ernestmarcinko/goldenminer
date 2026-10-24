@@ -1,0 +1,54 @@
+:root {
+  --gm-ground: #15120f;
+  --gm-panel: #1f1a16;
+  --gm-panel-raised: #29221d;
+  --gm-header: #1a1612;
+  --gm-line: #3a3029;
+  --gm-text: #f1e9dc;
+  --gm-muted: #a89f94;
+  --gm-gold: #e8b44a;
+  --gm-gold-bright: #f5cf7a;
+  --gm-diamond: #7fd3e8;
+  --gm-diamond-bright: #c9f1fa;
+  --gm-magic: #8fb0ff;
+  --gm-rare: #f0d455;
+  --gm-legendary: #ff9b45;
+
+  --gm-font-display: Cinzel, serif;
+  --gm-font-ui: 'IBM Plex Sans', system-ui, sans-serif;
+  --gm-font-mono: 'IBM Plex Mono', monospace;
+}
+
+body {
+  margin: 0;
+  background: var(--gm-ground);
+  color: var(--gm-text);
+  font-family: var(--gm-font-ui);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+a {
+  color: var(--gm-gold);
+}
+a:hover {
+  color: var(--gm-gold-bright);
+}
+
+@keyframes gmFloat {
+  0% { transform: translate(-50%, -50%); opacity: 1; }
+  70% { opacity: 1; }
+  100% { transform: translate(-50%, calc(-50% - 64px)); opacity: 0; }
+}
+
+@keyframes gmPop {
+  0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
+  20% { transform: translate(-50%, calc(-50% - 16px)) scale(1.15); opacity: 1; }
+  100% { transform: translate(-50%, calc(-50% - 80px)) scale(1); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gm-particle {
+    animation: none;
+  }
+}

@@ -1,0 +1,55 @@
+.gm-app { min-height: 100vh; background: var(--gm-ground); }
+.gm-app__main { padding: 16px 24px 32px; max-width: 1200px; margin: 0 auto; box-sizing: border-box; }
+
+.gm-btn {
+  min-height: 44px; min-width: 44px; padding: 8px 16px; box-sizing: border-box; cursor: pointer;
+  border-radius: 8px; border: 1px solid var(--gm-line); background: var(--gm-panel-raised);
+  color: var(--gm-text); font: inherit; font-weight: 500;
+}
+.gm-btn:hover { border-color: var(--gm-gold); }
+.gm-btn:focus-visible, .gm-textarea:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
+.gm-btn--primary { background: var(--gm-gold); border-color: var(--gm-gold); color: #1a1208; }
+.gm-btn--primary:hover { background: var(--gm-gold-bright); }
+.gm-btn--danger { background: #7a2a22; border-color: #a8483d; }
+
+.gm-textarea {
+  width: 100%; box-sizing: border-box; resize: vertical; padding: 8px; border-radius: 8px;
+  border: 1px solid var(--gm-line); background: var(--gm-ground); color: var(--gm-text);
+  font-family: var(--gm-font-mono); font-size: 16px; word-break: break-all;
+}
+
+.gm-notice {
+  display: flex; align-items: flex-start; gap: 12px; padding: 10px 24px;
+  background: #3a2a17; border-bottom: 1px solid #6b4d27;
+}
+.gm-notice__body { flex: 1 1 auto; min-width: 0; }
+.gm-notice__text { margin: 6px 0; }
+.gm-notice__save { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; margin-bottom: 6px; }
+
+.gm-overlay {
+  position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+  padding: 16px; box-sizing: border-box; background: rgba(8, 6, 4, 0.75);
+}
+.gm-dialog {
+  width: 100%; max-width: 440px; max-height: 100%; overflow-y: auto; box-sizing: border-box; padding: 20px;
+  border-radius: 12px; background: var(--gm-panel); border: 1px solid var(--gm-line);
+}
+.gm-dialog--wide { max-width: 560px; }
+.gm-dialog__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.gm-dialog__title { margin: 0; font-family: var(--gm-font-display); font-size: 18px; line-height: 1.35; }
+.gm-dialog__list { margin: 12px 0 0; padding-left: 20px; }
+.gm-dialog__section { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+.gm-dialog__section h3 { margin: 0; font-size: 14px; color: var(--gm-muted); }
+.gm-dialog__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+.gm-dialog__section .gm-dialog__actions { margin-top: 0; }
+
+.gm-blocked {
+  min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; padding: 24px; text-align: center; background: var(--gm-ground);
+}
+.gm-blocked__title { margin: 0; font-family: var(--gm-font-display); font-size: 28px; color: var(--gm-gold); }
+
+@media (max-width: 600px) {
+  .gm-app__main { padding: 12px 12px 24px; }
+  .gm-notice { padding: 10px 12px; flex-wrap: wrap; }
+}
