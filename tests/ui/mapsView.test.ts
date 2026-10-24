@@ -3,7 +3,7 @@ import fixture4 from '../fixtures/save-schema-4.txt?raw';
 import { decodeSave } from '../../src/core/save';
 import type { MapItem, RunOutcome } from '../../src/core/types';
 import { newGame } from '../../src/core/newGame';
-import { gainsLine, mapDungeon, mapRows, runTitle, xpBar } from '../../src/ui/maps/mapsView';
+import { gainsLine, mapCount, mapDungeon, mapRows, runTitle, xpBar } from '../../src/ui/maps/mapsView';
 
 const map = (id: number, tier: number, metre = 1): MapItem => ({ id, type: 'map', tier, metre });
 
@@ -69,4 +69,14 @@ it('the maps of the schema-4 fixture are all rows', () => {
   expect(rows).toHaveLength(21);
   const tiers = rows.map((r) => r.tier);
   expect(tiers).toEqual([...tiers].sort((a, b) => b - a));
+});
+
+it('the map count covers the bag and the Maps tab, as the Maps screen lists them', () => {
+  const state = newGame(9090, 0);
+  expect(mapCount(state)).toBe(0);
+  state.bag[0] = map(1, 1);
+  state.bag[1] = map(2, 2);
+  state.stash.maps[0] = map(3, 1);
+  expect(mapCount(state)).toBe(3);
+  expect(mapCount(state)).toBe(mapRows(state).length);
 });

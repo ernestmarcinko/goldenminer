@@ -1,4 +1,5 @@
 import { dungeonIndexAt, dungeonType, type DungeonType } from '../../core/dungeons';
+import { filledCount } from '../../core/cells';
 import { xpToNext } from '../../core/levels';
 import { STASH_PAGE_SIZE } from '../../core/balance';
 import type { GameState, MapItem, RunGains, RunResult } from '../../core/types';
@@ -48,4 +49,9 @@ export function mapRows(state: GameState): MapRow[] {
   state.bag.forEach((c) => { if (c !== null && c.type === 'map') add(c, 'bag', 0); });
   state.stash.maps.forEach((c, i) => { if (c !== null) add(c, 'maps', Math.floor(i / STASH_PAGE_SIZE) + 1); });
   return rows.sort((a, b) => b.tier - a.tier || a.name.localeCompare(b.name) || a.id - b.id);
+}
+
+/** Every map you hold: those in the bag and those in the Maps tab. */
+export function mapCount(state: GameState): number {
+  return filledCount(state.stash.maps) + state.bag.filter((c) => c !== null && c.type === 'map').length;
 }
