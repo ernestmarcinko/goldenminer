@@ -45,6 +45,7 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-item[data-rarity='legendary'], .gm-card[data-rarity='legendary'], .gm-card__equipped[data-rarity='legendary'] { --gm-tone: var(--gm-legendary); }
 .gm-item[data-rarity='gem'], .gm-card[data-rarity='gem'], .gm-card__equipped[data-rarity='gem'] { --gm-tone: var(--gm-gem); }
 .gm-item[data-rarity='normal'], .gm-card[data-rarity='normal'], .gm-card__equipped[data-rarity='normal'] { --gm-tone: var(--gm-normal); }
+.gm-item[data-rarity='material'], .gm-card[data-rarity='material'] { --gm-tone: var(--gm-material); }
 .gm-item { border-color: var(--gm-tone); }
 .gm-item__dots { position: absolute; left: 0; right: 0; bottom: 2px; display: flex; justify-content: center; gap: 2px; }
 .gm-item__dot { width: 6px; height: 6px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--gm-muted); background: transparent; }
@@ -136,6 +137,11 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-gemtab__cell > .gm-cell { height: 100%; }
 .gm-gemtab__head { font-size: 12px; color: var(--gm-muted); text-align: center; }
 .gm-gemtab__name { font-size: 13px; color: var(--gm-gem-color); }
+.gm-mattab { display: grid; grid-template-columns: repeat(8, minmax(44px, 60px)); gap: 6px; align-items: start; }
+.gm-mattab__slot { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.gm-mattab__cell { display: grid; aspect-ratio: 1; width: 100%; min-width: 44px; }
+.gm-mattab__cell > .gm-cell { height: 100%; }
+.gm-mattab__name { font-size: 12px; line-height: 1.2; color: var(--gm-muted); text-align: center; overflow-wrap: anywhere; }
 
 .gm-rules { display: flex; flex-direction: column; gap: 8px; }
 .gm-rule { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; border-radius: 8px; background: #241e19; }
@@ -172,4 +178,5 @@ button.gm-item:hover { background: #3a2f20; }
   .gm-stash__tab { padding: 0 10px; }
   .gm-gemtab { grid-template-columns: 56px repeat(5, minmax(44px, 52px)); gap: 4px; }
   .gm-gemtab__name { font-size: 12px; }
+  .gm-mattab { grid-template-columns: repeat(4, minmax(44px, 60px)); gap: 4px 6px; }
 }

@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { emptyInventory, filledCount, firstEmpty, pageCount } from '../../src/core/cells';
 import { gemGradeFor, gemName } from '../../src/core/itemData';
 import { gemEffect } from '../../src/core/stats';
-import { salvageValue, sellValue } from '../../src/core/loot';
+import { salvageYield, sellValue } from '../../src/core/loot';
 
 it('gems come in five grades by tier', () => {
   expect([0, 1, 3, 4, 6, 7, 9, 10, 14, 15, 40].map(gemGradeFor)).toEqual(
@@ -11,7 +11,7 @@ it('gems come in five grades by tier', () => {
   expect((['tiny', 'small', 'big', 'giant', 'perfect'] as const).map((grade) => gemEffect({ gem: 'starstone', grade }, 'mining').value))
     .toEqual([6, 12, 18, 26, 38]);
   expect(sellValue({ id: 1, type: 'gem', gem: 'ruby', grade: 'big', count: 3 })).toBe(480);
-  expect(salvageValue({ id: 1, type: 'gem', gem: 'ruby', grade: 'perfect', count: 2 })).toBe(16);
+  expect(salvageYield({ id: 1, type: 'gem', gem: 'ruby', grade: 'perfect', count: 2 })).toEqual({ tin: 8 });
 });
 
 it('an empty inventory is one bag and the free stash pages', () => {

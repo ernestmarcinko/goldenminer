@@ -10,6 +10,7 @@ import { useGame } from '../useGame';
 import { dropAttr } from './dragDrop';
 import { GemTab } from './GemTab';
 import { ItemGrid } from './ItemGrid';
+import { MaterialTab } from './MaterialTab';
 import { STASH_TABS, tabLabel } from './stashView';
 import type { StashTab } from './stashView';
 import type { ItemDrag } from './useItemDrag';
@@ -114,6 +115,7 @@ export function StashDialog({ store, onClose, drag, sayRef }: {
               )}
               {tab === 'gems' && <GemTab state={state} handlers={handlers} />}
               {tab === 'maps' && <MapList store={store} compact onRun={onClose} />}
+              {tab === 'materials' && <MaterialTab state={state} handlers={handlers} />}
             </div>
           </div>
           <div className="gm-stash__bag">

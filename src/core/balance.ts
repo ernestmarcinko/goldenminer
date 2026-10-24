@@ -181,8 +181,11 @@ export const CHEST_BATTLE_CHANCE = 0.2;
 
 export const SELL_GOLD: Readonly<Record<Rarity, number>> = { normal: 5, magic: 12, rare: 30, legendary: 80 };
 export const GEM_SELL_GOLD = 20;
-export const SALVAGE_DIAMONDS: Readonly<Record<Rarity, number>> = { normal: 1, magic: 2, rare: 4, legendary: 10 };
-export const GEM_SALVAGE_DIAMONDS = 2;
+// Salvage gives low-tier materials only, so the deep ones stay worth digging for; Diamonds come from veins alone.
+export const SALVAGE_MATERIALS: Readonly<Record<Rarity, Partial<Record<Material, number>>>> = {
+  normal: { copper: 1 }, magic: { copper: 2, tin: 1 }, rare: { copper: 3, tin: 2, iron: 1 }, legendary: { tin: 3, iron: 3, silver: 1 },
+};
+export const GEM_SALVAGE_TIN = 1;
 export const LOOT_NOTES_KEPT = 30;
 
 // Material veins and hazards come from their own seeded layer, so they never disturb the feature roll.

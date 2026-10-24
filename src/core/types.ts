@@ -30,8 +30,9 @@ export const DEFAULT_MOTION: MotionSettings = { floats: true, pops: true, lampFl
 export interface Settings { lootFilter: LootRule[]; bagFull: BagFullMode; motion: MotionSettings }
 export const LOOT_OUTCOMES = ['bag', 'stash', 'sold', 'salvaged', 'held'] as const;
 export type LootOutcome = (typeof LOOT_OUTCOMES)[number];
+/** `value` is the Gold for 'sold', the material units for 'salvaged', and the units found for a material note. */
 export interface LootNote {
-  name: string; rarity: Rarity | 'gem'; base: Slot | GemType; outcome: LootOutcome; value: number;
+  name: string; rarity: Rarity | 'gem' | 'material'; base: Slot | GemType | Material; outcome: LootOutcome; value: number;
 }
 export const ELEMENTS = ['physical', 'elemental'] as const;
 export type Element = (typeof ELEMENTS)[number];

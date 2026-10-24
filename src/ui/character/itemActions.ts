@@ -1,12 +1,13 @@
-import { GEM_BAG_STACK, GEM_STASH_STACK } from '../../core/balance';
+import { GEM_BAG_STACK, GEM_STASH_STACK, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK } from '../../core/balance';
 import { firstEmpty, itemAt } from '../../core/cells';
-import { BATTLE_SLOTS, isGear, MINING_SLOTS, setOfSlot } from '../../core/items';
-import type { GearItem, GemItem, Item } from '../../core/items';
-import { salvageValue, sellValue } from '../../core/loot';
+import { MATERIAL_LABELS } from '../../core/itemData';
+import { BATTLE_SLOTS, isGear, MATERIALS, MINING_SLOTS, setOfSlot } from '../../core/items';
+import type { GearItem, GemItem, Item, MaterialItem } from '../../core/items';
+import { salvageYield, sellValue } from '../../core/loot';
 import { gemEffect } from '../../core/stats';
 import type { GameState, InvResult, ItemLoc } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
-import { formatNumber, plural } from '../format';
+import { formatNumber } from '../format';
 import type { ClickIntent } from './itemView';
 import { statText } from './itemView';
 
@@ -48,10 +49,37 @@ function bagTakesGem(state: GameState, item: GemItem): boolean {
   );
 }
 
+function bagTakesMaterial(state: GameState, item: MaterialItem): boolean {
+  return firstEmpty(state.bag) >= 0 || state.bag.some(
+    (c) => c?.type === 'material' && c.material === item.material && c.count < MATERIAL_BAG_STACK,
+  );
+}
+
+/** What salvage gives, in material order: "+3 Copper ore, +2 Tin ore". */
+function yieldText(item: Item): string {
+  const y = salvageYield(item);
+  return MATERIALS.flatMap((m) => {
+    const n = y[m];
+    return n === undefined || n <= 0 ? [] : [`+${formatNumber(n)} ${MATERIAL_LABELS[m]}`];
+  }).join(', ');
+}
+
+/** A bag stack joins its Materials count, unless that count is at its cap; a tab stack comes back to the bag. */
+function materialActions(state: GameState, target: ItemTarget, item: MaterialItem): ActionSpec[] {
+  if (target.where === 'materials') {
+    return [{
+      id: 'take', label: `Take to bag (up to ${formatNumber(MATERIAL_BAG_STACK)})`, disabled: !bagTakesMaterial(state, item),
+    }];
+  }
+  const full = state.stash.materials[item.material] >= MATERIAL_STASH_STACK;
+  return [{ id: 'toStash', label: 'To Materials tab', disabled: full }];
+}
+
 export function itemActions(state: GameState, target: ItemTarget): ActionSpec[] {
   const item = itemAt(state, target);
-  // maps and materials have no card actions yet: they move by drag and drop
-  if (item === undefined || item.type === 'map' || item.type === 'material') return [];
+  // maps have no card actions yet: they move by drag and drop
+  if (item === undefined || item.type === 'map') return [];
+  if (item.type === 'material') return materialActions(state, target, item);
   const bagFull = firstEmpty(state.bag) < 0;
   const generalFull = firstEmpty(state.stash.general) < 0;
   if (target.where === 'worn') {
@@ -65,7 +93,7 @@ export function itemActions(state: GameState, target: ItemTarget): ActionSpec[] 
     id: 'sell', label: `Sell${all ? ' all' : ''} (+${formatNumber(sellValue(item))} Gold)`, disabled: false,
   };
   const salvage: ActionSpec = {
-    id: 'salvage', label: `Salvage${all ? ' all' : ''} (+${plural(salvageValue(item), 'Diamond', 'Diamonds')})`, disabled: false,
+    id: 'salvage', label: `Salvage${all ? ' all' : ''} (${yieldText(item)})`, disabled: false,
   };
   if (item.type === 'gem' && target.where === 'gems') {
     const take: ActionSpec = {
@@ -101,7 +129,7 @@ export function actionForIntent(
   if (intent === 'move') return find('toStash', 'toBag', 'take');
   if (target.where === 'worn') return find('unequip');
   if (target.where === 'stash') return find('toBag');
-  if (target.where === 'gems') return find('take');
+  if (target.where === 'gems' || target.where === 'materials') return find('take');
   return find('equip') ?? 'menu';
 }
 
@@ -109,8 +137,9 @@ export function hoverNote(target: ItemTarget, item: Item): string {
   if (target.where === 'worn') return 'Click to unequip';
   if (target.where === 'stash') return 'Click to move to your bag · Alt+click to sell';
   if (target.where === 'gems') return `Click to take up to ${formatNumber(GEM_BAG_STACK)} · right-click for more`;
+  if (target.where === 'materials') return `Click to take up to ${formatNumber(MATERIAL_BAG_STACK)} · right-click for more`;
   if (item.type === 'map') return 'Drag it to the Stash button to keep it in the Maps tab';
-  if (item.type === 'material') return 'Kept for crafting';
+  if (item.type === 'material') return 'Click for actions · Shift+click to the Materials tab';
   return isGear(item)
     ? 'Click to equip · Alt+click to sell · Shift+click to stash'
     : 'Click for actions · Alt+click to sell · Shift+click to the Gems tab';

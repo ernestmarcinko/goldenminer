@@ -378,6 +378,8 @@ it('rejects impossible maps, runs and levels', () => {
     ['an unknown outcome', (s) => { const m = looseMap(s, 1, 2); s.lastRun = { map: m, outcome: 'won' as RunOutcome, room: 6, bossRoom: 6, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, items: 0, seen: false }; }],
     ['a Maps tab of 61 cells', (s) => { s.stash.maps.push(null); }],
     ['a map at metre 0', (s) => { s.stash.maps[0] = { id: s.nextId++, type: 'map', tier: 1, metre: 0 }; }],
+    ['a material note for a gem', (s) => { run(s)?.loot.push({ name: 'Ruby', rarity: 'material', base: 'ruby', outcome: 'bag', value: 2 }); }],
+    ['a gem note for a material', (s) => { run(s)?.loot.push({ name: 'Tin ore', rarity: 'gem', base: 'tin', outcome: 'bag', value: 2 }); }],
   ];
   for (const [name, mutate] of cases) {
     const s = running();
@@ -388,6 +390,12 @@ it('rejects impossible maps, runs and levels', () => {
 
 const decodes = (s: GameState) => decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: s })).ok;
 const GAINS = { xp: 5, souls: 2, gold: 9, levels: 1 };
+
+it('a run keeps its material loot notes', () => {
+  const s = running();
+  if (s.activity.kind === 'map') s.activity.run.loot.push({ name: 'Void crystal', rarity: 'material', base: 'voidCrystal', outcome: 'stash', value: 3 });
+  expect(decodes(s)).toBe(true);
+});
 
 it('accepts the legal extremes of maps, runs and levels', () => {
   const run = (s: GameState) => { if (s.activity.kind !== 'map') throw new Error('no run'); return s.activity.run; };

@@ -218,8 +218,10 @@ function isLootNote(x: unknown): boolean {
   return (
     isObject(x) &&
     typeof x.name === 'string' && x.name.length >= 1 && x.name.length <= 80 &&
-    isIn(ITEM_RARITIES, x.rarity) &&
-    (isIn(ALL_SLOTS, x.base) || isIn(GEM_TYPES, x.base)) &&
+    // a material note names its material, and no other note does
+    (x.rarity === 'material'
+      ? isMaterial(x.base)
+      : isIn(ITEM_RARITIES, x.rarity) && (isIn(ALL_SLOTS, x.base) || isIn(GEM_TYPES, x.base))) &&
     isIn(LOOT_OUTCOMES, x.outcome) &&
     isNonNegFinite(x.value)
   );

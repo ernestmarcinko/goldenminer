@@ -86,7 +86,7 @@ it('reads what a click means', () => {
 it('loot notes in words', () => {
   const n = { name: 'X', rarity: 'magic', base: 'pickaxe' } as const;
   expect(lootNoteText({ ...n, outcome: 'sold', value: 48 })).toBe('sold +48 Gold');
-  expect(lootNoteText({ ...n, outcome: 'salvaged', value: 1 })).toBe('salvaged +1 Diamond');
+  expect(lootNoteText({ ...n, outcome: 'salvaged', value: 1 })).toBe('salvaged into 1 material');
   expect(lootNoteText({ ...n, outcome: 'stash', value: 0 })).toBe('to stash');
   expect(lootNoteText({ ...n, outcome: 'held', value: 0 })).toBe('waiting for space');
 });
@@ -96,4 +96,22 @@ it('a map item reads as its tier and where it was found', () => {
   expect([itemName(map), itemKindLine(map), rarityOf(map), itemSprite(map)]).toEqual(['Tier 4 map', 'Tier 4 map', 'map', 'map']);
   expect(itemLines(map)).toEqual([{ text: 'Found at 327 m', tone: 'plain' }]);
   expect(rarityOf({ id: 2, type: 'material', material: 'tin', count: 3 })).toBe('material');
+});
+
+it('a material item reads as a crafting material and where it is first found', () => {
+  const tin = { id: 2, type: 'material', material: 'tin', count: 3 } as const;
+  const iron = { id: 3, type: 'material', material: 'iron', count: 1 } as const;
+  expect([itemName(tin), itemKindLine(tin), rarityOf(tin), itemSprite(tin)]).toEqual(['Tin ore', 'Crafting material', 'material', 'tin']);
+  expect(itemLines(tin)).toEqual([
+    { text: 'Found at every depth', tone: 'plain' },
+    { text: 'Kept for crafting.', tone: 'muted' },
+  ]);
+  expect(itemLines(iron)[0]).toEqual({ text: 'First found below 50 m', tone: 'plain' });
+  expect(itemSprite({ id: 4, type: 'material', material: 'voidCrystal', count: 1 })).toBe('voidCrystal');
+});
+
+it('a material loot note reads as the material and how many', () => {
+  const n = { name: 'Copper ore', rarity: 'material', base: 'copper', value: 1240 } as const;
+  expect(lootNoteText({ ...n, outcome: 'bag' })).toBe('Copper ore ×1,240');
+  expect(lootNoteText({ ...n, outcome: 'stash' })).toBe('Copper ore ×1,240');
 });

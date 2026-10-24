@@ -150,14 +150,15 @@ it('sell and salvage take a whole stack, from a cell or the Gems tab', () => {
   s.bag[4] = gear(s, 'boots', { rarity: 'rare', ilvl: 10 });
   expect(sell(s, cell(3))).toBe('ok');
   expect(salvage(s, bag(4))).toBe('ok');
-  expect([s.gold, s.diamonds, s.stash.general[3], s.bag[4]]).toEqual([300, 12, null, null]);
+  expect([s.gold, s.diamonds, s.stash.general[3], s.bag[4]]).toEqual([300, 0, null, null]);
+  expect([s.stash.materials.copper, s.stash.materials.tin, s.stash.materials.iron]).toEqual([9, 6, 3]);
   expect(sell(s, cell(3))).toBe('invalid');
   s.bag[0] = gem(s, 'ruby', { grade: 'big', count: 3 });
   expect(sell(s, bag(0))).toBe('ok');
   expect(s.gold).toBe(780);
   s.stash.gems.ruby.big = 10;
   expect(salvage(s, stack('ruby', 'big'))).toBe('ok');
-  expect([s.stash.gems.ruby.big, s.diamonds]).toEqual([0, 12 + 10 * 4]);
+  expect([s.stash.gems.ruby.big, s.stash.materials.tin]).toEqual([0, 6 + 10 * 2]);
   expect(sell(s, { where: 'worn', slot: 'pickaxe' })).toBe('invalid');
 });
 
@@ -443,18 +444,24 @@ it('the stash shortcut sends a map to the first empty Maps cell, and back to the
   expect(salvage(s, mapsLoc(0))).toBe('invalid');
 });
 
-it('materials stay where they are until they can be moved', () => {
+it('materials go only in their own tab, and cannot be sold or salvaged', () => {
   const s = newGame(1, 0);
   s.bag[0] = { id: s.nextId++, type: 'material', material: 'copper', count: 5 };
   s.stash.materials.tin = 9;
   const tab: ItemLoc = { where: 'materials', material: 'tin' };
   expect(itemAt(s, tab)).toEqual({ id: 0, type: 'material', material: 'tin', count: 9 });
-  expect(moveItem(s, bag(0), bag(1))).toBe('invalid');
-  expect(sendItem(s, bag(0), 'stash')).toBe('invalid');
-  expect(moveItem(s, tab, bag(1))).toBe('invalid');
   s.bag[2] = gear(s, 'boots');
   expect(moveItem(s, bag(2), tab)).toBe('materialsOnly');
   expect(dropItem(s, bag(2), { where: 'stashTab', tab: 'materials' })).toBe('materialsOnly');
+  expect(dropItem(s, bag(0), { where: 'stashTab', tab: 'gems' })).toBe('gemsOnly');
   expect(sell(s, bag(0))).toBe('invalid');
+  expect(salvage(s, tab)).toBe('invalid');
   expect([s.bag[0]?.type, s.stash.materials.tin]).toEqual(['material', 9]);
+  expect(dropItem(s, bag(0), { where: 'stashTab', tab: 'materials' })).toBe('ok');
+  expect([s.bag[0], s.stash.materials.copper]).toEqual([null, 5]);
+  expect(dropItem(s, tab, { where: 'stashTab', tab: 'materials' })).toBe('ok');   // already home
+  expect(s.stash.materials.tin).toBe(9);
+  s.bag[3] = { id: s.nextId++, type: 'material', material: 'iron', count: 2 };
+  expect(dropItem(s, bag(3), { where: 'stashTab', tab: 'auto' })).toBe('ok');      // the Stash button
+  expect([s.bag[3], s.stash.materials.iron]).toEqual([null, 2]);
 });

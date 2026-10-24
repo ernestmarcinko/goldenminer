@@ -1,7 +1,8 @@
 import { expect, it } from 'vitest';
 import fixture3 from '../fixtures/save-schema-3.txt?raw';
 import { decodeSave } from '../../src/core/save';
-import { GRADE_HEADERS, gemTabRows, STASH_TABS, tabLabel } from '../../src/ui/character/stashView';
+import { MATERIALS } from '../../src/core/items';
+import { GRADE_HEADERS, gemTabRows, materialTabCells, STASH_TABS, tabLabel } from '../../src/ui/character/stashView';
 
 function migrated() {
   const decoded = decodeSave(fixture3);
@@ -35,8 +36,20 @@ it('counts above a thousand are shortened', () => {
 
 it('tab labels show the General fill, and the other tabs just their name', () => {
   const s = migrated();
-  expect(STASH_TABS).toEqual(['general', 'gems', 'maps']);
+  expect(STASH_TABS).toEqual(['general', 'gems', 'maps', 'materials']);
   expect(tabLabel(s, 'general')).toBe('General 5 / 120');
   expect(tabLabel(s, 'gems')).toBe('Gems');
   expect(tabLabel(s, 'maps')).toBe('Maps');
+  expect(tabLabel(s, 'materials')).toBe('Materials');
+});
+
+it('the Materials tab has one cell per material, in order, with compact counts', () => {
+  const s = migrated();
+  s.stash.materials.tin = 7;
+  s.stash.materials.voidCrystal = 2500;
+  const cells = materialTabCells(s);
+  expect(cells.map((c) => c.material)).toEqual([...MATERIALS]);
+  expect(cells[0]).toEqual({ material: 'copper', label: 'Copper ore', count: 0, text: '' });
+  expect(cells[1]).toEqual({ material: 'tin', label: 'Tin ore', count: 7, text: '7' });
+  expect(cells[7]).toEqual({ material: 'voidCrystal', label: 'Void crystal', count: 2500, text: '2.5K' });
 });

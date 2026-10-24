@@ -3,7 +3,7 @@ import { LOOT_NOTES_KEPT } from '../../src/core/balance';
 import { filledCount } from '../../src/core/cells';
 import { applyTicks } from '../../src/core/dig';
 import { itemName } from '../../src/core/itemData';
-import { drainOverflow, lootAction, receiveItem, salvageValue, sellValue } from '../../src/core/loot';
+import { drainOverflow, lootAction, receiveItem, salvageYield, sellValue } from '../../src/core/loot';
 import { newGame } from '../../src/core/newGame';
 import { deriveStats } from '../../src/core/stats';
 import { summarize } from '../../src/core/summary';
@@ -22,8 +22,8 @@ it('sell and salvage values', () => {
   const s = newGame(1, 0);
   expect(sellValue(gear(s, 'pickaxe', { rarity: 'magic', ilvl: 4 }))).toBe(48);
   expect(sellValue(gear(s, 'pickaxe', { rarity: 'rare', ilvl: 4, sockets: 1, gems: [gem(s, 'ruby')] }))).toBe(160);
-  expect(salvageValue(gear(s, 'ring', { rarity: 'rare', ilvl: 10 }))).toBe(12);
-  expect(salvageValue(gem(s, 'ruby'))).toBe(2);
+  expect(salvageYield(gear(s, 'ring', { rarity: 'rare', ilvl: 10 }))).toEqual({ copper: 9, tin: 6, iron: 3 });
+  expect(salvageYield(gem(s, 'ruby'))).toEqual({ tin: 1 });
 });
 
 it('the first matching rule decides, and nothing matching keeps', () => {
@@ -51,7 +51,7 @@ it('the filter sells and salvages before anything is stowed', () => {
   ];
   receiveItem(s, gear(s, 'boots', { rarity: 'normal', ilvl: 3 }));
   receiveItem(s, gear(s, 'boots', { rarity: 'magic', ilvl: 3 }));
-  expect([s.gold, s.diamonds, filledCount(s.bag)]).toEqual([15, 2, 0]);
+  expect([s.gold, s.diamonds, s.stash.materials.copper, s.stash.materials.tin, filledCount(s.bag)]).toEqual([15, 0, 2, 1, 0]);
   expect(s.lootTally).toEqual({ kept: 0, sold: 1, salvaged: 1 });
 });
 
@@ -123,6 +123,17 @@ describe('when the bag and the stash are full', () => {
     drainOverflow(s);
     expect(s.overflow).toEqual([]);
     expect(s.gold).toBe(25);
+  });
+
+  it('held loot the filter now salvages goes into materials', () => {
+    const s = newGame(1, 0);
+    s.settings.bagFull = 'stop';
+    fill(s);
+    receiveItem(s, gear(s, 'pickaxe', { rarity: 'rare', ilvl: 5 }));
+    s.settings.lootFilter = [{ rarity: 'rare', target: 'any', action: 'salvage' }];
+    drainOverflow(s);
+    expect(s.overflow).toEqual([]);
+    expect([s.stash.materials.copper, s.stash.materials.tin, s.stash.materials.iron, s.diamonds]).toEqual([6, 4, 2, 0]);
   });
 
   it('stop holds the item and idles until there is room', () => {

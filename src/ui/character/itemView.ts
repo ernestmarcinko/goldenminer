@@ -1,7 +1,7 @@
-import { hardness, TICKS_PER_METRE_AT_PARITY } from '../../core/balance';
-import { GEM_GRADE_LABELS, gemName } from '../../core/itemData';
+import { hardness, MATERIAL_TABLE, TICKS_PER_METRE_AT_PARITY } from '../../core/balance';
+import { GEM_GRADE_LABELS, gemName, MATERIAL_LABELS } from '../../core/itemData';
 import { BATTLE_STATS, isGear, setOfSlot } from '../../core/items';
-import type { GearItem, GemType, Item, Slot, StatKey } from '../../core/items';
+import type { GearItem, GemType, Item, Material, Slot, StatKey } from '../../core/items';
 import { gemEffect, itemTotals } from '../../core/stats';
 import type { GameState, LootNote, Stats } from '../../core/types';
 import type { SpriteName } from '../../sprites/atlas';
@@ -65,7 +65,13 @@ export function itemKindLine(item: Item): string {
 
 export function itemLines(item: Item): ViewLine[] {
   if (item.type === 'map') return [{ text: `Found at ${formatNumber(item.metre)} m`, tone: 'plain' }];
-  if (item.type === 'material') return [];
+  if (item.type === 'material') {
+    const from = MATERIAL_TABLE[item.material].from;
+    return [
+      { text: from === 0 ? 'Found at every depth' : `First found below ${formatNumber(from)} m`, tone: 'plain' },
+      { text: 'Kept for crafting.', tone: 'muted' },
+    ];
+  }
   if (item.type === 'gem') {
     return [
       { text: `In mining gear: ${lineText(gemEffect(item, 'mining'))}`, tone: 'plain' },
@@ -151,8 +157,9 @@ const SLOT_SPRITES: Readonly<Record<Slot, SpriteName>> = {
   helm: 'helm', ring: 'ring', amulet: 'amulet',
 };
 
-export function baseSprite(base: Slot | GemType): SpriteName {
-  return base in SLOT_SPRITES ? SLOT_SPRITES[base as Slot] : (base as GemType);
+/** Gems and materials have sprites named after them; gear by its slot. */
+export function baseSprite(base: Slot | GemType | Material): SpriteName {
+  return base in SLOT_SPRITES ? SLOT_SPRITES[base as Slot] : (base as GemType | Material);
 }
 
 export function itemSprite(item: Item): SpriteName {
@@ -160,16 +167,18 @@ export function itemSprite(item: Item): SpriteName {
     case 'gear': return baseSprite(item.slot);
     case 'gem': return baseSprite(item.gem);
     case 'map': return 'map';
-    case 'material': return 'gem';   // materials have no sprites of their own yet
+    case 'material': return baseSprite(item.material);
   }
 }
 
 export function lootNoteText(note: LootNote): string {
   switch (note.outcome) {
-    case 'bag': return 'to bag';
-    case 'stash': return 'to stash';
+    case 'bag':
+    case 'stash':
+      if (note.rarity === 'material') return `${MATERIAL_LABELS[note.base as Material]} ×${formatNumber(note.value)}`;
+      return note.outcome === 'bag' ? 'to bag' : 'to stash';
     case 'sold': return `sold +${formatNumber(note.value)} Gold`;
-    case 'salvaged': return `salvaged +${plural(note.value, 'Diamond', 'Diamonds')}`;
+    case 'salvaged': return `salvaged into ${plural(note.value, 'material', 'materials')}`;
     case 'held': return 'waiting for space';
   }
 }
