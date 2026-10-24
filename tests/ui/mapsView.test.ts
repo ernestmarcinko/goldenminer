@@ -31,19 +31,23 @@ it('run results in words', () => {
 
 it('every map is a row: highest tier first, then name, then id, with where it lies', () => {
   const state = newGame(9090, 0);
+  // two metres opening dungeons whose names differ; `early` sorts before `late`
+  const nameAt = (metre: number): string => mapDungeon(state.seed, { tier: 5, metre }).type.name;
+  const first = 1;
+  const other = Array.from({ length: 40 }, (_, i) => i + 1).find((m) => nameAt(m) !== nameAt(first));
+  if (other === undefined) throw new Error('no second dungeon found');
+  const [early, late] = nameAt(first).localeCompare(nameAt(other)) < 0 ? [first, other] : [other, first];
+
   state.bag[3] = map(40, 2, 4);
-  state.stash.maps[61] = map(30, 5, 7);
-  state.stash.maps[0] = map(20, 5, 7);
-  state.stash.maps[1] = map(10, 5, 3);
+  // the lowest id lies in the dungeon that sorts last, so name order and id order disagree
+  state.stash.maps[0] = map(10, 5, late);
+  state.stash.maps[61] = map(30, 5, early);
+  state.stash.maps[1] = map(20, 5, early);
   const rows = mapRows(state);
 
-  expect(rows).toHaveLength(4);
-  const names = rows.slice(0, 3).map((r) => r.name);
+  expect(rows.map((r) => r.id)).toEqual([20, 30, 10, 40]);
   expect(rows.map((r) => r.tier)).toEqual([5, 5, 5, 2]);
-  expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
-  // the same dungeon (same metre) falls back to the lower id first
-  const same = rows.filter((r) => r.metre === 7);
-  expect(same.map((r) => r.id)).toEqual([20, 30]);
+  expect(rows.slice(0, 3).map((r) => r.name)).toEqual([nameAt(early), nameAt(early), nameAt(late)]);
   expect(rows[3]).toMatchObject({ id: 40, tier: 2, metre: 4, where: 'bag', page: 0 });
   expect(rows.find((r) => r.id === 30)).toMatchObject({ where: 'maps', page: 2 });
   expect(rows.find((r) => r.id === 20)).toMatchObject({ where: 'maps', page: 1 });
