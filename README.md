@@ -19,6 +19,8 @@ Digging earns only from what you dig into: Gold from gold veins, Diamonds from d
 
 From Granite Veins down, some metres hold gas pockets or unstable rock that make digging slower. A new mining stat, hazard ward, cuts the slowdown. The mine shows your digging speed and the time to the next metre.
 
+The miner only digs down. The minimap is a record of everything found, by depth. Scroll it to look back, and use "Jump to the dig face" to return.
+
 ## Gear
 
 Chests and gems drop mining and battle gear. One bag of 60 cells holds every item you carry, gear of both sets and gem stacks alike. The character panel's paper doll switches between your mining and battle gear, and the stash keeps more in its tabs. The stash has pages of 60 cells: the General tab starts with 2 pages and the Maps tab with 1, and more are bought with Gold from the page row above the grid, each page costing more than the last. Hover an item to compare it with what you wear, click to equip it, Alt+click to sell it, Shift+click to stash it, and right-click to see every action. Drag an item onto a cell to move it (a taken cell swaps; an identical gem stack merges), onto a paper-doll slot to equip it, onto a stash tab or the Stash button to stash it, or drag a gem onto gear to socket it; a refused drop snaps back with a short message. On a touch screen, tap an item to pick it up and see every action, then tap a cell, a slot or a tab to put it there, or tap it again to put it back. The loot filter sells or salvages new items by rule.

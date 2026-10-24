@@ -1,26 +1,44 @@
 import { bandAt, tierAt } from '../../core/bands';
-import type { FeatureKind, GameState } from '../../core/types';
+import { MATERIAL_LABELS } from '../../core/itemData';
+import type { Material } from '../../core/items';
+import { metreLayer } from '../../core/layer';
+import type { FeatureKind, FindKind, GameState, Hazard } from '../../core/types';
 import { bandLook, bandTitle, worldOf } from '../../core/mineLook';
+import type { SpriteName } from '../../sprites/atlas';
+import { baseSprite } from '../character/itemView';
 
 export const MINIMAP_METRES = 88;
 export const MINIMAP_PX_PER_METRE = 6;
 
-export interface MinimapMarker { y: number; kind: FeatureKind; count: number; label: string }
+/** Metres drawn above and below the visible window, so a scroll never shows a gap before the next frame. */
+const MARGIN_METRES = 10;
+/** Where the window sits while following: the dig face about 50 m down, roughly 57% of the window. */
+const FOLLOW_OFFSET_METRES = 50;
+
+export type AheadKind = FeatureKind | 'materialVein' | 'hardRock' | Hazard;
+export interface MinimapMarker { y: number; kind: FindKind; count: number; label: string; icon: SpriteName }
+export interface MinimapHint { y: number; kind: AheadKind; label: string; icon?: SpriteName }
 export interface MinimapModel {
   top: number;
   bottom: number;
+  height: number;
   bands: { name: string; y: number; height: number; color: string }[];
   ticks: { depth: number; y: number }[];
   markers: MinimapMarker[];
-  ahead: { y: number; kind: FeatureKind | 'hardRock' }[];
+  ahead: MinimapHint[];
   youY: number;
   fogY: number;
 }
 
-const PRIORITY: readonly FeatureKind[] = ['map', 'chest', 'gem', 'diamondVein', 'goldVein'];
+const PRIORITY: readonly FindKind[] = ['map', 'chest', 'gem', 'diamondVein', 'goldVein', 'materialVein'];
 const BUCKET_METRES = 4;
 
-function labelFor(kind: FeatureKind, depth: number): string {
+const FEATURE_ICONS: Readonly<Record<FeatureKind, SpriteName>> = {
+  map: 'map', chest: 'chest', gem: 'gem', diamondVein: 'diamond', goldVein: 'coin',
+};
+const HAZARD_LABELS: Readonly<Record<Hazard, string>> = { gas: 'gas pocket', unstable: 'unstable rock' };
+
+function featureLabel(kind: FeatureKind, depth: number): string {
   switch (kind) {
     case 'map': return `Map T${tierAt(depth)}`;
     case 'chest': return 'Chest';
@@ -30,53 +48,94 @@ function labelFor(kind: FeatureKind, depth: number): string {
   }
 }
 
-export function minimapModel(state: GameState, lampSight: number): MinimapModel {
-  const top = Math.max(0, state.deepest - 50);
+function y(depth: number): number {
+  return depth * MINIMAP_PX_PER_METRE;
+}
+
+/** The window's top metre that keeps the dig face in view while following. */
+export function followTop(deepest: number): number {
+  return Math.max(0, deepest - FOLLOW_OFFSET_METRES);
+}
+
+/** Whether the dig face lies inside the window scrolled to `scrollTop` pixels. */
+export function isFollowing(scrollTop: number, deepest: number): boolean {
+  const face = y(deepest);
+  return face >= scrollTop && face <= scrollTop + MINIMAP_METRES * MINIMAP_PX_PER_METRE;
+}
+
+/**
+ * Lamp hints, most telling first: a rolled feature, then a material vein (only where no feature is rolled,
+ * as digging works), then a hazard, then harder rock. One hint per metre.
+ */
+function hint(state: GameState, metre: number): MinimapHint | null {
+  const roll = state.ahead[metre];
+  if (!roll) return null;
+  const at = y(metre - 0.5);
+  if (roll.feature) return { y: at, kind: roll.feature, label: featureLabel(roll.feature, metre), icon: FEATURE_ICONS[roll.feature] };
+  const layer = metreLayer(state.seed, metre);
+  if (layer.vein) {
+    const { material } = layer.vein;
+    return { y: at, kind: 'materialVein', label: MATERIAL_LABELS[material], icon: baseSprite(material) };
+  }
+  if (layer.hazard) return { y: at, kind: layer.hazard, label: HAZARD_LABELS[layer.hazard] };
+  if (roll.hardRock) return { y: at, kind: 'hardRock', label: 'harder rock' };
+  return null;
+}
+
+/**
+ * Everything the minimap draws for the window whose top metre is `top`. Every `y` is absolute, measured from
+ * the surface, and only the window plus a small margin is filled in.
+ */
+export function minimapModel(state: GameState, lampSight: number, top: number): MinimapModel {
   const bottom = top + MINIMAP_METRES;
-  const y = (d: number) => (d - top) * MINIMAP_PX_PER_METRE;
+  const from = Math.max(0, top - MARGIN_METRES);
+  const to = bottom + MARGIN_METRES;
 
   const world = worldOf(state);
   const bands: MinimapModel['bands'] = [];
-  for (let d = top; d < bottom; ) {
+  for (let d = from; d < to; ) {
     const band = bandAt(d);
-    const from = Math.max(band.start, top);
-    const to = Math.min(band.end, bottom);
-    bands.push({ name: bandTitle(world, band), y: y(from), height: (to - from) * MINIMAP_PX_PER_METRE, color: bandLook(world, band).palette[1] });
+    const start = Math.max(band.start, from);
+    const end = Math.min(band.end, to);
+    bands.push({ name: bandTitle(world, band), y: y(start), height: y(end - start), color: bandLook(world, band).palette[1] });
     d = band.end;
   }
 
   const ticks: MinimapModel['ticks'] = [];
-  for (let d = Math.ceil(top / 10) * 10; d <= bottom; d += 10) ticks.push({ depth: d, y: y(d) });
+  for (let d = Math.ceil(from / 10) * 10; d <= to; d += 10) ticks.push({ depth: d, y: y(d) });
 
-  const buckets = new Map<number, { kind: FeatureKind; count: number }>();
+  const buckets = new Map<number, { kind: FindKind; material?: Material; count: number }>();
   for (const find of state.finds) {
-    if (find.kind === 'materialVein' || find.depth < top || find.depth > bottom) continue;
+    if (find.depth < from || find.depth > to) continue;
     const key = Math.floor(find.depth / BUCKET_METRES);
     const entry = buckets.get(key);
     if (!entry) {
-      buckets.set(key, { kind: find.kind, count: 1 });
+      buckets.set(key, { kind: find.kind, material: find.material, count: 1 });
     } else {
       entry.count += 1;
-      if (PRIORITY.indexOf(find.kind) < PRIORITY.indexOf(entry.kind)) entry.kind = find.kind;
+      if (PRIORITY.indexOf(find.kind) < PRIORITY.indexOf(entry.kind)) {
+        entry.kind = find.kind;
+        entry.material = find.material;
+      }
     }
   }
-  const markers: MinimapMarker[] = [...buckets.entries()].map(([key, { kind, count }]) => {
+  const markers: MinimapMarker[] = [...buckets.entries()].map(([key, { kind, material, count }]) => {
     const mid = key * BUCKET_METRES + BUCKET_METRES / 2;
-    return { y: y(mid), kind, count, label: labelFor(kind, mid) + (count > 1 ? ` ×${count}` : '') };
+    const label = kind === 'materialVein' ? MATERIAL_LABELS[material ?? 'copper'] : featureLabel(kind, mid);
+    const icon = kind === 'materialVein' ? baseSprite(material ?? 'copper') : FEATURE_ICONS[kind];
+    return { y: y(mid), kind, count, label: label + (count > 1 ? ` ×${count}` : ''), icon };
   });
   markers.sort((a, b) => a.y - b.y);
 
-  const ahead = Object.keys(state.ahead)
-    .map(Number)
-    .sort((a, b) => a - b)
-    .filter((metre) => metre <= state.deepest + lampSight)
-    .flatMap((metre): MinimapModel['ahead'] => {
-      const roll = state.ahead[metre];
-      if (!roll) return [];
-      if (roll.feature) return [{ y: y(metre - 0.5), kind: roll.feature }];
-      if (roll.hardRock) return [{ y: y(metre - 0.5), kind: 'hardRock' }];
-      return [];
-    });
+  const ahead: MinimapHint[] = [];
+  const last = Math.min(state.deepest + lampSight, to);
+  for (let metre = Math.max(state.deepest + 1, from); metre <= last; metre++) {
+    const h = hint(state, metre);
+    if (h) ahead.push(h);
+  }
 
-  return { top, bottom, bands, ticks, markers, ahead, youY: y(state.deepest), fogY: y(state.deepest + lampSight) };
+  return {
+    top, bottom, height: y(state.deepest + lampSight + 2), bands, ticks, markers, ahead,
+    youY: y(state.deepest), fogY: y(state.deepest + lampSight),
+  };
 }
