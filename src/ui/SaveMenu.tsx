@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import type { GameStore } from '../store/gameStore';
 import { copyText } from './copyText';
+import { saveProblem } from './saveText';
 import { useDialog } from './useDialog';
 
 interface Props {
@@ -25,7 +26,7 @@ export function SaveMenu({ store, runAsOwner, onClose }: Props) {
     });
     const done = results[0];
     if (!done) return;
-    setImportMsg(done.ok ? 'Loaded.' : `That save couldn't be read (${done.reason}).`);
+    setImportMsg(done.ok ? 'Loaded.' : `That save couldn't be read (${saveProblem(done.reason)}).`);
     if (done.ok) setImportText('');
   };
 

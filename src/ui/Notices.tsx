@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import type { GameStore } from '../store/gameStore';
 import { copyText } from './copyText';
+import { saveProblem } from './saveText';
 import { useGame } from './useGame';
 
 export function Notices({ store }: { store: GameStore }) {
@@ -16,10 +17,10 @@ export function Notices({ store }: { store: GameStore }) {
     if (notice.reason === 'future') {
       text = 'Your save was made by a newer version of the game. Reload the page to update — nothing will be saved here until you do, start over, or import.';
     } else {
-      const what = notice.reason === 'corrupt' ? 'damaged' : 'not a valid Golden Miner save';
+      const what = saveProblem(notice.reason);
       text = notice.backupKey === null
-        ? `Your save couldn't be loaded (it is ${what}) and couldn't be backed up. Copy it below before playing on — progress won't be saved until you start over or import.`
-        : `Your save couldn't be loaded (it is ${what}). It was kept as a backup, and a new game started.`;
+        ? `Your save couldn't be loaded (${what}) and couldn't be backed up. Copy it below before playing on — progress won't be saved until you start over or import.`
+        : `Your save couldn't be loaded (${what}). It was kept as a backup, and a new game started.`;
     }
   } else if (notice.kind === 'saveFailed') {
     text = "Progress couldn't be saved. Your browser storage may be full.";
@@ -46,9 +47,11 @@ export function Notices({ store }: { store: GameStore }) {
           </div>
         )}
       </div>
-      <button type="button" className="gm-btn" onClick={() => store.dismissNotice()}>
-        Dismiss
-      </button>
+      {unreadableSave === null && (
+        <button type="button" className="gm-btn" onClick={() => store.dismissNotice()}>
+          Dismiss
+        </button>
+      )}
     </div>
   );
 }

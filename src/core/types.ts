@@ -20,6 +20,6 @@ export type TickEvent =
   | { kind: 'metre'; depth: number; gallery: boolean }
   | { kind: 'find'; find: FindRecord };
 export interface OfflineSummary {
-  elapsedMs: number; ticks: number; gold: number; diamonds: number; metres: number;
+  elapsedMs: number; ticks: number; gold: number; diamonds: number; metres: number; capMs: number;
   finds: Record<FeatureKind, number>;
 }

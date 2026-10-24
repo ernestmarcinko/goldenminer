@@ -76,7 +76,7 @@ export class GameStore {
     const elapsed = now - state.lastTickAt;
     const ticks = advance(state, now, stats, events);
     if (before && ticks >= OFFLINE_SUMMARY_MIN_TICKS) {
-      this._summary = summarize(before, state, elapsed, ticks);
+      this._summary = summarize(before, state, elapsed, ticks, stats.offlineCapMs);
     }
     return ticks;
   }

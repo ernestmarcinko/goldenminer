@@ -84,6 +84,20 @@ export function depthAtY(model: MinimapModel, y: number, deepest: number): numbe
   return Math.min(Math.max(d, 0), deepest);
 }
 
+export function depthForKey(key: string, depth: number, deepest: number): number | null {
+  let target: number;
+  switch (key) {
+    case 'ArrowUp': target = depth - 1; break;
+    case 'ArrowDown': target = depth + 1; break;
+    case 'PageUp': target = depth - 10; break;
+    case 'PageDown': target = depth + 10; break;
+    case 'Home': target = 0; break;
+    case 'End': target = deepest; break;
+    default: return null;
+  }
+  return Math.min(Math.max(target, 0), deepest);
+}
+
 export function depthForClick(
   model: MinimapModel,
   click: { detail: number; clientX: number; clientY: number; stripTop: number },

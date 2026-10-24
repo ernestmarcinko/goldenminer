@@ -11,7 +11,11 @@ import { TabBlocked } from './TabBlocked';
 import { useGame } from './useGame';
 
 export function App({ store, lock }: { store: GameStore; lock: TabLock }) {
-  const [blocked, setBlocked] = useState(() => !lock.tryAcquire());
+  const [blocked, setBlocked] = useState(() => {
+    if (!lock.tryAcquire()) return true;
+    store.load();
+    return false;
+  });
   const loop = useRef<GameLoop | null>(null);
   useLayoutEffect(() => {
     if (blocked) return undefined;
@@ -28,6 +32,7 @@ export function App({ store, lock }: { store: GameStore; lock: TabLock }) {
       <TabBlocked
         onPlayHere={() => {
           lock.takeOver();
+          store.load();
           setBlocked(false);
         }}
       />

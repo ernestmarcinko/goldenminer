@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { depthAtY, depthForClick, minimapModel } from '../../src/ui/mine/minimap';
+import { depthAtY, depthForClick, depthForKey, minimapModel } from '../../src/ui/mine/minimap';
 import { newGame } from '../../src/core/newGame';
 
 function at(depth: number, deepest = depth) {
@@ -47,4 +47,14 @@ it('keyboard-synthesised clicks are ignored, pointer clicks map to a depth', () 
   expect(depthForClick(m, { detail: 0, clientX: 50, clientY: 300, stripTop: 100 }, 340)).toBeNull();
   expect(depthForClick(m, { detail: 1, clientX: 0, clientY: 0, stripTop: 100 }, 340)).toBeNull();
   expect(depthForClick(m, { detail: 1, clientX: 50, clientY: 100, stripTop: 100 }, 340)).toBe(250);
+});
+
+it('arrow, page, Home and End keys climb within the explored depths', () => {
+  expect(depthForKey('ArrowUp', 10, 40)).toBe(9);
+  expect(depthForKey('ArrowDown', 40, 40)).toBe(40);
+  expect(depthForKey('PageUp', 5, 40)).toBe(0);
+  expect(depthForKey('PageDown', 10, 40)).toBe(20);
+  expect(depthForKey('Home', 10, 40)).toBe(0);
+  expect(depthForKey('End', 10, 40)).toBe(40);
+  expect(depthForKey('a', 10, 40)).toBeNull();
 });
