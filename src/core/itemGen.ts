@@ -25,12 +25,12 @@ export function rollRarity(state: Gen, magicFind = 1): Rarity {
   return pickWeighted(state, RARITIES.map((r) => [r, r === 'normal' ? RARITY_WEIGHTS[r] : RARITY_WEIGHTS[r] * magicFind] as const));
 }
 
-function rollSockets(state: Gen): number {
+export function rollSockets(state: Gen): number {
   return pickWeighted(state, SOCKET_WEIGHTS.map((w, count) => [count, w] as const));
 }
 
 /** A value uniform in one tier's range. */
-function rollValue(state: Gen, stat: StatKey, tier: number): number {
+export function rollValue(state: Gen, stat: StatKey, tier: number): number {
   const { lo, hi } = tierRange(stat, tier);
   return lo + Math.floor(nextRandom(state) * (hi - lo + 1));
 }

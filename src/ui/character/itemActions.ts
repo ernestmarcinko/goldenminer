@@ -182,6 +182,7 @@ export function resultText(r: InvResult): string | null {
     case 'materialsOnly': return 'Only materials go in the Materials tab.';
     case 'busy': return 'Leave the current map first.';
     case 'stackFull': return 'That stack is full.';
+    case 'craftRefused': return "That craft didn't work.";
     case 'invalid': return "That can't go there.";
     case 'ok': return null;
   }

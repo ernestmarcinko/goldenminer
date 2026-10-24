@@ -70,7 +70,12 @@ export interface FindRecord {
 }
 export type InvResult =
   | 'ok' | 'bagFull' | 'stashFull' | 'noSocket' | 'invalid' | 'busy'
-  | 'wrongSlot' | 'gemsOnly' | 'gearOnly' | 'mapsOnly' | 'materialsOnly' | 'stackFull';
+  | 'wrongSlot' | 'gemsOnly' | 'gearOnly' | 'mapsOnly' | 'materialsOnly' | 'stackFull' | 'craftRefused';
+/** What a craft spends: a material, or Diamonds for the exalt. */
+export type CraftKind = Material | 'diamond';
+export type CraftCheck = 'ok' | 'notGear' | 'legendary' | 'sealed' | 'wrongRarity' | 'noRoom' | 'nothingToChange' | 'short' | 'gemsFull';
+export type TemperOutcome = 'craftedLine' | 'raiseTiers' | 'nothing' | 'ruin';
+export interface CraftResult { check: CraftCheck; temper?: TemperOutcome }
 export interface GameState {
   seed: number;                            // the world seed: a pure function of worldSeed
   worldSeed: string;                       // the text the player sees and shares

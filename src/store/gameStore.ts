@@ -2,6 +2,7 @@ import { MAX_LOOT_RULES, OFFLINE_SUMMARY_MIN_TICKS } from '../core/balance';
 import { deriveBattleStats, type BattleStats } from '../core/battle';
 import { advance, ClickLimiter, clickTicks } from '../core/clock';
 import { clickHit } from '../core/combat';
+import { craft as coreCraft } from '../core/crafting';
 import * as inv from '../core/inventory';
 import { itemName } from '../core/itemData';
 import { BATTLE_SLOTS, MINING_SLOTS, setOfSlot } from '../core/items';
@@ -15,12 +16,16 @@ import { freshWorld, isValidSeedText, seedFromText } from '../core/seed';
 import { deriveStats } from '../core/stats';
 import { summarize } from '../core/summary';
 import type {
-  BagFullMode, DropTarget, FindRecord, GameState, InvResult, ItemLoc, LootRule, MotionSettings, OfflineSummary, Stats, TickEvent,
+  BagFullMode, CraftCheck, CraftKind, CraftResult, DropTarget, FindRecord, GameState, InvResult, ItemLoc, LootRule, MotionSettings,
+  OfflineSummary, Stats, TemperOutcome, TickEvent,
 } from '../core/types';
 import { BACKUP_PREFIX, SAVE_KEY, type StorageLike } from './storage';
 
 /** Gear just worn into a slot that was empty; `id` counts up so the UI can tell one from the next. */
 export interface EquipNotice { id: number; slot: Slot; name: string; rarity: GearItem['rarity'] }
+
+/** The newest craft, refused or not, for the crafting message; `id` counts up so the UI can tell one from the next. */
+export interface CraftNotice { id: number; target: ItemLoc; kind: CraftKind; check: CraftCheck; temper?: TemperOutcome }
 
 export interface Feedback {
   gold: number;
@@ -60,6 +65,8 @@ export class GameStore {
   private _unreadable: string | null = null;
   private _equipNotice: EquipNotice | null = null;
   private noticeCount = 0;
+  private _lastCraft: CraftNotice | null = null;
+  private craftCount = 0;
   private feedback: Feedback = emptyFeedback();
   private readonly listeners = new Set<() => void>();
   private limiter = new ClickLimiter();
@@ -78,6 +85,7 @@ export class GameStore {
   get notice(): Notice { return this._notice; }
   get unreadableSave(): string | null { return this._unreadable; }
   get equipNotice(): EquipNotice | null { return this._equipNotice; }
+  get lastCraft(): CraftNotice | null { return this._lastCraft; }
 
   subscribe(fn: () => void): () => void {
     this.listeners.add(fn);
@@ -95,6 +103,7 @@ export class GameStore {
   private replaceState(state: GameState): void {
     this._state = state;
     this._equipNotice = null;
+    this._lastCraft = null;
     this._stats = deriveStats(state);
     this._battle = deriveBattleStats(state);
   }
@@ -245,7 +254,24 @@ export class GameStore {
   socketGem(gem: ItemLoc, into: ItemLoc): InvResult { return this.act(() => inv.socketGem(this._state, gem, into)); }
   sell(from: ItemLoc): InvResult { return this.act(() => inv.sell(this._state, from)); }
   salvage(from: ItemLoc): InvResult { return this.act(() => inv.salvage(this._state, from)); }
-  drop(from: ItemLoc, to: DropTarget): InvResult { return this.act(() => inv.dropItem(this._state, from, to)); }
+  drop(from: ItemLoc, to: DropTarget): InvResult {
+    return this.act(() => inv.dropItem(this._state, from, to, (target, item, result) => this.noteCraft(target, item.material, result)));
+  }
+
+  /** Crafts on gear; only an 'ok' changes anything, but either way it is the last craft. */
+  craft(target: ItemLoc, kind: CraftKind, from?: ItemLoc): CraftResult {
+    let result: CraftResult = { check: 'notGear' };
+    this.act(() => {
+      result = coreCraft(this._state, target, kind, from);
+      this.noteCraft(target, kind, result);
+      return result.check === 'ok' ? 'ok' : 'craftRefused';
+    });
+    return result;
+  }
+
+  private noteCraft(target: ItemLoc, kind: CraftKind, result: CraftResult): void {
+    this._lastCraft = { id: ++this.craftCount, target: { ...target }, kind, ...result };
+  }
 
   /** A bought page is new room, so held loot may come in. */
   buyStashPage(tab: 'general' | 'maps'): 'ok' | 'noGold' | 'full' {

@@ -1,5 +1,5 @@
 import type { GemGrade, Material, Rarity, StatKey } from './items';
-import type { FeatureKind, Hazard, Stats } from './types';
+import type { CraftKind, FeatureKind, Hazard, Stats, TemperOutcome } from './types';
 
 export const BASE_DIG_POWER = 10;
 export const BASE_AUTO_TICKS_PER_SECOND = 1;
@@ -187,6 +187,15 @@ export const RARE_LINE_WEIGHTS: readonly [number, number][] = [[4, 50], [5, 35],
 export const SOCKET_WEIGHTS: readonly number[] = [40, 35, 18, 7];
 export const CHEST_SECOND_ITEM_CHANCE = 0.2;
 export const CHEST_BATTLE_CHANCE = 0.2;
+
+// A craft costs base + floor(ilvl / per) of its material, or base alone when per is 0.
+export const CRAFT_COST: Readonly<Record<CraftKind, { base: number; per: number }>> = {
+  copper: { base: 1, per: 2 }, tin: { base: 1, per: 2 }, iron: { base: 1, per: 2 },
+  silver: { base: 1, per: 4 }, mithril: { base: 1, per: 4 }, starsteel: { base: 1, per: 4 },
+  diamond: { base: 1, per: 3 },
+  obsidian: { base: 1, per: 0 }, voidCrystal: { base: 1, per: 0 },
+};
+export const TEMPER_WEIGHTS: readonly [TemperOutcome, number][] = [['craftedLine', 30], ['raiseTiers', 25], ['nothing', 25], ['ruin', 20]];
 
 export const SELL_GOLD: Readonly<Record<Rarity, number>> = { normal: 5, magic: 12, rare: 30, legendary: 80 };
 export const GEM_SELL_GOLD = 20;
