@@ -33,6 +33,7 @@ it('a run left going while away finishes offline and digging resumes, the same a
   first.load();
   first.startMap(addMap(first.state, 1, 2).id);
   for (now.t = 250; now.t <= 10_000; now.t += 250) first.pump(); // the run is still going when the tab closes
+  expect(first.state.activity.kind).toBe('map');
   first.save();
   now.t = 10_000 + 2 * 3_600_000;
   const second = mk();

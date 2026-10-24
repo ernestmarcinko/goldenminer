@@ -206,7 +206,7 @@ export class GameStore {
     return moved;
   }
 
-  startMap(mapId: number): ReturnType<typeof coreStartMap> {
+  startMap(mapId: number): 'ok' | 'busy' | 'invalid' {
     const result = coreStartMap(this._state, mapId);
     if (result === 'ok') this.changed();
     return result;
@@ -219,7 +219,9 @@ export class GameStore {
   }
 
   dismissRun(): void {
-    if (this._state.lastRun !== null) this._state.lastRun.seen = true;
+    const run = this._state.lastRun;
+    if (run === null || run.seen) return;
+    run.seen = true;
     this.changed();
   }
 
