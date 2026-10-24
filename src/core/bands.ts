@@ -25,6 +25,7 @@ const ROMAN: readonly [number, string][] = [
 ];
 
 export function toRoman(n: number): string {
+  if (n > 3999) return String(Math.floor(n));
   let rest = Math.floor(n);
   let out = '';
   for (const [value, symbol] of ROMAN) {
@@ -37,7 +38,7 @@ export function toRoman(n: number): string {
 }
 
 export function bandAt(depth: number): Band {
-  const d = Math.max(0, depth);
+  const d = Number.isNaN(depth) ? 0 : Math.min(Math.max(0, depth), Number.MAX_SAFE_INTEGER);
   if (d < ABYSS_START) {
     for (const band of NAMED_BANDS) {
       if (d < band.end) return band;

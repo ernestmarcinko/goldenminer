@@ -21,3 +21,12 @@ it('a metre belongs to the band at its top', () => {
   expect(metreTier(301)).toBe(4);
   expect(toRoman(14)).toBe('XIV');
 });
+
+it('absurd depths stay quick and finite', () => {
+  expect(toRoman(3999)).toBe('MMMCMXCIX');
+  expect(toRoman(4000)).toBe('4000');
+  for (const depth of [1e300, Infinity, Number.NaN]) {
+    const band = bandAt(depth);
+    expect(Number.isFinite(band.tier)).toBe(true);
+  }
+});

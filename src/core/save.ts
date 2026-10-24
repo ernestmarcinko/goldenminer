@@ -24,6 +24,8 @@ export type DecodeResult =
 
 export type Migration = (state: unknown) => unknown;
 
+const MAX_MIGRATED_METRE = 30_000_000;
+
 export const MIGRATIONS: Record<number, Migration> = {
   1: (state) => {
     if (!isObject(state) || !Array.isArray(state.finds)) return state;
@@ -100,7 +102,9 @@ export const MIGRATIONS: Record<number, Migration> = {
     const maps: MapItem[] = [];
     for (const f of state.finds) {
       if (!isObject(f) || f.kind !== 'map') continue;
-      const metre = f.depth as number;
+      const metre = f.depth;
+      // An absurd depth is left for the validator to reject; the band maths below must never see it.
+      if (!isNonNegInt(metre) || metre < 1 || metre > MAX_MIGRATED_METRE) return state;
       maps.push({ id: nextId++, type: 'map', tier: metreTier(metre), metre });
     }
     return {
@@ -393,7 +397,8 @@ export function validateState(x: unknown): x is GameState {
   const seen = new Set<number>();
   if (!isUnitRange(x.goldCarry) || !isInventory(x, nextId, seen) || !isSettings(x.settings)) return false;
   if (!isNonNegInt(x.level) || x.level < 1 || x.level > LEVEL_CAP) return false;
-  if (!isNonNegInt(x.xp) || x.xp >= xpToNext(x.level)) return false;   // xpToNext is 0 at the cap, so xp stays 0 there
+  // Below the cap xp is under the next level's cost; at the cap (where xpToNext is 0) it stays 0.
+  if (!isNonNegInt(x.xp) || (x.level === LEVEL_CAP ? x.xp !== 0 : x.xp >= xpToNext(x.level))) return false;
   if (!isNonNegInt(x.souls) || !isActivity(x.activity, nextId, seen)) return false;
   if (x.lastRun !== null && !isRunResult(x.lastRun, nextId, seen)) return false;
   if (!isObject(x.mapTally) || !isNonNegInt(x.mapTally.cleared) || !isNonNegInt(x.mapTally.lost)) return false;

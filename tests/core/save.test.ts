@@ -301,20 +301,22 @@ it('older fixtures gain their maps too', () => {
   if (!r1.ok || !r2.ok) throw new Error('fixture rejected');
   expect(r1.state.stash.maps.map((m) => m.id)).toEqual([31, 32, 33, 34, 35]);
   expect(r1.state.nextId).toBe(36);
+  expect(r1.state.stash.maps.map((m) => [m.tier, m.metre])).toEqual([[1, 2], [1, 23], [1, 41], [2, 60], [2, 67]]);
   expect(r2.state.stash.maps.map((m) => [m.id, m.tier, m.metre])).toEqual([[79, 1, 2], [80, 1, 3], [81, 1, 4], [82, 1, 36], [83, 1, 47], [84, 2, 66], [85, 2, 79]]);
 });
 
+function running(): GameState {
+  const s = newGame(1, 0);
+  const map = addMap(s, 2, 60);
+  s.stash.maps = [];
+  s.activity = { kind: 'map', run: {
+    map, room: 1, bossRoom: 6, life: 40, hitCarry: 0, monsterCarry: 0, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [],
+    queue: [{ name: 'Mud Slime', species: 1, rank: 'normal', mods: [], extra: 7, element: 'elemental', life: 30, maxLife: 37, damage: 4, intervalS: 2, xp: 28 }],
+  } };
+  return s;
+}
+
 it('rejects impossible maps, runs and levels', () => {
-  const running = (): GameState => {
-    const s = newGame(1, 0);
-    const map = addMap(s, 2, 60);
-    s.stash.maps = [];
-    s.activity = { kind: 'map', run: {
-      map, room: 1, bossRoom: 6, life: 40, hitCarry: 0, monsterCarry: 0, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [],
-      queue: [{ name: 'Mud Slime', species: 1, rank: 'normal', mods: [], extra: 7, element: 'elemental', life: 30, maxLife: 37, damage: 4, intervalS: 2, xp: 28 }],
-    } };
-    return s;
-  };
   expect(decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: running() })).ok).toBe(true);
   const run = (s: GameState) => (s.activity.kind === 'map' ? s.activity.run : null);
   const first = (s: GameState) => run(s)?.queue[0];
@@ -341,5 +343,52 @@ it('rejects impossible maps, runs and levels', () => {
     const s = running();
     mutate(s);
     expect(decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: s })), name).toEqual({ ok: false, reason: 'invalid' });
+  }
+});
+
+const decodes = (s: GameState) => decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: s })).ok;
+const GAINS = { xp: 5, souls: 2, gold: 9, levels: 1 };
+
+it('accepts the legal extremes of maps, runs and levels', () => {
+  const run = (s: GameState) => { if (s.activity.kind !== 'map') throw new Error('no run'); return s.activity.run; };
+  const monster = (s: GameState) => { const m = run(s).queue[0]; if (!m) throw new Error('no monster'); return m; };
+  const cases: [string, (s: GameState) => void][] = [
+    ['level 60 at xp 0', (s) => { s.level = 60; s.xp = 0; }],
+    ['the last xp below a level', (s) => { s.level = 2; s.xp = 282; }],
+    ['a champion with two distinct mods', (s) => { Object.assign(monster(s), { rank: 'champion', mods: ['brutal', 'swift'] }); }],
+    ['the boss room with a boss in front', (s) => { run(s).room = 6; monster(s).rank = 'boss'; }],
+    ['a log with heal, drop and level lines', (s) => {
+      run(s).log = [
+        { kind: 'heal', monster: 'Mud Slime', amount: 3 },
+        { kind: 'drop', note: { name: 'Test ring', rarity: 'magic', base: 'ring', outcome: 'bag', value: 0 } },
+        { kind: 'level', level: 2 },
+      ];
+    }],
+    ['a cleared last run in the boss room', (s) => {
+      const m = addMap(s, 1, 1);
+      s.stash.maps.pop();
+      s.lastRun = { map: m, outcome: 'cleared', room: 6, bossRoom: 6, gained: GAINS, items: 3, seen: false };
+    }],
+  ];
+  for (const [name, mutate] of cases) {
+    const s = running();
+    mutate(s);
+    expect(decodes(s), name).toBe(true);
+  }
+});
+
+it('rejects xp at the level cap', () => {
+  const s = running();
+  s.level = 60;
+  s.xp = 1;
+  expect(decodes(s)).toBe(false);
+});
+
+it('a schema-4 map find at an absurd depth decodes without crashing', () => {
+  for (const depth of [1e300, 1e999, -5, 1.5, 30_000_001]) {
+    const env = JSON.parse(decompressFromBase64(fixture4.trim()));
+    env.state.finds.find((f: { kind: string }) => f.kind === 'map').depth = 'DEPTH';
+    const text = JSON.stringify(env).replace('"DEPTH"', depth === 1e999 ? '1e999' : String(depth));   // JSON.stringify would turn Infinity into null
+    expect(decodeSave(compressToBase64(text)), String(depth)).toEqual({ ok: false, reason: 'invalid' });
   }
 });
