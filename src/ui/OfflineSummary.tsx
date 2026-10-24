@@ -29,7 +29,7 @@ export function OfflineSummary({ summary, onClose }: { summary: Summary; onClose
             {formatNumber(summary.items.salvaged)} salvaged
           </p>
         )}
-        {summary.stoppedFull && <p>Digging stopped because your bags and the stash were full.</p>}
+        {summary.stoppedBag !== null && <p>Digging stopped because your {summary.stoppedBag} bag and the stash were full.</p>}
         {finds.length > 0 && (
           <ul className="gm-dialog__list">
             {finds.map((k) => (

@@ -3,8 +3,10 @@ import {
 } from './balance';
 import { itemName } from './itemData';
 import { isGear, setOfSlot } from './items';
-import type { GearSet, Item } from './items';
+import type { GearSet, Item, Rarity } from './items';
 import type { Container, GameState, LootAction, LootNote, LootOutcome, LootRule } from './types';
+
+const GEM_RANK = 1;
 
 function tierFactor(ilvl: number): number {
   return 1 + Math.floor(ilvl / 5);
@@ -51,16 +53,29 @@ function tally(state: GameState, notes: LootNote[]): LootNote[] {
   return notes;
 }
 
+const RARITY_RANK: Readonly<Record<Rarity, number>> = { normal: 0, magic: 1, rare: 2, legendary: 3 };
+
+function rankOf(item: Item): number {
+  return isGear(item) ? RARITY_RANK[item.rarity] : GEM_RANK;
+}
+
+// Lower rarity rank sells first, then lower Gold; the new item wins exact ties.
+function isWorse(a: Item, b: Item): boolean {
+  const ra = rankOf(a);
+  const rb = rankOf(b);
+  return ra < rb || (ra === rb && sellValue(a) < sellValue(b));
+}
+
 function sellWorst(state: GameState, item: Item, bagSet: GearSet): LootNote[] {
   const bag = state.bags[bagSet];
   let worst: { list: Item[]; index: number; sold: Item } | null = null;
-  let worstValue = sellValue(item);
+  let worstItem = item;
   for (const list of [bag, state.stash]) {
     for (const [index, sold] of list.entries()) {
-      const v = sellValue(sold);
-      if (v < worstValue) { worst = { list, index, sold }; worstValue = v; }
+      if (isWorse(sold, worstItem)) { worst = { list, index, sold }; worstItem = sold; }
     }
   }
+  const worstValue = sellValue(worstItem);
   state.gold += worstValue;
   if (worst === null) return [note(item, 'sold', worstValue)];
   const { list, index, sold } = worst;
@@ -107,6 +122,17 @@ export function drainOverflow(state: GameState): void {
   while (state.overflow.length > 0) {
     const first = state.overflow[0];
     if (first === undefined) return;
+    const action = lootAction(state.settings.lootFilter, first.item);
+    if (action === 'sell') {
+      state.gold += sellValue(first.item);
+      state.overflow.shift();
+      continue;
+    }
+    if (action === 'salvage') {
+      state.diamonds += salvageValue(first.item);
+      state.overflow.shift();
+      continue;
+    }
     if (stow(state, first.item, first.bag) === null) {
       if (state.settings.bagFull === 'stop') return;
       sellWorst(state, first.item, first.bag);

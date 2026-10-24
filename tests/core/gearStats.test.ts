@@ -62,4 +62,6 @@ it('absurd gear totals are clamped to sane bounds', () => {
   expect(deriveStats(s)).toMatchObject({ digPower: 5000, autoTicksPerSecond: 10, ticksPerClick: 10, offlineCapMs: 48 * 3_600_000 });
   s.equipped.mining.pickaxe = gear(s, 'pickaxe', { implicit: { stat: 'digPower', value: -1_000_000 }, affixes: [{ stat: 'lampSight', value: -1_000_000 }, { stat: 'ticksPerClick', value: -1_000_000 }, { stat: 'offlineCap', value: -1_000_000 }] });
   expect(deriveStats(s)).toMatchObject({ digPower: 1, lampSight: 0, ticksPerClick: 1, offlineCapMs: 3_600_000 });
+  s.equipped.mining.pickaxe = gear(s, 'pickaxe', { affixes: [{ stat: 'autoTickRate', value: -1_000_000 }] });
+  expect(deriveStats(s).autoTicksPerSecond).toBe(0.1);
 });

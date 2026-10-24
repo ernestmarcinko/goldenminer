@@ -194,6 +194,7 @@ export class GameStore {
 
   setLootFilter(rules: LootRule[]): void {
     this._state.settings.lootFilter = rules.slice(0, MAX_LOOT_RULES).map((r) => ({ ...r }));
+    drainOverflow(this._state);
     this.changed();
   }
 

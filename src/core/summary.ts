@@ -16,6 +16,6 @@ export function summarize(before: GameState, after: GameState, elapsedMs: number
       sold: after.lootTally.sold - before.lootTally.sold,
       salvaged: after.lootTally.salvaged - before.lootTally.salvaged,
     },
-    stoppedFull: after.overflow.length > 0,
+    stoppedBag: after.overflow[0]?.bag ?? null,
   };
 }

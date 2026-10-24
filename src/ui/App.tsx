@@ -12,6 +12,8 @@ import { TabBlocked } from './TabBlocked';
 import { useGame } from './useGame';
 
 export function App({ store, lock }: { store: GameStore; lock: TabLock }) {
+  // Loading happens in the initializer, not an effect, so the first paint already shows the loaded game.
+  // StrictMode runs it twice in dev, which is harmless.
   const [blocked, setBlocked] = useState(() => {
     if (!lock.tryAcquire()) return true;
     store.load();

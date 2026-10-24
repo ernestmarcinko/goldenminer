@@ -82,6 +82,28 @@ describe('when the bag and the stash are full', () => {
     expect(s.gold).toBe(5);
   });
 
+  it('sells the lowest rarity first, then the lowest Gold', () => {
+    const s = newGame(1, 0);
+    fill(s);
+    s.stash[7] = gear(s, 'gloves', { rarity: 'legendary', ilvl: 2 });
+    const pick = gear(s, 'pickaxe', { rarity: 'normal', ilvl: 40 });
+    expect(receiveItem(s, pick, 'mining').map((n) => n.outcome)).toEqual(['sold']);
+    expect(s.gold).toBe(200);
+    expect(s.stash[7]?.type === 'gear' && s.stash[7].rarity).toBe('legendary');
+  });
+
+  it('changing the loot filter applies to held loot', () => {
+    const s = newGame(1, 0);
+    s.settings.bagFull = 'stop';
+    fill(s);
+    receiveItem(s, gear(s, 'pickaxe', { rarity: 'normal', ilvl: 5 }), 'mining');
+    expect(s.overflow).toHaveLength(1);
+    s.settings.lootFilter = [{ rarity: 'normal', target: 'any', action: 'sell' }];
+    drainOverflow(s);
+    expect(s.overflow).toEqual([]);
+    expect(s.gold).toBe(25);
+  });
+
   it('stop holds the item and idles until there is room', () => {
     const s = newGame(1, 0);
     s.settings.bagFull = 'stop';
@@ -174,5 +196,5 @@ it('the offline summary counts loot and notices a full stop', () => {
   after.overflow = [{ bag: 'mining', item: gem(after) }];
   const sum = summarize(before, after, 600_000, 600, 28_800_000);
   expect(sum.items).toEqual({ kept: 3, sold: 2, salvaged: 1 });
-  expect(sum.stoppedFull).toBe(true);
+  expect(sum.stoppedBag).toBe('mining');
 });

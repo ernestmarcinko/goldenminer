@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { statRange } from '../../src/core/balance';
+import { BAG_SIZE, STASH_SIZE, statRange } from '../../src/core/balance';
 import { LEGENDARIES, STAT_WORDS, baseName, gemName, gemSizeName } from '../../src/core/itemData';
 import { rollChest, rollGear, rollGem } from '../../src/core/itemGen';
 import { SLOT_IMPLICIT, setOfSlot, statsOf, type GearItem, type GearSet, type Rarity } from '../../src/core/items';
 import { newGame } from '../../src/core/newGame';
+import { validateState } from '../../src/core/save';
+import type { Item } from '../../src/core/items';
 
 describe('stat ranges', () => {
   it('grow with item level and respect caps', () => {
@@ -119,4 +121,27 @@ it('chests hold one or two items, mostly mining gear', () => {
   }
   expect(doubles / 5000).toBeGreaterThan(0.17); expect(doubles / 5000).toBeLessThan(0.23);
   expect(battle / items).toBeGreaterThan(0.17); expect(battle / items).toBeLessThan(0.23);
+});
+
+it.each([1, 60])('generated items at ilvl %i always pass the save validator', (ilvl) => {
+  const s = newGame(7, 0);
+  const items: Item[] = [];
+  for (let i = 0; i < 300; i++) items.push(...rollChest(s, ilvl));
+  for (let i = 0; i < 100; i++) items.push(rollGem(s, ilvl));
+  const flush = () => {
+    expect(validateState(s)).toBe(true);
+    s.bags.mining = [];
+    s.bags.battle = [];
+    s.stash = [];
+  };
+  for (const item of items) {
+    const bag = item.type === 'gear' ? s.bags[setOfSlot(item.slot)] : s.bags.mining;
+    if (bag.length < BAG_SIZE) bag.push(item);
+    else if (s.stash.length < STASH_SIZE) s.stash.push(item);
+    else {
+      flush();
+      bag.push(item);
+    }
+  }
+  flush();
 });
