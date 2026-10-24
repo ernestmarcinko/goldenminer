@@ -72,6 +72,7 @@ export function ShaftScene({ store }: { store: GameStore }) {
   const sceneRef = useRef<HTMLButtonElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
   const prevTopRef = useRef<number | null>(null);
+  const prevShaftModeRef = useRef(motion.shaft);
   const nextIdRef = useRef(0);
   const motionRef = useRef(motion);
   motionRef.current = motion;
@@ -100,8 +101,14 @@ export function ShaftScene({ store }: { store: GameStore }) {
     const prevTop = prevTopRef.current ?? model.top;
     const topChanged = prevTop !== model.top;
     prevTopRef.current = model.top;
-    const { fromPx, toPx, animate } = shaftShift(prevTop, model.top, motion.shaft, progress);
-    if (animate) {
+    const modeChanged = prevShaftModeRef.current !== motion.shaft;
+    prevShaftModeRef.current = motion.shaft;
+    // In a gallery the face is frozen, so its progress must not offset the strip.
+    const { fromPx, toPx, animate } = shaftShift(prevTop, model.top, motion.shaft, depth < deepest ? 0 : progress);
+    if (modeChanged) {
+      el.style.transition = 'none';
+      el.style.transform = `translateY(${toPx}px)`;
+    } else if (animate) {
       el.style.transition = 'none';
       el.style.transform = `translateY(${fromPx}px)`;
       void el.offsetHeight;
@@ -171,7 +178,7 @@ export function ShaftScene({ store }: { store: GameStore }) {
               <ShaftCell row={row} rock={rock} depth={depth} progress={depth < deepest ? 0 : progress} />
               {row.right.map((t, c) => <Wall key={c} tile={t} dug={tunnel && c < TUNNEL_TILES} />)}
               {row.label && (
-                <span className="gm-shaft__label" data-feature={row.feature ?? 'hard'} style={{ opacity: 1 - (k - 1) * 0.2 }}>
+                <span className="gm-shaft__label" data-feature={row.feature ?? 'hard'} style={{ opacity: Math.max(0.5, 1 - (k - 1) * 0.15) }}>
                   {row.label}
                 </span>
               )}

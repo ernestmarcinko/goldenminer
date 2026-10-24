@@ -13,7 +13,7 @@ const ICONS: Record<FeatureKind, SpriteName> = {
   chest: 'chest', map: 'map', gem: 'gem', goldVein: 'coin', diamondVein: 'diamond',
 };
 
-function label(kind: FeatureKind, amount: number, bonus: boolean): string {
+export function label(kind: FeatureKind, amount: number, bonus: boolean): string {
   const base = baseLabel(kind, amount);
   return bonus ? `${base} (bonus)` : base;
 }
