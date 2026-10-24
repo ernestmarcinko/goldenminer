@@ -91,12 +91,9 @@ export function bandLook(world: WorldRef, band: Band): { palette: Palette; detai
   return { palette: [hsl(l0), hsl(l1), hsl(l2), hsl(l3)], details };
 }
 
-export function wallTile(
-  world: WorldRef,
-  metre: number,
-  side: 0 | 1,
-  column: number,
-): { shade: string; detail: DetailKind | null; bits: number } {
+export type WallTile = { shade: string; detail: DetailKind | null; bits: number };
+
+export function wallTile(world: WorldRef, metre: number, side: 0 | 1, column: number): WallTile {
   const { palette, details } = bandLook(world, bandAt(metre - 1));
   const h = hash2(world.seed ^ (side ? 0x9e37 : 0x7f4a), metre * 8 + column);
   const hasDetail = (h >>> 8) % 100 < WALL_DETAIL_PERCENT;
