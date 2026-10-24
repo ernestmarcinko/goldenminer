@@ -1,10 +1,13 @@
 import type { GameStore } from '../../store/gameStore';
 import { bandAt } from '../../core/bands';
+import { digSpeed } from '../../core/dig';
+import { metreLayer } from '../../core/layer';
 import { bandTitle, worldOf } from '../../core/mineLook';
 import { formatNumber, formatRate, plural } from '../format';
 import { useGame } from '../useGame';
 import { FindsFeed } from './FindsFeed';
 import { Minimap } from './Minimap';
+import { hazardText, speedText } from './mineView';
 import { ShaftScene } from './ShaftScene';
 import './mine.css';
 
@@ -12,6 +15,7 @@ export function MineView({ store, onBackToMap }: { store: GameStore; onBackToMap
   const { state, stats } = useGame(store);
   const band = bandAt(state.deepest);
   const pct = Math.round(Math.min(1, Math.max(0, state.progress)) * 100);
+  const hazard = hazardText(metreLayer(state.seed, state.deepest + 1).hazard, stats.hazardWard);
   return (
     <div className="gm-mine">
       {state.activity.kind === 'map' && (
@@ -33,11 +37,12 @@ export function MineView({ store, onBackToMap }: { store: GameStore; onBackToMap
               {`Dig face at ${formatNumber(state.deepest)} m · tier ${formatNumber(band.tier)}`}
             </span>
           </div>
+          {hazard !== null && <div role="status" className="gm-mine__hazard">{hazard}</div>}
           <ShaftScene store={store} />
           <div className="gm-mine__progress">
             <div className="gm-mine__progress-text gm-muted">
               <span>Next metre</span>
-              <span>Auto {formatRate(stats.autoTicksPerSecond)} tick/s · each click +{plural(stats.ticksPerClick, 'tick', 'ticks')}</span>
+              <span>{speedText(digSpeed(state, stats))}</span>
             </div>
             <div
               className="gm-bar"
@@ -48,6 +53,9 @@ export function MineView({ store, onBackToMap }: { store: GameStore; onBackToMap
               aria-valuenow={pct}
             >
               <div className="gm-bar__fill" style={{ width: `${pct}%` }} />
+            </div>
+            <div className="gm-muted gm-small">
+              Auto {formatRate(stats.autoTicksPerSecond)} tick/s · each click +{plural(stats.ticksPerClick, 'tick', 'ticks')}
             </div>
           </div>
         </section>

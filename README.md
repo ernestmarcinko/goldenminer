@@ -17,6 +17,8 @@ npm run build    # production build in dist/
 
 Digging earns only from what you dig into: Gold from gold veins, Diamonds from diamond veins and crafting materials from material veins. A material vein lies only in a metre the seed left otherwise empty, and deeper metres hold rarer materials. Selling items and map kills pay Gold too, and maps also drop materials, rarer ones in deeper maps.
 
+From Granite Veins down, some metres hold gas pockets or unstable rock that make digging slower. A new mining stat, hazard ward, cuts the slowdown. The mine shows your digging speed and the time to the next metre.
+
 ## Gear
 
 Chests and gems drop mining and battle gear. One bag of 60 cells holds every item you carry, gear of both sets and gem stacks alike. The character panel's paper doll switches between your mining and battle gear, and the stash keeps more in its tabs, with General starting at two pages of 60. Hover an item to compare it with what you wear, click to equip it, Alt+click to sell it, Shift+click to stash it, and right-click to see every action. Drag an item onto a cell to move it (a taken cell swaps; an identical gem stack merges), onto a paper-doll slot to equip it, onto a stash tab or the Stash button to stash it, or drag a gem onto gear to socket it; a refused drop snaps back with a short message. On a touch screen, tap an item to pick it up and see every action, then tap a cell, a slot or a tab to put it there, or tap it again to put it back. The loot filter sells or salvages new items by rule.

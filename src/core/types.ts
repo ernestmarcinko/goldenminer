@@ -103,7 +103,7 @@ export interface GameState {
 export interface Stats {
   digPower: number; autoTicksPerSecond: number; ticksPerClick: number; lampSight: number;
   offlineCapMs: number; featureChances: Record<FeatureKind, number>; hardRockChance: number;
-  goldMultiplier: number; diamondMultiplier: number;
+  goldMultiplier: number; diamondMultiplier: number; hazardWard: number;
   bonusChances: { chest: number; gem: number; map: number };   // find gear: extra finds on empty metres, drawn from state.rng
 }
 export type TickEvent =

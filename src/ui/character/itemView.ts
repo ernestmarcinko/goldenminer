@@ -23,6 +23,7 @@ export const STAT_LABELS: Readonly<Record<StatKey, { label: string; unit: '' | '
   ticksPerClick: { label: 'tick per click', unit: '' },
   autoTickRate: { label: 'auto tick rate', unit: '%' },
   offlineCap: { label: 'offline cap', unit: ' min' },
+  hazardWard: { label: 'hazard ward', unit: '%' },
   damage: { label: 'damage', unit: '' },
   damagePct: { label: 'damage', unit: '%' },
   attackSpeed: { label: 'attack speed', unit: '%' },

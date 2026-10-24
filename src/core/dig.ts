@@ -3,7 +3,7 @@ import { metreTier } from './bands';
 import { mapTick } from './combat';
 import { rollChest, rollGem } from './itemGen';
 import type { Material } from './items';
-import { metreLayer } from './layer';
+import { hazardFactor, metreLayer } from './layer';
 import { receiveItem, receiveMaterial } from './loot';
 import { addMap } from './maps';
 import { fillAhead, metreChances, rollMetre } from './metres';
@@ -84,14 +84,32 @@ function collectBonus(state: GameState, depth: number, stats: Stats, events?: Ti
   }
 }
 
-function effectiveHardness(metre: number, roll: MetreRoll): number {
-  return hardness(metre) * (roll.hardRock ? HARD_ROCK_MULTIPLIER : 1);
+/** Ticks one metre takes: its hardness, hard rock and any hazard, over dig power. */
+function ticksForMetre(seed: number, metre: number, roll: MetreRoll, stats: Stats): number {
+  const hard = hardness(metre) * (roll.hardRock ? HARD_ROCK_MULTIPLIER : 1);
+  return hard * hazardFactor(metreLayer(seed, metre).hazard, stats.hazardWard) * TICKS_PER_METRE_AT_PARITY / stats.digPower;
+}
+
+/** Ticks the face metre needs at the current dig power and hazard ward. */
+export function faceTicksPerMetre(state: GameState, stats: Stats): number {
+  return ticksForMetre(state.seed, state.deepest + 1, faceRoll(state, stats), stats);
+}
+
+/** The auto-dig rate at the face; null while digging is paused (a map runs or loot is held). */
+export function digSpeed(state: GameState, stats: Stats): { metresPerMinute: number; secondsToNext: number } | null {
+  if (state.activity.kind === 'map' || state.overflow.length > 0) return null;
+  const m = state.deepest + 1;
+  const roll = state.ahead[m] ?? rollMetre(state.seed, m, metreChances(state, stats));
+  const ticks = ticksForMetre(state.seed, m, roll, stats);
+  const rate = stats.autoTicksPerSecond;
+  if (!(ticks > 0) || !(rate > 0) || !Number.isFinite(ticks)) return null;
+  return { metresPerMinute: 60 * rate / ticks, secondsToNext: Math.max(0, 1 - state.progress) * ticks / rate };
 }
 
 function digFace(state: GameState, stats: Stats, events?: TickEvent[]): void {
   const roll = faceRoll(state, stats);
   const m = state.deepest + 1;
-  const step = stats.digPower / (effectiveHardness(m, roll) * TICKS_PER_METRE_AT_PARITY);
+  const step = 1 / ticksForMetre(state.seed, m, roll, stats);
   if (!(step > 0) || !Number.isFinite(step)) return;
   state.progress += step;
   while (state.progress >= 1) {
@@ -113,7 +131,7 @@ function digFace(state: GameState, stats: Stats, events?: TickEvent[]): void {
       events?.push({ kind: 'metre', depth: next });
       return;
     }
-    state.progress *= effectiveHardness(next, done) / effectiveHardness(next + 1, faceRoll(state, stats));
+    state.progress *= ticksForMetre(state.seed, next, done, stats) / faceTicksPerMetre(state, stats);
     events?.push({ kind: 'metre', depth: next });
   }
 }

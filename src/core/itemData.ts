@@ -30,6 +30,7 @@ export const STAT_WORDS: Readonly<Record<StatKey, { prefix: string; suffix: stri
   ticksPerClick: { prefix: 'Eager', suffix: 'Haste' },
   autoTickRate: { prefix: 'Tireless', suffix: 'Toil' },
   offlineCap: { prefix: 'Patient', suffix: 'Dreams' },
+  hazardWard: { prefix: 'Masked', suffix: 'the Canary' },
   damage: { prefix: 'Heavy', suffix: 'Wounds' },
   damagePct: { prefix: 'Cruel', suffix: 'Ruin' },
   attackSpeed: { prefix: 'Swift', suffix: 'Speed' },

@@ -3,7 +3,7 @@ export const GEAR_SETS = ['mining', 'battle'] as const;
 export const MINING_SLOTS = ['pickaxe', 'lamp', 'gloves', 'boots'] as const;
 export const BATTLE_SLOTS = ['weapon', 'armor', 'helm', 'ring', 'amulet'] as const;
 export const MINING_STATS = ['digPower', 'goldYield', 'diamondYield', 'chestFind', 'gemFind', 'mapFind',
-  'lampSight', 'ticksPerClick', 'autoTickRate', 'offlineCap'] as const;
+  'lampSight', 'ticksPerClick', 'autoTickRate', 'offlineCap', 'hazardWard'] as const;
 export const BATTLE_STATS = ['damage', 'damagePct', 'attackSpeed', 'life', 'armor', 'critChance',
   'resistAll', 'soulFind', 'magicFind'] as const;
 export const GEM_TYPES = ['ruby', 'sapphire', 'emerald', 'amethyst', 'starstone'] as const;

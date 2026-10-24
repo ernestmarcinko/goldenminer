@@ -145,6 +145,7 @@ export const STAT_RANGES: Readonly<Record<StatKey, { base: number; perLevel: num
   ticksPerClick: { base: 1, perLevel: 0, cap: 1 },
   autoTickRate: { base: 3, perLevel: 1, cap: 50 },
   offlineCap: { base: 15, perLevel: 5, cap: 240 },
+  hazardWard: { base: 5, perLevel: 1, cap: 40 },
   damage: { base: 2, perLevel: 3 },
   damagePct: { base: 4, perLevel: 1 },
   attackSpeed: { base: 3, perLevel: 1, cap: 40 },

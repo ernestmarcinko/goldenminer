@@ -24,6 +24,17 @@ export function plural(n: number, one: string, many: string): string {
   return `${formatNumber(n)} ${n === 1 ? one : many}`;
 }
 
+/** A countdown, rounded up: "42 s", "2 min 5 s", "1 h 2 min". */
+export function formatEta(seconds: number): string {
+  const total = Math.max(1, Math.ceil(seconds));
+  if (total < 60) return `${total} s`;
+  if (total < 3600) {
+    const s = total % 60;
+    return s === 0 ? `${Math.floor(total / 60)} min` : `${Math.floor(total / 60)} min ${s} s`;
+  }
+  return `${Math.floor(total / 3600)} h ${Math.floor((total % 3600) / 60)} min`;
+}
+
 export function formatDuration(ms: number): string {
   const totalMinutes = Math.floor(ms / 60_000);
   const hours = Math.floor(totalMinutes / 60);

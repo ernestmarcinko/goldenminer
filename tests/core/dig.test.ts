@@ -1,10 +1,11 @@
 import { expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
 import { deriveStats } from '../../src/core/stats';
-import { applyTicks } from '../../src/core/dig';
+import { applyTicks, digSpeed, faceTicksPerMetre } from '../../src/core/dig';
+import { gear } from '../helpers/items';
 import { validateState } from '../../src/core/save';
 import type { GameState, Stats, TickEvent } from '../../src/core/types';
-import { BASE_ROLL_CHANCES, FINDS_LOG_LIMIT, goldVeinAmount } from '../../src/core/balance';
+import { BASE_ROLL_CHANCES, FINDS_LOG_LIMIT, TICKS_PER_METRE_AT_PARITY, goldVeinAmount, hardness } from '../../src/core/balance';
 import { metreLayer } from '../../src/core/layer';
 import { rollMetre } from '../../src/core/metres';
 
@@ -193,4 +194,58 @@ it('leftover progress carries over at the next metre’s hardness', () => {
   applyTicks(s, 1, { ...stats, digPower: 1.5 * 10.13 * 25 }); // 1.5 metres of metre 1's work
   expect(s.deepest).toBe(1);
   expect(s.progress).toBeCloseTo((0.5 * 10.13) / (10.26 * 1.5), 6);
+});
+
+/** The first metre from 301 down where the seeded layer satisfies `pred`. */
+function firstMetre(seed: number, pred: (metre: number) => boolean): number {
+  for (let m = 301; ; m++) if (pred(m)) return m;
+}
+
+it('a gas pocket doubles the ticks a metre needs; hazard ward shrinks that', () => {
+  const s = newGame(1, 0);
+  const m = firstMetre(1, (mm) => metreLayer(1, mm).hazard === 'gas');
+  s.deepest = m - 1;
+  s.ahead = { [m]: { feature: null, amount: 0, hardRock: false } };
+  const base = deriveStats(s);
+  const plain = hardness(m) * TICKS_PER_METRE_AT_PARITY / base.digPower;
+  expect(faceTicksPerMetre(s, base)).toBeCloseTo(plain * 2);
+  expect(faceTicksPerMetre(s, { ...base, hazardWard: 50 })).toBeCloseTo(plain * 1.5);
+});
+
+it('digSpeed reports the face rate and the time to the next metre', () => {
+  const s = newGame(1, 0);
+  s.ahead[1] = { feature: null, amount: 0, hardRock: false };
+  s.progress = 0.5;
+  const st = { ...deriveStats(s), digPower: 10, autoTicksPerSecond: 1, hazardWard: 0 };
+  const speed = digSpeed(s, st)!;
+  expect(speed.metresPerMinute).toBeCloseTo(60 / 25.325, 3);
+  expect(speed.secondsToNext).toBeCloseTo(12.6625, 3);
+  s.overflow.push(gear(s, 'boots'));
+  expect(digSpeed(s, st)).toBeNull();
+});
+
+it('digSpeed is null while a map runs', () => {
+  const s = newGame(1, 0);
+  s.activity = { kind: 'map' } as typeof s.activity;
+  expect(digSpeed(s, deriveStats(s))).toBeNull();
+});
+
+it('a hazard slows the metre it sits on and the carried progress follows', () => {
+  const s = newGame(1, 0);
+  const m = firstMetre(1, (mm) => metreLayer(1, mm).hazard === 'gas' && metreLayer(1, mm - 1).hazard === null);
+  s.deepest = m - 2;
+  s.ahead = {
+    [m - 1]: { feature: null, amount: 0, hardRock: false },
+    [m]: { feature: null, amount: 0, hardRock: false },
+  };
+  const st = { ...deriveStats(s), digPower: 10, hazardWard: 0, bonusChances: { chest: 0, gem: 0, map: 0 } };
+  const clear = hardness(m - 1) * TICKS_PER_METRE_AT_PARITY / 10;
+  expect(faceTicksPerMetre(s, st)).toBeCloseTo(clear);
+  s.progress = 0.999;
+  applyTicks(s, 1, st);
+  expect(s.deepest).toBe(m - 1);
+  const leftover = 0.999 + 1 / clear - 1;
+  const gas = hardness(m) * TICKS_PER_METRE_AT_PARITY / 10 * 2;
+  expect(faceTicksPerMetre(s, st)).toBeCloseTo(gas);
+  expect(s.progress).toBeCloseTo(leftover * clear / gas, 9);
 });
