@@ -87,8 +87,8 @@ describe('every effect', () => {
     const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'magic', name: 'Keep', affixes: [line('goldYield', 4)] }));
     expect(craft(s, bagLoc(0), 'iron').check).toBe('ok');
     expect(at(s, 0).rarity).toBe('magic');
-    expect(at(s, 0).name).toBe('Keep');
     expect(sides(at(s, 0).affixes)).toEqual(['prefix', 'suffix']);
+    expect(at(s, 0).name).toBe(magicName('pickaxe', 4, at(s, 0).affixes));
     const two = structuredClone(at(s, 0).affixes);
     expect(craft(s, bagLoc(0), 'iron').check).toBe('ok');
     const item = at(s, 0);
@@ -145,6 +145,17 @@ describe('every effect', () => {
     expect(item.affixes).toHaveLength(3);
     for (const l of item.affixes) expect(rareLines()).toContainEqual(l);
     expect(s.stash.materials.obsidian).toBe(99);
+  });
+
+  it('Obsidian renames a magic item after the line it keeps', () => {
+    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'magic', name: 'Old', affixes: [line('goldYield', 4), line('chestFind', 5)] }));
+    expect(craft(s, bagLoc(0), 'obsidian').check).toBe('ok');
+    const item = at(s, 0);
+    expect(item.rarity).toBe('magic');
+    expect(item.affixes).toHaveLength(1);
+    expect(item.name).toBe(magicName('pickaxe', 4, item.affixes));
+    expect(item.name).not.toBe(magicName('pickaxe', 4, [line('goldYield', 4), line('chestFind', 5)]));
+    expect(validateState(s)).toBe(true);
   });
 });
 

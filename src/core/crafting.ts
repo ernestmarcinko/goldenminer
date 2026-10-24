@@ -163,6 +163,7 @@ function apply(state: GameState, item: GearItem, kind: CraftKind): TemperOutcome
         item.name = rareName(state, item.slot);
       } else {
         addLine(state, item, sideRoom(item));
+        if (item.rarity === 'magic') item.name = magicName(item.slot, item.ilvl, item.affixes);
       }
       return undefined;
     case 'silver':
@@ -178,6 +179,8 @@ function apply(state: GameState, item: GearItem, kind: CraftKind): TemperOutcome
       return undefined;
     case 'obsidian':
       item.affixes.splice(Math.floor(nextRandom(state) * item.affixes.length), 1);
+      // A magic item is named by its lines, so the name follows them; a rare's name is its own.
+      if (item.rarity === 'magic') item.name = magicName(item.slot, item.ilvl, item.affixes);
       return undefined;
     case 'voidCrystal':
       return temper(state, item);
