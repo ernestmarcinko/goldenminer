@@ -3,7 +3,7 @@ import { newGame } from '../../src/core/newGame';
 import { deriveStats, gearTotals } from '../../src/core/stats';
 import { itemName } from '../../src/core/itemData';
 import {
-  battleStatLine, cardHead, clickIntent, compareLines, itemKindLine, itemLines, itemSprite, lootNoteText, miningStatLine, fittedCardTop, keptCardTop, placeCardTop, placeTooltip, rarityOf,
+  battleStatLine, cardHead, clickIntent, compareLines, itemKindLine, itemLines, itemSprite, lootNoteText, miningStatLine, anchorCraft, craftAnchor, craftSlots, fittedCardTop, keptHeight, placeCardTop, placeTooltip, rarityOf,
   statText,
 } from '../../src/ui/character/itemView';
 import { mapDungeon } from '../../src/ui/maps/mapsView';
@@ -141,15 +141,49 @@ describe('an action card stays inside the rows that show', () => {
     expect(fittedCardTop(fit, undefined, 345)).toBeUndefined();     // a hover or tap card is never fitted
   });
 
-  it('after a craft, moves only by as much as its craft buttons moved inside it, so they stay under the pointer', () => {
-    expect(keptCardTop(224, 300, 300, 100)).toBe(224);              // lines above unchanged: it stays, grown or not
-    expect(keptCardTop(224, 300, 362, 100)).toBe(162);              // a modifier line was added above the buttons
-    expect(keptCardTop(162, 362, 300, 100)).toBe(224);              // and taken away again
-    expect(keptCardTop(124, 300, 362, 100)).toBe(100);              // no higher than the rows that showed
-    expect(keptCardTop(-40, 300, 300, -40)).toBe(-40);              // a card pinned above its container stays there
-    expect(keptCardTop(90, 300, 300, 100)).toBe(90);                // and the limit never pulls a card down
-    expect(keptCardTop(224, null, 300, 100)).toBe(224);             // no craft buttons before
-    expect(keptCardTop(224, 300, null, 100)).toBe(224);             // or none left
+  // a grid of craft buttons, two to a row, 48 px apart, starting 300 px down the card
+  const grid = (kinds: string[], top = 300) => ({ top, kinds, tops: kinds.map((_, i) => top + 48 * Math.floor(i / 2)) });
+
+  it('after a craft, keeps the clicked craft button where it was, found again by its kind', () => {
+    const was = craftAnchor(grid(['copper', 'tin', 'iron', 'obsidian']), 'iron');
+    expect(was).toEqual({ kind: 'iron', slot: 2, top: 348, inGrid: 48 });
+    // lines unchanged: the card stays, grown or not
+    expect(anchorCraft(224, was, grid(['copper', 'tin', 'iron', 'obsidian'])).top).toBe(224);
+    // a modifier line added above the buttons: up by as much, with no limit, even above the rows that show
+    expect(anchorCraft(8, was, grid(['copper', 'tin', 'iron', 'obsidian'], 362)).top).toBe(-54);
+    // and taken away again
+    expect(anchorCraft(-54, { ...was, top: 410 }, grid(['copper', 'tin', 'iron', 'obsidian'])).top).toBe(8);
+    // other crafts came and went, and the clicked one moved to another slot: the card follows it
+    const moved = anchorCraft(224, was, grid(['silver', 'obsidian', 'starsteel', 'iron', 'mithril']));
+    expect(moved).toEqual({ top: 224 + 348 - 348, anchor: { kind: 'iron', slot: 3, top: 348, inGrid: 48 } });
+    expect(anchorCraft(224, was, grid(['iron', 'silver'])).top).toBe(224 + 348 - 300);
+  });
+
+  it('when the clicked craft is gone, keeps the button now in its slot, or the slot itself, where it was', () => {
+    const was = craftAnchor(grid(['copper', 'tin', 'iron']), 'copper');
+    expect(anchorCraft(224, was, grid(['tin', 'iron', 'silver'], 433)))
+      .toEqual({ top: 91, anchor: { kind: 'tin', slot: 0, top: 433, inGrid: 0 } });
+    const last = craftAnchor(grid(['copper', 'tin', 'iron', 'obsidian']), 'obsidian');
+    expect(anchorCraft(224, last, grid(['tin', 'iron'], 250)))       // the grid got shorter: its slot is empty
+      .toEqual({ top: 224 + 348 - 298, anchor: { kind: 'obsidian', slot: 3, top: 298, inGrid: 48 } });
+  });
+
+  it('keeps its craft slots in the order they first showed, and leaves a gone craft\'s slot empty', () => {
+    expect(craftSlots([], ['tin', 'iron', 'mithril'])).toEqual(['tin', 'iron', 'mithril']);
+    // Iron made it rare: Tin went, Silver came; Iron keeps its slot and Silver goes at the end
+    expect(craftSlots(['tin', 'iron', 'mithril'], ['iron', 'silver', 'mithril'])).toEqual(['tin', 'iron', 'mithril', 'silver']);
+    const was = craftAnchor(grid(['tin', 'iron', 'mithril']), 'iron');
+    // Tin's slot is empty (''), so nothing moves and the card stays
+    expect(anchorCraft(224, was, grid(['', 'iron', 'mithril', 'silver'])).top).toBe(224);
+    // and a craft that went away is anchored on its empty slot, keeping its kind for when it comes back
+    expect(anchorCraft(224, craftAnchor(grid(['tin', 'iron']), 'tin'), grid(['', 'iron'], 262)))
+      .toEqual({ top: 262, anchor: { kind: 'tin', slot: 0, top: 262, inGrid: 0 } });
+  });
+
+  it('never gets shorter while it is open, so the pointer cannot fall off its bottom', () => {
+    expect(keptHeight(0, 545)).toBe(545);                            // opens at its own height
+    expect(keptHeight(545, 773)).toBe(773);                          // grows with a craft
+    expect(keptHeight(773, 711)).toBe(773);                          // and keeps that height when a craft shrinks it
   });
 });
 

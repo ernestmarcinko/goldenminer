@@ -199,14 +199,47 @@ export function fittedCardTop(fitted: CardFit | undefined, fit: CardFit | undefi
 }
 
 /**
- * An open action card's top after a re-render, given how far down the card its craft buttons were (`craftsWas`) and
- * are now: a craft can add or drop the item's lines above them, and the card moves by as much, so the buttons stay
- * under the pointer. It moves no higher than `minTop`, the top of the rows that showed when it opened, so its name
- * stays in view. Without craft buttons, before or now, it stays.
+ * The order of an open action card's craft slots: the crafts it has shown, in the order they first showed, then any
+ * new ones. A craft that goes leaves its slot empty and the rest stay put, so no craft takes another one's place
+ * under the pointer.
  */
-export function keptCardTop(top: number, craftsWas: number | null, craftsNow: number | null, minTop: number): number {
-  if (craftsWas === null || craftsNow === null) return top;
-  return Math.max(Math.min(top, minTop), top + craftsWas - craftsNow);
+export function craftSlots(was: readonly string[], now: readonly string[]): string[] {
+  return [...was, ...now.filter((kind) => !was.includes(kind))];
+}
+
+/**
+ * An action card's craft slots, measured down the card: the grid's top, and each slot's kind ('' when it is empty)
+ * and top.
+ */
+export interface CraftGrid { top: number; kinds: string[]; tops: number[] }
+
+/** The craft button under the pointer: its kind, its slot in the grid, and how far down the card and the grid it starts. */
+export interface CraftAnchor { kind: string; slot: number; top: number; inGrid: number }
+
+/** The anchor for a click on the `kind` craft, which must be in `grid`. */
+export function craftAnchor(grid: CraftGrid, kind: string): CraftAnchor {
+  const slot = grid.kinds.indexOf(kind);
+  const top = grid.tops[slot] ?? grid.top;
+  return { kind, slot, top, inGrid: top - grid.top };
+}
+
+/**
+ * An open action card's top after a craft from it, and the anchor to keep from then on: the card moves so that the
+ * clicked button stays under the pointer, and a second click does the same craft. The button is found again by its
+ * kind, as a craft can bring or take away other crafts; when that craft is gone, it is its slot: empty, or the button
+ * now in it, or when the grid got shorter, the slot's own place in it. There is no limit: pointer safety comes before the
+ * card's name, which may move above the rows that show.
+ */
+export function anchorCraft(top: number, was: CraftAnchor, grid: CraftGrid): { top: number; anchor: CraftAnchor } {
+  const found = grid.kinds.indexOf(was.kind);
+  const slot = found >= 0 ? found : was.slot;
+  const at = grid.tops[slot] ?? grid.top + was.inGrid;
+  return { top: top + was.top - at, anchor: { kind: grid.kinds[slot] || was.kind, slot, top: at, inGrid: at - grid.top } };
+}
+
+/** An open action card's least height: the tallest it has been since it opened, so it never gets shorter. */
+export function keptHeight(tallest: number, height: number): number {
+  return Math.max(tallest, height);
 }
 
 /** The worn item's card goes beside a hover card on a wide screen, and inside any other card. */
