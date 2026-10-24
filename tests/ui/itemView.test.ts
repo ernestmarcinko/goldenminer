@@ -3,7 +3,7 @@ import { newGame } from '../../src/core/newGame';
 import { deriveStats, gearTotals } from '../../src/core/stats';
 import { itemName } from '../../src/core/itemData';
 import {
-  battleStatLine, cardHead, clickIntent, compareLines, itemKindLine, itemLines, itemSprite, lootNoteText, miningStatLine, placeCardTop, placeTooltip, rarityOf,
+  battleStatLine, cardHead, clickIntent, compareLines, itemKindLine, itemLines, itemSprite, lootNoteText, miningStatLine, fittedCardTop, keptCardTop, placeCardTop, placeTooltip, rarityOf,
   statText,
 } from '../../src/ui/character/itemView';
 import { mapDungeon } from '../../src/ui/maps/mapsView';
@@ -129,6 +129,27 @@ describe('an action card stays inside the rows that show', () => {
     expect(placeCardTop(anchor, 397, view)).toBe(100);
     expect(placeCardTop(anchor, 1024, view)).toBe(100);
     expect(placeCardTop({ top: 848, bottom: 900 }, 1024, { top: -40, bottom: 860 })).toBe(-40);
+  });
+
+  it('fits only when it opens on an item, so a craft that changes its height leaves it where it is', () => {
+    const fit = { anchor, view };
+    expect(fittedCardTop(undefined, fit, 344)).toBe(556);           // opens below its item
+    expect(fittedCardTop(fit, fit, 345)).toBeUndefined();           // a craft grew it: it stays, and runs down
+    expect(fittedCardTop(fit, fit, 200)).toBeUndefined();           // or shrank it
+    const other = { anchor: { top: 500, bottom: 552 }, view };      // the same spot, but opened anew
+    expect(fittedCardTop(fit, other, 345)).toBe(151);
+    expect(fittedCardTop(fit, undefined, 345)).toBeUndefined();     // a hover or tap card is never fitted
+  });
+
+  it('after a craft, moves only by as much as its craft buttons moved inside it, so they stay under the pointer', () => {
+    expect(keptCardTop(224, 300, 300, 100)).toBe(224);              // lines above unchanged: it stays, grown or not
+    expect(keptCardTop(224, 300, 362, 100)).toBe(162);              // a modifier line was added above the buttons
+    expect(keptCardTop(162, 362, 300, 100)).toBe(224);              // and taken away again
+    expect(keptCardTop(124, 300, 362, 100)).toBe(100);              // no higher than the rows that showed
+    expect(keptCardTop(-40, 300, 300, -40)).toBe(-40);              // a card pinned above its container stays there
+    expect(keptCardTop(90, 300, 300, 100)).toBe(90);                // and the limit never pulls a card down
+    expect(keptCardTop(224, null, 300, 100)).toBe(224);             // no craft buttons before
+    expect(keptCardTop(224, 300, null, 100)).toBe(224);             // or none left
   });
 });
 

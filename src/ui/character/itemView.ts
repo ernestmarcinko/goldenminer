@@ -186,6 +186,29 @@ export function placeCardTop(anchor: Span, height: number, view: Span): number {
   return view.top;
 }
 
+/** Where an action card's item is and which rows show, so the card can be fitted once its height is known. */
+export interface CardFit { anchor: Span; view: Span }
+
+/**
+ * An action card's new top, or undefined to leave it where it is. It fits only when it opens on an item (a new
+ * `fit`, after `fitted`): a craft keeps the card open and changes its height, and fitting it again would put another
+ * button under the pointer. A card that grew runs down, over its item or past the view, and the page scrolls.
+ */
+export function fittedCardTop(fitted: CardFit | undefined, fit: CardFit | undefined, height: number): number | undefined {
+  return fit === undefined || fit === fitted ? undefined : placeCardTop(fit.anchor, height, fit.view);
+}
+
+/**
+ * An open action card's top after a re-render, given how far down the card its craft buttons were (`craftsWas`) and
+ * are now: a craft can add or drop the item's lines above them, and the card moves by as much, so the buttons stay
+ * under the pointer. It moves no higher than `minTop`, the top of the rows that showed when it opened, so its name
+ * stays in view. Without craft buttons, before or now, it stays.
+ */
+export function keptCardTop(top: number, craftsWas: number | null, craftsNow: number | null, minTop: number): number {
+  if (craftsWas === null || craftsNow === null) return top;
+  return Math.max(Math.min(top, minTop), top + craftsWas - craftsNow);
+}
+
 /** The worn item's card goes beside a hover card on a wide screen, and inside any other card. */
 export function cardPairLayout(viewportWidth: number, isMenu: boolean): 'row' | 'column' {
   return !isMenu && viewportWidth >= CARD_PAIR_MIN_VIEWPORT ? 'row' : 'column';

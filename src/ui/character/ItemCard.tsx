@@ -7,9 +7,8 @@ import { itemName } from '../../core/itemData';
 import type { GameState } from '../../core/types';
 import { hoverNote, itemActions } from './itemActions';
 import type { ActionSpec, ItemTarget } from './itemActions';
-import { cardHead, compareLines, itemKindLine, itemLines, placeCardTop, rarityOf, wornToCompare } from './itemView';
-import type { ViewLine } from './itemView';
-import type { CardFit } from './useItemPopover';
+import { cardHead, compareLines, fittedCardTop, itemKindLine, itemLines, keptCardTop, rarityOf, wornToCompare } from './itemView';
+import type { CardFit, ViewLine } from './itemView';
 
 export interface CardMenu {
   onAction: (action: ActionSpec) => void;
@@ -42,6 +41,12 @@ function EquippedContent({ worn }: { worn: GearItem }) {
   );
 }
 
+/** How far down `card` its craft buttons start, or null when it has none. */
+function craftsOffset(card: HTMLElement): number | null {
+  const crafts = card.querySelector('.gm-card__crafts');
+  return crafts === null ? null : crafts.getBoundingClientRect().top - card.getBoundingClientRect().top;
+}
+
 /**
  * The hover tooltip, or with `menu` the action card: same content, plus one button per action. An `inline` card
  * (opened by a touch tap) sits in the page flow and scrolls just into view, `smooth` only when motion is allowed.
@@ -55,10 +60,19 @@ export function ItemCard({ state, target, left, top, fit, menu, inline = false, 
   const ref = useRef<HTMLDivElement>(null);
   const isMenu = menu !== undefined;
   // With `fit`, the card moves to where it fits once its height is known: before it paints, and before focus goes
-  // into it, so that focus never scrolls the page. After every render, as a craft can change its height.
+  // into it, so that focus never scrolls the page. Only when it opens: after a craft it moves just enough to keep
+  // its craft buttons under the pointer, so a second click does the same craft, and a card that grew runs down.
+  const fitted = useRef<CardFit | undefined>(undefined);
+  const craftsWas = useRef<number | null>(null);
   useLayoutEffect(() => {
     const card = ref.current;
-    if (fit !== undefined && card !== null) card.style.top = `${placeCardTop(fit.anchor, card.offsetHeight, fit.view)}px`;
+    if (card === null || fit === undefined) return;
+    const crafts = craftsOffset(card);
+    const top = fittedCardTop(fitted.current, fit, card.offsetHeight)
+      ?? keptCardTop(parseFloat(card.style.top), craftsWas.current, crafts, fit.view.top);
+    fitted.current = fit;
+    craftsWas.current = crafts;
+    card.style.top = `${top}px`;
   });
   useEffect(() => {
     if (!isMenu) return;

@@ -2,10 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { ItemTarget } from './itemActions';
 import { CARD_PAIR_GAP, cardPairLayout, placeTooltip, TOOLTIP_WIDTH } from './itemView';
-import type { Span } from './itemView';
-
-/** Where an action card's item is and which rows show, so the card can be fitted once its height is known. */
-export interface CardFit { anchor: Span; view: Span }
+import type { CardFit, Span } from './itemView';
 
 /**
  * `inline`: a card opened by a touch tap, shown in the page flow below the grid instead of placed near the item.
