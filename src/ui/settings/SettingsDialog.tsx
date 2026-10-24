@@ -114,7 +114,9 @@ function SettingsMain({ store, returnTo, onOpen, onClose }: {
         <section className="gm-dialog__section gm-dialog__section--ruled" aria-label="World">
           <h3>World</h3>
           <div className="gm-seedrow">
-            <span className="gm-seedrow__seed"><span className="gm-visually-hidden">World seed: </span>{state.worldSeed}</span>
+            <span id="gm-seed-label" className="gm-visually-hidden">World seed</span>
+            {/* The label stays outside the seed so selecting the seed by hand copies only the seed. */}
+            <span className="gm-seedrow__seed" role="group" aria-labelledby="gm-seed-label">{state.worldSeed}</span>
             <button
               type="button"
               className="gm-btn"
