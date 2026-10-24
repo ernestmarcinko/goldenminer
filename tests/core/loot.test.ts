@@ -100,6 +100,35 @@ describe('when the bag and the stash are full', () => {
     expect(s.gold).toBeGreaterThan(before.gold);
   });
 
+  it('a hold stops the rest of a multi-metre face tick', () => {
+    const s = newGame(1, 0);
+    s.settings.bagFull = 'stop';
+    fill(s);
+    s.ahead[1] = { feature: 'chest', amount: 0, hardRock: false };
+    s.ahead[2] = { feature: 'goldVein', amount: 19, hardRock: false };
+    applyTicks(s, 1, { ...stats, digPower: 3 * 10.13 * 25 }); // 3 metres of metre 1's work
+    expect(s.deepest).toBe(1);
+    expect(s.progress).toBeGreaterThanOrEqual(0);
+    expect(s.progress).toBeLessThan(1);
+    expect(s.ahead[2]).toEqual({ feature: 'goldVein', amount: 19, hardRock: false });
+    expect(s.finds.map((f) => f.kind)).toEqual(['chest']);
+    expect(s.overflow.length).toBeGreaterThan(0);
+  });
+
+  it('a hold stops the rest of a gallery tick', () => {
+    const s = newGame(1, 0);
+    s.settings.bagFull = 'stop';
+    s.deepest = 10;
+    s.depth = 0;
+    fill(s);
+    const chests = { goldVein: 0, diamondVein: 0, chest: 1, gem: 0, map: 0 };
+    applyTicks(s, 1, { ...stats, digPower: 5000, featureChances: chests });
+    expect(s.finds).toHaveLength(1);
+    expect(s.galleryProgress).toBeGreaterThanOrEqual(0);
+    expect(s.galleryProgress).toBeLessThan(1);
+    expect(s.overflow.length).toBeGreaterThan(0);
+  });
+
   it('switching to sellWorst lets held loot through', () => {
     const s = newGame(1, 0);
     s.settings.bagFull = 'stop';

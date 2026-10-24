@@ -63,6 +63,11 @@ function digFace(state: GameState, stats: Stats, events?: TickEvent[]): void {
     state.deepest = next;
     state.depth = next;
     fillAhead(state, stats);
+    if (state.overflow.length > 0) {
+      state.progress -= Math.floor(state.progress);
+      events?.push({ kind: 'metre', depth: next, gallery: false });
+      return;
+    }
     state.progress *= effectiveHardness(next, done) / effectiveHardness(next + 1, faceRoll(state, stats));
     events?.push({ kind: 'metre', depth: next, gallery: false });
   }
@@ -77,6 +82,10 @@ function digGallery(state: GameState, stats: Stats, events?: TickEvent[]): void 
     const roll = rollGallery(state, state.depth, stats);
     collect(state, roll, state.depth, tierAt(state.depth), stats, events);
     events?.push({ kind: 'metre', depth: state.depth, gallery: true });
+    if (state.overflow.length > 0) {
+      state.galleryProgress -= Math.floor(state.galleryProgress);
+      return;
+    }
   }
 }
 
