@@ -1,11 +1,12 @@
 import { expect, it, vi } from 'vitest';
-import { MAX_OVERFLOW } from '../../src/core/balance';
+import { MATERIAL_TABLE, MAX_OVERFLOW } from '../../src/core/balance';
 import { deriveBattleStats } from '../../src/core/battle';
 import { clickHit, onKill, soulsForKill } from '../../src/core/combat';
 import { applyTicks } from '../../src/core/dig';
 import { addMap, startMap } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
-import { isGear, setOfSlot } from '../../src/core/items';
+import { isGear, setOfSlot, type Material } from '../../src/core/items';
+import { pickMaterial } from '../../src/core/layer';
 import { nextRandom } from '../../src/core/rng';
 import { deriveStats } from '../../src/core/stats';
 import { summarize } from '../../src/core/summary';
@@ -164,16 +165,18 @@ it('a gem drop is noted on the run and in the log like an item', () => {
   expect(found).toBeGreaterThan(0);
 });
 
-const materialsOf = (run: MapRun) => run.loot.filter((n) => n.rarity === 'material').map((n) => n.base);
+const materialsOf = (run: MapRun) => run.loot.filter((n) => n.rarity === 'material').map((n) => n.base as Material);
 
 it('map kills drop materials of the map\'s depth', () => {
-  const deep = new Set<string>();
-  const shallow = new Set<string>();
+  const deep = new Set<Material>();
+  const shallow = new Set<Material>();
   for (let seed = 1; seed <= 400; seed++) {
     for (const m of materialsOf(kill(seed, 'boss', undefined, { tier: 7, metre: 1100 }).run)) deep.add(m);
     for (const m of materialsOf(kill(seed, 'boss', undefined, { tier: 1, metre: 20 }).run)) shallow.add(m);
   }
-  expect(deep.has('voidCrystal')).toBe(true);
+  // Starsteel, obsidian and void crystal weigh about 18 of 344 at 1100 m: some 26 of the ~500 drops are expected.
+  expect([...deep].some((m) => MATERIAL_TABLE[m].from >= 450)).toBe(true);
+  expect(pickMaterial(1100, 0.9999)).toBe('voidCrystal');
   expect(shallow.size).toBeGreaterThan(0);
   expect([...shallow].every((m) => m === 'copper' || m === 'tin')).toBe(true);
 });
