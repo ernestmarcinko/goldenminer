@@ -1,5 +1,5 @@
 import { itemAt } from '../../core/cells';
-import { canCraft, craftCost } from '../../core/crafting';
+import { canCraft, craftCost, held } from '../../core/crafting';
 import { MATERIAL_LABELS } from '../../core/itemData';
 import { isGear, MATERIALS } from '../../core/items';
 import type { CraftCheck, CraftKind, CraftResult, GameState, ItemLoc, TemperOutcome } from '../../core/types';
@@ -25,14 +25,6 @@ export function craftLabel(kind: CraftKind, cost: number): string {
   return `${name} ×${formatNumber(cost)}: ${CRAFT_EFFECTS[kind]}`;
 }
 
-/** How much of a craft's material the player holds: every bag stack and the Materials tab, or the Diamonds. */
-function have(state: GameState, kind: CraftKind): number {
-  if (kind === 'diamond') return state.diamonds;
-  let n = state.stash.materials[kind];
-  for (const c of state.bag) if (c?.type === 'material' && c.material === kind) n += c.count;
-  return n;
-}
-
 /** The crafts this item's rules allow, in material order then Diamonds; ones the player can't do now are disabled. */
 export function craftOptions(state: GameState, target: ItemLoc): CraftOption[] {
   const item = itemAt(state, target);
@@ -41,7 +33,7 @@ export function craftOptions(state: GameState, target: ItemLoc): CraftOption[] {
     const check = canCraft(state, target, kind);
     if (RULE_REFUSALS.has(check)) return [];
     const cost = craftCost(kind, item);
-    return [{ kind, label: craftLabel(kind, cost), cost, have: have(state, kind), enabled: check === 'ok' }];
+    return [{ kind, label: craftLabel(kind, cost), cost, have: held(state, kind), enabled: check === 'ok' }];
   });
 }
 

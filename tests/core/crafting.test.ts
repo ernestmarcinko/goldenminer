@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { GEM_STASH_STACK, MAX_SIDE_LINES } from '../../src/core/balance';
+import { GEM_STASH_STACK, MATERIAL_STASH_STACK, MAX_SIDE_LINES } from '../../src/core/balance';
 import { canCraft, craft, craftCost, type CraftKind, type TemperOutcome } from '../../src/core/crafting';
 import { dropItem } from '../../src/core/inventory';
-import { magicName } from '../../src/core/itemGen';
-import { MATERIALS, MOD_SIDE, SLOT_IMPLICIT } from '../../src/core/items';
+import { baseName } from '../../src/core/itemData';
+import { magicName, rollGear } from '../../src/core/itemGen';
+import { GEAR_SETS, MATERIALS, MOD_SIDE, RARITIES, SLOT_IMPLICIT } from '../../src/core/items';
 import type { GearItem, Material, MaterialItem, ModLine, StatKey } from '../../src/core/items';
 import { newGame } from '../../src/core/newGame';
 import { validateState } from '../../src/core/save';
@@ -126,12 +127,14 @@ describe('every effect', () => {
   });
 
   it('Starsteel keeps every stat and tier and rerolls the values inside their tiers; crafted lines keep theirs', () => {
-    const crafted: ModLine = { stat: 'oreFind', value: 15, tier: 6, crafted: true };
+    // T6 ore find is 15–16, so a reroll would always change this value: a crafted line kept as it was is never luck
+    const crafted: ModLine = { stat: 'oreFind', value: 30, tier: 6, crafted: true };
     const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'rare', affixes: [...rareLines(), crafted] }), 9);
+    expect(inTier(crafted)).toBe(false);
     expect(craft(s, bagLoc(0), 'starsteel').check).toBe('ok');
     const item = at(s, 0);
     expect(item.affixes.map((l) => [l.stat, l.tier])).toEqual([...rareLines(), crafted].map((l) => [l.stat, l.tier]));
-    expect(item.affixes.every(inTier)).toBe(true);
+    expect(item.affixes.slice(0, 4).every(inTier)).toBe(true);
     expect(item.affixes[4]).toEqual(crafted);
     expect(item.affixes.map((l) => l.value)).not.toEqual([...rareLines(), crafted].map((l) => l.value));
     expect(validateState(s)).toBe(true);
@@ -156,6 +159,22 @@ describe('every effect', () => {
     expect(item.name).toBe(magicName('pickaxe', 4, item.affixes));
     expect(item.name).not.toBe(magicName('pickaxe', 4, [line('goldYield', 4), line('chestFind', 5)]));
     expect(validateState(s)).toBe(true);
+  });
+
+  it('Obsidian taking a magic item\'s last line makes it normal again, under its base name, for Copper', () => {
+    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'magic', ilvl: 9, name: 'Old', affixes: [line('goldYield', 4)] }));
+    expect(craft(s, bagLoc(0), 'obsidian').check).toBe('ok');
+    const item = at(s, 0);
+    expect([item.rarity, item.affixes, item.name]).toEqual(['normal', [], baseName('pickaxe', 9)]);
+    expect(validateState(s)).toBe(true);
+    expect(canCraft(s, bagLoc(0), 'copper')).toBe('ok');
+    expect(canCraft(s, bagLoc(0), 'obsidian')).toBe('nothingToChange');
+  });
+
+  it('Obsidian taking a rare\'s last line leaves it rare, under its own name', () => {
+    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'rare', name: 'Grim Pick', affixes: [line('goldYield', 4)] }));
+    expect(craft(s, bagLoc(0), 'obsidian').check).toBe('ok');
+    expect([at(s, 0).rarity, at(s, 0).affixes, at(s, 0).name]).toEqual(['rare', [], 'Grim Pick']);
   });
 });
 
@@ -307,6 +326,13 @@ describe('paying', () => {
     expect([count(s, 5), s.stash.materials.copper]).toEqual([null, 48]);
   });
 
+  it('pays only once the effect is done, so a craft that fails part-way spends nothing', () => {
+    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'rare', sockets: 1 }));
+    Object.defineProperty(at(s, 0), 'sockets', { get: () => 1, set: () => { throw new Error('mid-craft'); } });
+    expect(() => craft(s, bagLoc(0), 'mithril')).toThrow('mid-craft');
+    expect(s.stash.materials.mithril).toBe(100);
+  });
+
   it('from the tab slot first when that is the stack', () => {
     const s = setup();
     expect(craft(s, bagLoc(0), 'copper', { where: 'materials', material: 'copper' }).check).toBe('ok');
@@ -397,5 +423,48 @@ describe('dragging a material onto gear', () => {
     expect(s.stash.general[3]?.rarity).toBe('magic');
     expect(count(s, 4)).toBe(2);
     expect(validateState(s)).toBe(true);
+  });
+});
+
+describe('random craft chains', () => {
+  const KINDS: readonly CraftKind[] = [...MATERIALS, 'diamond'];
+  const GEMS = ['ruby', 'sapphire', 'emerald'] as const;
+
+  // Generated gear of several levels, both sets and every rarity, in the bag or worn, crafted on at random with
+  // plenty of everything: the state stays valid after every step, and a refused craft leaves it exactly as it was.
+  it('keep the state valid, and a refusal changes nothing', () => {
+    let pick = 12345;
+    const next = (n: number): number => {
+      pick = (Math.imul(pick, 1103515245) + 12345) >>> 0;
+      return Math.floor((pick / 2 ** 32) * n);
+    };
+    const seen = new Set<string>();
+    for (let chain = 0; chain < 300; chain++) {
+      const s = newGame(100 + chain, 0);
+      s.rng = 1 + chain * 7919;
+      for (const m of MATERIALS) s.stash.materials[m] = MATERIAL_STASH_STACK;
+      s.diamonds = 1_000_000;
+      const item = rollGear(s, [1, 3, 8, 20, 60][chain % 5] as number, GEAR_SETS[chain % 2] as 'mining' | 'battle',
+        RARITIES[Math.floor(chain / 2) % 4]);
+      item.gems = Array.from({ length: next(item.sockets + 1) }, () => ({ gem: GEMS[next(3)] as 'ruby', grade: 'tiny' as const }));
+      let target: ItemLoc = bagLoc(0);
+      if (chain % 3 === 0) {
+        s.equipped[GEAR_SETS[chain % 2] as 'mining' | 'battle'][item.slot] = item;
+        target = { where: 'worn', slot: item.slot };
+      } else {
+        s.bag[0] = item;
+      }
+      expect(validateState(s)).toBe(true);
+      for (let step = 0; step < 12; step++) {
+        const kind = KINDS[next(KINDS.length)] as CraftKind;
+        const before = structuredClone(s);
+        const { check } = craft(s, target, kind);
+        seen.add(check);
+        if (check !== 'ok') expect(s).toEqual(before);
+        expect(validateState(s), `chain ${chain} step ${step} ${kind}`).toBe(true);
+      }
+    }
+    // the chains reached every kind of outcome a held item can have
+    expect([...seen].sort()).toEqual(['legendary', 'noRoom', 'nothingToChange', 'ok', 'sealed', 'wrongRarity']);
   });
 });

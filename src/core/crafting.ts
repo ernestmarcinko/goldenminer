@@ -3,6 +3,7 @@ import {
   RARE_LINE_WEIGHTS, STAT_WEIGHTS, TEMPER_WEIGHTS,
 } from './balance';
 import { itemAt, sameLoc } from './cells';
+import { baseName } from './itemData';
 import { magicName, rareName, rollLines, rollSockets, rollValue, sideCount } from './itemGen';
 import { MOD_SIDE, SLOT_IMPLICIT, isGear, setOfSlot, statsOf } from './items';
 import type { GearItem, Gem, Material, ModLine } from './items';
@@ -42,7 +43,8 @@ function payOrder(state: GameState, material: Material, from?: ItemLoc): Materia
   return first === undefined ? all : [first, ...all.filter((l) => l !== first)];
 }
 
-function held(state: GameState, kind: CraftKind): number {
+/** How much of a craft's material the player holds: every bag stack and the Materials tab, or the Diamonds. */
+export function held(state: GameState, kind: CraftKind): number {
   if (kind === 'diamond') return state.diamonds;
   let n = state.stash.materials[kind];
   for (const c of state.bag) if (c?.type === 'material' && c.material === kind) n += c.count;
@@ -179,8 +181,14 @@ function apply(state: GameState, item: GearItem, kind: CraftKind): TemperOutcome
       return undefined;
     case 'obsidian':
       item.affixes.splice(Math.floor(nextRandom(state) * item.affixes.length), 1);
-      // A magic item is named by its lines, so the name follows them; a rare's name is its own.
-      if (item.rarity === 'magic') item.name = magicName(item.slot, item.ilvl, item.affixes);
+      // A magic item is named by its lines, so the name follows them; a rare's name is its own. A magic item left with
+      // no lines is a normal one again, under its base name, so Copper works on it.
+      if (item.rarity === 'magic' && item.affixes.length === 0) {
+        item.rarity = 'normal';
+        item.name = baseName(item.slot, item.ilvl);
+      } else if (item.rarity === 'magic') {
+        item.name = magicName(item.slot, item.ilvl, item.affixes);
+      }
       return undefined;
     case 'voidCrystal':
       return temper(state, item);
@@ -198,8 +206,10 @@ export function craft(state: GameState, target: ItemLoc, kind: CraftKind, from?:
   const check = canCraft(state, target, kind);
   if (check !== 'ok') return { check };
   const item = itemAt(state, target) as GearItem;
-  pay(state, kind, craftCost(kind, item), from);
+  // The cost is known beforehand, and paying last means a craft that failed part-way could never spend material.
+  const cost = craftCost(kind, item);
   const outcome = apply(state, item, kind);
+  pay(state, kind, cost, from);
   // Worn mining gear may change lamp sight, as equipping does.
   if (target.where === 'worn' && setOfSlot(target.slot) === 'mining') fillAhead(state, deriveStats(state));
   return outcome === undefined ? { check } : { check, temper: outcome };
