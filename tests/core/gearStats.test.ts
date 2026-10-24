@@ -5,7 +5,7 @@ import { gear, gem } from '../helpers/items';
 
 it('no gear means the Plan 1 base stats', () => {
   expect(deriveStats(newGame(1, 0))).toMatchObject({
-    digPower: 10, autoTicksPerSecond: 1, ticksPerClick: 1, lampSight: 2, offlineCapMs: 28_800_000,
+    digPower: 10, autoTicksPerSecond: 1, ticksPerClick: 1, lampSight: 3, offlineCapMs: 28_800_000,
     goldMultiplier: 1, diamondMultiplier: 1,
   });
 });

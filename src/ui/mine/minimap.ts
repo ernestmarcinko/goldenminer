@@ -1,6 +1,6 @@
 import { bandAt, tierAt } from '../../core/bands';
 import type { FeatureKind, GameState } from '../../core/types';
-import { bandPalette } from './sceneTiles';
+import { bandLook, bandTitle, worldOf } from '../../core/mineLook';
 
 export const MINIMAP_METRES = 88;
 export const MINIMAP_PX_PER_METRE = 6;
@@ -35,12 +35,13 @@ export function minimapModel(state: GameState, lampSight: number): MinimapModel 
   const bottom = top + MINIMAP_METRES;
   const y = (d: number) => (d - top) * MINIMAP_PX_PER_METRE;
 
+  const world = worldOf(state);
   const bands: MinimapModel['bands'] = [];
   for (let d = top; d < bottom; ) {
     const band = bandAt(d);
     const from = Math.max(band.start, top);
     const to = Math.min(band.end, bottom);
-    bands.push({ name: band.name, y: y(from), height: (to - from) * MINIMAP_PX_PER_METRE, color: bandPalette(band.tier)[1] });
+    bands.push({ name: bandTitle(world, band), y: y(from), height: (to - from) * MINIMAP_PX_PER_METRE, color: bandLook(world, band).palette[1] });
     d = band.end;
   }
 
