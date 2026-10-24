@@ -18,6 +18,13 @@ export const BASE_HARD_ROCK_CHANCE = 0.08;
 export const GUARANTEED_FIRST_MAP_METRE = 2;
 export const FINDS_LOG_LIMIT = 5000;
 
+export const BAG_SIZE = 24;
+export const STASH_SIZE = 60;
+export const MAX_LOOT_RULES = 20;
+export const MAX_OVERFLOW = 10;
+export const MAX_SOCKETS = 3;
+export const MAX_AFFIXES = 4;
+
 export const AUTOSAVE_INTERVAL_MS = 30_000;
 export const OFFLINE_SUMMARY_MIN_TICKS = 300;
 export const TAB_LOCK_STALE_MS = 5000;

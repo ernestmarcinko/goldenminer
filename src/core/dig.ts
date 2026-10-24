@@ -11,7 +11,7 @@ export function collect(state: GameState, roll: MetreRoll, depth: number, events
   if (roll.feature === null) return;
   if (roll.feature === 'goldVein') state.gold += roll.amount;
   else if (roll.feature === 'diamondVein') state.diamonds += roll.amount;
-  const find: FindRecord = { depth, kind: roll.feature, amount: roll.amount, tick: state.tickCount };
+  const find: FindRecord = { id: state.nextId++, depth, kind: roll.feature, amount: roll.amount, tick: state.tickCount };
   state.finds.push(find);
   if (state.finds.length > FINDS_LOG_LIMIT) state.finds.splice(0, state.finds.length - FINDS_LOG_LIMIT);
   events?.push({ kind: 'find', find });

@@ -33,7 +33,7 @@ export function FindsFeed({ store }: { store: GameStore }) {
       ) : (
         <ul className="gm-finds__list">
           {shown.map((f) => (
-            <li key={`${f.tick}-${f.depth}-${f.kind}`} className="gm-finds__item">
+            <li key={f.id} className="gm-finds__item">
               <Sprite name={ICONS[f.kind]} scale={2} />
               <span className="gm-finds__label">{label(f.kind, f.amount)}</span>
               <span className="gm-muted gm-small">at {formatNumber(f.depth)} m</span>

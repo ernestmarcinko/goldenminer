@@ -78,7 +78,7 @@ it('moveTo rejects depths that were never reached', () => {
 
 it('the finds log is capped', () => {
   const s = fresh();
-  s.finds = Array.from({ length: FINDS_LOG_LIMIT }, (_, i) => ({ depth: 0, kind: 'chest' as const, amount: 0, tick: i }));
+  s.finds = Array.from({ length: FINDS_LOG_LIMIT }, (_, i) => ({ id: i + 1, depth: 0, kind: 'chest' as const, amount: 0, tick: i }));
   s.ahead[1] = { feature: 'gem', amount: 0, hardRock: false };
   while (s.deepest < 1) applyTicks(s, 1, stats);
   expect(s.finds).toHaveLength(FINDS_LOG_LIMIT);

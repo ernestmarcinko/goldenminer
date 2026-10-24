@@ -18,10 +18,10 @@ it('the window keeps the miner about 57% down', () => {
 it('nearby finds share one marker, most important kind first', () => {
   const s = at(340);
   s.finds = [
-    { depth: 301, kind: 'chest', amount: 0, tick: 1 },
-    { depth: 302, kind: 'map', amount: 0, tick: 2 },
-    { depth: 330, kind: 'goldVein', amount: 20, tick: 3 },
-    { depth: 10, kind: 'map', amount: 0, tick: 4 },
+    { id: 1, depth: 301, kind: 'chest', amount: 0, tick: 1 },
+    { id: 2, depth: 302, kind: 'map', amount: 0, tick: 2 },
+    { id: 3, depth: 330, kind: 'goldVein', amount: 20, tick: 3 },
+    { id: 4, depth: 10, kind: 'map', amount: 0, tick: 4 },
   ];
   const { markers } = minimapModel(s, 2);
   expect(markers).toEqual([

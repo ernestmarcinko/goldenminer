@@ -8,7 +8,7 @@ it('a burst of ticks becomes a handful of particles', () => {
   const events: TickEvent[] = [
     ...Array.from({ length: 300 }, () => ({ kind: 'gold', amount: 3 }) as const),
     { kind: 'diamond', amount: 1 }, { kind: 'diamond', amount: 1 },
-    ...Array.from({ length: 5 }, (_, i) => ({ kind: 'find', find: { depth: i, kind: 'chest', amount: 0, tick: i } }) as const),
+    ...Array.from({ length: 5 }, (_, i) => ({ kind: 'find', find: { id: i + 1, depth: i, kind: 'chest', amount: 0, tick: i } }) as const),
   ];
   const ps = particlesFromEvents(events, { x: 100, y: 200 }, 0, next);
   expect(ps.find((p) => p.kind === 'gold')).toMatchObject({ text: '+900', x: 100, y: 200 });
@@ -25,7 +25,7 @@ it('old particles expire and the count stays bounded', () => {
 });
 
 it('find particles stack above the gold number', () => {
-  const events: TickEvent[] = Array.from({ length: 3 }, (_, i) => ({ kind: 'find', find: { depth: i, kind: 'chest', amount: 0, tick: i } }) as const);
+  const events: TickEvent[] = Array.from({ length: 3 }, (_, i) => ({ kind: 'find', find: { id: i + 1, depth: i, kind: 'chest', amount: 0, tick: i } }) as const);
   const ps = particlesFromEvents(events, { x: 100, y: 200 }, 0, next);
   expect(ps.map((p) => [p.x, p.y])).toEqual([[90, 176], [90, 152], [90, 128]]);
 });
