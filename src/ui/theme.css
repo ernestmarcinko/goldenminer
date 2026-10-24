@@ -45,6 +45,12 @@ a:hover {
   100% { transform: translate(-50%, calc(-50% - 64px)); opacity: 0; }
 }
 
+@keyframes gmFlicker {
+  0% { opacity: 0.9; }
+  45% { opacity: 1; }
+  100% { opacity: 0.85; }
+}
+
 @keyframes gmPop {
   0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
   20% { transform: translate(-50%, calc(-50% - 16px)) scale(1.15); opacity: 1; }

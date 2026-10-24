@@ -1,6 +1,7 @@
 import type { Feedback } from '../../store/gameStore';
-import type { FeatureKind, TickEvent } from '../../core/types';
+import type { FeatureKind, MotionSettings, TickEvent } from '../../core/types';
 import { formatNumber } from '../format';
+import { MINER_ROW, SHAFT_ROW_PX } from './shaftModel';
 
 export type ParticleKind = 'gold' | 'diamond' | FeatureKind;
 export interface Particle { id: number; kind: ParticleKind; text: string; x: number; y: number; bornAt: number }
@@ -59,4 +60,14 @@ export function feedbackToEvents(f: Feedback): TickEvent[] {
 export function pruneParticles(list: Particle[], nowMs: number, lifeMs = 1300, max = 30): Particle[] {
   const alive = list.filter((p) => nowMs - p.bornAt <= lifeMs);
   return alive.length > max ? alive.slice(alive.length - max) : alive;
+}
+
+// The dig face is the shaft cell one row below the miner; the strip is centred, so that cell is mid-width.
+export function shaftFaceOrigin(sceneWidth: number): { x: number; y: number } {
+  return { x: sceneWidth / 2, y: (MINER_ROW + 1.5) * SHAFT_ROW_PX };
+}
+
+// Floats off drops the Gold and Diamond numbers, pops off drops the find pop-ups.
+export function eventsForMotion(events: TickEvent[], motion: Pick<MotionSettings, 'floats' | 'pops'>): TickEvent[] {
+  return events.filter((e) => (e.kind === 'find' ? motion.pops : motion.floats));
 }
