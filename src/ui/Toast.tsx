@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
-import { setOfSlot } from '../core/items';
 import type { EquipNotice, GameStore } from '../store/gameStore';
-import { rarityOf } from './character/itemView';
 import { useGame } from './useGame';
 
 export const EQUIP_TOAST_MS = 2000;
@@ -24,13 +22,12 @@ export function useRecentEquip(store: GameStore): EquipNotice | null {
 export function Toast({ store }: { store: GameStore }) {
   const notice = useRecentEquip(store);
   if (notice === null) return null;
-  const item = store.state.equipped[setOfSlot(notice.slot)][notice.slot];
   return (
     <div className="gm-toast" role="status">
       <span className="gm-toast__dot" aria-hidden="true" />
       <span>
         Equipped{' '}
-        <strong className="gm-toast__name" data-rarity={item === undefined ? 'normal' : rarityOf(item)}>{notice.name}</strong>
+        <strong className="gm-toast__name" data-rarity={notice.rarity}>{notice.name}</strong>
       </span>
     </div>
   );

@@ -175,11 +175,11 @@ describe('inventory intents', () => {
     s.bags.mining[2] = gear(s, 'lamp', { name: 'Oil Lamp Helm' });
     expect(store.equipNotice).toBeNull();
     expect(store.equip({ where: 'bag', set: 'mining', index: 0 })).toBe('ok');
-    expect(store.equipNotice).toEqual({ id: 1, slot: 'pickaxe', name: 'Stonebiter' });
+    expect(store.equipNotice).toEqual({ id: 1, slot: 'pickaxe', name: 'Stonebiter', rarity: 'magic' });
     expect(store.drop({ where: 'bag', set: 'mining', index: 1 }, { where: 'worn', slot: 'pickaxe' })).toBe('ok');
     expect(store.equipNotice?.id).toBe(1);
     expect(store.drop({ where: 'bag', set: 'mining', index: 2 }, { where: 'worn', slot: 'lamp' })).toBe('ok');
-    expect(store.equipNotice).toEqual({ id: 2, slot: 'lamp', name: 'Oil Lamp Helm' });
+    expect(store.equipNotice).toEqual({ id: 2, slot: 'lamp', name: 'Oil Lamp Helm', rarity: 'magic' });
   });
 
   it('replacing the game clears the equip notice', () => {

@@ -218,6 +218,16 @@ it('found gems stack in the bag, then go to the Gems tab, and never wait', () =>
   expect(s.overflow).toEqual([]);
 });
 
+it('a found stack of 3 tops up a stack of 24, then takes an empty cell with its own id', () => {
+  const s = newGame(1, 0);
+  s.bags.mining[3] = gem(s, 'ruby', { count: 24 });
+  const found = gem(s, 'ruby', { count: 3 });
+  expect(receiveItem(s, found, 'mining')).toEqual([expect.objectContaining({ outcome: 'bag' })]);
+  expect(s.bags.mining[3]).toMatchObject({ count: 25 });
+  expect(s.bags.mining[0]).toEqual({ ...found, count: 2 });
+  expect(s.stash.gems.ruby.tiny).toBe(0);
+});
+
 it('sell-the-worst skips single gems even when they rank below the new item', () => {
   const s = newGame(1, 0);
   const gems = s.bags.mining.map(() => gem(s, 'ruby'));

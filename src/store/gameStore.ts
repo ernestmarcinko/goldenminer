@@ -4,7 +4,7 @@ import { moveTo as coreMoveTo } from '../core/dig';
 import * as inv from '../core/inventory';
 import { itemName } from '../core/itemData';
 import { BATTLE_SLOTS, MINING_SLOTS, setOfSlot } from '../core/items';
-import type { GearSet, Slot } from '../core/items';
+import type { GearItem, GearSet, Slot } from '../core/items';
 import { drainOverflow } from '../core/loot';
 import { newGame } from '../core/newGame';
 import { decodeSave, encodeSave, type DecodeResult } from '../core/save';
@@ -17,7 +17,7 @@ import type {
 import { BACKUP_PREFIX, SAVE_KEY, type StorageLike } from './storage';
 
 /** Gear just worn into a slot that was empty; `id` counts up so the UI can tell one from the next. */
-export interface EquipNotice { id: number; slot: Slot; name: string }
+export interface EquipNotice { id: number; slot: Slot; name: string; rarity: GearItem['rarity'] }
 
 export interface Feedback { gold: number; diamonds: number; finds: FindRecord[] }
 
@@ -193,7 +193,7 @@ export class GameStore {
       for (const slot of wornSlots()) {
         const item = this._state.equipped[setOfSlot(slot)][slot];
         if (before.includes(slot) || item === undefined) continue;
-        this._equipNotice = { id: ++this.noticeCount, slot, name: itemName(item) };
+        this._equipNotice = { id: ++this.noticeCount, slot, name: itemName(item), rarity: item.rarity };
       }
       drainOverflow(this._state);
       this.changed();

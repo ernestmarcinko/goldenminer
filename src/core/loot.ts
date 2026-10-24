@@ -98,29 +98,37 @@ function stowGear(state: GameState, item: GearItem, bagSet: GearSet): LootNote[]
   return null;
 }
 
-// A found gem is one gem: it tops up a bag stack, takes an empty cell, else joins the Gems tab, else is sold.
+// A found stack tops up bag stacks, then fills the first empty cell (one stack, under the incoming id), then joins the
+// Gems tab; whatever is left is sold. One note, for where the first gem went (a sold remainder still pays out).
 function stowGem(state: GameState, gem: GemItem, bag: Cell[]): LootNote[] {
-  if (gem.count !== 1) throw new Error('stowGem takes one gem at a time');
-  const stack = bag.find(
-    (c): c is GemItem => c?.type === 'gem' && c.gem === gem.gem && c.grade === gem.grade && c.count < GEM_BAG_STACK,
-  );
-  if (stack !== undefined) {
-    stack.count += 1;
-    return [note(gem, 'bag')];
+  let left = gem.count;
+  let first: LootOutcome | null = null;
+  for (const c of bag) {
+    if (left === 0) break;
+    if (c?.type !== 'gem' || c.gem !== gem.gem || c.grade !== gem.grade || c.count >= GEM_BAG_STACK) continue;
+    const take = Math.min(GEM_BAG_STACK - c.count, left);
+    c.count += take;
+    left -= take;
+    first ??= 'bag';
   }
   const empty = firstEmpty(bag);
-  if (empty >= 0) {
-    bag[empty] = gem;
-    return [note(gem, 'bag')];
+  if (left > 0 && empty >= 0) {
+    const take = Math.min(GEM_BAG_STACK, left);
+    bag[empty] = { ...gem, count: take };
+    left -= take;
+    first ??= 'bag';
   }
   const counts = state.stash.gems[gem.gem];
-  if (counts[gem.grade] < GEM_STASH_STACK) {
-    counts[gem.grade] += 1;
-    return [note(gem, 'stash')];
+  const room = Math.min(left, GEM_STASH_STACK - counts[gem.grade]);
+  if (room > 0) {
+    counts[gem.grade] += room;
+    left -= room;
+    first ??= 'stash';
   }
-  const value = sellValue(gem);
+  if (left === 0) return [note(gem, first ?? 'bag')];
+  const value = gemSellValue(gem) * left;
   state.gold += value;
-  return [note(gem, 'sold', value)];
+  return [note(gem, first ?? 'sold', first === null ? value : 0)];
 }
 
 export function receiveItem(state: GameState, item: Item, gemBag: GearSet): LootNote[] {

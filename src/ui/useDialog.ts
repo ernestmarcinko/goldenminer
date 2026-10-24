@@ -26,7 +26,9 @@ function focusIndex(list: HTMLElement[], active: Element | null, backwards: bool
 
 /**
  * The element a dialog closing right before this one mounts had focus returned for. Settings swaps between its main
- * view and a sub-dialog by unmounting one and mounting the other, and the opener must survive that swap.
+ * view and a sub-dialog by unmounting one and mounting the other, and the opener must survive that swap. It also
+ * covers React StrictMode's double effect run (cleanup, then setup again), which is why the timeout re-checks
+ * `handover === opener` before clearing it.
  */
 let handover: HTMLElement | null = null;
 

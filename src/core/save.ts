@@ -57,7 +57,7 @@ export const MIGRATIONS: Record<number, Migration> = {
     const bagOf = (old: unknown[]): unknown[] => {
       const cells: unknown[] = [];
       for (const item of old) {
-        if (!isOldGem(item)) { cells.push(item); continue; }
+        if (!isOldGem(item)) { cells.push(withSocketed(item)); continue; }
         const grade = gemGradeFor(item.ilvl);
         const stack = cells.find(
           (c): c is GemItem =>
@@ -72,12 +72,12 @@ export const MIGRATIONS: Record<number, Migration> = {
     const general: unknown[] = [];
     for (const item of state.stash) {
       if (isOldGem(item)) toTab(item);
-      else general.push(item);
+      else general.push(withSocketed(item));
     }
     const overflow: unknown[] = [];
     for (const held of state.overflow) {
       if (isObject(held) && isOldGem(held.item)) toTab(held.item);
-      else overflow.push(held);
+      else overflow.push(isObject(held) ? { ...held, item: withSocketed(held.item) } : held);
     }
     const wornOf = (worn: unknown): unknown =>
       isObject(worn) ? Object.fromEntries(Object.entries(worn).map(([slot, item]) => [slot, withSocketed(item)])) : worn;

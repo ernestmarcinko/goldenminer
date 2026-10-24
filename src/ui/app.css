@@ -67,7 +67,7 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); pointer-events: none;
 }
 .gm-toast__dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--gm-up); }
-.gm-toast__name { font-family: var(--gm-font-display); font-weight: 400; color: var(--gm-normal); overflow-wrap: anywhere; }
+.gm-toast__name { font-family: var(--gm-font-display); font-weight: 400; color: var(--gm-normal); overflow-wrap: anywhere; margin-left: 0.2em; }
 .gm-toast__name[data-rarity='magic'] { color: var(--gm-magic); }
 .gm-toast__name[data-rarity='rare'] { color: var(--gm-rare); }
 .gm-toast__name[data-rarity='legendary'] { color: var(--gm-legendary); }

@@ -179,14 +179,53 @@ it('migrates a real schema-3 save: gems become graded stacks in fixed slots', ()
   expect(s.equipped.mining.pickaxe?.gems).toEqual([{ gem: 'starstone', grade: 'tiny' }]);
 });
 
-it('migration keeps every gem and every gear id', () => {
+it('migration keeps every gem', () => {
   const r = decodeSave(fixture3.trim());
   if (!r.ok) throw new Error(r.reason);
-  const total = (st: GameState) =>
-    [...st.bags.mining, ...st.bags.battle].reduce((n, c) => n + (c?.type === 'gem' ? c.count : 0), 0)
-    + Object.values(st.stash.gems).reduce((n, g) => n + Object.values(g).reduce((a, b) => a + b, 0), 0)
-    + Object.values(st.equipped.mining).reduce((n, it) => n + (it?.gems.length ?? 0), 0);
+  type Socketed = { type?: string; gems?: unknown[] } | null | undefined;
+  const sockets = (list: Socketed[]) => list.reduce((n, it) => n + (it?.gems?.length ?? 0), 0);
+  const everywhere = (st: { bags: { mining: Socketed[]; battle: Socketed[] }; general: Socketed[]; held: Socketed[]; worn: Socketed[] }) =>
+    sockets([...st.bags.mining, ...st.bags.battle, ...st.general, ...st.held, ...st.worn]);
+  const old = JSON.parse(decompressFromBase64(fixture3.trim())).state;
+  const oldSockets = everywhere({
+    bags: old.bags, general: old.stash, held: old.overflow.map((o: { item: Socketed }) => o.item),
+    worn: [...Object.values(old.equipped.mining), ...Object.values(old.equipped.battle)] as Socketed[],
+  });
+  const st = r.state;
+  const newSockets = everywhere({
+    bags: st.bags, general: st.stash.general, held: st.overflow.map((o) => o.item),
+    worn: [...Object.values(st.equipped.mining), ...Object.values(st.equipped.battle)],
+  });
+  expect(newSockets).toBe(oldSockets);
+  const total = (state: GameState) =>
+    [...state.bags.mining, ...state.bags.battle].reduce((n, c) => n + (c?.type === 'gem' ? c.count : 0), 0)
+    + Object.values(state.stash.gems).reduce((n, g) => n + Object.values(g).reduce((a, b) => a + b, 0), 0)
+    + newSockets;
   expect(total(r.state)).toBe(25);   // the old save holds 15 bag gems, 9 stash gems and 1 socketed gem
+});
+
+it('schema-3 gems socketed in unworn gear (bag, General, held) migrate to graded gems', () => {
+  const env = JSON.parse(decompressFromBase64(fixture3.trim()));
+  const old = env.state;
+  const oldGem = (id: number) => ({ id, type: 'gem', gem: 'ruby', ilvl: 5 });
+  const socket = (item: { sockets: number; gems: unknown[] }, id: number) => { item.sockets = Math.max(item.sockets, 1); item.gems = [oldGem(id)]; };
+  const bagItem = old.bags.mining.find((i: { type: string }) => i.type === 'gear');
+  const stashItem = old.stash.find((i: { type: string }) => i.type === 'gear');
+  socket(bagItem, 248);
+  socket(stashItem, 249);
+  const held = { ...structuredClone(old.bags.mining.filter((i: { type: string }) => i.type === 'gear')[1]), id: 251 };
+  socket(held, 250);
+  old.overflow.push({ bag: 'mining', item: held });
+  old.nextId = 252;
+  const r = decodeSave(raw(env));
+  if (!r.ok) throw new Error(`rejected: ${r.reason}`);
+  const graded = [{ gem: 'ruby', grade: 'small' }];
+  const byId = (id: number) => [
+    ...r.state.bags.mining, ...r.state.bags.battle, ...r.state.stash.general, ...r.state.overflow.map((o) => o.item),
+  ].find((c) => c?.id === id);
+  expect(byId(bagItem.id)).toMatchObject({ gems: graded });
+  expect(byId(stashItem.id)).toMatchObject({ gems: graded });
+  expect(r.state.overflow.find((o) => o.item.id === 251)?.item.gems).toEqual(graded);
 });
 
 it('migration keeps every gear id', () => {

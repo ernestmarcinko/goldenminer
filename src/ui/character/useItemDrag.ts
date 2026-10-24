@@ -159,7 +159,10 @@ export function useItemDrag({ store, onResult }: {
   useEffect(() => {
     if (!isHeld) return undefined;
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setHold(null);
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      setHold(null);
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
