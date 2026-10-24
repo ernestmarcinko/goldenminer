@@ -51,6 +51,7 @@ export function App({ store, lock }: { store: GameStore; lock: TabLock }) {
 
 function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: () => void) => boolean }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const lastRunHeading = useRef<HTMLHeadingElement>(null);
   const { offlineSummary, state } = useGame(store);
   const running = state.activity.kind === 'map';
   const [view, setView] = useState<View>(running ? 'maps' : 'mine');
@@ -72,14 +73,13 @@ function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: ()
           ) : running ? (
             <RunView store={store} />
           ) : (
-            <MapsView store={store} />
+            <MapsView store={store} lastRunRef={lastRunHeading} />
           )}
         </div>
         <div className="gm-app__side"><CharacterPanel store={store} /></div>
       </main>
       <Toast store={store} />
-      <RunResultDialog store={store} />
-      {/* last, so it paints over Settings just as it sits on top of the dialog stack (an import can raise it there) */}
+      <RunResultDialog store={store} fallbackFocus={lastRunHeading} />
       {settingsOpen && <SettingsDialog store={store} runAsOwner={runAsOwner} onClose={() => setSettingsOpen(false)} />}
       {offlineSummary && <OfflineSummary summary={offlineSummary} onClose={() => store.dismissSummary()} />}
     </div>

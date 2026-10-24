@@ -44,7 +44,7 @@ function SettingsMain({ store, returnTo, onOpen, onClose }: {
   store: GameStore; returnTo: Sub | null; onOpen: (sub: Sub) => void; onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
-  const closeRef = useDialog<HTMLButtonElement>(onClose, dialogRef);
+  const { focusRef: closeRef, depth } = useDialog<HTMLButtonElement>(onClose, dialogRef);
   const { state } = useGame(store);
   const reduced = usePrefersReducedMotion();
   const shown = effectiveMotion(state.settings.motion, reduced);
@@ -58,7 +58,7 @@ function SettingsMain({ store, returnTo, onOpen, onClose }: {
   const set = (patch: Partial<MotionSettings>): void => store.setMotion(patch);
 
   return (
-    <div className="gm-overlay">
+    <div className="gm-overlay" style={{ zIndex: 10 + depth }}>
       <div ref={dialogRef} className="gm-dialog gm-dialog--wide" role="dialog" aria-modal="true" aria-labelledby="gm-settings-title">
         <div className="gm-dialog__head">
           <h2 id="gm-settings-title" className="gm-dialog__title">Settings</h2>

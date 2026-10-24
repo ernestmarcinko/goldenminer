@@ -35,14 +35,14 @@ function Select<T extends string>({ label, value, options, onChange }: {
 export function LootFilterDialog({ store, onClose }: { store: GameStore; onClose: () => void }) {
   const { state } = useGame(store);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const closeRef = useDialog<HTMLButtonElement>(onClose, dialogRef);
+  const { focusRef: closeRef, depth } = useDialog<HTMLButtonElement>(onClose, dialogRef);
   const rules = state.settings.lootFilter;
   const full = rules.length >= MAX_LOOT_RULES;
   const set = (next: readonly LootRule[]): void => {
     if (next !== rules) store.setLootFilter([...next]);
   };
   return (
-    <div className="gm-overlay">
+    <div className="gm-overlay" style={{ zIndex: 10 + depth }}>
       <div ref={dialogRef} className="gm-dialog gm-dialog--rules" role="dialog" aria-modal="true" aria-labelledby="gm-filter-title">
         <div className="gm-dialog__head">
           <h2 id="gm-filter-title" className="gm-dialog__title">Loot filter</h2>

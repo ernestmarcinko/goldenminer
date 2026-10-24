@@ -56,6 +56,8 @@ it('floor tiles follow the mockup pattern', () => {
   expect(tiles).toHaveLength(126);
   expect(tiles[0]).toEqual({ bg: '#111111', edge: 'rgba(0, 0, 0, 0.3)' });
   expect(tiles[1]?.bg).toBe('#333333');
+  expect(tiles[14 + 1]?.bg).toBe('#333333');
+  expect(tiles[2 * 14 + 2]?.bg).toBe('#111111');
 });
 
 it('the other floor patterns', () => {
@@ -67,6 +69,7 @@ it('the other floor patterns', () => {
   expect(at(2, 0, 0)).toBe('#333333');
   expect(at(2, 1, 0)).toBe('#222222');
   expect(at(2, 2, 0)).toBe('#111111');
+  expect(at(2, 1, 2)).toBe('#333333');
   expect(at(3, 1, 1)).toBe('#111111');
   expect(at(3, 1, 4)).toBe('#222222');
   expect(at(3, 3, 1)).toBe('#222222');

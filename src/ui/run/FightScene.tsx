@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import type { GameStore } from '../../store/gameStore';
 import { monsterLook } from '../../core/monsterLook';
 import type { DungeonType } from '../../core/dungeons';
@@ -43,6 +43,8 @@ export function FightScene({ store, run, floor, roomSize }: {
   const youRef = useRef<HTMLDivElement>(null);
   const nextIdRef = useRef(0);
   const [floats, setFloats] = useState<FloatingNumber[]>([]);
+  // null until the stage is measured; the monster is drawn at its full scale until then
+  const [stageWidth, setStageWidth] = useState<number | null>(null);
 
   const tiles = useMemo(() => fightTiles(floor), [floor]);
   const monster = run.queue[0];
@@ -57,8 +59,23 @@ export function FightScene({ store, run, floor, roomSize }: {
     [seed, tier, species, rank, extra],
   );
 
+  // A big monster must fit a narrow stage: it is drawn at the largest whole scale that does, never scaled by CSS.
+  useLayoutEffect(() => {
+    const el = stageRef.current;
+    if (el === null || typeof ResizeObserver === 'undefined') return undefined;
+    setStageWidth(el.clientWidth);
+    const observer = new ResizeObserver(() => setStageWidth(el.clientWidth));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  const gridWidth = look?.grid[0]?.length ?? 1;
+  const scale = look === null ? MONSTER_SCALE
+    : Math.max(1, Math.min(MONSTER_SCALE * look.scale, stageWidth === null ? Infinity : Math.floor(stageWidth / gridWidth)));
+
   // Auto strikes and the damage taken arrive once a second, summed by the store.
   useEffect(() => {
+    // strikes piled up while another tab was showing would burst out all at once
+    store.drainFeedback();
     let lastDrain = Date.now();
     const id = window.setInterval(() => {
       const now = Date.now();
@@ -85,7 +102,7 @@ export function FightScene({ store, run, floor, roomSize }: {
     if (events.length === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
     // a keyboard "click" has no pointer position: the number floats off the monster instead
-    const keyboard = e.clientX === 0 && e.clientY === 0;
+    const keyboard = e.detail === 0;
     const origin = keyboard ? centreOf(e.currentTarget, stageRef.current) : { x: e.clientX - rect.left, y: e.clientY - rect.top };
     const now = Date.now();
     const spawned: FloatingNumber[] = [];
@@ -130,7 +147,7 @@ export function FightScene({ store, run, floor, roomSize }: {
       )}
       <div ref={stageRef} aria-hidden="true" className="gm-fight__stage">
         {look !== null && (
-          <PixelArt grid={look.grid} palette={look.palette} scale={MONSTER_SCALE * look.scale} aura={look.aura} />
+          <PixelArt grid={look.grid} palette={look.palette} scale={scale} aura={look.aura} />
         )}
       </div>
       <div aria-hidden="true" className="gm-fight__foot">

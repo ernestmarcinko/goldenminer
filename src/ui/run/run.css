@@ -2,6 +2,7 @@
 .gm-run__top { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
 .gm-run__side { flex: 1 1 200px; max-width: 240px; min-width: 180px; display: flex; flex-direction: column; gap: 10px; }
 .gm-run__fight { flex: 999 1 400px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+@media (max-width: 760px) { .gm-run__side { flex-basis: 100%; max-width: none; } }
 .gm-run__head { display: flex; align-items: center; gap: 10px; }
 .gm-run__tier { flex: 0 0 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
 .gm-run__name { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 17px; line-height: 1.2; overflow-wrap: anywhere; }

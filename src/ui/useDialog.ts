@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import { isTopDialog, nextDialogId, nextFocusIndex, popDialog, pushDialog } from './dialogStack';
 
@@ -35,15 +35,22 @@ let handover: HTMLElement | null = null;
 /**
  * Keeps keyboard focus in a modal dialog. On open it focuses the element behind the returned ref and remembers who
  * had focus. While it is the topmost dialog, Escape closes it and Tab / Shift+Tab cycle through `dialogRef`'s
- * focusable descendants. On close, focus goes back to the remembered element if it would otherwise be lost.
+ * focusable descendants. On close, focus goes back to the remembered element if it would otherwise be lost; when that
+ * element is gone, it goes to `fallback`'s element instead. `depth` is the dialog's place in the stack (0 until it
+ * opens): the overlay paints at `10 + depth`, so the topmost dialog is the one on top.
  */
-export function useDialog<T extends HTMLElement>(onClose: () => void, dialogRef: RefObject<HTMLElement | null>) {
+export function useDialog<T extends HTMLElement>(
+  onClose: () => void, dialogRef: RefObject<HTMLElement | null>, fallback?: RefObject<HTMLElement | null>,
+): { focusRef: RefObject<T | null>; depth: number } {
   const focusRef = useRef<T>(null);
+  const fallbackRef = useRef(fallback);
+  fallbackRef.current = fallback;
+  const [depth, setDepth] = useState(0);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   useEffect(() => {
     const id = nextDialogId();
-    pushDialog(id);
+    setDepth(pushDialog(id));
     const active = document.activeElement;
     const opener = handover ?? (active instanceof HTMLElement && active !== document.body ? active : null);
     handover = null;
@@ -69,9 +76,11 @@ export function useDialog<T extends HTMLElement>(onClose: () => void, dialogRef:
       setTimeout(() => {
         if (handover === opener) handover = null;
         const now = document.activeElement;
-        if (opener?.isConnected && (now === null || now === document.body)) opener.focus();
+        if (now !== null && now !== document.body) return;
+        if (opener?.isConnected) opener.focus();
+        else fallbackRef.current?.current?.focus();
       }, 0);
     };
   }, [dialogRef]);
-  return focusRef;
+  return { focusRef, depth };
 }

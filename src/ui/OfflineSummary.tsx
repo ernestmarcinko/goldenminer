@@ -13,10 +13,10 @@ const FIND_LABELS: Record<FeatureKind, [string, string]> = {
 
 export function OfflineSummary({ summary, onClose }: { summary: Summary; onClose: () => void }) {
   const dialogRef = useRef<HTMLDivElement>(null);
-  const okRef = useDialog<HTMLButtonElement>(onClose, dialogRef);
+  const { focusRef: okRef, depth } = useDialog<HTMLButtonElement>(onClose, dialogRef);
   const finds = (Object.keys(FIND_LABELS) as FeatureKind[]).filter((k) => (summary.finds[k] ?? 0) > 0);
   return (
-    <div className="gm-overlay">
+    <div className="gm-overlay" style={{ zIndex: 10 + depth }}>
       <div ref={dialogRef} className="gm-dialog" role="dialog" aria-modal="true" aria-labelledby="gm-offline-title">
         <h2 id="gm-offline-title" className="gm-dialog__title">
           While you were away ({formatDuration(summary.elapsedMs)}): dug {formatNumber(summary.metres)} m, +
