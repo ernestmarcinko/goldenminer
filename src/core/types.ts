@@ -36,6 +36,7 @@ export interface GameState {
 export interface Stats {
   digPower: number; autoTicksPerSecond: number; ticksPerClick: number; lampSight: number;
   offlineCapMs: number; featureChances: Record<FeatureKind, number>; hardRockChance: number;
+  goldMultiplier: number; diamondMultiplier: number;
 }
 export type TickEvent =
   | { kind: 'gold'; amount: number }

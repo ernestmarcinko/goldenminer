@@ -68,6 +68,7 @@ export function minimapModel(state: GameState, lampSight: number): MinimapModel 
   const ahead = Object.keys(state.ahead)
     .map(Number)
     .sort((a, b) => a - b)
+    .filter((metre) => metre <= state.deepest + lampSight)
     .flatMap((metre): MinimapModel['ahead'] => {
       const roll = state.ahead[metre];
       if (!roll) return [];

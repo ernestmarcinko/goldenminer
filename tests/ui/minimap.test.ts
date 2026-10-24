@@ -58,3 +58,7 @@ it('arrow, page, Home and End keys climb within the explored depths', () => {
   expect(depthForKey('End', 10, 40)).toBe(40);
   expect(depthForKey('a', 10, 40)).toBeNull();
 });
+
+it('only metres within the current lamp sight are shown ahead', () => {
+  expect(minimapModel(at(340), 1).ahead).toEqual([{ y: (340.5 - 290) * 6, kind: 'chest' }]);
+});
