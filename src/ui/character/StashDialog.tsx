@@ -39,17 +39,23 @@ export function StashDialog({ store, set, onClose }: { store: GameStore; set: Ge
     if (focus) tabRefs.current[next]?.focus();
   };
   const onTabKey = (e: KeyboardEvent): void => {
-    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-    if (step === 0) return;
+    const last = STASH_TABS.length - 1;
+    const at = STASH_TABS.indexOf(tab);
+    const index = e.key === 'ArrowRight' ? (at + 1) % STASH_TABS.length
+      : e.key === 'ArrowLeft' ? (at + last) % STASH_TABS.length
+      : e.key === 'Home' ? 0
+      : e.key === 'End' ? last
+      : -1;
+    if (index < 0) return;
     e.preventDefault();
-    const next = STASH_TABS[(STASH_TABS.indexOf(tab) + step + STASH_TABS.length) % STASH_TABS.length];
+    const next = STASH_TABS[index];
     if (next !== undefined) openTab(next, true);
   };
 
   const bag = state.bags[bagSet];
   const bagLabel = BAGS.find((b) => b.set === bagSet)?.toggle ?? 'Bag';
   return (
-    <div className="gm-overlay">
+    <div className="gm-overlay gm-overlay--top">
       <div
         ref={dialogRef}
         className="gm-dialog gm-dialog--wide gm-stash"
@@ -83,7 +89,13 @@ export function StashDialog({ store, set, onClose }: { store: GameStore; set: Ge
                 </button>
               ))}
             </div>
-            <div role="tabpanel" id="gm-stash-panel" aria-labelledby={tabId(tab)} className="gm-stash__panel">
+            <div
+              role="tabpanel"
+              id="gm-stash-panel"
+              aria-labelledby={tabId(tab)}
+              className="gm-stash__panel"
+              tabIndex={tab === 'maps' ? 0 : undefined}
+            >
               {tab === 'general' && (
                 <ItemGrid
                   className="gm-grid--stash"

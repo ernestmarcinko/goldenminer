@@ -35,7 +35,7 @@
   position: relative; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
   padding: 0; border-radius: 6px; background: #241e19; border: 2px solid var(--gm-normal); cursor: pointer;
 }
-.gm-item:hover { background: #3a2f20; }
+button.gm-item:hover { background: #3a2f20; }
 .gm-slot__box.gm-item { border-radius: 8px; }
 .gm-item[data-rarity='magic'], .gm-card[data-rarity='magic'] { --gm-tone: var(--gm-magic); }
 .gm-item[data-rarity='rare'], .gm-card[data-rarity='rare'] { --gm-tone: var(--gm-rare); }
@@ -58,7 +58,6 @@
   color: var(--gm-text); text-shadow: 0 1px 2px #000; pointer-events: none;
 }
 .gm-item--dim { opacity: 0.3; cursor: default; }
-.gm-item--dim:hover { background: #241e19; }
 
 .gm-grid { display: grid; grid-template-columns: repeat(6, minmax(44px, 52px)); gap: 6px; }
 .gm-grid--stash { grid-template-columns: repeat(8, minmax(44px, 52px)); }
@@ -91,7 +90,9 @@
 .gm-card__btn--quiet { border-color: transparent; background: transparent; color: var(--gm-muted); }
 
 .gm-stash { position: relative; display: flex; flex-direction: column; gap: 12px; }
+.gm-overlay.gm-overlay--top { align-items: flex-start; padding-top: max(16px, 6vh); }
 .gm-dialog.gm-stash { max-width: 900px; }
+.gm-stash .gm-char__status:empty { min-height: 0; margin-top: -12px; }
 .gm-stash__body { display: flex; align-items: flex-start; gap: 24px; }
 .gm-stash__main { display: flex; flex-direction: column; min-width: 0; }
 .gm-stash__tabs { display: flex; gap: 4px; }
@@ -100,7 +101,7 @@
   background: var(--gm-header); color: var(--gm-normal); font: inherit; font-weight: 700; cursor: pointer;
 }
 .gm-stash__tab[aria-selected='true'] { background: var(--gm-panel-raised); border-color: var(--gm-gold); color: var(--gm-gold-bright); }
-.gm-stash__tab:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: -2px; }
+.gm-stash__tab:focus-visible, .gm-stash__panel:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: -2px; }
 .gm-stash__panel {
   box-sizing: border-box; padding: 10px; border-radius: 0 8px 8px 8px; background: var(--gm-panel-raised);
   border: 1px solid var(--gm-gold);
@@ -110,6 +111,8 @@
 .gm-stash__bag .gm-char__toggle { align-self: flex-start; }
 
 .gm-gemtab { display: grid; grid-template-columns: 72px repeat(5, minmax(44px, 52px)); gap: 6px; align-items: center; }
+.gm-gemtab__cell { display: grid; aspect-ratio: 1; min-width: 44px; }
+.gm-gemtab__cell > .gm-cell { height: 100%; }
 .gm-gemtab__head { font-size: 12px; color: var(--gm-muted); text-align: center; }
 .gm-gemtab__name { font-size: 13px; color: var(--gm-gem-color); }
 

@@ -31,20 +31,24 @@ function GemLine({ row, state, handlers }: { row: GemRow; state: GameState; hand
       {row.cells.map((cell) => {
         const target = { where: 'gems', gem: row.gem, grade: cell.grade } as const;
         const item = itemAt(state, target);
-        return item === undefined ? (
-          <div key={cell.grade} className="gm-cell gm-item gm-item--dim" data-rarity="gem" aria-hidden="true">
-            <Sprite name={baseSprite(row.gem)} scale={3} />
+        // The wrapper stays mounted as the count crosses 0 and 1, so a drop target can rely on it.
+        return (
+          <div key={cell.grade} className="gm-gemtab__cell" data-gem={row.gem} data-grade={cell.grade}>
+            {item === undefined ? (
+              <div className="gm-cell gm-item gm-item--dim" data-rarity="gem" aria-hidden="true">
+                <Sprite name={baseSprite(row.gem)} scale={3} />
+              </div>
+            ) : (
+              <ItemButton
+                item={item}
+                target={target}
+                handlers={handlers}
+                scale={3}
+                className="gm-cell gm-item"
+                label={itemName(item)}
+              />
+            )}
           </div>
-        ) : (
-          <ItemButton
-            key={cell.grade}
-            item={item}
-            target={target}
-            handlers={handlers}
-            scale={3}
-            className="gm-cell gm-item"
-            label={itemName(item)}
-          />
         );
       })}
     </>
