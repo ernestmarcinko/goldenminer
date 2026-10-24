@@ -128,7 +128,6 @@ button.gm-item:hover { background: #3a2f20; }
   box-sizing: border-box; padding: 10px; border-radius: 0 8px 8px 8px; background: var(--gm-panel-raised);
   border: 1px solid var(--gm-gold);
 }
-.gm-stash__empty { margin: 0; max-width: 300px; }
 .gm-stash__bag { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .gm-stash__bag .gm-char__toggle { align-self: flex-start; }
 

@@ -34,12 +34,18 @@ export function mapDungeon(seed: number, map: Pick<MapItem, 'tier' | 'metre'>): 
   return { key: `${map.tier}:${index}`, type: dungeonType(seed, map.tier, index) };
 }
 
+/** Maps found at the same metre are one dungeon: a row has the oldest map's id, to run it, and how many there are. */
+export interface MapEntry { id: number; metre: number; rooms: number; count: number }
+
 export interface MapGroup {
   key: string; name: string; tier: number;
-  maps: { id: number; metre: number; rooms: number }[];
+  maps: MapEntry[];
 }
 
-/** The stash's maps by tier and dungeon: the highest tier first, then by name; the oldest map first within a group. */
+/**
+ * The stash's maps by tier and dungeon: the highest tier first, then by name. Within a group the maps of one metre
+ * collapse into one entry, and the entries go oldest first.
+ */
 export function mapGroups(seed: number, maps: readonly MapItem[]): MapGroup[] {
   const groups = new Map<string, MapGroup>();
   for (const m of maps) {
@@ -49,7 +55,12 @@ export function mapGroups(seed: number, maps: readonly MapItem[]): MapGroup[] {
       group = { key, name: type.name, tier: m.tier, maps: [] };
       groups.set(key, group);
     }
-    group.maps.push({ id: m.id, metre: m.metre, rooms: type.rooms });
+    const same = group.maps.find((e) => e.metre === m.metre);
+    if (same === undefined) group.maps.push({ id: m.id, metre: m.metre, rooms: type.rooms, count: 1 });
+    else {
+      same.id = Math.min(same.id, m.id);
+      same.count++;
+    }
   }
   const out = [...groups.values()];
   for (const g of out) g.maps.sort((a, b) => a.id - b.id);

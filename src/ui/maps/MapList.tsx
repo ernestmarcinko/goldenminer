@@ -19,19 +19,21 @@ export function MapList({ store, compact = false, onRun }: { store: GameStore; c
           <h3 className="gm-maps__head">
             <span className="gm-badge">T{formatNumber(g.tier)}</span>
             <span className="gm-maps__name">{g.name}</span>
-            <span className="gm-muted gm-maps__count">×{formatNumber(g.maps.length)}</span>
+            <span className="gm-muted gm-maps__count">×{formatNumber(g.maps.reduce((n, m) => n + m.count, 0))}</span>
           </h3>
           <ul className="gm-maps__rows">
             {g.maps.map((m) => (
               <li key={m.id} className="gm-maps__row">
                 <span className="gm-maps__found">
                   found at {formatNumber(m.metre)} m · {plural(m.rooms, 'room', 'rooms')}
+                  {m.count > 1 && <span className="gm-muted"> ×{formatNumber(m.count)}</span>}
                 </span>
                 <button
                   type="button"
                   className="gm-btn gm-maps__run"
                   disabled={running}
-                  aria-label={`Run ${g.name}, found at ${formatNumber(m.metre)} m`}
+                  title={running ? 'Leave the current map first' : undefined}
+                  aria-label={`Run ${g.name}, found at ${formatNumber(m.metre)} m${m.count > 1 ? `, ${formatNumber(m.count)} maps` : ''}`}
                   onClick={() => { if (store.startMap(m.id) === 'ok') onRun?.(); }}
                 >
                   Run
