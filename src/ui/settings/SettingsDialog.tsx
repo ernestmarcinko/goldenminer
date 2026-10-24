@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SHAFT_MOTIONS, type MotionSettings, type ShaftMotion } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
 import { LootFilterDialog } from '../character/LootFilterDialog';
@@ -43,7 +43,8 @@ export function SettingsDialog({ store, runAsOwner, onClose }: Props) {
 function SettingsMain({ store, returnTo, onOpen, onClose }: {
   store: GameStore; returnTo: Sub | null; onOpen: (sub: Sub) => void; onClose: () => void;
 }) {
-  const closeRef = useDialog<HTMLButtonElement>(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useDialog<HTMLButtonElement>(onClose, dialogRef);
   const { state } = useGame(store);
   const reduced = usePrefersReducedMotion();
   const shown = effectiveMotion(state.settings.motion, reduced);
@@ -58,7 +59,7 @@ function SettingsMain({ store, returnTo, onOpen, onClose }: {
 
   return (
     <div className="gm-overlay">
-      <div className="gm-dialog gm-dialog--wide" role="dialog" aria-modal="true" aria-labelledby="gm-settings-title">
+      <div ref={dialogRef} className="gm-dialog gm-dialog--wide" role="dialog" aria-modal="true" aria-labelledby="gm-settings-title">
         <div className="gm-dialog__head">
           <h2 id="gm-settings-title" className="gm-dialog__title">Settings</h2>
           <button type="button" ref={closeRef} className="gm-btn" onClick={onClose}>

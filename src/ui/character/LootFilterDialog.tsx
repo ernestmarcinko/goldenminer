@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { MAX_LOOT_RULES } from '../../core/balance';
 import type { BagFullMode, LootRule } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
@@ -33,7 +34,8 @@ function Select<T extends string>({ label, value, options, onChange }: {
 
 export function LootFilterDialog({ store, onClose }: { store: GameStore; onClose: () => void }) {
   const { state } = useGame(store);
-  const closeRef = useDialog<HTMLButtonElement>(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useDialog<HTMLButtonElement>(onClose, dialogRef);
   const rules = state.settings.lootFilter;
   const full = rules.length >= MAX_LOOT_RULES;
   const set = (next: readonly LootRule[]): void => {
@@ -41,7 +43,7 @@ export function LootFilterDialog({ store, onClose }: { store: GameStore; onClose
   };
   return (
     <div className="gm-overlay">
-      <div className="gm-dialog gm-dialog--rules" role="dialog" aria-modal="true" aria-labelledby="gm-filter-title">
+      <div ref={dialogRef} className="gm-dialog gm-dialog--rules" role="dialog" aria-modal="true" aria-labelledby="gm-filter-title">
         <div className="gm-dialog__head">
           <h2 id="gm-filter-title" className="gm-dialog__title">Loot filter</h2>
           <button type="button" ref={closeRef} className="gm-btn" onClick={onClose}>

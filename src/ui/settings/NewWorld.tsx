@@ -13,7 +13,8 @@ interface Props {
 }
 
 export function NewWorld({ store, runAsOwner, onClose, onDone }: Props) {
-  const closeRef = useDialog<HTMLButtonElement>(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useDialog<HTMLButtonElement>(onClose, dialogRef);
   const [random, setRandom] = useState(true);
   const [text, setText] = useState('');
   const [problem, setProblem] = useState(false);
@@ -48,7 +49,7 @@ export function NewWorld({ store, runAsOwner, onClose, onDone }: Props) {
 
   return (
     <div className="gm-overlay">
-      <div className="gm-dialog" role="dialog" aria-modal="true" aria-labelledby="gm-newworld-title">
+      <div ref={dialogRef} className="gm-dialog" role="dialog" aria-modal="true" aria-labelledby="gm-newworld-title">
         <div className="gm-dialog__head">
           <h2 id="gm-newworld-title" className="gm-dialog__title">Start a new world</h2>
           <button type="button" ref={closeRef} className="gm-btn" onClick={onClose}>

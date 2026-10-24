@@ -33,8 +33,8 @@ export function StashDialog({ store, set, onClose, drag, sayRef }: {
   const { state } = useGame(store);
   const [tab, setTab] = useState<StashTab>('general');
   const [bagSet, setBagSet] = useState<GearSet>(set);
-  const closeRef = useDialog<HTMLButtonElement>(onClose);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useDialog<HTMLButtonElement>(onClose, dialogRef);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const tabRefs = useRef<Partial<Record<StashTab, HTMLButtonElement | null>>>({});
   const { handlers, message, say, cards, tapCard, reset } = useItemInteractions({

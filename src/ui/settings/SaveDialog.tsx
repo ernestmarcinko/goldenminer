@@ -11,7 +11,8 @@ interface Props {
 }
 
 export function SaveDialog({ store, runAsOwner, onClose }: Props) {
-  const closeRef = useDialog<HTMLButtonElement>(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useDialog<HTMLButtonElement>(onClose, dialogRef);
   const exported = useMemo(() => store.exportSave(), [store]);
   const exportRef = useRef<HTMLTextAreaElement>(null);
   const [copied, setCopied] = useState(false);
@@ -31,7 +32,7 @@ export function SaveDialog({ store, runAsOwner, onClose }: Props) {
 
   return (
     <div className="gm-overlay">
-      <div className="gm-dialog gm-dialog--wide" role="dialog" aria-modal="true" aria-labelledby="gm-save-title">
+      <div ref={dialogRef} className="gm-dialog gm-dialog--wide" role="dialog" aria-modal="true" aria-labelledby="gm-save-title">
         <div className="gm-dialog__head">
           <h2 id="gm-save-title" className="gm-dialog__title">Export / import save</h2>
           <button type="button" ref={closeRef} className="gm-btn" onClick={onClose}>
