@@ -21,7 +21,10 @@ const lock = new TabLock(storage, Date.now, typeof crypto.randomUUID === 'functi
 );
 
 const root = document.getElementById('root');
-if (root) {
+// Dev only (?gallery=monsters): every generated monster, for judging the part kit; the build drops it.
+if (import.meta.env.DEV && root && new URLSearchParams(window.location.search).get('gallery') === 'monsters') {
+  void import('./ui/MonsterGallery').then(({ MonsterGallery }) => createRoot(root).render(<StrictMode><MonsterGallery /></StrictMode>));
+} else if (root) {
   createRoot(root).render(
     <StrictMode>
       <AtlasProvider>
