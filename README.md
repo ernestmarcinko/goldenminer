@@ -21,6 +21,10 @@ Chests and gems drop mining and battle gear, which the character panel shows. Ho
 
 Every world has a seed, a short phrase such as `amber-fox-427`, shown in Settings with a Copy seed button. The seed decides the mine: its bands, the shape of the shaft and where chests, maps, veins and hard rock lie. Two players with the same seed dig through the same mine. Chest contents, gallery finds, bonus finds and combat are still your own luck. Start a new world from Settings with a random seed or one you type; a number or any text up to 64 characters works.
 
+## Maps
+
+A dungeon entrance you dig past becomes a map, kept in the Maps tab until you run it. Each world generates its own dungeons, monsters and bosses from its seed, so the same seed gives the same dungeons; the fights themselves are your own luck. Running a map pauses digging and switches the character panel to your battle gear. Your hero hits on its own, and every click is an extra hit. Maps are the only source of XP and Souls. Dying or leaving a map early loses that map but keeps what you earned. A run left going continues while you are away and ends on its own. With "stop digging" on and your bags full, drops wait for room, up to 10. A further drop is handled the same way as one found while digging: the worst item is sold to make room.
+
 ## Saves
 
 The game autosaves every 30 seconds and when the tab is hidden or closed. The Settings button in the header opens the motion switches, the world seed, the loot filter and the save tools: export the save as text, import one, or start a new world. Only one tab can play at a time.

@@ -31,6 +31,16 @@ export function OfflineSummary({ summary, onClose }: { summary: Summary; onClose
             {formatNumber(summary.items.salvaged)} salvaged
           </p>
         )}
+        {(summary.maps.cleared > 0 || summary.maps.lost > 0) && (
+          <p>
+            Maps: {formatNumber(summary.maps.cleared)} cleared · {formatNumber(summary.maps.lost)} lost
+          </p>
+        )}
+        {(summary.souls > 0 || summary.levels > 0) && (
+          <p>
+            +{formatNumber(summary.souls)} Souls · {plural(summary.levels, 'level', 'levels')} gained
+          </p>
+        )}
         {summary.stoppedBag !== null && <p>Digging stopped because your {summary.stoppedBag} bag and the stash were full.</p>}
         {finds.length > 0 && (
           <ul className="gm-dialog__list">
