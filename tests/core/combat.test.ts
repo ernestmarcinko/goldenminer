@@ -1,14 +1,19 @@
 import { expect, it } from 'vitest';
-import { ARMORED_TAKEN, VAMPIRIC_HEAL } from '../../src/core/balance';
+import { ARMORED_TAKEN, ROOM_REGEN, VAMPIRIC_HEAL } from '../../src/core/balance';
 import { deriveBattleStats } from '../../src/core/battle';
 import { advance } from '../../src/core/clock';
 import { clickHit } from '../../src/core/combat';
 import { applyTicks } from '../../src/core/dig';
+import { dungeonLayout } from '../../src/core/dungeons';
+import { xpToNext } from '../../src/core/levels';
 import { addMap, leaveMap, startMap } from '../../src/core/maps';
+import { monsterState } from '../../src/core/monsters';
 import { newGame } from '../../src/core/newGame';
 import { mulberry32 } from '../../src/core/rng';
+import { validateState } from '../../src/core/save';
 import { deriveStats } from '../../src/core/stats';
-import type { GameState, MapRun, MonsterState, TickEvent } from '../../src/core/types';
+import type { GameState, MapRun, MonsterState, Stats, TickEvent } from '../../src/core/types';
+import { gear } from '../helpers/items';
 
 function runMap(tier: number, clicksPerTick: number, seed: number): GameState {
   const s = newGame(seed, 0);
@@ -52,40 +57,177 @@ it('a cleared run levels up, consumes the map and keeps the tally', () => {
   expect(s.activity).toEqual({ kind: 'dig' });
 });
 
-it('vampiric champions heal, armored ones soak hits', () => {
+// A run started on a tier-1 map, its first room replaced by one hand-built monster.
+function started(p: Partial<MonsterState> = {}): { s: GameState; run: MapRun; m: MonsterState } {
   const s = newGame(1, 0);
   expect(startMap(s, addMap(s, 1, 2).id)).toBe('ok');
   const run = runOf(s);
-  const champ: MonsterState = {   // wounded, so its heal isn't capped at max life
-    name: 'Test Champion', species: 0, rank: 'champion', mods: ['armored', 'vampiric'], extra: 0,
-    element: 'physical', life: 5_000, maxLife: 10_000, damage: 40, intervalS: 1, xp: 30,
+  const m = monster(p);
+  run.queue = [m];
+  return { s, run, m };
+}
+
+function monster(p: Partial<MonsterState> = {}): MonsterState {
+  return {
+    name: 'Test Monster', species: 0, rank: 'normal', mods: [], extra: 0,
+    element: 'physical', life: 10_000, maxLife: 10_000, damage: 40, intervalS: 1, xp: 10, ...p,
   };
-  run.queue[0] = champ;
+}
+
+const at = (s: GameState, autoTicksPerSecond: number): Stats => ({ ...deriveStats(s), autoTicksPerSecond });
+const strikes = (events: TickEvent[]) => events.flatMap((e) => (e.kind === 'strike' ? [e] : []));
+
+it('vampiric champions heal what they bite', () => {
+  const { s, run, m } = started({ rank: 'champion', mods: ['vampiric'], life: 5_000 });   // wounded, so the heal isn't capped
   run.life = 1_000_000;
-
-  // The click: replay its two draws (damage, then crit) to know the hit before the armor soaks it.
-  const b = deriveBattleStats(s);
-  const u1 = mulberry32(s.rng);
-  const u2 = mulberry32(u1.state);
-  const rolled = b.damageMin + Math.floor(u1.value * (b.damageMax - b.damageMin + 1));
-  const hit = u2.value < b.critChance ? Math.round(rolled * b.critMultiplier) : rolled;
-  const clickEvents: TickEvent[] = [];
-  clickHit(s, clickEvents);
-  const soaked = Math.max(1, Math.round(hit * ARMORED_TAKEN));
-  expect(clickEvents).toEqual([{ kind: 'strike', amount: soaked, crit: u2.value < b.critChance, click: true }]);
-  expect(champ.life).toBe(5_000 - soaked);
-
-  // Tick until the champion strikes once; its life is what our strikes took, plus the bite it healed.
   const stats = deriveStats(s);
   const events: TickEvent[] = [];
-  const before = champ.life;
   for (let t = 0; t < 100 && !events.some((e) => e.kind === 'hurt'); t++) applyTicks(s, 1, stats, events);
   const hurt = events.find((e) => e.kind === 'hurt');
   if (hurt?.kind !== 'hurt') throw new Error('the champion never attacked');
   expect(hurt.amount).toBe(40);
-  const struck = events.reduce((sum, e) => sum + (e.kind === 'strike' ? e.amount : 0), 0);
-  expect(champ.life).toBe(before - struck + Math.round(hurt.amount * VAMPIRIC_HEAL));
-  expect(run.log).toContainEqual({ kind: 'heal', monster: 'Test Champion', amount: Math.round(40 * VAMPIRIC_HEAL) });
+  const struck = strikes(events).reduce((sum, e) => sum + e.amount, 0);
+  expect(m.life).toBe(5_000 - struck + Math.round(40 * VAMPIRIC_HEAL));
+  expect(run.log).toContainEqual({ kind: 'heal', monster: 'Test Monster', amount: Math.round(40 * VAMPIRIC_HEAL) });
+});
+
+it('a vampiric champion at full life stays at full life, with no heal line', () => {
+  const { s, run, m } = started({ rank: 'champion', mods: ['vampiric'] });
+  run.monsterCarry = 0.95;   // at 10 ticks a second it bites this tick, before the miner's first swing lands
+  const events: TickEvent[] = [];
+  applyTicks(s, 1, at(s, 10), events);
+  expect(events).toEqual([{ kind: 'hurt', amount: 40 }]);
+  expect(m.life).toBe(m.maxLife);
+  expect(run.log.some((l) => l.kind === 'heal')).toBe(false);
+});
+
+it('armor soaks the hit after the crit', () => {
+  let crits = 0;
+  for (let rng = 1; rng <= 2000; rng++) {
+    const { s } = started({ rank: 'champion', mods: ['armored'] });
+    s.rng = rng;
+    const plain = structuredClone(s);
+    runOf(plain).queue[0]?.mods.splice(0);
+    const armored: TickEvent[] = [];
+    const bare: TickEvent[] = [];
+    clickHit(s, armored);
+    clickHit(plain, bare);
+    const [hit] = strikes(armored);
+    const [raw] = strikes(bare);
+    if (hit === undefined || raw === undefined) throw new Error('no strike');
+    expect(hit, `rng ${rng}`).toEqual({ ...raw, amount: Math.max(1, Math.round(raw.amount * ARMORED_TAKEN)) });
+    expect(runOf(s).queue[0]?.life).toBe(10_000 - hit.amount);
+    if (raw.crit) crits++;
+  }
+  expect(crits).toBeGreaterThan(20);
+});
+
+it('a strike draws its damage first, then its crit', () => {
+  // Only the first two draws matter here: seeds whose first draw would crit and whose second would not, and back.
+  let checked = 0;
+  for (let rng = 1; rng <= 5000 && checked < 40; rng++) {
+    const { s } = started();
+    const b = deriveBattleStats(s);
+    const u1 = mulberry32(rng);
+    const u2 = mulberry32(u1.state);
+    if ((u1.value < b.critChance) === (u2.value < b.critChance)) continue;
+    s.rng = rng;
+    const events: TickEvent[] = [];
+    clickHit(s, events);
+    const rolled = b.damageMin + Math.floor(u1.value * (b.damageMax - b.damageMin + 1));
+    const crit = u2.value < b.critChance;
+    expect(strikes(events), `rng ${rng}`).toEqual([
+      { kind: 'strike', amount: crit ? Math.round(rolled * b.critMultiplier) : rolled, crit, click: true },
+    ]);
+    checked++;
+  }
+  expect(checked).toBe(40);
+});
+
+it('held loot does not freeze a run', () => {
+  const { s, m } = started();
+  s.overflow.push({ bag: 'battle', item: gear(s, 'helm') });
+  applyTicks(s, 1, at(s, 0.1));
+  expect(m.life).toBeLessThan(m.maxLife);
+  expect(s.tickCount).toBe(1);
+});
+
+it('a room cleared early in a tick drops the hit carry, and the new room waits', () => {
+  const { s, run } = started({ life: 1 });
+  const events: TickEvent[] = [];
+  applyTicks(s, 1, at(s, 0.1), events);   // 10 s: about 10 swings, the first one clears the room
+  expect(run.room).toBe(2);
+  expect(run.hitCarry).toBeLessThan(1);
+  expect(strikes(events)).toHaveLength(1);
+  expect(events.some((e) => e.kind === 'hurt')).toBe(false);
+  expect(run.queue.every((q) => q.life === q.maxLife)).toBe(true);
+  expect(run.queue).toEqual(dungeonLayout(s.seed, run.map).rooms[1]?.map((lm) => monsterState(1, lm)));
+});
+
+it('a kill resets the monster carry', () => {
+  const { s, run } = started({ life: 1 });
+  run.queue.push(monster());
+  run.monsterCarry = 0.6;
+  clickHit(s);
+  expect(run.queue).toHaveLength(1);
+  expect(run.monsterCarry).toBe(0);
+});
+
+it('a level-up mid-run adds the life it grants, before the room regen', () => {
+  const { s, run } = started({ life: 1, xp: 10 });
+  s.xp = xpToNext(1) - 1;
+  run.life = 35;
+  const oldMax = deriveBattleStats(s).maxLife;
+  clickHit(s);
+  expect(s.level).toBe(2);
+  const newMax = deriveBattleStats(s).maxLife;
+  expect(newMax).toBeGreaterThan(oldMax);
+  expect(run.room).toBe(2);
+  expect(run.life).toBe(Math.min(newMax, 35 + (newMax - oldMax) + Math.round(newMax * ROOM_REGEN)));
+  expect(run.log).toContainEqual({ kind: 'level', level: 2 });
+  expect(run.gained).toMatchObject({ xp: 10, levels: 1 });
+});
+
+it('the swings after a level-up in the same tick hit with the new level', () => {
+  let xp = 0;
+  for (let l = 1; l < 20; l++) xp += xpToNext(l);
+  const { s, run } = started({ life: 1, xp });
+  run.queue.push(monster({ life: 1_000_000, maxLife: 1_000_000 }));
+  const old = deriveBattleStats(s);
+  const events: TickEvent[] = [];
+  applyTicks(s, 1, at(s, 0.1), events);
+  expect(s.level).toBe(20);
+  const now = deriveBattleStats(s);
+  expect(now.damageMin).toBeGreaterThan(Math.round(old.damageMax * old.critMultiplier));
+  const after = strikes(events).slice(1);
+  expect(after.length).toBeGreaterThan(5);
+  for (const e of after) {
+    expect(e.amount).toBeGreaterThanOrEqual(now.damageMin);
+    expect(e.amount).toBeLessThanOrEqual(Math.round(now.damageMax * now.critMultiplier));
+  }
+});
+
+it('every state of a run, tick by tick and click by click, is a valid save', () => {
+  for (const seed of [1, 2, 3]) {
+    for (const tier of [1, 2, 4]) {
+      for (const rate of [0.1, 1, 10]) {
+        for (const clicks of [0, 2]) {
+          const s = newGame(seed, 0);
+          expect(startMap(s, addMap(s, tier, 10 + seed).id)).toBe('ok');
+          const stats = at(s, rate);
+          for (let t = 0; t < 20_000 && s.activity.kind === 'map'; t++) {
+            for (let c = 0; c < clicks && s.activity.kind === 'map'; c++) {
+              clickHit(s);
+              expect(validateState(s), `seed ${seed} tier ${tier} rate ${rate} tick ${t} click ${c}`).toBe(true);
+            }
+            applyTicks(s, 1, stats);
+            expect(validateState(s), `seed ${seed} tier ${tier} rate ${rate} clicks ${clicks} tick ${t}`).toBe(true);
+          }
+          expect(s.activity.kind, `seed ${seed} tier ${tier} rate ${rate} clicks ${clicks}`).toBe('dig');
+        }
+      }
+    }
+  }
 });
 
 it('digging pauses during a run and resumes after it', () => {
@@ -123,4 +265,19 @@ it('pumped play and one long catch-up give the same run', () => {
   advance(once, 600_000, stats);
   expect(pumped).toEqual(once);
   expect(once.activity.kind).toBe('dig');
+  expect(once.lastRun?.outcome).toBe('cleared');
+  expect(once.deepest).toBeGreaterThan(0);   // the ticks left after the run went back to digging
+});
+
+it('pumped play and one long catch-up give the same run at a fractional tick rate', () => {
+  // 0.8 ticks a second: 1.25 s ticks, so the hit carry keeps a fraction between ticks (and 1250 ms is exact).
+  const mk = () => { const s = newGame(3, 0); startMap(s, addMap(s, 1, 2).id); return s; };
+  const pumped = mk();
+  const once = mk();
+  const stats = at(pumped, 0.8);
+  for (let t = 250; t <= 600_000; t += 250) advance(pumped, t, stats);
+  advance(once, 600_000, stats);
+  expect(pumped).toEqual(once);
+  expect(once.lastRun?.outcome).toBe('cleared');
+  expect(once.deepest).toBeGreaterThan(0);
 });
