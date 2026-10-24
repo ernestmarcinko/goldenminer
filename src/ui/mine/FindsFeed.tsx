@@ -7,6 +7,7 @@ import type { SpriteName } from '../../sprites/atlas';
 import { baseSprite, lootNoteText } from '../character/itemView';
 import { formatNumber } from '../format';
 import { useGame } from '../useGame';
+import { findMaterial } from './findMaterial';
 import './mine.css';
 
 const MAX_SHOWN = 6;
@@ -17,7 +18,7 @@ const ICONS: Record<FeatureKind, SpriteName> = {
 
 // A material vein shows its material's sprite; every other find its kind's.
 function icon(f: FindRecord): SpriteName {
-  return f.kind === 'materialVein' ? baseSprite(f.material ?? 'copper') : ICONS[f.kind];
+  return f.kind === 'materialVein' ? baseSprite(findMaterial(f)) : ICONS[f.kind];
 }
 
 /** `material` is the vein's material, read only for a material vein. */

@@ -31,6 +31,7 @@ it('covers only the scrolled-to window, with absolute positions and the full scr
   expect(m.markers).toEqual([{ y: 402 * PX, kind: 'chest', count: 1, label: 'Chest', icon: 'chest' }]);
   expect(m.height).toBe((950 + 3 + 2) * PX);
   expect(m).toMatchObject({ top: 380, bottom: 380 + MINIMAP_METRES, youY: 950 * PX, fogY: 953 * PX });
+  expect(m.youTagBelow).toBe(false);
   for (const t of m.ticks) {
     expect(t.depth).toBeGreaterThanOrEqual(370);
     expect(t.depth).toBeLessThanOrEqual(380 + MINIMAP_METRES + 10);
@@ -117,4 +118,12 @@ it('is following while the dig face is in view', () => {
   expect(isFollowing((951 - MINIMAP_METRES) * PX, 950)).toBe(true);
   expect(isFollowing(951 * PX, 950)).toBe(false);
   expect(isFollowing((949 - MINIMAP_METRES) * PX, 950)).toBe(false);
+});
+
+it('the You tag drops under its line while the dig face is too near the top of the strip', () => {
+  const at = (deepest: number) => { const s = newGame(5, 0); s.deepest = deepest; return minimapModel(s, 3, 0).youTagBelow; };
+  expect(at(0)).toBe(true);
+  expect(at(3)).toBe(true);
+  expect(at(5)).toBe(false);
+  expect(at(200)).toBe(false);
 });

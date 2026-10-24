@@ -6,13 +6,17 @@ import type { FeatureKind, FindKind, GameState, Hazard } from '../../core/types'
 import { bandLook, bandTitle, worldOf } from '../../core/mineLook';
 import type { SpriteName } from '../../sprites/atlas';
 import { baseSprite } from '../character/itemView';
+import { findMaterial } from './findMaterial';
 
 export const MINIMAP_METRES = 88;
 export const MINIMAP_PX_PER_METRE = 6;
 
 /** Metres drawn above and below the visible window, so a scroll never shows a gap before the next frame. */
 const MARGIN_METRES = 10;
-/** Where the window sits while following: the dig face about 50 m down, roughly 57% of the window. */
+/**
+ * Where the window's top sits while following: 50 m above the dig face. The scroll height ends lampSight + 2 m past the
+ * face, so the browser clamps the scroll and the face usually rests near the bottom (about 90% down), not at 50/88 = 57%.
+ */
 const FOLLOW_OFFSET_METRES = 50;
 
 export type AheadKind = FeatureKind | 'materialVein' | 'hardRock' | Hazard;
@@ -27,11 +31,15 @@ export interface MinimapModel {
   markers: MinimapMarker[];
   ahead: MinimapHint[];
   youY: number;
+  /** The "You" tag sits under its line when the face is too near the top of the strip for the tag to fit above it. */
+  youTagBelow: boolean;
   fogY: number;
 }
 
 const PRIORITY: readonly FindKind[] = ['map', 'chest', 'gem', 'diamondVein', 'goldVein', 'materialVein'];
 const BUCKET_METRES = 4;
+/** The height the "You" tag needs above its line: its box plus the gap. */
+const YOU_TAG_ROOM_PX = 26;
 
 const FEATURE_ICONS: Readonly<Record<FeatureKind, SpriteName>> = {
   map: 'map', chest: 'chest', gem: 'gem', diamondVein: 'diamond', goldVein: 'coin',
@@ -121,8 +129,8 @@ export function minimapModel(state: GameState, lampSight: number, top: number): 
   }
   const markers: MinimapMarker[] = [...buckets.entries()].map(([key, { kind, material, count }]) => {
     const mid = key * BUCKET_METRES + BUCKET_METRES / 2;
-    const label = kind === 'materialVein' ? MATERIAL_LABELS[material ?? 'copper'] : featureLabel(kind, mid);
-    const icon = kind === 'materialVein' ? baseSprite(material ?? 'copper') : FEATURE_ICONS[kind];
+    const label = kind === 'materialVein' ? MATERIAL_LABELS[findMaterial({ kind, material })] : featureLabel(kind, mid);
+    const icon = kind === 'materialVein' ? baseSprite(findMaterial({ kind, material })) : FEATURE_ICONS[kind];
     return { y: y(mid), kind, count, label: label + (count > 1 ? ` ×${count}` : ''), icon };
   });
   markers.sort((a, b) => a.y - b.y);
@@ -136,6 +144,6 @@ export function minimapModel(state: GameState, lampSight: number, top: number): 
 
   return {
     top, bottom, height: y(state.deepest + lampSight + 2), bands, ticks, markers, ahead,
-    youY: y(state.deepest), fogY: y(state.deepest + lampSight),
+    youY: y(state.deepest), youTagBelow: y(state.deepest) < YOU_TAG_ROOM_PX, fogY: y(state.deepest + lampSight),
   };
 }

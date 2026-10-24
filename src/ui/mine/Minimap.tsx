@@ -91,7 +91,7 @@ export function Minimap({ store }: { store: GameStore }) {
             ))}
             <span className="gm-minimap__fog" style={{ top: model.fogY }}>?</span>
             <span className="gm-minimap__you-line" style={{ top: model.youY }} />
-            <span className="gm-minimap__you-tag" style={{ top: model.youY }}>You · {formatNumber(state.deepest)} m</span>
+            <span className={`gm-minimap__you-tag${model.youTagBelow ? ' gm-minimap__you-tag--below' : ''}`} style={{ top: model.youY }}>You · {formatNumber(state.deepest)} m</span>
           </span>
         </div>
       </div>

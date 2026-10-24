@@ -46,5 +46,6 @@
   position: absolute; right: 6px; transform: translateY(calc(-100% - 4px)); padding: 1px 6px; border-radius: 4px; background: var(--gm-gold);
   color: #1b1410; font-size: 11px; font-weight: 600;
 }
+.gm-minimap__you-tag--below { transform: translateY(4px); }
 .gm-minimap__jump { align-self: stretch; }
 .gm-minimap__caption { margin: 0; font-size: 11px; line-height: 1.4; }

@@ -2,6 +2,7 @@ import type { Feedback } from '../../store/gameStore';
 import { MATERIAL_LABELS } from '../../core/itemData';
 import type { FindKind, FindRecord, MotionSettings, TickEvent } from '../../core/types';
 import { formatNumber } from '../format';
+import { findMaterial } from './findMaterial';
 import { MINER_ROW, SHAFT_ROW_PX } from './shaftModel';
 
 export type ParticleKind = 'gold' | 'diamond' | FindKind;
@@ -9,14 +10,15 @@ export interface Particle { id: number; kind: ParticleKind; text: string; x: num
 
 const MAX_FIND_PARTICLES = 3;
 
-function findText({ kind, amount, material }: FindRecord): string {
+function findText(find: FindRecord): string {
+  const { kind, amount } = find;
   switch (kind) {
     case 'chest': return 'Chest!';
     case 'map': return 'Map!';
     case 'gem': return 'Gem!';
     case 'goldVein': return `Gold vein +${formatNumber(amount)}`;
     case 'diamondVein': return `Diamonds +${formatNumber(amount)}`;
-    case 'materialVein': return `${MATERIAL_LABELS[material ?? 'copper']}!`;
+    case 'materialVein': return `${MATERIAL_LABELS[findMaterial(find)]}!`;
   }
 }
 
