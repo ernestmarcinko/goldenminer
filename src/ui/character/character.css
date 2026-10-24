@@ -99,6 +99,7 @@
   width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 6px;
   border: 1px solid var(--gm-line); background: var(--gm-panel-raised); color: var(--gm-text); font: inherit; cursor: pointer;
 }
+.gm-rule__btn[data-danger] { color: var(--gm-down); }
 .gm-rule__btn:disabled, .gm-dialog .gm-btn:disabled { opacity: 0.4; cursor: default; }
 .gm-rule__select:focus-visible, .gm-rule__btn:focus-visible, .gm-fullmode__opt input:focus-visible {
   outline: 2px solid var(--gm-gold-bright); outline-offset: 2px;

@@ -1,6 +1,7 @@
 import { MAX_LOOT_RULES } from '../../core/balance';
 import type { BagFullMode, LootRule } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
+import { formatNumber } from '../format';
 import { useDialog } from '../useDialog';
 import { useGame } from '../useGame';
 import {
@@ -55,14 +56,14 @@ export function LootFilterDialog({ store, onClose }: { store: GameStore; onClose
         <div className="gm-rules">
           {rules.map((r, i) => (
             <div key={i} className="gm-rule">
-              <span className="gm-rule__n">{i + 1}</span>
+              <span className="gm-rule__n">{formatNumber(i + 1)}</span>
               <Select label="Rarity" value={r.rarity} options={RARITY_OPTIONS} onChange={(rarity) => set(updateRule(rules, i, { rarity }))} />
               <Select label="Item" value={r.target} options={TARGET_OPTIONS} onChange={(target) => set(updateRule(rules, i, { target }))} />
               <Select label="Action" value={r.action} options={ACTION_OPTIONS} onChange={(action) => set(updateRule(rules, i, { action }))} />
               <div className="gm-rule__btns">
                 <button type="button" className="gm-rule__btn" aria-label="Move rule up" disabled={i === 0} onClick={() => set(moveRule(rules, i, -1))}>↑</button>
                 <button type="button" className="gm-rule__btn" aria-label="Move rule down" disabled={i === rules.length - 1} onClick={() => set(moveRule(rules, i, 1))}>↓</button>
-                <button type="button" className="gm-rule__btn" aria-label="Remove rule" onClick={() => set(removeRule(rules, i))}>✕</button>
+                <button type="button" className="gm-rule__btn" aria-label="Remove rule" data-danger="" onClick={() => set(removeRule(rules, i))}>✕</button>
               </div>
             </div>
           ))}
@@ -71,7 +72,7 @@ export function LootFilterDialog({ store, onClose }: { store: GameStore; onClose
           <button type="button" className="gm-btn" disabled={full} onClick={() => set(addRule(rules))}>
             Add rule
           </button>
-          {full && <span className="gm-muted" role="status">{MAX_LOOT_RULES} rules is the most.</span>}
+          {full && <span className="gm-muted" role="status">{formatNumber(MAX_LOOT_RULES)} rules is the most.</span>}
         </div>
 
         <fieldset className="gm-fullmode">

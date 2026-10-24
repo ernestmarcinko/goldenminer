@@ -59,6 +59,7 @@ export function useItemInteractions({ store, state, shownSet, containerRef, fall
           menu={{
             onAction: (a) => perform(menu.target, a, true),
             onClose: () => closeMenu(true, fallbackRef.current),
+            onLeave: () => closeMenu(),
           }}
         />
       )}

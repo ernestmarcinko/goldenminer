@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { KeyboardEvent } from 'react';
+import type { FocusEvent, KeyboardEvent } from 'react';
 import { isGear, setOfSlot } from '../../core/items';
 import type { GearSet } from '../../core/items';
 import { itemName } from '../../core/itemData';
@@ -12,6 +12,8 @@ import type { ViewLine } from './itemView';
 export interface CardMenu {
   onAction: (action: ActionSpec) => void;
   onClose: () => void;
+  /** Keyboard focus moved out of the card, so it closes without taking focus back. */
+  onLeave: () => void;
 }
 
 function Lines({ lines }: { lines: ViewLine[] }) {
@@ -46,6 +48,10 @@ export function ItemCard({ state, target, shownSet, left, top, menu }: {
       menu.onClose();
     }
   };
+  const onBlur = (e: FocusEvent<HTMLDivElement>): void => {
+    // a null relatedTarget is a click on the card's own padding or leaving the page; outside clicks have their own listener
+    if (menu && e.relatedTarget instanceof Node && !e.currentTarget.contains(e.relatedTarget)) menu.onLeave();
+  };
   return (
     <div
       ref={ref}
@@ -56,6 +62,7 @@ export function ItemCard({ state, target, shownSet, left, top, menu }: {
       aria-label={isMenu ? name : undefined}
       style={{ left, top }}
       onKeyDown={onKeyDown}
+      onBlur={onBlur}
     >
       <div className="gm-card__name">{name}</div>
       <div className="gm-card__kind">{itemKindLine(item)}</div>
