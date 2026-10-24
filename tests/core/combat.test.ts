@@ -281,7 +281,7 @@ it('the run result counts every item, not only the notes the run keeps', () => {
   run.items = 41;
   const before = run.log.length;
   clickHit(s);
-  const drops = run.log.slice(before).filter((l) => l.kind === 'drop').length;   // empty bags: one note per item
+  const drops = run.log.slice(before).filter((l) => l.kind === 'drop' && l.note.rarity !== 'material').length;   // empty bags: one note per item; ore stacks are not items
   expect(drops).toBeGreaterThanOrEqual(2);
   expect(run.loot).toHaveLength(RUN_LOOT_LIMIT);
   expect(s.lastRun?.items).toBe(41 + drops);

@@ -61,9 +61,9 @@ export function soulsForKill(u: number, tier: number, rank: Rank, soulMultiplier
   return whole + (u < x - whole ? 1 : 0);
 }
 
-/** Counts one dropped item and notes what became of it on the run and in the log. */
-function takeDrop(run: MapRun, notes: LootNote[]): void {
-  run.items += 1;
+/** Notes what became of a drop on the run and in the log, and counts it as an item unless it is a material stack. */
+function takeDrop(run: MapRun, notes: LootNote[], isItem = true): void {
+  if (isItem) run.items += 1;
   for (const n of notes) {
     noteLoot(run, n);
     logLine(run, { kind: 'drop', note: n });
@@ -108,7 +108,7 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
   for (let i = 0; i < rankReward(monster.rank); i++) {
     if (nextRandom(state) >= MAP_MATERIAL_CHANCE) continue;
     const material = pickMaterial(metre, nextRandom(state));
-    takeDrop(run, receiveMaterial(state, material, materialAmount(material, metre, nextRandom(state))));
+    takeDrop(run, receiveMaterial(state, material, materialAmount(material, metre, nextRandom(state))), false);
   }
 }
 

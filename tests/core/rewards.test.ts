@@ -189,6 +189,26 @@ it('normal kills roll one material chance', () => {
   expect(Math.abs(dropped / 2000 - 0.25)).toBeLessThan(0.03);
 });
 
+it('bosses roll the material chance five times', () => {
+  let drops = 0;
+  const kills = 800;
+  for (let seed = 1; seed <= kills; seed++) drops += materialsOf(kill(seed, 'boss').run).length;
+  // 5 passes x 0.25 = 1.25 a kill (about 1,000 drops, sd about 27); a single pass would give about 200.
+  expect(Math.abs(drops / kills - 5 * 0.25)).toBeLessThan(0.1);
+});
+
+it('a material drop is noted on the run but not counted as an item', () => {
+  let sawMaterial = 0;
+  for (let seed = 1; seed <= 100; seed++) {
+    const { run } = kill(seed, 'boss');
+    sawMaterial += materialsOf(run).length;
+    expect(run.items, `seed ${seed}`).toBe(spy.rarityArgs.length + spy.gems);
+    expect(run.loot.length, `seed ${seed}`).toBe(run.items + materialsOf(run).length);
+    expect(dropLines(run), `seed ${seed}`).toBe(run.loot.length);
+  }
+  expect(sawMaterial).toBeGreaterThan(0);
+});
+
 it('with MAX_OVERFLOW items already held under stop, a further drop is sold and nothing more is held', () => {
   const { s, run } = kill(1, 'boss', (g) => {
     g.settings.bagFull = 'stop';

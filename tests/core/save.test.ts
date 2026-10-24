@@ -7,7 +7,7 @@ import fixture4 from '../fixtures/save-schema-4.txt?raw';
 import fixture5 from '../fixtures/save-schema-5.txt?raw';
 import { applyTicks } from '../../src/core/dig';
 import {
-  BAG_SIZE, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_LOOT_RULES, MAX_OVERFLOW, START_GENERAL_PAGES, STASH_PAGE_SIZE,
+  BAG_SIZE, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_LOOT_RULES, MAX_OVERFLOW, START_GENERAL_PAGES, START_MAP_PAGES, STASH_PAGE_SIZE,
 } from '../../src/core/balance';
 import { emptyInventory, firstEmpty } from '../../src/core/cells';
 import { addMap, startMap } from '../../src/core/maps';
@@ -461,6 +461,15 @@ it('the schema-5 fixture migrates to one bag, stash pages and map cells', () => 
   expect(s.activity.kind).toBe('map');                                       // the run carries on
   for (const gone of ['depth', 'galleryProgress', 'goldCarry', 'bags']) expect(gone in s).toBe(false);
   expect(s.deepest).toBe(raw.deepest);
+});
+
+it('a schema-5 save with no maps still gets the starting Maps pages', () => {
+  const env = JSON.parse(decompressFromBase64(fixture5.trim()));
+  env.state.stash.maps = [];
+  const r = decodeSave(compressToBase64(JSON.stringify(env)));
+  if (!r.ok) throw new Error(`rejected: ${r.reason}`);
+  expect(r.state.stash.maps).toHaveLength(START_MAP_PAGES * STASH_PAGE_SIZE);
+  expect(r.state.stash.maps).toHaveLength(60);
 });
 
 it('every older fixture still loads', () => {
