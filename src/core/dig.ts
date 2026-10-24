@@ -3,6 +3,7 @@ import {
   diamondChancePerTick, goldPerTick, hardness,
 } from './balance';
 import { metreTier, tierAt } from './bands';
+import { mapTick } from './combat';
 import { rollChest, rollGem } from './itemGen';
 import { receiveItem } from './loot';
 import { addMap } from './maps';
@@ -115,6 +116,12 @@ function digGallery(state: GameState, stats: Stats, events?: TickEvent[]): void 
 
 export function applyTicks(state: GameState, count: number, stats: Stats, events?: TickEvent[]): void {
   for (let i = 0; i < count; i++) {
+    // A running map takes the whole tick: no digging, no Gold, no Diamond draw; held loot doesn't pause it.
+    if (state.activity.kind === 'map') {
+      mapTick(state, stats, events);
+      state.tickCount += 1;
+      continue;
+    }
     if (state.overflow.length > 0) {
       state.tickCount += 1;
       continue;

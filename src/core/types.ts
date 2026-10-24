@@ -101,7 +101,10 @@ export type TickEvent =
   | { kind: 'gold'; amount: number }
   | { kind: 'diamond'; amount: number }
   | { kind: 'metre'; depth: number; gallery: boolean }
-  | { kind: 'find'; find: FindRecord };
+  | { kind: 'find'; find: FindRecord }
+  | { kind: 'strike'; amount: number; crit: boolean; click: boolean }
+  | { kind: 'hurt'; amount: number }
+  | { kind: 'runEnd'; result: RunResult };
 export interface OfflineSummary {
   elapsedMs: number; ticks: number; gold: number; diamonds: number; metres: number; capMs: number;
   finds: Record<FeatureKind, number>;
