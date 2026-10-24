@@ -65,9 +65,9 @@ function takeDrop(run: MapRun, notes: LootNote[]): void {
 
 /**
  * A monster fell: its XP (levelling up heals by the max-life gained), then Souls, Gold, items and a gem chance, in
- * that draw order. Champions guarantee an item of raised rarity, bosses guarantee BOSS_DROPS, anything may add one more.
+ * that draw order (exported so the rewards can be pinned per rank). Champions guarantee an item of raised rarity, bosses guarantee BOSS_DROPS, anything may add one more.
  */
-function onKill(state: GameState, run: MapRun, monster: MonsterState, b: BattleStats): void {
+export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: BattleStats): void {
   const tier = run.map.tier;
   const levelBefore = state.level;
   const levels = gainXp(state, monster.xp);
