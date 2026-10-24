@@ -72,13 +72,14 @@ function SettingsMain({ store, returnTo, onOpen, onClose }: {
             <div key={sw.key} className="gm-setting">
               <span className="gm-setting__text">
                 <span id={`gm-set-${sw.key}`}>{sw.label}</span>
-                <span className="gm-setting__hint">{sw.hint}</span>
+                <span id={`gm-set-${sw.key}-hint`} className="gm-setting__hint">{sw.hint}</span>
               </span>
               <button
                 type="button"
                 role="switch"
                 aria-checked={shown[sw.key]}
                 aria-labelledby={`gm-set-${sw.key}`}
+                aria-describedby={`gm-set-${sw.key}-hint`}
                 disabled={reduced}
                 className="gm-switch"
                 onClick={() => set({ [sw.key]: !state.settings.motion[sw.key] })}
@@ -113,7 +114,7 @@ function SettingsMain({ store, returnTo, onOpen, onClose }: {
         <section className="gm-dialog__section gm-dialog__section--ruled" aria-label="World">
           <h3>World</h3>
           <div className="gm-seedrow">
-            <span className="gm-seedrow__seed" aria-label="World seed">{state.worldSeed}</span>
+            <span className="gm-seedrow__seed"><span className="gm-visually-hidden">World seed: </span>{state.worldSeed}</span>
             <button
               type="button"
               className="gm-btn"

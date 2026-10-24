@@ -1,9 +1,7 @@
-import { useState } from 'react';
-import { isValidSeedText } from '../../core/seed';
+import { useEffect, useRef, useState } from 'react';
+import { isValidSeedText, MAX_SEED_TEXT } from '../../core/seed';
 import type { GameStore } from '../../store/gameStore';
 import { useDialog } from '../useDialog';
-
-const MAX_SEED_LENGTH = 64;
 
 interface Props {
   store: GameStore;
@@ -20,6 +18,19 @@ export function NewWorld({ store, runAsOwner, onClose, onDone }: Props) {
   const [text, setText] = useState('');
   const [problem, setProblem] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const startRef = useRef<HTMLButtonElement>(null);
+  const noRef = useRef<HTMLButtonElement>(null);
+  const confirmedOnce = useRef(false);
+
+  // The button that was focused unmounts when the row swaps, so hand focus over; the first render keeps useDialog's focus.
+  useEffect(() => {
+    if (confirm) {
+      confirmedOnce.current = true;
+      noRef.current?.focus();
+    } else if (confirmedOnce.current) {
+      startRef.current?.focus();
+    }
+  }, [confirm]);
 
   const ask = (): void => {
     if (!random && !isValidSeedText(text)) {
@@ -59,7 +70,7 @@ export function NewWorld({ store, runAsOwner, onClose, onDone }: Props) {
             type="text"
             className="gm-newworld__text"
             value={text}
-            maxLength={MAX_SEED_LENGTH}
+            maxLength={MAX_SEED_TEXT}
             placeholder="amber-fox-427"
             aria-label="Seed"
             aria-invalid={problem || undefined}
@@ -77,13 +88,13 @@ export function NewWorld({ store, runAsOwner, onClose, onDone }: Props) {
             <button type="button" className="gm-btn gm-btn--danger" onClick={erase}>
               Yes
             </button>
-            <button type="button" className="gm-btn" onClick={() => setConfirm(false)}>
+            <button type="button" ref={noRef} className="gm-btn" onClick={() => setConfirm(false)}>
               No
             </button>
           </div>
         ) : (
           <div className="gm-dialog__actions">
-            <button type="button" className="gm-btn gm-btn--danger" onClick={ask}>
+            <button type="button" ref={startRef} className="gm-btn gm-btn--danger" onClick={ask}>
               Start a new world
             </button>
           </div>

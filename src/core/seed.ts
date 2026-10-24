@@ -15,14 +15,17 @@ export const ANIMALS = [
   'robin', 'salmon', 'shrew', 'snail', 'stoat', 'swan', 'toad', 'vole', 'weasel', 'wren',
 ] as const;
 
-const MAX_SEED_TEXT = 64;
+export const MAX_SEED_TEXT = 64;
 
 export function isValidSeedText(text: string): boolean {
   const n = text.trim().length;
   return n >= 1 && n <= MAX_SEED_TEXT;
 }
 
-/** Plain numbers up to 2^32 - 1 are their own seed; any other text is hashed (FNV-1a over UTF-8). */
+/**
+ * Plain numbers up to 2^32 - 1 are their own seed; any other text is hashed (FNV-1a over UTF-8).
+ * The output is part of the save contract: a changed hash invalidates every text-seeded save, and the pinned test vectors guard it.
+ */
 export function seedFromText(text: string): number {
   const t = text.trim();
   if (/^\d{1,10}$/.test(t) && Number(t) <= 4294967295) return Number(t);

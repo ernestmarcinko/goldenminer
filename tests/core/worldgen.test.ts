@@ -5,12 +5,25 @@ import { fillAhead, rollMetre } from '../../src/core/metres';
 import { newGame } from '../../src/core/newGame';
 import { seedFromText } from '../../src/core/seed';
 import { deriveStats } from '../../src/core/stats';
+import type { TickEvent } from '../../src/core/types';
 import { gear } from '../helpers/items';
 
 const world = (lootSeed: number) => newGame(seedFromText('golden mole'), 0, { seedText: 'golden mole', lootSeed });
 const finder = (s: ReturnType<typeof world>) => {
   s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'chestFind', value: 900 }, { stat: 'mapFind', value: 300 }] });
 };
+
+it('a bonus find event carries the bonus flag', () => {
+  const geared = world(2);
+  finder(geared);
+  const stats = deriveStats(geared);
+  const events: TickEvent[] = [];
+  while (geared.deepest < 60) applyTicks(geared, 1, stats, events);
+  const bonus = events.flatMap((e) => (e.kind === 'find' && e.find.bonus ? [e.find] : []));
+  expect(bonus.length).toBeGreaterThan(0);
+  expect(bonus.every((f) => f.bonus === true)).toBe(true);
+  expect(events.some((e) => e.kind === 'find' && !e.find.bonus)).toBe(true);
+});
 
 it('find gear never changes what a metre holds in generation 2', () => {
   const plain = world(1);

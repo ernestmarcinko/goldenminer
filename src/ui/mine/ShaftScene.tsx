@@ -18,6 +18,7 @@ const SWEEP_MS = 250;
 const DRAIN_MS = 1000;
 const TUNNEL_TILES = 3;
 const MINER_PX = 60;
+const LABELS_ID = 'gm-shaft-labels';
 
 const FEATURE_SPRITE: Record<FeatureKind, SpriteName> = {
   goldVein: 'coin', diamondVein: 'diamond', chest: 'chest', gem: 'gem', map: 'map',
@@ -162,49 +163,61 @@ export function ShaftScene({ store }: { store: GameStore }) {
   const fogTop = Math.max(0, (model.firstDark - 1) * SHAFT_ROW_PX);
 
   return (
-    <button ref={sceneRef} type="button" className="gm-shaft" aria-label="Dig: click the rock" onClick={onClick}>
-      <div ref={stripRef} className="gm-shaft__strip">
-        {model.rows.map(({ row, rock }) => {
-          if (row.cell === 'surface') {
+    <>
+      <button
+        ref={sceneRef}
+        type="button"
+        className="gm-shaft"
+        aria-label="Dig: click the rock"
+        aria-describedby={LABELS_ID}
+        onClick={onClick}
+      >
+        <div ref={stripRef} className="gm-shaft__strip">
+          {model.rows.map(({ row, rock }) => {
+            if (row.cell === 'surface') {
+              return (
+                <div key={row.metre} className="gm-shaft__row gm-shaft__row--surface">
+                  {row.metre === 0 && <span className="gm-shaft__grass" />}
+                </div>
+              );
+            }
+            const tunnel = row.tunnel && row.metre > 0;
+            const k = row.metre - deepest;
             return (
-              <div key={row.metre} className="gm-shaft__row gm-shaft__row--surface">
-                {row.metre === 0 && <span className="gm-shaft__grass" />}
+              <div key={row.metre} className="gm-shaft__row">
+                {row.left.map((t, c) => <Wall key={c} tile={t} dug={false} />)}
+                <ShaftCell row={row} rock={rock} depth={depth} progress={depth < deepest ? 0 : progress} />
+                {row.right.map((t, c) => <Wall key={c} tile={t} dug={tunnel && c < TUNNEL_TILES} />)}
+                {row.label && (
+                  <span className="gm-shaft__label" data-feature={row.feature ?? 'hard'} style={{ opacity: Math.max(0.5, 1 - (k - 1) * 0.15) }}>
+                    {row.label}
+                  </span>
+                )}
               </div>
             );
-          }
-          const tunnel = row.tunnel && row.metre > 0;
-          const k = row.metre - deepest;
-          return (
-            <div key={row.metre} className="gm-shaft__row">
-              {row.left.map((t, c) => <Wall key={c} tile={t} dug={false} />)}
-              <ShaftCell row={row} rock={rock} depth={depth} progress={depth < deepest ? 0 : progress} />
-              {row.right.map((t, c) => <Wall key={c} tile={t} dug={tunnel && c < TUNNEL_TILES} />)}
-              {row.label && (
-                <span className="gm-shaft__label" data-feature={row.feature ?? 'hard'} style={{ opacity: Math.max(0.5, 1 - (k - 1) * 0.15) }}>
-                  {row.label}
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      <div aria-hidden="true" className="gm-shaft__vignette" />
-      <div aria-hidden="true" className="gm-shaft__fog" style={{ top: fogTop }} />
-      <div
-        aria-hidden="true"
-        className="gm-shaft__glow"
-        data-flicker={motion.lampFlicker}
-        style={{ left: minerX, top: minerTop + MINER_PX / 2 }}
-      />
-      <div aria-hidden="true" className="gm-shaft__miner" style={{ left: minerX, top: minerTop }}>
-        <Sprite name="miner" scale={3} />
-      </div>
-      <div className="gm-shaft__hint">Click the rock to dig</div>
-      {particles.map((p) => (
-        <span key={p.id} aria-hidden="true" className="gm-particle" data-kind={p.kind} style={{ left: p.x, top: p.y }}>
-          {p.text}
-        </span>
-      ))}
-    </button>
+          })}
+        </div>
+        <div aria-hidden="true" className="gm-shaft__vignette" />
+        <div aria-hidden="true" className="gm-shaft__fog" style={{ top: fogTop }} />
+        <div
+          aria-hidden="true"
+          className="gm-shaft__glow"
+          data-flicker={motion.lampFlicker}
+          style={{ left: minerX, top: minerTop + MINER_PX / 2 }}
+        />
+        <div aria-hidden="true" className="gm-shaft__miner" style={{ left: minerX, top: minerTop }}>
+          <Sprite name="miner" scale={3} />
+        </div>
+        <div className="gm-shaft__hint">Click the rock to dig</div>
+        {particles.map((p) => (
+          <span key={p.id} aria-hidden="true" className="gm-particle" data-kind={p.kind} style={{ left: p.x, top: p.y }}>
+            {p.text}
+          </span>
+        ))}
+      </button>
+      <ul id={LABELS_ID} className="gm-visually-hidden">
+        {model.rows.map(({ row }) => row.label && <li key={row.metre}>{row.label}</li>)}
+      </ul>
+    </>
   );
 }

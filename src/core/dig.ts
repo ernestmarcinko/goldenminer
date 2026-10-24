@@ -9,7 +9,9 @@ import { fillAhead, metreChances, rollGallery, rollMetre } from './metres';
 import { mulberry32, nextRandom } from './rng';
 import type { FindRecord, GameState, LootNote, MetreRoll, Stats, TickEvent } from './types';
 
-export function collect(state: GameState, roll: MetreRoll, depth: number, tier: number, stats: Stats, events?: TickEvent[]): void {
+export function collect(
+  state: GameState, roll: MetreRoll, depth: number, tier: number, stats: Stats, events?: TickEvent[], bonus = false,
+): void {
   if (roll.feature === null) return;
   let amount = roll.amount;
   if (roll.feature === 'goldVein') {
@@ -20,6 +22,7 @@ export function collect(state: GameState, roll: MetreRoll, depth: number, tier: 
     state.diamonds += amount;
   }
   const find: FindRecord = { id: state.nextId++, depth, kind: roll.feature, amount, tick: state.tickCount };
+  if (bonus) find.bonus = true;
   const loot: LootNote[] = [];
   if (roll.feature === 'chest') {
     for (const item of rollChest(state, tier)) loot.push(...receiveItem(state, item, 'mining'));
@@ -55,9 +58,7 @@ function collectBonus(state: GameState, depth: number, stats: Stats, events?: Ti
   for (const kind of BONUS_KINDS) {
     cumulative += stats.bonusChances[kind];
     if (u < cumulative) {
-      collect(state, { feature: kind, amount: 0, hardRock: false }, depth, metreTier(depth), stats, events);
-      const find = state.finds[state.finds.length - 1];
-      if (find !== undefined) find.bonus = true;
+      collect(state, { feature: kind, amount: 0, hardRock: false }, depth, metreTier(depth), stats, events, true);
       return;
     }
   }

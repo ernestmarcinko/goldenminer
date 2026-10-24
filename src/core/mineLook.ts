@@ -1,4 +1,4 @@
-import { bandAt, type Band } from './bands';
+import { ABYSS_BAND_HEIGHT, ABYSS_START, bandAt, type Band } from './bands';
 import { WALL_DETAIL_PERCENT } from './balance';
 import { hash2 } from './rng';
 import type { GameState } from './types';
@@ -19,8 +19,6 @@ const SALT_HUE = 0xc010;
 const SALT_SATURATION = 0x5a7a;
 const SALT_DETAILS = 0xde7a;
 
-const DEEP_START = 1000;
-const DEEP_BAND_HEIGHT = 300;
 
 export const DEEP_ADJECTIVES: readonly string[] = [
   'Weeping', 'Ashen', 'Hollow', 'Silent', 'Gloaming', 'Sunless', 'Shattered', 'Drowned',
@@ -57,11 +55,11 @@ const DEEP_DETAIL_POOL: readonly DetailKind[] = ['crystal', 'bone', 'fossil', 'e
 const DEEP_LIGHTNESS: readonly [number, number, number, number] = [13, 11, 15, 12];
 
 function deepIndex(band: Band): number {
-  return (band.start - DEEP_START) / DEEP_BAND_HEIGHT + 1;
+  return (band.start - ABYSS_START) / ABYSS_BAND_HEIGHT + 1;
 }
 
 export function bandTitle(world: WorldRef, band: Band): string {
-  if (band.start < DEEP_START || world.gen === 1) return band.name;
+  if (band.start < ABYSS_START || world.gen === 1) return band.name;
   const k = deepIndex(band);
   const adjective = DEEP_ADJECTIVES[hash2(world.seed ^ SALT_ADJECTIVE, k) % DEEP_ADJECTIVES.length];
   const noun = DEEP_NOUNS[hash2(world.seed ^ SALT_NOUN, k) % DEEP_NOUNS.length];
@@ -69,7 +67,7 @@ export function bandTitle(world: WorldRef, band: Band): string {
 }
 
 export function bandLook(world: WorldRef, band: Band): { palette: Palette; details: DetailKind[] } {
-  if (band.start < DEEP_START || world.gen === 1) {
+  if (band.start < ABYSS_START || world.gen === 1) {
     const i = Math.max(Math.floor(band.tier), 1) - 1;
     const palette = NAMED_PALETTES[i] ?? ABYSS_PALETTE;
     const details = NAMED_DETAILS[i] ?? ABYSS_DETAILS;

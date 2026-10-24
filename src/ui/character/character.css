@@ -3,7 +3,7 @@
   border-radius: 12px; background: var(--gm-panel); border: 1px solid var(--gm-line);
 }
 .gm-char__head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
-.gm-char__title { margin: 0; font-family: var(--gm-font-display); font-size: 18px; }
+.gm-char__title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 18px; }
 .gm-char__toggle { display: flex; gap: 4px; padding: 3px; border-radius: 10px; background: var(--gm-ground); }
 .gm-char__tab {
   min-height: 44px; padding: 0 14px; border-radius: 8px; border: 1px solid transparent; background: transparent;
