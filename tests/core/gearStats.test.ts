@@ -38,12 +38,12 @@ it('battle gear leaves digging alone', () => {
 
 it('a gem counts with the stat of the set it sits in', () => {
   const s = newGame(1, 0);
-  const pick = gear(s, 'pickaxe', { implicit: { stat: 'digPower', value: 4 }, sockets: 1, gems: [gem(s, 'ruby', { ilvl: 4 })] });
+  const pick = gear(s, 'pickaxe', { implicit: { stat: 'digPower', value: 4 }, sockets: 1, gems: [gem(s, 'ruby')] });
   s.equipped.mining.pickaxe = pick;
-  s.equipped.battle.helm = gear(s, 'helm', { implicit: { stat: 'life', value: 20 }, sockets: 1, gems: [gem(s, 'ruby', { ilvl: 4 })] });
-  expect(itemTotals(pick)).toEqual({ digPower: 4, goldYield: 12 });
-  expect(deriveStats(s).goldMultiplier).toBeCloseTo(1.12);
-  expect(gearTotals(s, 'battle').damagePct).toBe(8);
+  s.equipped.battle.helm = gear(s, 'helm', { implicit: { stat: 'life', value: 20 }, sockets: 1, gems: [gem(s, 'ruby')] });
+  expect(itemTotals(pick)).toEqual({ digPower: 4, goldYield: 8 });
+  expect(deriveStats(s).goldMultiplier).toBeCloseTo(1.08);
+  expect(gearTotals(s, 'battle').damagePct).toBe(6);
 });
 
 it('find chances are capped together and never go below zero', () => {

@@ -5,9 +5,9 @@ import { decodeSave, encodeSave } from '../../src/core/save';
 import { compressToBase64 } from 'lz-string';
 import { newGame } from '../../src/core/newGame';
 import { seedFromText } from '../../src/core/seed';
-import { BAG_SIZE, MAX_LOOT_RULES, STASH_SIZE } from '../../src/core/balance';
+import { MAX_LOOT_RULES } from '../../src/core/balance';
 import type { LootRule } from '../../src/core/types';
-import { gem } from '../helpers/items';
+import { gear, gem } from '../helpers/items';
 
 function make(now = { t: 0 }, storage = new MemoryStorage(), available = true) {
   const store = new GameStore({ storage, storageAvailable: available, now: () => now.t, newSeed: () => 7 });
@@ -147,15 +147,15 @@ describe('inventory intents', () => {
     store.load();
     const s = store.state;
     s.settings.bagFull = 'stop';
-    for (let i = 0; i < BAG_SIZE; i++) s.bags.mining.push(gem(s));
-    for (let i = 0; i < STASH_SIZE; i++) s.stash.push(gem(s));
-    const held = gem(s, 'emerald');
+    s.bags.mining = s.bags.mining.map(() => gem(s));
+    s.stash.general = s.stash.general.map(() => gear(s, 'ring'));
+    const held = gear(s, 'pickaxe');
     s.overflow.push({ bag: 'mining', item: held });
     const v = store.version;
     expect(store.sell('mining', 0)).toBe('ok');
     expect(store.version).toBe(v + 1);
     expect(s.overflow).toEqual([]);
-    expect(s.bags.mining.at(-1)).toBe(held);
+    expect(s.bags.mining[0]).toBe(held);
   });
 
   it('a refused action changes nothing', () => {
@@ -174,9 +174,9 @@ describe('inventory intents', () => {
     expect(store.state.settings.lootFilter).toHaveLength(MAX_LOOT_RULES);
     const s = store.state;
     s.settings.bagFull = 'stop';
-    for (let i = 0; i < BAG_SIZE; i++) s.bags.mining.push(gem(s));
-    for (let i = 0; i < STASH_SIZE; i++) s.stash.push(gem(s));
-    s.overflow.push({ bag: 'mining', item: gem(s) });
+    s.bags.mining = s.bags.mining.map(() => gem(s));
+    s.stash.general = s.stash.general.map(() => gear(s, 'ring'));
+    s.overflow.push({ bag: 'mining', item: gear(s, 'pickaxe') });
     store.setBagFull('sellWorst');
     expect(s.overflow).toEqual([]);
   });

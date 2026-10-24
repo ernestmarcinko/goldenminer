@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { BAG_SIZE, STASH_SIZE } from '../../core/balance';
+import { filledCount } from '../../core/cells';
 import type { GearSet } from '../../core/items';
 import { gearTotals } from '../../core/stats';
 import type { GameStore } from '../../store/gameStore';
@@ -67,14 +68,14 @@ export function CharacterPanel({ store }: { store: GameStore }) {
 
       <div className="gm-char__baghead">
         <h3 ref={bagHeadingRef} tabIndex={-1} className="gm-char__bag">
-          {current?.bag} <span className="gm-muted">{formatNumber(bag.length)} / {formatNumber(BAG_SIZE)}</span>
+          {current?.bag} <span className="gm-muted">{formatNumber(filledCount(bag))} / {formatNumber(BAG_SIZE)}</span>
         </h3>
         <div className="gm-char__bagbtns">
           <button type="button" ref={filterButtonRef} className="gm-btn" onClick={() => setDialog('filter')}>
             Loot filter
           </button>
           <button type="button" ref={stashButtonRef} className="gm-btn" onClick={() => setDialog('stash')}>
-            Stash {formatNumber(state.stash.length)} / {formatNumber(STASH_SIZE)}
+            Stash {formatNumber(filledCount(state.stash.general))} / {formatNumber(STASH_SIZE)}
           </button>
         </div>
       </div>

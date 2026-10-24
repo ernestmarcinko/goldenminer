@@ -1,4 +1,4 @@
-import { BAG_SIZE, STASH_SIZE } from '../../core/balance';
+import { firstEmpty } from '../../core/cells';
 import { BATTLE_SLOTS, isGear, MINING_SLOTS, setOfSlot } from '../../core/items';
 import type { GearSet, Item, Slot } from '../../core/items';
 import { salvageValue, sellValue } from '../../core/loot';
@@ -23,7 +23,8 @@ export interface ActionSpec {
 
 export function targetItem(state: GameState, target: ItemTarget): Item | undefined {
   if (target.where === 'worn') return state.equipped[setOfSlot(target.slot)][target.slot];
-  return target.where === 'bag' ? state.bags[target.set][target.index] : state.stash[target.index];
+  const cell = target.where === 'bag' ? state.bags[target.set][target.index] : state.stash.general[target.index];
+  return cell ?? undefined;
 }
 
 const containerOf = (target: ItemTarget & { where: 'bag' | 'stash' }): Container =>
@@ -50,7 +51,7 @@ export function itemActions(state: GameState, target: ItemTarget, shownSet: Gear
   const item = targetItem(state, target);
   if (item === undefined) return [];
   if (target.where === 'worn') {
-    return [{ id: 'unequip', label: 'Unequip', disabled: state.bags[setOfSlot(target.slot)].length >= BAG_SIZE }];
+    return [{ id: 'unequip', label: 'Unequip', disabled: firstEmpty(state.bags[setOfSlot(target.slot)]) < 0 }];
   }
   const sell: ActionSpec = { id: 'sell', label: `Sell (+${formatNumber(sellValue(item))} Gold)`, disabled: false };
   const salvage: ActionSpec = {
@@ -58,11 +59,14 @@ export function itemActions(state: GameState, target: ItemTarget, shownSet: Gear
   };
   if (target.where === 'stash') {
     const toBag: ActionSpec = {
-      id: 'toBag', label: 'To bag', disabled: state.bags[bagFor(item, shownSet)].length >= BAG_SIZE,
+      id: 'toBag', label: 'To bag', disabled: firstEmpty(state.bags[bagFor(item, shownSet)]) < 0,
     };
     return [toBag, ...socketActions(state, item), sell, salvage];
   }
-  const toStash: ActionSpec = { id: 'toStash', label: 'To stash', disabled: state.stash.length >= STASH_SIZE };
+  // Gear needs a free General cell; a gem joins its count on the Gems tab.
+  const toStash: ActionSpec = {
+    id: 'toStash', label: 'To stash', disabled: isGear(item) && firstEmpty(state.stash.general) < 0,
+  };
   if (isGear(item)) return [{ id: 'equip', label: 'Equip', disabled: false }, sell, salvage, toStash];
   return [...socketActions(state, item), sell, salvage, toStash];
 }

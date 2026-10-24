@@ -2,7 +2,7 @@ import {
   CHEST_BATTLE_CHANCE, CHEST_SECOND_ITEM_CHANCE, DEFAULT_STAT_WEIGHT, RARE_FOURTH_AFFIX_CHANCE, RARITY_WEIGHTS,
   SOCKET_WEIGHTS, STAT_WEIGHTS, rollStat,
 } from './balance';
-import { LEGENDARIES, RARE_FIRST, RARE_SECOND, STAT_WORDS, baseName } from './itemData';
+import { LEGENDARIES, RARE_FIRST, RARE_SECOND, STAT_WORDS, baseName, gemGradeFor } from './itemData';
 import {
   GEM_TYPES, RARITIES, SLOT_IMPLICIT, setOfSlot, slotsOf, statsOf,
   type GearItem, type GearSet, type GemItem, type Rarity, type Slot, type StatKey, type StatLine,
@@ -76,8 +76,8 @@ export function rollGear(state: Gen, ilvl: number, set: GearSet, rarity: Rarity 
   return item;
 }
 
-export function rollGem(state: Gen, ilvl: number): GemItem {
-  return { id: state.nextId++, type: 'gem', gem: pickUniform(state, GEM_TYPES), ilvl };
+export function rollGem(state: Gen, tier: number): GemItem {
+  return { id: state.nextId++, type: 'gem', gem: pickUniform(state, GEM_TYPES), grade: gemGradeFor(tier), count: 1 };
 }
 
 export function rollChest(state: Gen, ilvl: number): GearItem[] {

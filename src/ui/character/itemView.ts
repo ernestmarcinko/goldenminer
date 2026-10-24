@@ -1,4 +1,4 @@
-import { hardness, TICKS_PER_METRE_AT_PARITY } from '../../core/balance';
+import { GEM_GRADE_LEVEL, hardness, TICKS_PER_METRE_AT_PARITY } from '../../core/balance';
 import { gemName } from '../../core/itemData';
 import { BATTLE_STATS, isGear, setOfSlot } from '../../core/items';
 import type { GearItem, GemType, Item, Slot, StatKey } from '../../core/items';
@@ -53,7 +53,7 @@ export function rarityOf(item: Item): GearItem['rarity'] | 'gem' {
 const capitalise = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function itemKindLine(item: Item): string {
-  if (!isGear(item)) return `Gem · item level ${formatNumber(item.ilvl)} · socket into any gear`;
+  if (!isGear(item)) return `Gem · item level ${formatNumber(GEM_GRADE_LEVEL[item.grade])} · socket into any gear`;
   const base = `${capitalise(item.rarity)} ${SLOT_LABELS[item.slot].toLowerCase()} · item level ${formatNumber(item.ilvl)}`;
   return item.sockets > 0 ? `${base} · ${formatNumber(item.gems.length)}/${formatNumber(item.sockets)} sockets` : base;
 }

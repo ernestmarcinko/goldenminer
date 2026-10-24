@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { isGear } from '../../core/items';
-import type { Item } from '../../core/items';
+import type { Cell, Item } from '../../core/items';
 import { itemName } from '../../core/itemData';
 import { Sprite } from '../../sprites/Sprite';
 import type { ItemTarget } from './itemActions';
@@ -56,13 +56,13 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
 
 /** A fixed-size grid of item cells; `targetOf` says where cell `i` lives so any container can use it. */
 export function ItemGrid({ items, capacity, targetOf, handlers, className }: {
-  items: readonly Item[]; capacity: number; targetOf: (index: number) => ItemTarget; handlers: ItemHandlers;
+  items: readonly Cell[]; capacity: number; targetOf: (index: number) => ItemTarget; handlers: ItemHandlers;
   className?: string;
 }) {
   const cells = [];
   for (let i = 0; i < capacity; i++) {
     const item = items[i];
-    cells.push(item === undefined ? (
+    cells.push(item === undefined || item === null ? (
       <div key={i} className="gm-cell gm-cell--empty" />
     ) : (
       <ItemButton

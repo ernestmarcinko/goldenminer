@@ -1,4 +1,4 @@
-import type { Rarity, StatKey } from './items';
+import type { GemGrade, Rarity, StatKey } from './items';
 import type { FeatureKind, Stats } from './types';
 
 export const BASE_DIG_POWER = 10;
@@ -35,6 +35,11 @@ export const FINDS_LOG_LIMIT = 5000;
 
 export const BAG_SIZE = 24;
 export const STASH_SIZE = 60;
+// The item level a gem's value is worked out at, and the first tier each grade is found at.
+export const GEM_GRADE_LEVEL: Readonly<Record<GemGrade, number>> = { tiny: 2, small: 5, big: 8, giant: 12, perfect: 18 };
+export const GEM_GRADE_FROM_TIER: Readonly<Record<GemGrade, number>> = { tiny: 1, small: 4, big: 7, giant: 10, perfect: 15 };
+export const GEM_BAG_STACK = 25;
+export const GEM_STASH_STACK = 1_000_000;
 export const MAX_LOOT_RULES = 20;
 export const MAX_OVERFLOW = 10;
 export const MAX_SOCKETS = 3;

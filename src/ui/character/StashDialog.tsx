@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { STASH_SIZE } from '../../core/balance';
+import { filledCount } from '../../core/cells';
 import type { GearSet } from '../../core/items';
 import type { GameStore } from '../../store/gameStore';
 import { formatNumber } from '../format';
@@ -28,7 +29,7 @@ export function StashDialog({ store, set, onClose }: { store: GameStore; set: Ge
       >
         <div className="gm-dialog__head">
           <h2 id="gm-stash-title" ref={titleRef} tabIndex={-1} className="gm-dialog__title">
-            Stash {formatNumber(state.stash.length)} / {formatNumber(STASH_SIZE)}
+            Stash {formatNumber(filledCount(state.stash.general))} / {formatNumber(STASH_SIZE)}
           </h2>
           <button type="button" ref={closeRef} className="gm-btn" onClick={onClose}>
             Close
@@ -36,7 +37,7 @@ export function StashDialog({ store, set, onClose }: { store: GameStore; set: Ge
         </div>
         <ItemGrid
           className="gm-grid--stash"
-          items={state.stash}
+          items={state.stash.general}
           capacity={STASH_SIZE}
           targetOf={(index) => ({ where: 'stash', index })}
           handlers={handlers}
