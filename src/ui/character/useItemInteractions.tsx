@@ -9,8 +9,14 @@ import { actionForIntent, itemActions, resultText, runAction } from './itemActio
 import type { ActionSpec, ItemTarget } from './itemActions';
 import { useItemPopover } from './useItemPopover';
 
-const targetKey = (t: ItemTarget): string =>
-  t.where === 'worn' ? `worn-${t.slot}` : t.where === 'bag' ? `bag-${t.set}-${t.index}` : `stash-${t.index}`;
+const targetKey = (t: ItemTarget): string => {
+  switch (t.where) {
+    case 'worn': return `worn-${t.slot}`;
+    case 'bag': return `bag-${t.set}-${t.index}`;
+    case 'stash': return `stash-${t.index}`;
+    case 'gems': return `gems-${t.gem}-${t.grade}`;
+  }
+};
 
 /**
  * Everything a container of items needs besides its grid: click and menu handlers, the refusal message, and the

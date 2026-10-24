@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react';
 import type { FocusEvent, KeyboardEvent } from 'react';
+import { itemAt } from '../../core/cells';
 import { isGear, setOfSlot } from '../../core/items';
 import type { GearSet } from '../../core/items';
 import { itemName } from '../../core/itemData';
 import type { GameState } from '../../core/types';
-import { hoverNote, itemActions, targetItem } from './itemActions';
+import { hoverNote, itemActions } from './itemActions';
 import type { ActionSpec, ItemTarget } from './itemActions';
 import { compareLines, itemKindLine, itemLines, rarityOf } from './itemView';
 import type { ViewLine } from './itemView';
@@ -36,7 +37,7 @@ export function ItemCard({ state, target, shownSet, left, top, menu }: {
     if (isMenu) ref.current?.querySelector('button')?.focus();
   }, [isMenu]);
 
-  const item = targetItem(state, target);
+  const item = itemAt(state, target);
   if (item === undefined) return null;
   const name = itemName(item);
   const compare = isGear(item) && target.where !== 'worn'
@@ -77,7 +78,7 @@ export function ItemCard({ state, target, shownSet, left, top, menu }: {
         <div className="gm-card__actions">
           {itemActions(state, target, shownSet).map((a, i) => (
             <button
-              key={`${a.id}${a.slot ?? ''}${i}`}
+              key={`${a.id}${i}`}
               type="button"
               className="gm-card__btn"
               aria-disabled={a.disabled || undefined}

@@ -3,7 +3,13 @@ import type { Cell, GearItem, GearSet, GemGrade, GemType, Rarity, Slot } from '.
 export const FEATURE_KINDS = ['goldVein', 'diamondVein', 'chest', 'gem', 'map'] as const;
 export type FeatureKind = (typeof FEATURE_KINDS)[number];
 export interface MetreRoll { feature: FeatureKind | null; amount: number; hardRock: boolean }
-export type Container = GearSet | 'stash';
+/** Where an item lives: a bag cell, a General-tab cell, a Gems-tab stack, or a worn slot. */
+export type ItemLoc =
+  | { where: 'bag'; set: GearSet; index: number }
+  | { where: 'stash'; index: number }                   // a General-tab cell
+  | { where: 'gems'; gem: GemType; grade: GemGrade }    // a Gems-tab stack
+  | { where: 'worn'; slot: Slot };
+export type DropTarget = ItemLoc | { where: 'stashTab'; tab: 'general' | 'gems' | 'auto' };
 export const LOOT_ACTIONS = ['keep', 'sell', 'salvage'] as const;
 export type LootAction = (typeof LOOT_ACTIONS)[number];
 export type LootTarget = GearSet | Slot | 'gem' | 'any';
@@ -23,7 +29,9 @@ export interface LootNote {
 export interface FindRecord {
   id: number; depth: number; kind: FeatureKind; amount: number; tick: number; loot?: LootNote[]; bonus?: true;
 }
-export type InvResult = 'ok' | 'bagFull' | 'stashFull' | 'noSocket' | 'invalid';
+export type InvResult =
+  | 'ok' | 'bagFull' | 'stashFull' | 'noSocket' | 'invalid'
+  | 'wrongSet' | 'wrongSlot' | 'gemsOnly' | 'gearOnly' | 'stackFull';
 export interface GameState {
   seed: number;                            // the world seed: a pure function of worldSeed
   worldSeed: string;                       // the text the player sees and shares

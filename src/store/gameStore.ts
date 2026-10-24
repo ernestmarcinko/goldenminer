@@ -2,6 +2,8 @@ import { MAX_LOOT_RULES, OFFLINE_SUMMARY_MIN_TICKS } from '../core/balance';
 import { advance, ClickLimiter, clickTicks } from '../core/clock';
 import { moveTo as coreMoveTo } from '../core/dig';
 import * as inv from '../core/inventory';
+import { itemName } from '../core/itemData';
+import { BATTLE_SLOTS, MINING_SLOTS, setOfSlot } from '../core/items';
 import type { GearSet, Slot } from '../core/items';
 import { drainOverflow } from '../core/loot';
 import { newGame } from '../core/newGame';
@@ -10,9 +12,12 @@ import { freshWorld, isValidSeedText, seedFromText } from '../core/seed';
 import { deriveStats } from '../core/stats';
 import { summarize } from '../core/summary';
 import type {
-  BagFullMode, Container, FindRecord, GameState, InvResult, LootRule, MotionSettings, OfflineSummary, Stats, TickEvent,
+  BagFullMode, DropTarget, FindRecord, GameState, InvResult, ItemLoc, LootRule, MotionSettings, OfflineSummary, Stats, TickEvent,
 } from '../core/types';
 import { BACKUP_PREFIX, SAVE_KEY, type StorageLike } from './storage';
+
+/** Gear just worn into a slot that was empty; `id` counts up so the UI can tell one from the next. */
+export interface EquipNotice { id: number; slot: Slot; name: string }
 
 export interface Feedback { gold: number; diamonds: number; finds: FindRecord[] }
 
@@ -30,6 +35,7 @@ interface Deps {
 }
 
 const MAX_FINDS = 3;
+const ALL_SLOTS: readonly Slot[] = [...MINING_SLOTS, ...BATTLE_SLOTS];
 const emptyFeedback = (): Feedback => ({ gold: 0, diamonds: 0, finds: [] });
 
 export class GameStore {
@@ -39,6 +45,8 @@ export class GameStore {
   private _summary: OfflineSummary | null = null;
   private _notice: Notice = null;
   private _unreadable: string | null = null;
+  private _equipNotice: EquipNotice | null = null;
+  private noticeCount = 0;
   private feedback: Feedback = emptyFeedback();
   private readonly listeners = new Set<() => void>();
   private limiter = new ClickLimiter();
@@ -54,6 +62,7 @@ export class GameStore {
   get offlineSummary(): OfflineSummary | null { return this._summary; }
   get notice(): Notice { return this._notice; }
   get unreadableSave(): string | null { return this._unreadable; }
+  get equipNotice(): EquipNotice | null { return this._equipNotice; }
 
   subscribe(fn: () => void): () => void {
     this.listeners.add(fn);
@@ -68,6 +77,7 @@ export class GameStore {
 
   private replaceState(state: GameState): void {
     this._state = state;
+    this._equipNotice = null;
     this._stats = deriveStats(state);
   }
 
@@ -174,24 +184,31 @@ export class GameStore {
     return moved;
   }
 
-  private settle(result: InvResult): InvResult {
+  /** Runs an inventory change; if it filled a slot that was empty, that is the new equip notice. */
+  private act(change: () => InvResult): InvResult {
+    const wornSlots = (): Slot[] => ALL_SLOTS.filter((s) => this._state.equipped[setOfSlot(s)][s] !== undefined);
+    const before = wornSlots();
+    const result = change();
     if (result === 'ok') {
+      for (const slot of wornSlots()) {
+        const item = this._state.equipped[setOfSlot(slot)][slot];
+        if (before.includes(slot) || item === undefined) continue;
+        this._equipNotice = { id: ++this.noticeCount, slot, name: itemName(item) };
+      }
       drainOverflow(this._state);
       this.changed();
     }
     return result;
   }
 
-  equip(set: GearSet, index: number): InvResult { return this.settle(inv.equip(this._state, set, index)); }
-  unequip(slot: Slot): InvResult { return this.settle(inv.unequip(this._state, slot)); }
-  sell(from: Container, index: number): InvResult { return this.settle(inv.sell(this._state, from, index)); }
-  salvage(from: Container, index: number): InvResult { return this.settle(inv.salvage(this._state, from, index)); }
-  moveItem(from: Container, index: number, to: Container): InvResult {
-    return this.settle(inv.moveItem(this._state, from, index, to));
-  }
-  socketGem(from: Container, index: number, slot: Slot): InvResult {
-    return this.settle(inv.socketGem(this._state, from, index, slot));
-  }
+  equip(from: ItemLoc): InvResult { return this.act(() => inv.equip(this._state, from)); }
+  unequip(slot: Slot, to?: ItemLoc): InvResult { return this.act(() => inv.unequip(this._state, slot, to)); }
+  moveItem(from: ItemLoc, to: ItemLoc): InvResult { return this.act(() => inv.moveItem(this._state, from, to)); }
+  sendItem(from: ItemLoc, to: 'stash' | GearSet): InvResult { return this.act(() => inv.sendItem(this._state, from, to)); }
+  socketGem(gem: ItemLoc, into: ItemLoc): InvResult { return this.act(() => inv.socketGem(this._state, gem, into)); }
+  sell(from: ItemLoc): InvResult { return this.act(() => inv.sell(this._state, from)); }
+  salvage(from: ItemLoc): InvResult { return this.act(() => inv.salvage(this._state, from)); }
+  drop(from: ItemLoc, to: DropTarget): InvResult { return this.act(() => inv.dropItem(this._state, from, to)); }
 
   setLootFilter(rules: LootRule[]): void {
     this._state.settings.lootFilter = rules.slice(0, MAX_LOOT_RULES).map((r) => ({ ...r }));
