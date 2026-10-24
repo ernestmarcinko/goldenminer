@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import type { GameStore } from '../store/gameStore';
 import type { TabLock } from '../store/tabLock';
 import { startGame, type GameLoop } from './gameLoop';
+import { CharacterPanel } from './character/CharacterPanel';
 import { Header } from './Header';
 import { MineView } from './mine/MineView';
 import { Notices } from './Notices';
@@ -49,7 +50,8 @@ function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: ()
       <Header store={store} onOpenSave={() => setSaveOpen(true)} />
       <Notices store={store} />
       <main className="gm-app__main">
-        <MineView store={store} />
+        <div className="gm-app__play"><MineView store={store} /></div>
+        <div className="gm-app__side"><CharacterPanel store={store} /></div>
       </main>
       {offlineSummary && <OfflineSummary summary={offlineSummary} onClose={() => store.dismissSummary()} />}
       {saveOpen && <SaveMenu store={store} runAsOwner={runAsOwner} onClose={() => setSaveOpen(false)} />}

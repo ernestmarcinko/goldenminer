@@ -1,0 +1,86 @@
+import { expect, it } from 'vitest';
+import { newGame } from '../../src/core/newGame';
+import { deriveStats, gearTotals } from '../../src/core/stats';
+import { battleStatLine, clickIntent, compareLines, itemKindLine, itemLines, lootNoteText, miningStatLine, placeTooltip, statText } from '../../src/ui/character/itemView';
+import { gear, gem } from '../helpers/items';
+
+it('stat text', () => {
+  expect(statText('chestFind', 12)).toBe('+12% chest find');
+  expect(statText('chestFind', -10)).toBe('−10% chest find');
+  expect(statText('lampSight', 4)).toBe('+4 m lamp sight');
+  expect(statText('offlineCap', 60)).toBe('+60 min offline cap');
+  expect(statText('ticksPerClick', 1)).toBe('+1 tick per click');
+  expect(statText('damage', 1234)).toBe('+1,234 damage');
+});
+
+it('kind lines', () => {
+  const s = newGame(1, 0);
+  expect(itemKindLine(gear(s, 'pickaxe', { rarity: 'rare', ilvl: 4, sockets: 2, gems: [gem(s)] }))).toBe('Rare pickaxe · item level 4 · 1/2 sockets');
+  expect(itemKindLine(gear(s, 'lamp', { rarity: 'normal', ilvl: 1 }))).toBe('Normal lamp helm · item level 1');
+  expect(itemKindLine(gem(s, 'ruby', { ilvl: 5 }))).toBe('Gem · item level 5 · socket into any gear');
+});
+
+it('item lines list the implicit, affixes, gems and empty sockets', () => {
+  const s = newGame(1, 0);
+  const item = gear(s, 'pickaxe', {
+    implicit: { stat: 'digPower', value: 8 }, affixes: [{ stat: 'chestFind', value: -10 }],
+    sockets: 2, gems: [gem(s, 'ruby', { ilvl: 4 })],
+  });
+  expect(itemLines(item)).toEqual([
+    { text: '+8 dig power', tone: 'plain' },
+    { text: '−10% chest find', tone: 'down' },
+    { text: 'Small Ruby: +12% Gold yield', tone: 'gem' },
+    { text: '1 empty socket', tone: 'muted' },
+  ]);
+  expect(itemLines(gem(s, 'ruby', { ilvl: 4 }))).toEqual([
+    { text: 'In mining gear: +12% Gold yield', tone: 'plain' },
+    { text: 'In battle gear: +8% damage', tone: 'plain' },
+  ]);
+});
+
+it('compares against the worn item', () => {
+  const s = newGame(1, 0);
+  const worn = gear(s, 'pickaxe', { name: 'Stonebiter', implicit: { stat: 'digPower', value: 18 }, affixes: [{ stat: 'diamondYield', value: 6 }] });
+  const next = gear(s, 'pickaxe', { implicit: { stat: 'digPower', value: 26 }, affixes: [{ stat: 'ticksPerClick', value: 1 }, { stat: 'chestFind', value: -10 }] });
+  expect(compareLines(next, worn)).toEqual({
+    title: 'If equipped, instead of Stonebiter:',
+    lines: [
+      { text: '+8 dig power', tone: 'up' },
+      { text: '+1 tick per click', tone: 'up' },
+      { text: '−10% chest find', tone: 'down' },
+      { text: '−6% Diamond yield', tone: 'down' },
+    ],
+  });
+  expect(compareLines(next, undefined).title).toBe('If equipped (the slot is empty):');
+});
+
+it('summarises each set', () => {
+  const s = newGame(1, 0);
+  expect(miningStatLine(deriveStats(s), s.deepest)).toBe('Dig 2.4 m/min · chest find 6% · gem find 3% · map find 4% · lamp sight 2 m · offline cap 8h 0m');
+  expect(battleStatLine(gearTotals(s, 'battle'))).toBe('Battle gear: nothing equipped yet');
+  s.equipped.battle.weapon = gear(s, 'weapon', { implicit: { stat: 'damage', value: 14 }, affixes: [{ stat: 'critChance', value: 5 }] });
+  s.equipped.battle.armor = gear(s, 'armor', { implicit: { stat: 'armor', value: 30 } });
+  expect(battleStatLine(gearTotals(s, 'battle'))).toBe('Battle gear: +14 damage · +30 armor · +5% crit chance');
+});
+
+it('keeps the tooltip inside the panel', () => {
+  expect(placeTooltip({ left: 0, top: 0, width: 52, height: 52 }, 342)).toEqual({ left: 0, top: 56 });
+  expect(placeTooltip({ left: 290, top: 116, width: 52, height: 52 }, 342)).toEqual({ left: 72, top: 172 });
+});
+
+it('reads what a click means', () => {
+  const base = { altKey: false, shiftKey: false, detail: 1, pointerType: 'mouse' };
+  expect(clickIntent(base)).toBe('primary');
+  expect(clickIntent({ ...base, altKey: true })).toBe('sell');
+  expect(clickIntent({ ...base, shiftKey: true })).toBe('move');
+  expect(clickIntent({ ...base, detail: 0 })).toBe('menu');
+  expect(clickIntent({ ...base, pointerType: 'touch', altKey: true })).toBe('menu');
+});
+
+it('loot notes in words', () => {
+  const n = { name: 'X', rarity: 'magic', base: 'pickaxe' } as const;
+  expect(lootNoteText({ ...n, outcome: 'sold', value: 48 })).toBe('sold +48 Gold');
+  expect(lootNoteText({ ...n, outcome: 'salvaged', value: 1 })).toBe('salvaged +1 Diamond');
+  expect(lootNoteText({ ...n, outcome: 'stash', value: 0 })).toBe('to stash');
+  expect(lootNoteText({ ...n, outcome: 'held', value: 0 })).toBe('waiting for space');
+});

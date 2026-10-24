@@ -14,6 +14,7 @@ it('every grid is rectangular and uses known colours', () => {
   expect(GRIDS.miner).toHaveLength(20);
   expect(GRIDS.miner[0]).toHaveLength(16);
   expect(GRIDS.ruby).toEqual(GRIDS.gem);
+  for (const g of ['sapphire', 'emerald', 'amethyst', 'starstone'] as const) expect(GRIDS[g]).toEqual(GRIDS.gem);
 });
 
 it('packs frames without overlap', () => {
