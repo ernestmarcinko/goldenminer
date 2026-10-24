@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { emptyInventory, filledCount, firstEmpty } from '../../src/core/cells';
+import { emptyInventory, filledCount, firstEmpty, pageCount } from '../../src/core/cells';
 import { gemGradeFor, gemName } from '../../src/core/itemData';
 import { gemEffect } from '../../src/core/stats';
 import { salvageValue, sellValue } from '../../src/core/loot';
@@ -14,10 +14,13 @@ it('gems come in five grades by tier', () => {
   expect(salvageValue({ id: 1, type: 'gem', gem: 'ruby', grade: 'perfect', count: 2 })).toBe(16);
 });
 
-it('an empty inventory is fixed grids', () => {
+it('an empty inventory is one bag and the free stash pages', () => {
   const inv = emptyInventory();
-  expect([inv.bags.mining.length, inv.bags.battle.length, inv.stash.general.length]).toEqual([24, 24, 60]);
+  expect([inv.bag.length, inv.stash.general.length, inv.stash.maps.length]).toEqual([60, 120, 60]);
+  expect([pageCount(inv.stash.general), pageCount(inv.stash.maps)]).toEqual([2, 1]);
   expect(inv.stash.gems.ruby).toEqual({ tiny: 0, small: 0, big: 0, giant: 0, perfect: 0 });
-  expect([firstEmpty(inv.bags.mining), filledCount(inv.bags.mining), firstEmpty([{ id: 1, type: 'gem', gem: 'ruby', grade: 'tiny', count: 1 }])])
+  expect(Object.values(inv.stash.materials)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+  expect(inv.stash.bought).toEqual({ general: 0, maps: 0 });
+  expect([firstEmpty(inv.bag), filledCount(inv.bag), firstEmpty([{ id: 1, type: 'gem', gem: 'ruby', grade: 'tiny', count: 1 }])])
     .toEqual([0, 0, -1]);
 });

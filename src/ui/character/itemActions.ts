@@ -1,7 +1,7 @@
 import { GEM_BAG_STACK, GEM_STASH_STACK } from '../../core/balance';
 import { firstEmpty, itemAt } from '../../core/cells';
-import { BATTLE_SLOTS, GEAR_SETS, isGear, MINING_SLOTS, setOfSlot } from '../../core/items';
-import type { GearItem, GearSet, Item } from '../../core/items';
+import { BATTLE_SLOTS, isGear, MINING_SLOTS, setOfSlot } from '../../core/items';
+import type { GearItem, GemItem, Item } from '../../core/items';
 import { salvageValue, sellValue } from '../../core/loot';
 import { gemEffect } from '../../core/stats';
 import type { GameState, InvResult, ItemLoc } from '../../core/types';
@@ -20,14 +20,8 @@ export interface ActionSpec {
   into?: ItemLoc;
 }
 
-/** The bag an item leaves the stash for: gear to its own set's bag, a gem to the bag being shown. */
-function bagFor(item: Item, shownSet: GearSet): GearSet {
-  return isGear(item) ? setOfSlot(item.slot) : shownSet;
-}
-
 /** One "Socket into …" action per worn item, then per carried item, that has an open socket. */
-function socketActions(state: GameState, item: Item): ActionSpec[] {
-  if (isGear(item)) return [];
+function socketActions(state: GameState, item: GemItem): ActionSpec[] {
   const specs: ActionSpec[] = [];
   const add = (into: ItemLoc, gear: GearItem, where: string): void => {
     if (gear.gems.length >= gear.sockets) return;
@@ -38,10 +32,8 @@ function socketActions(state: GameState, item: Item): ActionSpec[] {
     const worn = state.equipped[setOfSlot(slot)][slot];
     if (worn !== undefined) add({ where: 'worn', slot }, worn, '');
   }
-  for (const set of GEAR_SETS) {
-    for (const [index, c] of state.bags[set].entries()) {
-      if (c !== null && isGear(c)) add({ where: 'bag', set, index }, c, ` (${set} bag)`);
-    }
+  for (const [index, c] of state.bag.entries()) {
+    if (c !== null && isGear(c)) add({ where: 'bag', index }, c, ' (bag)');
   }
   for (const [index, c] of state.stash.general.entries()) {
     if (c !== null) add({ where: 'stash', index }, c, ' (stash)');
@@ -49,20 +41,22 @@ function socketActions(state: GameState, item: Item): ActionSpec[] {
   return specs;
 }
 
-/** Whether a bag can take at least one gem of this kind: an open cell, or a stack with room. */
-function bagTakesGem(state: GameState, set: GearSet, item: Item): boolean {
-  return firstEmpty(state.bags[set]) >= 0 || state.bags[set].some(
-    (c) => c !== null && !isGear(c) && !isGear(item) && c.gem === item.gem && c.grade === item.grade && c.count < GEM_BAG_STACK,
+/** Whether the bag can take at least one gem of this kind: an open cell, or a stack with room. */
+function bagTakesGem(state: GameState, item: GemItem): boolean {
+  return firstEmpty(state.bag) >= 0 || state.bag.some(
+    (c) => c?.type === 'gem' && c.gem === item.gem && c.grade === item.grade && c.count < GEM_BAG_STACK,
   );
 }
 
-export function itemActions(state: GameState, target: ItemTarget, shownSet: GearSet): ActionSpec[] {
+export function itemActions(state: GameState, target: ItemTarget): ActionSpec[] {
   const item = itemAt(state, target);
-  if (item === undefined) return [];
+  // maps and materials have no card actions yet: they move by drag and drop
+  if (item === undefined || item.type === 'map' || item.type === 'material') return [];
+  const bagFull = firstEmpty(state.bag) < 0;
   const generalFull = firstEmpty(state.stash.general) < 0;
   if (target.where === 'worn') {
     return [
-      { id: 'unequip', label: 'Unequip', disabled: firstEmpty(state.bags[setOfSlot(target.slot)]) < 0 },
+      { id: 'unequip', label: 'Unequip', disabled: bagFull },
       { id: 'toStash', label: 'To stash', disabled: generalFull },
     ];
   }
@@ -73,17 +67,14 @@ export function itemActions(state: GameState, target: ItemTarget, shownSet: Gear
   const salvage: ActionSpec = {
     id: 'salvage', label: `Salvage${all ? ' all' : ''} (+${plural(salvageValue(item), 'Diamond', 'Diamonds')})`, disabled: false,
   };
-  if (target.where === 'gems') {
+  if (item.type === 'gem' && target.where === 'gems') {
     const take: ActionSpec = {
-      id: 'take', label: `Take to bag (up to ${formatNumber(GEM_BAG_STACK)})`, disabled: !bagTakesGem(state, shownSet, item),
+      id: 'take', label: `Take to bag (up to ${formatNumber(GEM_BAG_STACK)})`, disabled: !bagTakesGem(state, item),
     };
     return [take, ...socketActions(state, item), sell, salvage];
   }
   if (target.where === 'stash') {
-    const toBag: ActionSpec = {
-      id: 'toBag', label: 'To bag', disabled: firstEmpty(state.bags[bagFor(item, shownSet)]) < 0,
-    };
-    return [{ id: 'equip', label: 'Equip', disabled: false }, toBag, sell, salvage];
+    return [{ id: 'equip', label: 'Equip', disabled: false }, { id: 'toBag', label: 'To bag', disabled: bagFull }, sell, salvage];
   }
   if (isGear(item)) {
     return [
@@ -118,12 +109,14 @@ export function hoverNote(target: ItemTarget, item: Item): string {
   if (target.where === 'worn') return 'Click to unequip';
   if (target.where === 'stash') return 'Click to move to your bag · Alt+click to sell';
   if (target.where === 'gems') return `Click to take up to ${formatNumber(GEM_BAG_STACK)} · right-click for more`;
+  if (item.type === 'map') return 'Drag it to the Stash button to keep it in the Maps tab';
+  if (item.type === 'material') return 'Kept for crafting';
   return isGear(item)
     ? 'Click to equip · Alt+click to sell · Shift+click to stash'
     : 'Click for actions · Alt+click to sell · Shift+click to the Gems tab';
 }
 
-export function runAction(store: GameStore, target: ItemTarget, action: ActionSpec, shownSet: GearSet): InvResult {
+export function runAction(store: GameStore, target: ItemTarget, action: ActionSpec): InvResult {
   const item = itemAt(store.state, target);
   if (item === undefined) return 'invalid';
   switch (action.id) {
@@ -132,21 +125,23 @@ export function runAction(store: GameStore, target: ItemTarget, action: ActionSp
     case 'sell': return store.sell(target);
     case 'salvage': return store.salvage(target);
     case 'toStash': return store.sendItem(target, 'stash');
-    case 'toBag': return store.sendItem(target, bagFor(item, shownSet));
-    case 'take': return store.sendItem(target, shownSet);
+    case 'toBag':
+    case 'take': return store.sendItem(target, 'bag');
     case 'socket': return action.into !== undefined ? store.socketGem(target, action.into) : 'invalid';
   }
 }
 
 export function resultText(r: InvResult): string | null {
   switch (r) {
-    case 'bagFull': return 'That bag is full.';
+    case 'bagFull': return 'The bag is full.';
     case 'stashFull': return 'The stash is full.';
     case 'noSocket': return 'That item has no open socket.';
-    case 'wrongSet': return 'That gear belongs in the other bag.';
     case 'wrongSlot': return "That doesn't fit that slot.";
     case 'gemsOnly': return 'Only gems go in the Gems tab.';
-    case 'gearOnly': return 'Gems go in the Gems tab.';
+    case 'gearOnly': return 'Only gear goes in the General tab.';
+    case 'mapsOnly': return 'Only maps go in the Maps tab.';
+    case 'materialsOnly': return 'Only materials go in the Materials tab.';
+    case 'busy': return 'Leave the current map first.';
     case 'stackFull': return 'That stack is full.';
     case 'invalid': return "That can't go there.";
     case 'ok': return null;

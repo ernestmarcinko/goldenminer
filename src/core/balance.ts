@@ -33,20 +33,24 @@ export const BASE_ROLL_CHANCES: Pick<Stats, 'featureChances' | 'hardRockChance'>
 export const GUARANTEED_FIRST_MAP_METRE = 2;
 export const FINDS_LOG_LIMIT = 5000;
 
-export const BAG_SIZE = 24;
-export const STASH_SIZE = 60;
+export const BAG_SIZE = 60;
+export const STASH_PAGE_SIZE = 60;
+export const START_GENERAL_PAGES = 2;
+export const START_MAP_PAGES = 1;
+export const MAX_STASH_PAGES = 1000;
 // The item level a gem's value is worked out at, and the first tier each grade is found at.
 export const GEM_GRADE_LEVEL: Readonly<Record<GemGrade, number>> = { tiny: 2, small: 5, big: 8, giant: 12, perfect: 18 };
 export const GEM_GRADE_FROM_TIER: Readonly<Record<GemGrade, number>> = { tiny: 1, small: 4, big: 7, giant: 10, perfect: 15 };
 export const GEM_BAG_STACK = 25;
 export const GEM_STASH_STACK = 1_000_000;
+export const MATERIAL_BAG_STACK = 50;
+export const MATERIAL_STASH_STACK = 1_000_000;
 export const MAX_LOOT_RULES = 20;
 export const MAX_OVERFLOW = 10;
 export const MAX_SOCKETS = 3;
 export const MAX_AFFIXES = 4;
 
 export const LEVEL_CAP = 60;
-export const MAP_STASH_SIZE = 200;
 export const COMBAT_LOG_LIMIT = 20;
 export const RUN_LOOT_LIMIT = 30;
 export const MAX_LIFE = 1_000_000;

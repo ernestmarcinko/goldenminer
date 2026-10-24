@@ -1,7 +1,7 @@
-import type { FeatureKind, GameState, OfflineSummary } from './types';
+import { FIND_KINDS, type FindKind, type GameState, type OfflineSummary } from './types';
 
 export function summarize(before: GameState, after: GameState, elapsedMs: number, ticks: number, capMs: number): OfflineSummary {
-  const finds: Record<FeatureKind, number> = { goldVein: 0, diamondVein: 0, chest: 0, gem: 0, map: 0 };
+  const finds = Object.fromEntries(FIND_KINDS.map((k) => [k, 0])) as Record<FindKind, number>;
   for (const f of after.finds) {
     if (f.tick >= before.tickCount) finds[f.kind] += 1;
   }
@@ -19,6 +19,6 @@ export function summarize(before: GameState, after: GameState, elapsedMs: number
       sold: after.lootTally.sold - before.lootTally.sold,
       salvaged: after.lootTally.salvaged - before.lootTally.salvaged,
     },
-    stoppedBag: after.overflow[0]?.bag ?? null,
+    bagStopped: after.overflow.length > 0,
   };
 }

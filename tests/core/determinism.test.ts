@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { advance } from '../../src/core/clock';
-import { applyTicks, moveTo } from '../../src/core/dig';
+import { applyTicks } from '../../src/core/dig';
 import { newGame } from '../../src/core/newGame';
 import { decodeSave, encodeSave } from '../../src/core/save';
 import { deriveStats } from '../../src/core/stats';
@@ -11,9 +11,7 @@ const stats = deriveStats(newGame(1, 0));
 function run(roundTrip: boolean): GameState {
   let s = newGame(12345, 0);
   applyTicks(s, 10_000, stats);
-  moveTo(s, Math.max(0, s.deepest - 3));
   applyTicks(s, 500, stats);
-  moveTo(s, s.deepest);
   if (roundTrip) {
     const decoded = decodeSave(encodeSave(s, 0));
     if (!decoded.ok) throw new Error('round trip failed');

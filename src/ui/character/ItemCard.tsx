@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { FocusEvent, KeyboardEvent } from 'react';
 import { itemAt } from '../../core/cells';
 import { isGear } from '../../core/items';
-import type { GearItem, GearSet } from '../../core/items';
+import type { GearItem } from '../../core/items';
 import { itemName } from '../../core/itemData';
 import type { GameState } from '../../core/types';
 import { hoverNote, itemActions } from './itemActions';
@@ -47,8 +47,8 @@ function EquippedContent({ worn }: { worn: GearItem }) {
  * Gear that is not worn also shows the worn item's card: beside this one when `pair` (a hover card on a wide
  * screen, placed by the caller as one pair), otherwise as a block inside it.
  */
-export function ItemCard({ state, target, shownSet, left, top, menu, inline = false, smooth = false, pair = false }: {
-  state: GameState; target: ItemTarget; shownSet: GearSet; left: number; top: number; menu?: CardMenu;
+export function ItemCard({ state, target, left, top, menu, inline = false, smooth = false, pair = false }: {
+  state: GameState; target: ItemTarget; left: number; top: number; menu?: CardMenu;
   inline?: boolean; smooth?: boolean; pair?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -106,7 +106,7 @@ export function ItemCard({ state, target, shownSet, left, top, menu, inline = fa
       )}
       {menu ? (
         <div className="gm-card__actions">
-          {itemActions(state, target, shownSet).map((a, i) => (
+          {itemActions(state, target).map((a, i) => (
             <button
               key={`${a.id}${i}`}
               type="button"

@@ -53,7 +53,7 @@ it('summarize reports what changed', () => {
   const sum = summarize(before, after, 600_000, 600, 28_800_000);
   expect(sum).toMatchObject({ elapsedMs: 600_000, ticks: 600, gold: after.gold, metres: after.deepest, capMs: 28_800_000 });
   expect(sum.finds.map).toBeGreaterThanOrEqual(1);
-  expect(Object.keys(sum.finds).sort()).toEqual(['chest', 'diamondVein', 'gem', 'goldVein', 'map']);
+  expect(Object.keys(sum.finds).sort()).toEqual(['chest', 'diamondVein', 'gem', 'goldVein', 'map', 'materialVein']);
 });
 
 it('a zero or non-finite tick rate applies nothing and keeps lastTickAt finite', () => {

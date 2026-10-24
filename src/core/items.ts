@@ -29,7 +29,11 @@ export interface GearItem {
   id: number; type: 'gear'; slot: Slot; name: string; rarity: Rarity; ilvl: number;
   implicit: StatLine; affixes: StatLine[]; sockets: number; gems: Gem[]; uniqueId?: string;
 }
-export type Item = GearItem | GemItem;
+export interface MaterialItem { id: number; type: 'material'; material: Material; count: number }
+export interface MapItem { id: number; type: 'map'; tier: number; metre: number }
+export type Item = GearItem | GemItem | MaterialItem | MapItem;
+/** What stacks in a bag cell and counts up in its stash tab. */
+export type Stack = GemItem | MaterialItem;
 export type Cell = Item | null;
 
 export const SLOT_IMPLICIT: Readonly<Record<Slot, StatKey>> = {
@@ -48,4 +52,10 @@ export function statsOf(set: GearSet): readonly StatKey[] {
 }
 export function isGear(item: Item): item is GearItem {
   return item.type === 'gear';
+}
+export function isStack(item: Item): item is Stack {
+  return item.type === 'gem' || item.type === 'material';
+}
+export function isMap(item: Item): item is MapItem {
+  return item.type === 'map';
 }

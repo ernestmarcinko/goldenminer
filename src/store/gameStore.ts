@@ -2,11 +2,10 @@ import { MAX_LOOT_RULES, OFFLINE_SUMMARY_MIN_TICKS } from '../core/balance';
 import { deriveBattleStats, type BattleStats } from '../core/battle';
 import { advance, ClickLimiter, clickTicks } from '../core/clock';
 import { clickHit } from '../core/combat';
-import { moveTo as coreMoveTo } from '../core/dig';
 import * as inv from '../core/inventory';
 import { itemName } from '../core/itemData';
 import { BATTLE_SLOTS, MINING_SLOTS, setOfSlot } from '../core/items';
-import type { GearItem, GearSet, Slot } from '../core/items';
+import type { GearItem, Slot } from '../core/items';
 import { drainOverflow } from '../core/loot';
 import { leaveMap as coreLeaveMap, startMap as coreStartMap } from '../core/maps';
 import { newGame } from '../core/newGame';
@@ -200,12 +199,6 @@ export class GameStore {
     return events;
   }
 
-  moveTo(depth: number): boolean {
-    const moved = coreMoveTo(this._state, depth);
-    if (moved) this.changed();
-    return moved;
-  }
-
   startMap(mapId: number): 'ok' | 'busy' | 'invalid' {
     const result = coreStartMap(this._state, mapId);
     if (result === 'ok') this.changed();
@@ -245,7 +238,7 @@ export class GameStore {
   equip(from: ItemLoc): InvResult { return this.act(() => inv.equip(this._state, from)); }
   unequip(slot: Slot, to?: ItemLoc): InvResult { return this.act(() => inv.unequip(this._state, slot, to)); }
   moveItem(from: ItemLoc, to: ItemLoc): InvResult { return this.act(() => inv.moveItem(this._state, from, to)); }
-  sendItem(from: ItemLoc, to: 'stash' | GearSet): InvResult { return this.act(() => inv.sendItem(this._state, from, to)); }
+  sendItem(from: ItemLoc, to: 'stash' | 'bag'): InvResult { return this.act(() => inv.sendItem(this._state, from, to)); }
   socketGem(gem: ItemLoc, into: ItemLoc): InvResult { return this.act(() => inv.socketGem(this._state, gem, into)); }
   sell(from: ItemLoc): InvResult { return this.act(() => inv.sell(this._state, from)); }
   salvage(from: ItemLoc): InvResult { return this.act(() => inv.salvage(this._state, from)); }

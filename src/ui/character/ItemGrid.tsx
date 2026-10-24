@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { sameLoc } from '../../core/cells';
-import { isGear } from '../../core/items';
+import { isGear, isStack } from '../../core/items';
 import type { Cell, Item } from '../../core/items';
 import { itemName } from '../../core/itemData';
 import { Sprite } from '../../sprites/Sprite';
@@ -32,10 +32,16 @@ function SocketDots({ item }: { item: Item }) {
   return <span className="gm-item__dots" aria-hidden="true">{dots}</span>;
 }
 
-/** The count on a gem stack; hidden from assistive tech because the button's label carries the exact number. */
+/** The count on a stack; hidden from assistive tech because the button's label carries the exact number. */
 function StackCount({ item }: { item: Item }) {
-  if (isGear(item) || item.count <= 1) return null;
+  if (!isStack(item) || item.count <= 1) return null;
   return <span className="gm-item__count" aria-hidden="true">{formatCompact(item.count)}</span>;
+}
+
+/** A map's tier; hidden from assistive tech because the button's label names it. */
+function MapTier({ item }: { item: Item }) {
+  if (item.type !== 'map') return null;
+  return <span className="gm-item__tier" aria-hidden="true">T{formatNumber(item.tier)}</span>;
 }
 
 export function ItemButton({ item, target, handlers, scale, className, label }: {
@@ -50,7 +56,7 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
       data-rarity={rarityOf(item)}
       data-drop={dropAttr(target)}
       data-held={drag.held !== null && sameLoc(drag.held, target) ? '' : undefined}
-      aria-label={isGear(item) || item.count <= 1 ? label : `${label}, ${formatNumber(item.count)}`}
+      aria-label={!isStack(item) || item.count <= 1 ? label : `${label}, ${formatNumber(item.count)}`}
       onPointerDown={(e) => { pointerType.current = e.pointerType; drag.onPointerDown(target, e); }}
       onClick={(e) => {
         if (drag.consumeClick()) return;
@@ -70,6 +76,7 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
       <Sprite name={itemSprite(item)} scale={scale} />
       <SocketDots item={item} />
       <StackCount item={item} />
+      <MapTier item={item} />
     </button>
   );
 }

@@ -1,6 +1,6 @@
-import { BAG_SIZE, STASH_SIZE } from '../../core/balance';
+import { BAG_SIZE } from '../../core/balance';
 import { itemAt, sameLoc } from '../../core/cells';
-import { BATTLE_SLOTS, GEAR_SETS, GEM_GRADES, GEM_TYPES, MINING_SLOTS } from '../../core/items';
+import { BATTLE_SLOTS, GEM_GRADES, GEM_TYPES, MATERIALS, MINING_SLOTS } from '../../core/items';
 import type { DropTarget, GameState, ItemLoc } from '../../core/types';
 import { clickIntent } from './itemView';
 import type { ClickIntent } from './itemView';
@@ -9,7 +9,7 @@ import type { ClickIntent } from './itemView';
 export const DRAG_THRESHOLD_PX = 5;
 
 const SLOTS = [...MINING_SLOTS, ...BATTLE_SLOTS] as const;
-const DROP_TABS = ['general', 'gems', 'auto'] as const;
+const DROP_TABS = ['general', 'gems', 'maps', 'materials', 'auto'] as const;
 
 /** The `data-drop` value of a drop target. */
 export function dropAttr(t: DropTarget): string {
@@ -17,7 +17,8 @@ export function dropAttr(t: DropTarget): string {
 }
 
 const oneOf = <T>(list: readonly T[], v: unknown): v is T => (list as readonly unknown[]).includes(v);
-const cellIndex = (v: unknown, size: number): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) < size;
+// The stash tabs grow by pages, so their indexes are only checked against the tab when the drop is made.
+const cellIndex = (v: unknown, size = Infinity): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) < size;
 
 /** Reads a `data-drop` value back; anything that is not exactly a valid drop target gives null. */
 export function parseDrop(attr: string | null): DropTarget | null {
@@ -32,11 +33,15 @@ export function parseDrop(attr: string | null): DropTarget | null {
   const o = raw as Record<string, unknown>;
   switch (o.where) {
     case 'bag':
-      return oneOf(GEAR_SETS, o.set) && cellIndex(o.index, BAG_SIZE) ? { where: 'bag', set: o.set, index: o.index } : null;
+      return cellIndex(o.index, BAG_SIZE) ? { where: 'bag', index: o.index } : null;
     case 'stash':
-      return cellIndex(o.index, STASH_SIZE) ? { where: 'stash', index: o.index } : null;
+      return cellIndex(o.index) ? { where: 'stash', index: o.index } : null;
+    case 'maps':
+      return cellIndex(o.index) ? { where: 'maps', index: o.index } : null;
     case 'gems':
       return oneOf(GEM_TYPES, o.gem) && oneOf(GEM_GRADES, o.grade) ? { where: 'gems', gem: o.gem, grade: o.grade } : null;
+    case 'materials':
+      return oneOf(MATERIALS, o.material) ? { where: 'materials', material: o.material } : null;
     case 'worn':
       return oneOf(SLOTS, o.slot) ? { where: 'worn', slot: o.slot } : null;
     case 'stashTab':

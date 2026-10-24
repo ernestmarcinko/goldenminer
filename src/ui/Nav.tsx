@@ -1,3 +1,4 @@
+import { filledCount } from '../core/cells';
 import type { GameStore } from '../store/gameStore';
 import { formatNumber } from './format';
 import { useGame } from './useGame';
@@ -17,7 +18,7 @@ export function Nav({ store, view, onView }: { store: GameStore; view: View; onV
         aria-pressed={view === 'maps'}
         onClick={() => onView('maps')}
       >
-        Maps ({formatNumber(state.stash.maps.length)})
+        Maps ({formatNumber(filledCount(state.stash.maps))})
       </button>
     </nav>
   );

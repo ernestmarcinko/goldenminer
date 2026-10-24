@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
 import { deriveStats } from '../../src/core/stats';
-import { applyTicks, moveTo } from '../../src/core/dig';
+import { applyTicks } from '../../src/core/dig';
 import { validateState } from '../../src/core/save';
 import type { TickEvent } from '../../src/core/types';
 import { FINDS_LOG_LIMIT } from '../../src/core/balance';
@@ -38,7 +38,7 @@ it('veins pay out and are logged', () => {
   expect(s.finds[0]).toMatchObject({ depth: 1, kind: 'goldVein', amount: 19 });
   expect(s.gold).toBe(19 + s.tickCount * 1);
   expect(events.filter((e) => e.kind === 'gold')).toHaveLength(s.tickCount);
-  expect(events.some((e) => e.kind === 'metre' && e.depth === 1 && !e.gallery)).toBe(true);
+  expect(events).toContainEqual({ kind: 'metre', depth: 1 });
 });
 
 it('hard rock takes 1.5× as long', () => {
@@ -51,29 +51,12 @@ it('hard rock takes 1.5× as long', () => {
   expect(ticksFor(true) / ticksFor(false)).toBeLessThan(1.6);
 });
 
-it('galleries dig without going deeper, and the face keeps its progress', () => {
+it('digging only works the face', () => {
   const s = fresh();
-  while (s.deepest < 20) applyTicks(s, 1, stats);
-  applyTicks(s, 3, stats);
-  const faceProgress = s.progress;
-  expect(moveTo(s, 5)).toBe(true);
-  const before = s.finds.length;
-  const events: TickEvent[] = [];
-  applyTicks(s, 400, stats, events);
-  expect(s.deepest).toBe(20);
-  expect(s.depth).toBe(5);
-  // 400 ticks × 10 / (hardness(6) = 10.78 × 25) = 14.84 → 14 gallery metres
-  expect(events.filter((e) => e.kind === 'metre' && e.gallery)).toHaveLength(14);
-  expect(s.finds.slice(before).every((f) => f.depth === 5)).toBe(true);
-  expect(moveTo(s, 20)).toBe(true);
-  expect(s.progress).toBe(faceProgress);
-});
-
-it('moveTo rejects depths that were never reached', () => {
-  const s = fresh();
-  while (s.deepest < 20) applyTicks(s, 1, stats);
-  for (const bad of [21, -1, 3.5, Number.NaN]) expect(moveTo(s, bad)).toBe(false);
-  expect(s.depth).toBe(20);
+  applyTicks(s, 400, stats);
+  expect(s.deepest).toBeGreaterThan(10);
+  expect('depth' in s).toBe(false);
+  expect(validateState(s)).toBe(true);
 });
 
 it('the finds log is capped', () => {
@@ -92,18 +75,17 @@ it('an infinite or zero dig power neither hangs nor corrupts the state', () => {
     expect(s.deepest).toBe(0);
     expect(validateState(s)).toBe(true);
     applyTicks(s, 400, stats);
-    moveTo(s, Math.max(0, s.deepest - 1));
     applyTicks(s, 5, { ...stats, digPower });
     expect(validateState(s)).toBe(true);
   }
 });
 
-it('Gold yield pays fractions through a carry', () => {
+it('Gold yield pays whole Gold each tick', () => {
   const s = fresh();
   const events: TickEvent[] = [];
-  applyTicks(s, 2, { ...stats, goldMultiplier: 1.5 }, events);
-  expect([s.gold, s.goldCarry]).toEqual([3, 0]);
-  expect(events.flatMap((e) => (e.kind === 'gold' ? [e.amount] : []))).toEqual([1, 2]);
+  applyTicks(s, 2, { ...stats, goldMultiplier: 2.5 }, events);
+  expect(s.gold).toBe(4);
+  expect(events.flatMap((e) => (e.kind === 'gold' ? [e.amount] : []))).toEqual([2, 2]);
 });
 
 it('veins pay their yield and log what was paid', () => {
@@ -112,7 +94,7 @@ it('veins pay their yield and log what was paid', () => {
   const rich = { ...stats, goldMultiplier: 1.5 };
   while (s.deepest < 1) applyTicks(s, 1, rich);
   expect(s.finds[0]).toMatchObject({ kind: 'goldVein', amount: 29 });
-  expect(s.gold).toBe(Math.floor(s.tickCount * 1.5) + 29);
+  expect(s.gold).toBe(s.tickCount + 29);
 });
 
 it('Diamond yield raises the chance per tick, up to the cap', () => {

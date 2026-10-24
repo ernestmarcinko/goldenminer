@@ -135,11 +135,10 @@ it.each([1, 60])('generated items at ilvl %i always pass the save validator', (i
     expect(validateState(s)).toBe(true);
     Object.assign(s, emptyInventory());
   };
-  // Gear takes its bag, then General; a gem takes the mining bag; a full inventory is checked and emptied.
+  // Anything takes the bag, then gear takes General; a full inventory is checked and emptied.
   const place = (item: Item): boolean => {
-    const bag = item.type === 'gear' ? s.bags[setOfSlot(item.slot)] : s.bags.mining;
-    const inBag = firstEmpty(bag);
-    if (inBag >= 0) { bag[inBag] = item; return true; }
+    const inBag = firstEmpty(s.bag);
+    if (inBag >= 0) { s.bag[inBag] = item; return true; }
     const inGeneral = firstEmpty(s.stash.general);
     if (item.type === 'gear' && inGeneral >= 0) { s.stash.general[inGeneral] = item; return true; }
     return false;

@@ -53,8 +53,7 @@ export function Header({ store, onOpenSettings }: { store: GameStore; onOpenSett
       </div>
       <div className="gm-header__depth">
         {run !== null && <div className="gm-muted gm-header__paused">Digging paused while in a map</div>}
-        <div className="gm-header__depth-now">{formatNumber(state.depth)} m</div>
-        {run === null && <div className="gm-muted gm-small">deepest {formatNumber(state.deepest)} m</div>}
+        <div className="gm-header__depth-now">{formatNumber(state.deepest)} m</div>
       </div>
       <button type="button" className="gm-header__settings" onClick={onOpenSettings}>
         Settings

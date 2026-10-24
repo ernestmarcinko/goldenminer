@@ -31,7 +31,7 @@ function labelFor(kind: FeatureKind, depth: number): string {
 }
 
 export function minimapModel(state: GameState, lampSight: number): MinimapModel {
-  const top = Math.max(0, state.depth - 50);
+  const top = Math.max(0, state.deepest - 50);
   const bottom = top + MINIMAP_METRES;
   const y = (d: number) => (d - top) * MINIMAP_PX_PER_METRE;
 
@@ -50,7 +50,7 @@ export function minimapModel(state: GameState, lampSight: number): MinimapModel 
 
   const buckets = new Map<number, { kind: FeatureKind; count: number }>();
   for (const find of state.finds) {
-    if (find.depth < top || find.depth > bottom) continue;
+    if (find.kind === 'materialVein' || find.depth < top || find.depth > bottom) continue;
     const key = Math.floor(find.depth / BUCKET_METRES);
     const entry = buckets.get(key);
     if (!entry) {
@@ -78,33 +78,5 @@ export function minimapModel(state: GameState, lampSight: number): MinimapModel 
       return [];
     });
 
-  return { top, bottom, bands, ticks, markers, ahead, youY: y(state.depth), fogY: y(state.deepest + lampSight) };
-}
-
-export function depthAtY(model: MinimapModel, y: number, deepest: number): number {
-  const d = Math.round(model.top + y / MINIMAP_PX_PER_METRE);
-  return Math.min(Math.max(d, 0), deepest);
-}
-
-export function depthForKey(key: string, depth: number, deepest: number): number | null {
-  let target: number;
-  switch (key) {
-    case 'ArrowUp': target = depth - 1; break;
-    case 'ArrowDown': target = depth + 1; break;
-    case 'PageUp': target = depth - 10; break;
-    case 'PageDown': target = depth + 10; break;
-    case 'Home': target = 0; break;
-    case 'End': target = deepest; break;
-    default: return null;
-  }
-  return Math.min(Math.max(target, 0), deepest);
-}
-
-export function depthForClick(
-  model: MinimapModel,
-  click: { detail: number; clientX: number; clientY: number; stripTop: number },
-  deepest: number,
-): number | null {
-  if (click.detail === 0 || (click.clientX === 0 && click.clientY === 0)) return null;
-  return depthAtY(model, click.clientY - click.stripTop, deepest);
+  return { top, bottom, bands, ticks, markers, ahead, youY: y(state.deepest), fogY: y(state.deepest + lampSight) };
 }

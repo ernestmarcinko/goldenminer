@@ -7,7 +7,7 @@ import { mapTick } from './combat';
 import { rollChest, rollGem } from './itemGen';
 import { receiveItem } from './loot';
 import { addMap } from './maps';
-import { fillAhead, metreChances, rollGallery, rollMetre } from './metres';
+import { fillAhead, metreChances, rollMetre } from './metres';
 import { mulberry32, nextRandom } from './rng';
 import type { FindRecord, GameState, LootNote, MetreRoll, Stats, TickEvent } from './types';
 
@@ -29,9 +29,9 @@ export function collect(
   if (roll.feature === 'map') {
     addMap(state, tier, depth);
   } else if (roll.feature === 'chest') {
-    for (const item of rollChest(state, tier)) loot.push(...receiveItem(state, item, 'mining'));
+    for (const item of rollChest(state, tier)) loot.push(...receiveItem(state, item));
   } else if (roll.feature === 'gem') {
-    loot.push(...receiveItem(state, rollGem(state, tier), 'mining'));
+    loot.push(...receiveItem(state, rollGem(state, tier)));
   }
   if (loot.length > 0) find.loot = loot;
   state.finds.push(find);
@@ -86,31 +86,14 @@ function digFace(state: GameState, stats: Stats, events?: TickEvent[]): void {
     if (state.worldGen === 2 && done.feature === null) collectBonus(state, next, stats, events);
     delete state.ahead[next];
     state.deepest = next;
-    state.depth = next;
     fillAhead(state, stats);
     if (state.overflow.length > 0) {
       state.progress -= Math.floor(state.progress);
-      events?.push({ kind: 'metre', depth: next, gallery: false });
+      events?.push({ kind: 'metre', depth: next });
       return;
     }
     state.progress *= effectiveHardness(next, done) / effectiveHardness(next + 1, faceRoll(state, stats));
-    events?.push({ kind: 'metre', depth: next, gallery: false });
-  }
-}
-
-function digGallery(state: GameState, stats: Stats, events?: TickEvent[]): void {
-  const step = stats.digPower / (hardness(state.depth + 1) * TICKS_PER_METRE_AT_PARITY);
-  if (!(step > 0) || !Number.isFinite(step)) return;
-  state.galleryProgress += step;
-  while (state.galleryProgress >= 1) {
-    state.galleryProgress -= 1;
-    const roll = rollGallery(state, state.depth, stats);
-    collect(state, roll, state.depth, tierAt(state.depth), stats, events);
-    events?.push({ kind: 'metre', depth: state.depth, gallery: true });
-    if (state.overflow.length > 0) {
-      state.galleryProgress -= Math.floor(state.galleryProgress);
-      return;
-    }
+    events?.push({ kind: 'metre', depth: next });
   }
 }
 
@@ -126,10 +109,8 @@ export function applyTicks(state: GameState, count: number, stats: Stats, events
       state.tickCount += 1;
       continue;
     }
-    const tier = tierAt(state.depth);
-    const pay = goldPerTick(tier) * stats.goldMultiplier + state.goldCarry;
-    const whole = Math.floor(pay);
-    state.goldCarry = pay - whole;
+    const tier = tierAt(state.deepest);
+    const whole = Math.floor(goldPerTick(tier) * stats.goldMultiplier);
     state.gold += whole;
     if (whole > 0) events?.push({ kind: 'gold', amount: whole });
 
@@ -140,17 +121,7 @@ export function applyTicks(state: GameState, count: number, stats: Stats, events
       events?.push({ kind: 'diamond', amount: 1 });
     }
 
-    if (state.depth === state.deepest) digFace(state, stats, events);
-    else digGallery(state, stats, events);
-
+    digFace(state, stats, events);
     state.tickCount += 1;
   }
-}
-
-export function moveTo(state: GameState, depth: number): boolean {
-  if (!Number.isInteger(depth) || depth < 0 || depth > state.deepest) return false;
-  if (depth === state.depth) return true;
-  state.depth = depth;
-  state.galleryProgress = 0;
-  return true;
 }

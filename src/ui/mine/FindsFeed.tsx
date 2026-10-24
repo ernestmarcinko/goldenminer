@@ -38,7 +38,7 @@ export function FindsFeed({ store }: { store: GameStore }) {
         <p className="gm-muted gm-finds__empty">Nothing found yet — keep digging.</p>
       ) : (
         <ul className="gm-finds__list">
-          {shown.map((f) => (
+          {shown.map((f) => f.kind !== 'materialVein' && (
             <li key={f.id} className="gm-finds__item">
               <Sprite name={ICONS[f.kind]} scale={2} />
               <span className="gm-finds__label">

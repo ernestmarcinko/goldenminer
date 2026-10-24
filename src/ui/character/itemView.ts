@@ -46,14 +46,16 @@ const lineText = (l: { stat: StatKey; value: number }): string => statText(l.sta
 export type Tone = 'plain' | 'up' | 'down' | 'gem' | 'muted';
 export interface ViewLine { text: string; tone: Tone }
 
-export function rarityOf(item: Item): GearItem['rarity'] | 'gem' {
-  return isGear(item) ? item.rarity : 'gem';
+export function rarityOf(item: Item): GearItem['rarity'] | 'gem' | 'material' | 'map' {
+  return isGear(item) ? item.rarity : item.type;
 }
 
 const capitalise = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function itemKindLine(item: Item): string {
-  if (!isGear(item)) {
+  if (item.type === 'map') return `Tier ${formatNumber(item.tier)} map`;
+  if (item.type === 'material') return 'Crafting material';
+  if (item.type === 'gem') {
     const base = `Gem · ${GEM_GRADE_LABELS[item.grade]} · socket into any gear`;
     return item.count > 1 ? `${base} · ${formatNumber(item.count)} in this stack` : base;
   }
@@ -62,7 +64,9 @@ export function itemKindLine(item: Item): string {
 }
 
 export function itemLines(item: Item): ViewLine[] {
-  if (!isGear(item)) {
+  if (item.type === 'map') return [{ text: `Found at ${formatNumber(item.metre)} m`, tone: 'plain' }];
+  if (item.type === 'material') return [];
+  if (item.type === 'gem') {
     return [
       { text: `In mining gear: ${lineText(gemEffect(item, 'mining'))}`, tone: 'plain' },
       { text: `In battle gear: ${lineText(gemEffect(item, 'battle'))}`, tone: 'plain' },
@@ -152,7 +156,12 @@ export function baseSprite(base: Slot | GemType): SpriteName {
 }
 
 export function itemSprite(item: Item): SpriteName {
-  return baseSprite(isGear(item) ? item.slot : item.gem);
+  switch (item.type) {
+    case 'gear': return baseSprite(item.slot);
+    case 'gem': return baseSprite(item.gem);
+    case 'map': return 'map';
+    case 'material': return 'gem';   // materials have no sprites of their own yet
+  }
 }
 
 export function lootNoteText(note: LootNote): string {

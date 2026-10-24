@@ -5,7 +5,7 @@ import {
 import { firstEmpty } from './cells';
 import { itemName } from './itemData';
 import { isGear, setOfSlot } from './items';
-import type { Cell, GearItem, GearSet, Gem, GemItem, Item, Rarity } from './items';
+import type { Cell, GearItem, Gem, GemItem, Rarity } from './items';
 import type { GameState, LootAction, LootNote, LootOutcome, LootRule } from './types';
 
 const tierFactor = (level: number): number => 1 + Math.floor(level / 5);
@@ -18,17 +18,20 @@ export function gemSalvageValue(g: Gem): number {
   return GEM_SALVAGE_DIAMONDS * tierFactor(GEM_GRADE_LEVEL[g.grade]);
 }
 
-export function sellValue(item: Item): number {
+/** What the loot filter, selling and salvaging deal in: gear and gem stacks. */
+type Loot = GearItem | GemItem;
+
+export function sellValue(item: Loot): number {
   if (!isGear(item)) return gemSellValue(item) * item.count;
   return item.gems.reduce((sum, g) => sum + gemSellValue(g), SELL_GOLD[item.rarity] * item.ilvl);
 }
 
-export function salvageValue(item: Item): number {
+export function salvageValue(item: Loot): number {
   if (!isGear(item)) return gemSalvageValue(item) * item.count;
   return item.gems.reduce((sum, g) => sum + gemSalvageValue(g), SALVAGE_DIAMONDS[item.rarity] * tierFactor(item.ilvl));
 }
 
-export function lootAction(rules: LootRule[], item: Item): LootAction {
+export function lootAction(rules: LootRule[], item: Loot): LootAction {
   for (const rule of rules) {
     const rarityOk = rule.rarity === 'any' || (isGear(item) && item.rarity === rule.rarity);
     const targetOk = rule.target === 'any'
@@ -40,7 +43,7 @@ export function lootAction(rules: LootRule[], item: Item): LootAction {
   return 'keep';
 }
 
-function note(item: Item, outcome: LootOutcome, value = 0): LootNote {
+function note(item: Loot, outcome: LootOutcome, value = 0): LootNote {
   return isGear(item)
     ? { name: itemName(item), rarity: item.rarity, base: item.slot, outcome, value }
     : { name: itemName(item), rarity: 'gem', base: item.gem, outcome, value };
@@ -64,9 +67,9 @@ function isWorse(a: GearItem, b: GearItem): boolean {
   return ra < rb || (ra === rb && sellValue(a) < sellValue(b));
 }
 
-// Only gear is ever sold to make room, from the item's own bag and the General tab; the new item takes the cell.
-function sellWorst(state: GameState, item: GearItem, bagSet: GearSet): LootNote[] {
-  const bag = state.bags[bagSet];
+// Only gear is ever sold to make room, from the bag and every General page; the new item takes the cell.
+function sellWorst(state: GameState, item: GearItem): LootNote[] {
+  const bag = state.bag;
   let worst: { list: Cell[]; index: number; sold: GearItem } | null = null;
   let worstItem = item;
   for (const list of [bag, state.stash.general]) {
@@ -82,8 +85,8 @@ function sellWorst(state: GameState, item: GearItem, bagSet: GearSet): LootNote[
   return [note(sold, 'sold', worstValue), note(item, list === bag ? 'bag' : 'stash')];
 }
 
-function stowGear(state: GameState, item: GearItem, bagSet: GearSet): LootNote[] | null {
-  const bag = state.bags[bagSet];
+function stowGear(state: GameState, item: GearItem): LootNote[] | null {
+  const bag = state.bag;
   const inBag = firstEmpty(bag);
   if (inBag >= 0) {
     bag[inBag] = item;
@@ -131,8 +134,7 @@ function stowGem(state: GameState, gem: GemItem, bag: Cell[]): LootNote[] {
   return [note(gem, first ?? 'sold', first === null ? value : 0)];
 }
 
-export function receiveItem(state: GameState, item: Item, gemBag: GearSet): LootNote[] {
-  const bagSet = isGear(item) ? setOfSlot(item.slot) : gemBag;
+export function receiveItem(state: GameState, item: Loot): LootNote[] {
   const action = lootAction(state.settings.lootFilter, item);
   if (action === 'sell') {
     const value = sellValue(item);
@@ -144,34 +146,34 @@ export function receiveItem(state: GameState, item: Item, gemBag: GearSet): Loot
     state.diamonds += value;
     return tally(state, [note(item, 'salvaged', value)]);
   }
-  if (!isGear(item)) return tally(state, stowGem(state, item, state.bags[bagSet]));
-  const stowed = stowGear(state, item, bagSet);
+  if (!isGear(item)) return tally(state, stowGem(state, item, state.bag));
+  const stowed = stowGear(state, item);
   if (stowed !== null) return tally(state, stowed);
   if (state.settings.bagFull === 'stop' && state.overflow.length < MAX_OVERFLOW) {
-    state.overflow.push({ bag: bagSet, item });
+    state.overflow.push(item);
     return tally(state, [note(item, 'held')]);
   }
-  return tally(state, sellWorst(state, item, bagSet));
+  return tally(state, sellWorst(state, item));
 }
 
 export function drainOverflow(state: GameState): void {
   while (state.overflow.length > 0) {
     const first = state.overflow[0];
     if (first === undefined) return;
-    const action = lootAction(state.settings.lootFilter, first.item);
+    const action = lootAction(state.settings.lootFilter, first);
     if (action === 'sell') {
-      state.gold += sellValue(first.item);
+      state.gold += sellValue(first);
       state.overflow.shift();
       continue;
     }
     if (action === 'salvage') {
-      state.diamonds += salvageValue(first.item);
+      state.diamonds += salvageValue(first);
       state.overflow.shift();
       continue;
     }
-    if (stowGear(state, first.item, first.bag) === null) {
+    if (stowGear(state, first) === null) {
       if (state.settings.bagFull === 'stop') return;
-      sellWorst(state, first.item, first.bag);
+      sellWorst(state, first);
     }
     state.overflow.shift();
   }

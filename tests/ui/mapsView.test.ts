@@ -32,9 +32,10 @@ it('maps of the schema-4 fixture group by dungeon, the same metre in one row', (
   const decoded = decodeSave(fixture4);
   if (!decoded.ok) throw new Error('fixture does not decode');
   const { seed, stash } = decoded.state;
-  const groups = mapGroups(seed, stash.maps);
+  const maps = stash.maps.filter((m) => m !== null);
+  const groups = mapGroups(seed, maps);
 
-  expect(stash.maps).toHaveLength(21);
+  expect(maps).toHaveLength(21);
   expect(groups.reduce((n, g) => n + g.maps.reduce((c, m) => c + m.count, 0), 0)).toBe(21);
   const tiers = groups.map((g) => g.tier);
   expect(tiers).toEqual([...tiers].sort((a, b) => b - a));

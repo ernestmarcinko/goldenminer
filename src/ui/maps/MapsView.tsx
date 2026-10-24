@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { MAP_STASH_SIZE } from '../../core/balance';
+import { filledCount } from '../../core/cells';
 import type { GameStore } from '../../store/gameStore';
 import { formatNumber } from '../format';
 import { useGame } from '../useGame';
@@ -15,7 +15,7 @@ export function MapsView({ store, lastRunRef }: { store: GameStore; lastRunRef?:
     <div className="gm-mapsview">
       <div className="gm-mapsview__head">
         <h2 className="gm-mapsview__title">Maps</h2>
-        <span className="gm-muted">{formatNumber(state.stash.maps.length)} / {formatNumber(MAP_STASH_SIZE)} in your Maps tab</span>
+        <span className="gm-muted">{formatNumber(filledCount(state.stash.maps))} / {formatNumber(state.stash.maps.length)} in your Maps tab</span>
       </div>
       {last !== null && (
         <section className="gm-lastrun" aria-label="Last run">

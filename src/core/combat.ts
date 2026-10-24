@@ -98,9 +98,9 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
     const set = nextRandom(state) < MAP_DROP_BATTLE_CHANCE ? 'battle' : 'mining';
     const raised = monster.rank === 'champion' && i < guaranteed;
     const item = rollGear(state, tier, set, rollRarity(state, b.magicFindMultiplier * (raised ? CHAMPION_MAGIC_FIND : 1)));
-    takeDrop(run, receiveItem(state, item, 'battle'));
+    takeDrop(run, receiveItem(state, item));
   }
-  if (nextRandom(state) < MAP_GEM_CHANCE) takeDrop(run, receiveItem(state, rollGem(state, tier), 'battle'));
+  if (nextRandom(state) < MAP_GEM_CHANCE) takeDrop(run, receiveItem(state, rollGem(state, tier)));
 }
 
 function strike(state: GameState, run: MapRun, b: BattleStats, click: boolean, events?: TickEvent[]): StrikeOutcome {

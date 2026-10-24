@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import { itemAt, sameLoc } from '../../core/cells';
-import type { GearSet } from '../../core/items';
 import type { GameState } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
 import { effectiveMotion, usePrefersReducedMotion } from '../settings/motion';
@@ -16,9 +15,11 @@ import { useItemPopover } from './useItemPopover';
 const targetKey = (t: ItemTarget): string => {
   switch (t.where) {
     case 'worn': return `worn-${t.slot}`;
-    case 'bag': return `bag-${t.set}-${t.index}`;
+    case 'bag': return `bag-${t.index}`;
     case 'stash': return `stash-${t.index}`;
+    case 'maps': return `maps-${t.index}`;
     case 'gems': return `gems-${t.gem}-${t.grade}`;
+    case 'materials': return `materials-${t.material}`;
   }
 };
 
@@ -31,10 +32,9 @@ const targetKey = (t: ItemTarget): string => {
  * container; `say` shows a message on this container's status line. `reset` is for a change of view: it clears the
  * message and the popovers, and puts back a held item.
  */
-export function useItemInteractions({ store, state, shownSet, containerRef, fallbackRef, drag }: {
+export function useItemInteractions({ store, state, containerRef, fallbackRef, drag }: {
   store: GameStore;
   state: GameState;
-  shownSet: GearSet;
   containerRef: RefObject<HTMLElement | null>;
   fallbackRef: RefObject<HTMLElement | null>;
   drag: ItemDrag;
@@ -60,7 +60,7 @@ export function useItemInteractions({ store, state, shownSet, containerRef, fall
   }, [dragging, clear, closeMenu]);
 
   const perform = (target: ItemTarget, action: ActionSpec, fromCard = false): void => {
-    setMessage(resultText(runAction(store, target, action, shownSet)));
+    setMessage(resultText(runAction(store, target, action)));
     release();
     clear();
     closeMenu(fromCard, fallbackRef.current);
@@ -73,7 +73,7 @@ export function useItemInteractions({ store, state, shownSet, containerRef, fall
     onMenu: (target, el) => openMenu(target, el),
     onLift: (target, el) => openMenu(target, el, true),
     onPick: (target, intent, el) => {
-      const chosen = actionForIntent(itemActions(state, target, shownSet), target, intent);
+      const chosen = actionForIntent(itemActions(state, target), target, intent);
       if (chosen === 'menu') openMenu(target, el);
       else if (chosen !== undefined) perform(target, chosen);
     },
@@ -83,7 +83,7 @@ export function useItemInteractions({ store, state, shownSet, containerRef, fall
   const menuCard = menu && (
     <ItemCard
       key={targetKey(menu.target)}
-      state={state} target={menu.target} shownSet={shownSet}
+      state={state} target={menu.target}
       left={menu.left} top={menu.top} inline={menu.inline === true} smooth={smooth}
       menu={{
         onAction: (a) => perform(menu.target, a, true),
@@ -99,7 +99,7 @@ export function useItemInteractions({ store, state, shownSet, containerRef, fall
     <>
       {hover && (
         <ItemCard
-          state={state} target={hover.target} shownSet={shownSet} left={hover.left} top={hover.top}
+          state={state} target={hover.target} left={hover.left} top={hover.top}
           pair={hover.pair === true}
         />
       )}

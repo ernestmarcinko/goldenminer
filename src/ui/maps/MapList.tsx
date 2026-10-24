@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import type { MapItem } from '../../core/items';
 import type { GameStore } from '../../store/gameStore';
 import { formatNumber, plural } from '../format';
 import { useGame } from '../useGame';
@@ -7,10 +8,10 @@ import './maps.css';
 
 const BUSY = 'Leave the current map first';
 
-/** The stash's maps by dungeon and tier. `onRun` fires after a run has started. */
+/** The Maps tab's maps by dungeon and tier. `onRun` fires after a run has started. */
 export function MapList({ store, compact = false, onRun }: { store: GameStore; compact?: boolean; onRun?: () => void }) {
   const { state } = useGame(store);
-  const groups = mapGroups(state.seed, state.stash.maps);
+  const groups = mapGroups(state.seed, state.stash.maps.filter((m): m is MapItem => m !== null));
   const running = state.activity.kind === 'map';
   const busyId = useId();
   if (groups.length === 0) {

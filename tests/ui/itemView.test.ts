@@ -1,7 +1,11 @@
 import { expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
 import { deriveStats, gearTotals } from '../../src/core/stats';
-import { battleStatLine, clickIntent, compareLines, itemKindLine, itemLines, lootNoteText, miningStatLine, placeTooltip, statText } from '../../src/ui/character/itemView';
+import { itemName } from '../../src/core/itemData';
+import {
+  battleStatLine, clickIntent, compareLines, itemKindLine, itemLines, itemSprite, lootNoteText, miningStatLine, placeTooltip, rarityOf,
+  statText,
+} from '../../src/ui/character/itemView';
 import { gear, gem } from '../helpers/items';
 
 it('stat text', () => {
@@ -85,4 +89,11 @@ it('loot notes in words', () => {
   expect(lootNoteText({ ...n, outcome: 'salvaged', value: 1 })).toBe('salvaged +1 Diamond');
   expect(lootNoteText({ ...n, outcome: 'stash', value: 0 })).toBe('to stash');
   expect(lootNoteText({ ...n, outcome: 'held', value: 0 })).toBe('waiting for space');
+});
+
+it('a map item reads as its tier and where it was found', () => {
+  const map = { id: 1, type: 'map', tier: 4, metre: 327 } as const;
+  expect([itemName(map), itemKindLine(map), rarityOf(map), itemSprite(map)]).toEqual(['Tier 4 map', 'Tier 4 map', 'map', 'map']);
+  expect(itemLines(map)).toEqual([{ text: 'Found at 327 m', tone: 'plain' }]);
+  expect(rarityOf({ id: 2, type: 'material', material: 'tin', count: 3 })).toBe('material');
 });

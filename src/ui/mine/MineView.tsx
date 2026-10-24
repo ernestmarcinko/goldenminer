@@ -10,10 +10,8 @@ import './mine.css';
 
 export function MineView({ store, onBackToMap }: { store: GameStore; onBackToMap: () => void }) {
   const { state, stats } = useGame(store);
-  const heldBag = state.overflow[0]?.bag;
-  const inGallery = state.depth < state.deepest;
-  const band = bandAt(state.depth);
-  const pct = Math.round(Math.min(1, Math.max(0, inGallery ? state.galleryProgress : state.progress)) * 100);
+  const band = bandAt(state.deepest);
+  const pct = Math.round(Math.min(1, Math.max(0, state.progress)) * 100);
   return (
     <div className="gm-mine">
       {state.activity.kind === 'map' && (
@@ -22,9 +20,9 @@ export function MineView({ store, onBackToMap }: { store: GameStore; onBackToMap
           <button type="button" className="gm-btn" onClick={onBackToMap}>Back to the map</button>
         </div>
       )}
-      {heldBag !== undefined && (
+      {state.overflow.length > 0 && (
         <div role="status" className="gm-banner">
-          Your {heldBag} bag and the stash are full, so digging has stopped. Sell or salvage something from the {heldBag} bag or the stash to carry on.
+          Your bag and the stash are full, so digging has stopped. Sell or salvage something to carry on.
         </div>
       )}
       <div className="gm-mine__top">
@@ -32,20 +30,19 @@ export function MineView({ store, onBackToMap }: { store: GameStore; onBackToMap
           <div className="gm-mine__caption">
             <span className="gm-mine__band">{bandTitle(worldOf(state), band)}</span>
             <span className="gm-muted">
-              {inGallery ? `Side gallery at ${formatNumber(state.depth)} m` : `Dig face at ${formatNumber(state.deepest)} m`}
-              {` · tier ${formatNumber(band.tier)}`}
+              {`Dig face at ${formatNumber(state.deepest)} m · tier ${formatNumber(band.tier)}`}
             </span>
           </div>
           <ShaftScene store={store} />
           <div className="gm-mine__progress">
             <div className="gm-mine__progress-text gm-muted">
-              <span>{inGallery ? 'Next gallery find' : 'Next metre'}</span>
+              <span>Next metre</span>
               <span>Auto {formatRate(stats.autoTicksPerSecond)} tick/s · each click +{plural(stats.ticksPerClick, 'tick', 'ticks')}</span>
             </div>
             <div
               className="gm-bar"
               role="progressbar"
-              aria-label={inGallery ? 'Progress to the next gallery find' : 'Progress to the next metre'}
+              aria-label="Progress to the next metre"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={pct}

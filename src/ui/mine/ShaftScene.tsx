@@ -16,7 +16,6 @@ import './shaft.css';
 
 const SWEEP_MS = 250;
 const DRAIN_MS = 1000;
-const TUNNEL_TILES = 3;
 const MINER_PX = 60;
 const LABELS_ID = 'gm-shaft-labels';
 
@@ -34,8 +33,7 @@ function wallOffset(bits: number): CSSProperties {
   return { left: 4 + (bits & 15) * 2, top: 4 + (bits >> 4) * 2 };
 }
 
-function Wall({ tile, dug }: { tile: WallTile; dug: boolean }) {
-  if (dug) return <div className="gm-shaft__tile gm-shaft__tile--dug" />;
+function Wall({ tile }: { tile: WallTile }) {
   return (
     <div className="gm-shaft__tile" style={{ background: tile.shade }}>
       {tile.detail && <span className={`gm-shaft__detail gm-shaft__detail--${tile.detail}`} style={wallOffset(tile.bits)} />}
@@ -43,12 +41,12 @@ function Wall({ tile, dug }: { tile: WallTile; dug: boolean }) {
   );
 }
 
-function ShaftCell({ row, rock, depth, progress }: { row: ShaftRow; rock: string; depth: number; progress: number }) {
+function ShaftCell({ row, rock, deepest, progress }: { row: ShaftRow; rock: string; deepest: number; progress: number }) {
   const feature = row.feature;
   if (row.cell === 'dug') {
     return (
       <div className="gm-shaft__cell gm-shaft__cell--dug">
-        {row.metre < depth && <span className="gm-shaft__rope" />}
+        {row.metre < deepest && <span className="gm-shaft__rope" />}
       </div>
     );
   }
@@ -71,7 +69,7 @@ export function ShaftScene({ store }: { store: GameStore }) {
   const { state, stats } = useGame(store);
   const reduced = usePrefersReducedMotion();
   const motion = effectiveMotion(state.settings.motion, reduced);
-  const { depth, deepest, progress } = state;
+  const { deepest, progress } = state;
   // During a map the shaft doesn't dig or strike: the banner above it leads back to the map.
   const paused = state.activity.kind === 'map';
   const sceneRef = useRef<HTMLButtonElement>(null);
@@ -86,7 +84,7 @@ export function ShaftScene({ store }: { store: GameStore }) {
   // Only the lit rows' rolls reach the model, so the 250 ms pump rebuilds it only when something visible changed.
   const lit: unknown[] = [];
   for (let m = deepest + 1; m <= deepest + stats.lampSight; m++) lit.push(state.ahead[m] ?? null);
-  const modelKey = `${state.seed}|${state.worldGen}|${depth}|${deepest}|${stats.lampSight}|${JSON.stringify(lit)}`;
+  const modelKey = `${state.seed}|${state.worldGen}|${deepest}|${stats.lampSight}|${JSON.stringify(lit)}`;
   // modelKey carries every input the model reads, so it alone is the dependency.
   const model = useMemo(() => {
     const world = worldOf(state);
@@ -108,8 +106,7 @@ export function ShaftScene({ store }: { store: GameStore }) {
     prevTopRef.current = model.top;
     const modeChanged = prevShaftModeRef.current !== motion.shaft;
     prevShaftModeRef.current = motion.shaft;
-    // In a gallery the face is frozen, so its progress must not offset the strip.
-    const { fromPx, toPx, animate } = shaftShift(prevTop, model.top, motion.shaft, depth < deepest ? 0 : progress);
+    const { fromPx, toPx, animate } = shaftShift(prevTop, model.top, motion.shaft, progress);
     if (modeChanged) {
       el.style.transition = 'none';
       el.style.transform = `translateY(${toPx}px)`;
@@ -160,9 +157,7 @@ export function ShaftScene({ store }: { store: GameStore }) {
     setParticles((prev) => pruneParticles([...prev, ...spawned], now));
   };
 
-  const inTunnel = depth < deepest && depth > 0;
-  const minerTop = (MINER_ROW + 1) * SHAFT_ROW_PX - MINER_PX - (depth === 0 ? 6 : 2);
-  const minerX = inTunnel ? `calc(50% + ${(88 + SHAFT_ROW_PX) / 2}px)` : '50%';
+  const minerTop = (MINER_ROW + 1) * SHAFT_ROW_PX - MINER_PX - (deepest === 0 ? 6 : 2);
   const fogTop = Math.max(0, (model.firstDark - 1) * SHAFT_ROW_PX);
 
   return (
@@ -185,13 +180,12 @@ export function ShaftScene({ store }: { store: GameStore }) {
                 </div>
               );
             }
-            const tunnel = row.tunnel && row.metre > 0;
             const k = row.metre - deepest;
             return (
               <div key={row.metre} className="gm-shaft__row">
-                {row.left.map((t, c) => <Wall key={c} tile={t} dug={false} />)}
-                <ShaftCell row={row} rock={rock} depth={depth} progress={depth < deepest ? 0 : progress} />
-                {row.right.map((t, c) => <Wall key={c} tile={t} dug={tunnel && c < TUNNEL_TILES} />)}
+                {row.left.map((t, c) => <Wall key={c} tile={t} />)}
+                <ShaftCell row={row} rock={rock} deepest={deepest} progress={progress} />
+                {row.right.map((t, c) => <Wall key={c} tile={t} />)}
                 {row.label && (
                   <span className="gm-shaft__label" data-feature={row.feature ?? 'hard'} style={{ opacity: Math.max(0.5, 1 - (k - 1) * 0.15) }}>
                     {row.label}
@@ -207,9 +201,9 @@ export function ShaftScene({ store }: { store: GameStore }) {
           aria-hidden="true"
           className="gm-shaft__glow"
           data-flicker={motion.lampFlicker}
-          style={{ left: minerX, top: minerTop + MINER_PX / 2 }}
+          style={{ left: '50%', top: minerTop + MINER_PX / 2 }}
         />
-        <div aria-hidden="true" className="gm-shaft__miner" style={{ left: minerX, top: minerTop }}>
+        <div aria-hidden="true" className="gm-shaft__miner" style={{ left: '50%', top: minerTop }}>
           <Sprite name="miner" scale={3} />
         </div>
         <div className="gm-shaft__hint">{paused ? 'Digging is paused' : 'Click the rock to dig'}</div>

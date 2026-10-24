@@ -17,7 +17,6 @@ export interface ShaftRow {
   label: string | null;
   left: WallTile[];
   right: WallTile[];
-  tunnel: boolean;
 }
 
 const LABEL: Record<FeatureKind, string> = {
@@ -33,11 +32,10 @@ function aheadLabel(k: number, feature: FeatureKind | null, hard: boolean): stri
   return hard ? `+${k} m: harder rock` : null;
 }
 
-export function shaftModel(state: GameState, lampSight: number): { top: number; rows: ShaftRow[]; gallery: boolean } {
-  const { depth, deepest } = state;
-  const gallery = depth < deepest;
+export function shaftModel(state: GameState, lampSight: number): { top: number; rows: ShaftRow[] } {
+  const { deepest } = state;
   const world = worldOf(state);
-  const top = depth - MINER_ROW;
+  const top = deepest - MINER_ROW;
   const rows: ShaftRow[] = [];
   for (let i = 0; i < SHAFT_ROWS; i++) {
     const metre = top + i;
@@ -45,13 +43,13 @@ export function shaftModel(state: GameState, lampSight: number): { top: number; 
     if (metre <= 0) cell = 'surface';
     else if (metre <= deepest) cell = 'dug';
     else if (metre === deepest + 1) cell = 'face';
-    else if (!gallery && metre <= deepest + lampSight) cell = 'lit';
+    else if (metre <= deepest + lampSight) cell = 'lit';
     else cell = 'dark';
 
     let feature: FeatureKind | null = null;
     let hard = false;
     let label: string | null = null;
-    if (!gallery && (cell === 'face' || cell === 'lit')) {
+    if (cell === 'face' || cell === 'lit') {
       const roll = state.ahead[metre];
       feature = roll?.feature ?? null;
       hard = roll?.hardRock ?? false;
@@ -61,9 +59,9 @@ export function shaftModel(state: GameState, lampSight: number): { top: number; 
 
     const walls = (side: 0 | 1): WallTile[] =>
       cell === 'surface' ? [] : Array.from({ length: WALL_COLUMNS }, (_, c) => wallTile(world, metre, side, c));
-    rows.push({ metre, cell, hard, feature, label, left: walls(0), right: walls(1), tunnel: gallery && metre === depth });
+    rows.push({ metre, cell, hard, feature, label, left: walls(0), right: walls(1) });
   }
-  return { top, rows, gallery };
+  return { top, rows };
 }
 
 export function shaftShift(

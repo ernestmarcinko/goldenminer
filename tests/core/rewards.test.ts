@@ -5,7 +5,7 @@ import { clickHit, onKill, soulsForKill } from '../../src/core/combat';
 import { applyTicks } from '../../src/core/dig';
 import { addMap, startMap } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
-import { isGear } from '../../src/core/items';
+import { isGear, setOfSlot } from '../../src/core/items';
 import { nextRandom } from '../../src/core/rng';
 import { deriveStats } from '../../src/core/stats';
 import { summarize } from '../../src/core/summary';
@@ -62,8 +62,7 @@ it('a cleared tier-1 map pays Souls, 40 Gold and at least the boss and champion 
 it('a full bag under stop holds map drops but the fight goes on', () => {
   const s = newGame(1, 0);
   s.settings.bagFull = 'stop';
-  s.bags.battle = s.bags.battle.map(() => gear(s, 'weapon'));
-  s.bags.mining = s.bags.mining.map(() => gear(s, 'pickaxe'));
+  s.bag = s.bag.map((_, i) => gear(s, i % 2 ? 'weapon' : 'pickaxe'));
   s.stash.general = s.stash.general.map(() => gear(s, 'weapon'));
   startMap(s, addMap(s, 1, 2).id);
   fight(s);
@@ -132,15 +131,18 @@ it('only a champion\'s guaranteed item rolls with the champion magic-find boost'
   }
 });
 
-it('about 80% of map gear is battle gear, and gems land in the battle bag', () => {
+it('about 80% of map gear is battle gear, and gems land in the bag', () => {
   let battle = 0;
   let mining = 0;
   let gems = 0;
   for (let seed = 1; seed <= 400; seed++) {
     const { s } = kill(seed, 'boss');
-    for (const c of s.bags.battle) { if (c !== null && isGear(c)) battle++; else if (c !== null) gems++; }
-    mining += s.bags.mining.filter((c) => c !== null && isGear(c)).length;
-    expect(s.bags.mining.some((c) => c !== null && !isGear(c)), `seed ${seed}`).toBe(false);
+    for (const c of s.bag) {
+      if (c === null) continue;
+      if (!isGear(c)) gems++;
+      else if (setOfSlot(c.slot) === 'battle') battle++;
+      else mining++;
+    }
   }
   const share = battle / (battle + mining);
   expect(share).toBeGreaterThan(0.75);
@@ -164,10 +166,9 @@ it('a gem drop is noted on the run and in the log like an item', () => {
 it('with MAX_OVERFLOW items already held under stop, a further drop is sold and nothing more is held', () => {
   const { s, run } = kill(1, 'boss', (g) => {
     g.settings.bagFull = 'stop';
-    g.bags.battle = g.bags.battle.map(() => gear(g, 'weapon'));
-    g.bags.mining = g.bags.mining.map(() => gear(g, 'pickaxe'));
+    g.bag = g.bag.map((_, i) => gear(g, i % 2 ? 'weapon' : 'pickaxe'));
     g.stash.general = g.stash.general.map(() => gear(g, 'weapon'));
-    for (let i = 0; i < MAX_OVERFLOW; i++) g.overflow.push({ bag: 'battle', item: gear(g, 'weapon') });
+    for (let i = 0; i < MAX_OVERFLOW; i++) g.overflow.push(gear(g, 'weapon'));
   });
   expect(s.overflow).toHaveLength(MAX_OVERFLOW);
   expect(run.loot.some((n) => n.outcome === 'sold')).toBe(true);
@@ -199,16 +200,14 @@ it('the offline summary counts a lost map', () => {
   expect(summarize(before, after, 600_000, 600, 28_800_000).maps).toEqual({ cleared: 0, lost: 1 });
 });
 
-it('the offline summary names the bag that is holding map drops', () => {
+it('the offline summary notices the bag holding map drops', () => {
   const before = newGame(1, 0);
   const after = structuredClone(before);
   after.settings.bagFull = 'stop';
-  after.bags.battle = after.bags.battle.map(() => gear(after, 'weapon'));
-  after.bags.mining = after.bags.mining.map(() => gear(after, 'pickaxe'));
+  after.bag = after.bag.map((_, i) => gear(after, i % 2 ? 'weapon' : 'pickaxe'));
   after.stash.general = after.stash.general.map(() => gear(after, 'weapon'));
   startMap(after, addMap(after, 1, 2).id);
   fight(after);
-  const held = after.overflow[0]?.bag;
-  expect(held).toBeDefined();
-  expect(summarize(before, after, 600_000, 600, 28_800_000).stoppedBag).toBe(held);
+  expect(after.overflow.length).toBeGreaterThan(0);
+  expect(summarize(before, after, 600_000, 600, 28_800_000).bagStopped).toBe(true);
 });

@@ -1,4 +1,3 @@
-import { STASH_SIZE } from '../../core/balance';
 import { filledCount } from '../../core/cells';
 import { GEM_GRADES, GEM_TYPES } from '../../core/items';
 import type { GemGrade, GemType } from '../../core/items';
@@ -13,7 +12,7 @@ export const GRADE_HEADERS: readonly string[] = GEM_GRADES.map((g) => GEM_GRADE_
 
 export function tabLabel(state: GameState, tab: StashTab): string {
   switch (tab) {
-    case 'general': return `General ${formatNumber(filledCount(state.stash.general))} / ${formatNumber(STASH_SIZE)}`;
+    case 'general': return `General ${formatNumber(filledCount(state.stash.general))} / ${formatNumber(state.stash.general.length)}`;
     case 'gems': return 'Gems';
     case 'maps': return 'Maps';
   }

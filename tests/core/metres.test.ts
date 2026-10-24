@@ -40,7 +40,7 @@ it('vein amounts scale with tier', () => {
 describe('newGame', () => {
   it('starts at the surface with a guaranteed map at metre 2', () => {
     const s = newGame(1, 1000);
-    expect(s).toMatchObject({ depth: 0, deepest: 0, gold: 0, diamonds: 0, lastTickAt: 1000, finds: [] });
+    expect(s).toMatchObject({ deepest: 0, gold: 0, diamonds: 0, lastTickAt: 1000, finds: [] });
     expect(Object.keys(s.ahead).map(Number).sort()).toEqual([1, 2, 3]);
     expect(s.ahead[2]).toEqual({ feature: 'map', amount: 0, hardRock: false });
     expect(s.ahead[1]?.hardRock).toBe(false);
@@ -49,7 +49,7 @@ describe('newGame', () => {
 
 it('fillAhead adds missing metres and never re-rolls', () => {
   const s = newGame(1, 0);
-  s.deepest = 10; s.depth = 10; s.ahead = { 11: { feature: 'chest', amount: 0, hardRock: true } };
+  s.deepest = 10; s.ahead = { 11: { feature: 'chest', amount: 0, hardRock: true } };
   fillAhead(s, stats);
   expect(s.ahead[11]).toEqual({ feature: 'chest', amount: 0, hardRock: true });
   expect(s.ahead[13]).toBeDefined();

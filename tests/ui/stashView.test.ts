@@ -36,7 +36,7 @@ it('counts above a thousand are shortened', () => {
 it('tab labels show the General fill, and the other tabs just their name', () => {
   const s = migrated();
   expect(STASH_TABS).toEqual(['general', 'gems', 'maps']);
-  expect(tabLabel(s, 'general')).toBe('General 5 / 60');
+  expect(tabLabel(s, 'general')).toBe('General 5 / 120');
   expect(tabLabel(s, 'gems')).toBe('Gems');
   expect(tabLabel(s, 'maps')).toBe('Maps');
 });

@@ -31,7 +31,7 @@ export function particlesFromEvents(
   for (const e of events) {
     if (e.kind === 'gold') gold += e.amount;
     else if (e.kind === 'diamond') diamonds += e.amount;
-    else if (e.kind === 'find' && finds.length < MAX_FIND_PARTICLES) {
+    else if (e.kind === 'find' && e.find.kind !== 'materialVein' && finds.length < MAX_FIND_PARTICLES) {
       finds.push({
         id: nextId(),
         kind: e.find.kind,
