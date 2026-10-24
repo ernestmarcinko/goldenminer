@@ -1,6 +1,7 @@
 import {
   BASE_AUTO_TICKS_PER_SECOND, BASE_DIG_POWER, BASE_FEATURE_CHANCES, BASE_HARD_ROCK_CHANCE,
   BASE_LAMP_SIGHT, BASE_OFFLINE_CAP_MS, BASE_TICKS_PER_CLICK, FEATURE_CHANCE_TOTAL_CAP, MAX_LAMP_SIGHT,
+  MAX_AUTO_TICKS_PER_SECOND, MAX_DIG_POWER, MAX_OFFLINE_CAP_MS, MAX_TICKS_PER_CLICK, MIN_OFFLINE_CAP_MS,
   statRange,
 } from './balance';
 import { BATTLE_STATS, MINING_STATS, setOfSlot } from './items';
@@ -33,6 +34,7 @@ export function gearTotals(state: GameState, set: GearSet): Record<StatKey, numb
   return totals;
 }
 
+const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 const pct = (n: number) => Math.max(0, 1 + n / 100);
 
 export function deriveStats(state: GameState): Stats {
@@ -49,11 +51,11 @@ export function deriveStats(state: GameState): Stats {
     for (const kind of Object.keys(featureChances) as FeatureKind[]) featureChances[kind] *= scale;
   }
   return {
-    digPower: Math.max(1, BASE_DIG_POWER + g.digPower),
-    autoTicksPerSecond: BASE_AUTO_TICKS_PER_SECOND * pct(g.autoTickRate),
-    ticksPerClick: BASE_TICKS_PER_CLICK + g.ticksPerClick,
-    lampSight: Math.min(MAX_LAMP_SIGHT, BASE_LAMP_SIGHT + g.lampSight),
-    offlineCapMs: BASE_OFFLINE_CAP_MS + g.offlineCap * 60_000,
+    digPower: clamp(BASE_DIG_POWER + g.digPower, 1, MAX_DIG_POWER),
+    autoTicksPerSecond: Math.min(MAX_AUTO_TICKS_PER_SECOND, BASE_AUTO_TICKS_PER_SECOND * pct(g.autoTickRate)),
+    ticksPerClick: clamp(BASE_TICKS_PER_CLICK + g.ticksPerClick, 1, MAX_TICKS_PER_CLICK),
+    lampSight: clamp(BASE_LAMP_SIGHT + g.lampSight, 0, MAX_LAMP_SIGHT),
+    offlineCapMs: clamp(BASE_OFFLINE_CAP_MS + g.offlineCap * 60_000, MIN_OFFLINE_CAP_MS, MAX_OFFLINE_CAP_MS),
     featureChances,
     hardRockChance: BASE_HARD_ROCK_CHANCE,
     goldMultiplier: pct(g.goldYield),

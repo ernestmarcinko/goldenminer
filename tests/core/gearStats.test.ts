@@ -55,3 +55,11 @@ it('find chances are capped together and never go below zero', () => {
   s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'chestFind', value: -200 }] });
   expect(deriveStats(s).featureChances.chest).toBe(0);
 });
+
+it('absurd gear totals are clamped to sane bounds', () => {
+  const s = newGame(1, 0);
+  s.equipped.mining.pickaxe = gear(s, 'pickaxe', { implicit: { stat: 'digPower', value: 1_000_000 }, affixes: [{ stat: 'autoTickRate', value: 1_000_000 }, { stat: 'ticksPerClick', value: 1_000_000 }, { stat: 'offlineCap', value: 1_000_000 }] });
+  expect(deriveStats(s)).toMatchObject({ digPower: 5000, autoTicksPerSecond: 10, ticksPerClick: 10, offlineCapMs: 48 * 3_600_000 });
+  s.equipped.mining.pickaxe = gear(s, 'pickaxe', { implicit: { stat: 'digPower', value: -1_000_000 }, affixes: [{ stat: 'lampSight', value: -1_000_000 }, { stat: 'ticksPerClick', value: -1_000_000 }, { stat: 'offlineCap', value: -1_000_000 }] });
+  expect(deriveStats(s)).toMatchObject({ digPower: 1, lampSight: 0, ticksPerClick: 1, offlineCapMs: 3_600_000 });
+});

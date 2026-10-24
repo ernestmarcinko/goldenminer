@@ -10,6 +10,11 @@ export const MAX_CLICKS_PER_SECOND = 10;
 export const MAX_LAMP_SIGHT = 20;
 export const FEATURE_CHANCE_TOTAL_CAP = 0.9;
 export const DIAMOND_CHANCE_CAP = 0.5;
+export const MAX_DIG_POWER = 5000;
+export const MAX_AUTO_TICKS_PER_SECOND = 10;
+export const MAX_TICKS_PER_CLICK = 10;
+export const MIN_OFFLINE_CAP_MS = 3_600_000;
+export const MAX_OFFLINE_CAP_MS = 48 * 3_600_000;
 
 export const TICKS_PER_METRE_AT_PARITY = 25;
 export const HARD_ROCK_MULTIPLIER = 1.5;
