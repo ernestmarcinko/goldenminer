@@ -1,3 +1,4 @@
+import type { Rarity, StatKey } from './items';
 import type { FeatureKind } from './types';
 
 export const BASE_DIG_POWER = 10;
@@ -45,3 +46,44 @@ export function goldVeinAmount(tier: number, u: number): number {
 export function diamondVeinAmount(tier: number): number {
   return 1 + Math.floor(tier / 2);
 }
+
+export const STAT_RANGES: Readonly<Record<StatKey, { base: number; perLevel: number; cap?: number }>> = {
+  digPower: { base: 2, perLevel: 2 },
+  goldYield: { base: 4, perLevel: 2 },
+  diamondYield: { base: 4, perLevel: 2 },
+  chestFind: { base: 5, perLevel: 2 },
+  gemFind: { base: 5, perLevel: 2 },
+  mapFind: { base: 5, perLevel: 2 },
+  lampSight: { base: 1, perLevel: 0.25, cap: 6 },
+  ticksPerClick: { base: 1, perLevel: 0, cap: 1 },
+  autoTickRate: { base: 3, perLevel: 1, cap: 50 },
+  offlineCap: { base: 15, perLevel: 5, cap: 240 },
+  damage: { base: 2, perLevel: 3 },
+  damagePct: { base: 4, perLevel: 1 },
+  attackSpeed: { base: 3, perLevel: 1, cap: 40 },
+  life: { base: 8, perLevel: 6 },
+  armor: { base: 6, perLevel: 5 },
+  critChance: { base: 1, perLevel: 0.5, cap: 15 },
+  resistAll: { base: 3, perLevel: 1, cap: 30 },
+  soulFind: { base: 4, perLevel: 2 },
+  magicFind: { base: 4, perLevel: 2 },
+};
+
+export function statRange(stat: StatKey, ilvl: number): { min: number; max: number } {
+  const r = STAT_RANGES[stat];
+  const max = Math.min(r.cap ?? Infinity, Math.max(1, Math.round(r.base + r.perLevel * ilvl)));
+  return { min: Math.max(1, Math.round(max / 2)), max };
+}
+
+export function rollStat(stat: StatKey, ilvl: number, u: number): number {
+  const { min, max } = statRange(stat, ilvl);
+  return min + Math.floor(u * (max - min + 1));
+}
+
+export const DEFAULT_STAT_WEIGHT = 10;
+export const STAT_WEIGHTS: Readonly<Partial<Record<StatKey, number>>> = { ticksPerClick: 2, lampSight: 4 };
+export const RARITY_WEIGHTS: Readonly<Record<Rarity, number>> = { normal: 60, magic: 30, rare: 9, legendary: 1 };
+export const RARE_FOURTH_AFFIX_CHANCE = 0.5;
+export const SOCKET_WEIGHTS: readonly number[] = [40, 35, 18, 7];
+export const CHEST_SECOND_ITEM_CHANCE = 0.2;
+export const CHEST_BATTLE_CHANCE = 0.2;
