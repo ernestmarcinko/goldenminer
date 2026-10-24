@@ -98,6 +98,8 @@ button.gm-item:hover { background: #3a2f20; }
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6); pointer-events: none;
 }
 .gm-card[role='dialog'] { pointer-events: auto; }
+/* the card moves itself after a craft; a scrolling dialog must not also scroll to follow it (scroll anchoring) */
+.gm-card { overflow-anchor: none; }
 /* the card a touch tap opens: in the flow below the grid, so the targets above stay uncovered */
 .gm-card.gm-card--inline { position: static; width: 100%; box-shadow: none; }
 .gm-card__label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gm-muted); }
