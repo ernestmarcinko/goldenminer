@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, RefObject } from 'react';
 import { BAG_SIZE, MAX_STASH_PAGES, STASH_PAGE_SIZE } from '../../core/balance';
-import { filledCount, pageCount } from '../../core/cells';
+import { filledCount, mapTiers, pageCount } from '../../core/cells';
 import type { Cell } from '../../core/items';
-import type { GameState } from '../../core/types';
+import type { GameState, ItemLoc } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
 import { formatNumber } from '../format';
 import { useDialog } from '../useDialog';
@@ -18,14 +18,23 @@ import type { ItemDrag } from './useItemDrag';
 import { useItemInteractions } from './useItemInteractions';
 
 const tabId = (tab: StashTab): string => `gm-stash-tab-${tab}`;
-type PagedTab = 'general' | 'maps';
+
+/** Every map in the Map stash, the lowest tier first; empty places after them take a drop, which joins its own tier. */
+function mapCells(state: GameState): { items: Cell[]; locs: ItemLoc[] } {
+  const items: Cell[] = [];
+  const locs: ItemLoc[] = [];
+  for (const tier of mapTiers(state)) {
+    (state.stash.maps[tier] ?? []).forEach((m, index) => { items.push(m); locs.push({ where: 'maps', tier, index }); });
+  }
+  return { items, locs };
+}
 
 /** One button per page, the shown one pressed, then the button that buys the next page (gone at the page cap). */
-function PageRow({ state, tab, shown, onShow, onBuy }: {
-  state: GameState; tab: PagedTab; shown: number; onShow: (page: number) => void; onBuy: () => void;
+function PageRow({ state, shown, onShow, onBuy }: {
+  state: GameState; shown: number; onShow: (page: number) => void; onBuy: () => void;
 }) {
-  const pages = pageCount(state.stash[tab]);
-  const buy = buyLabel(state, tab);
+  const pages = pageCount(state.stash.general);
+  const buy = buyLabel(state);
   return (
     <div className="gm-stash__pages" role="group" aria-label="Pages">
       {Array.from({ length: pages }, (_, page) => (
@@ -55,8 +64,9 @@ function PageRow({ state, tab, shown, onShow, onBuy }: {
 
 /**
  * The stash in tabs, with the bag beside it; both share the same tooltips, clicks and action card. While it is open,
- * `sayRef` points at its status line, so drop results show here rather than in the panel underneath. The General and
- * Maps tabs show one page at a time, and remember it while the dialog is open. A map run from here closes the dialog.
+ * `sayRef` points at its status line, so drop results show here rather than in the panel underneath. The General tab
+ * shows one page at a time, and remembers it while the dialog is open; the Maps tab shows every map in one grid. A map
+ * run from here closes the dialog.
  */
 export function StashDialog({ store, onClose, drag, sayRef }: {
   store: GameStore; onClose: () => void; drag: ItemDrag;
@@ -64,7 +74,7 @@ export function StashDialog({ store, onClose, drag, sayRef }: {
 }) {
   const { state } = useGame(store);
   const [tab, setTab] = useState<StashTab>('general');
-  const [pages, setPages] = useState<Record<PagedTab, number>>({ general: 0, maps: 0 });
+  const [page, setPage] = useState(0);
   const dialogRef = useRef<HTMLDivElement>(null);
   const { focusRef: closeRef, depth } = useDialog<HTMLButtonElement>(onClose, dialogRef);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -89,34 +99,46 @@ export function StashDialog({ store, onClose, drag, sayRef }: {
     reset();
     if (focus) tabRefs.current[next]?.focus();
   };
-  /** The shown page of a paged tab, kept inside the pages it has. */
-  const shownPage = (t: PagedTab): number => Math.min(pages[t], pageCount(state.stash[t]) - 1);
-  const showPage = (t: PagedTab, page: number): void => {
-    setPages((p) => ({ ...p, [t]: page }));
+  /** The shown General page, kept inside the pages it has. */
+  const shownPage = Math.min(page, pageCount(state.stash.general) - 1);
+  const showPage = (next: number): void => {
+    setPage(next);
     reset();
   };
-  const buyPage = (t: PagedTab): void => {
-    if (!buyLabel(state, t).affordable) {
+  const buyPage = (): void => {
+    if (!buyLabel(state).affordable) {
       say('Not enough Gold.');
       return;
     }
-    const result = store.buyStashPage(t);
+    const result = store.buyStashPage();
     if (result === 'noGold') say('Not enough Gold.');
-    else if (result === 'ok') showPage(t, pageCount(store.state.stash[t]) - 1);
+    else if (result === 'ok') showPage(pageCount(store.state.stash.general) - 1);
   };
-  const pagedGrid = (t: PagedTab) => {
-    const page = shownPage(t);
-    const offset = page * STASH_PAGE_SIZE;
+  const generalGrid = () => {
+    const offset = shownPage * STASH_PAGE_SIZE;
     return (
       <div className="gm-stash__paged">
-        <PageRow state={state} tab={t} shown={page} onShow={(p) => showPage(t, p)} onBuy={() => buyPage(t)} />
+        <PageRow state={state} shown={shownPage} onShow={showPage} onBuy={buyPage} />
         <ItemGrid
-          items={pageCells<Cell>(state.stash[t], page)}
+          items={pageCells<Cell>(state.stash.general, shownPage)}
           capacity={STASH_PAGE_SIZE}
-          targetOf={(index) => ({ where: t === 'general' ? 'stash' : 'maps', index: offset + index })}
+          targetOf={(index) => ({ where: 'stash', index: offset + index })}
           handlers={handlers}
         />
       </div>
+    );
+  };
+  const mapsGrid = () => {
+    const { items, locs } = mapCells(state);
+    // an empty place names a spot past the end of tier 1: a map dropped on it joins its own tier all the same
+    const spare = state.stash.maps[1]?.length ?? 0;
+    return (
+      <ItemGrid
+        items={items}
+        capacity={Math.max(STASH_PAGE_SIZE, items.length)}
+        targetOf={(index) => locs[index] ?? { where: 'maps', tier: 1, index: spare + index - items.length }}
+        handlers={handlers}
+      />
     );
   };
 
@@ -177,9 +199,9 @@ export function StashDialog({ store, onClose, drag, sayRef }: {
               aria-labelledby={tabId(tab)}
               className="gm-stash__panel"
             >
-              {tab === 'general' && pagedGrid('general')}
+              {tab === 'general' && generalGrid()}
               {tab === 'gems' && <GemTab state={state} handlers={handlers} />}
-              {tab === 'maps' && pagedGrid('maps')}
+              {tab === 'maps' && mapsGrid()}
               {tab === 'materials' && <MaterialTab state={state} handlers={handlers} />}
             </div>
           </div>

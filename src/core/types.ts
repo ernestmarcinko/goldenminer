@@ -1,4 +1,4 @@
-import type { Cell, GearItem, GearSet, GemGrade, GemType, MapItem, MapMod, MapRarity, Material, Rarity, Slot } from './items';
+import type { Cell, GearItem, GearSet, GemGrade, GemType, Item, MapItem, MapMod, MapRarity, Material, Rarity, Slot } from './items';
 
 export type { MapItem, MapMod, MapRarity };
 export const FEATURE_KINDS = ['goldVein', 'diamondVein', 'chest', 'gem', 'map'] as const;
@@ -8,11 +8,11 @@ export type FindKind = (typeof FIND_KINDS)[number];
 export const HAZARDS = ['gas', 'unstable'] as const;
 export type Hazard = (typeof HAZARDS)[number];
 export interface MetreRoll { feature: FeatureKind | null; amount: number; hardRock: boolean }
-/** Where an item lives: a bag cell, a General or Maps cell (any page), a Gems or Materials stack, or a worn slot. */
+/** Where an item lives: a bag cell, a General cell (any page), a map in a tier list, a Gems or Materials stack, or a worn slot. */
 export type ItemLoc =
   | { where: 'bag'; index: number }
   | { where: 'stash'; index: number }                   // a General cell, any page
-  | { where: 'maps'; index: number }                    // a Maps-tab cell, any page
+  | { where: 'maps'; tier: number; index: number }      // a map in the Map stash's list for its tier
   | { where: 'gems'; gem: GemType; grade: GemGrade }    // a Gems-tab stack
   | { where: 'materials'; material: Material }          // a Materials-tab stack (virtual, id 0, while its count > 0)
   | { where: 'worn'; slot: Slot };
@@ -21,19 +21,34 @@ export const LOOT_ACTIONS = ['keep', 'sell', 'salvage'] as const;
 export type LootAction = (typeof LOOT_ACTIONS)[number];
 export type LootTarget = GearSet | Slot | 'gem' | 'any';
 export interface LootRule { rarity: Rarity | 'any'; target: LootTarget; action: LootAction }
-export const BAG_FULL_MODES = ['sellWorst', 'stop'] as const;
-export type BagFullMode = (typeof BAG_FULL_MODES)[number];
 export const SHAFT_MOTIONS = ['step', 'smooth', 'off'] as const;
 export type ShaftMotion = (typeof SHAFT_MOTIONS)[number];
 export interface MotionSettings { floats: boolean; pops: boolean; lampFlicker: boolean; shaft: ShaftMotion }
 export const DEFAULT_MOTION: MotionSettings = { floats: true, pops: true, lampFlicker: true, shaft: 'step' };
-export interface Settings { lootFilter: LootRule[]; bagFull: BagFullMode; motion: MotionSettings }
+export interface Settings { lootFilter: LootRule[]; motion: MotionSettings }
 export const LOOT_OUTCOMES = ['bag', 'stash', 'sold', 'salvaged', 'held'] as const;
 export type LootOutcome = (typeof LOOT_OUTCOMES)[number];
-/** `value` is the Gold for 'sold', the material units for 'salvaged', and the units found for a material note. */
+/**
+ * `value` is the Gold for 'sold', the material units for 'salvaged', and the units found for a material note. A map's
+ * note has base 'map' and its map rarity.
+ */
 export interface LootNote {
-  name: string; rarity: Rarity | 'gem' | 'material'; base: Slot | GemType | Material; outcome: LootOutcome; value: number;
+  name: string; rarity: Rarity | 'gem' | 'material'; base: Slot | GemType | Material | 'map'; outcome: LootOutcome; value: number;
 }
+/** Where a logged find came from: a dug metre, a room of a map, or the merchant. */
+export type DropOrigin = { kind: 'metre'; metre: number } | { kind: 'map'; tier: number; room: number } | { kind: 'merchant' };
+export const TRAIL_EVENTS = [
+  'bag', 'held', 'filterSold', 'filterSalvaged', 'stashed', 'toBag', 'equipped', 'sold', 'salvaged', 'crafted', 'run', 'lost',
+] as const;
+export type TrailEvent = (typeof TRAIL_EVENTS)[number];
+export interface TrailStep { event: TrailEvent; gold?: number; materials?: Partial<Record<Material, number>> }
+/** One find in the drop log; its id is the item's (a material find takes its own), and its trail is what became of it. */
+export interface DropEntry {
+  id: number; kind: Item['type']; name: string; rarity: Rarity | 'gem' | 'material'; base: Slot | GemType | Material | 'map';
+  count: number; origin: DropOrigin; trail: TrailStep[];
+}
+/** One death in a map: `at` is its wall time, `map` the map as it was lost. */
+export interface DeathEntry { id: number; tick: number; at: number; map: MapItem; room: number; bossRoom: number; killer: string }
 export const ELEMENTS = ['physical', 'elemental'] as const;
 export type Element = (typeof ELEMENTS)[number];
 export const RANKS = ['normal', 'champion', 'boss'] as const;
@@ -70,7 +85,7 @@ export interface FindRecord {
 }
 export type InvResult =
   | 'ok' | 'bagFull' | 'stashFull' | 'noSocket' | 'invalid' | 'busy'
-  | 'wrongSlot' | 'gemsOnly' | 'gearOnly' | 'mapsOnly' | 'materialsOnly' | 'stackFull' | 'craftRefused';
+  | 'wrongSlot' | 'gemsOnly' | 'gearOnly' | 'mapsOnly' | 'materialsOnly' | 'stackFull' | 'craftRefused' | 'mapTierFull';
 /** What a craft spends: a material, or Diamonds for the exalt. */
 export type CraftKind = Material | 'diamond';
 export type CraftCheck =
@@ -94,11 +109,11 @@ export interface GameState {
   stash: {
     general: (GearItem | null)[];          // STASH_PAGE_SIZE × pages, START_GENERAL_PAGES..MAX_STASH_PAGES pages
     gems: Record<GemType, Record<GemGrade, number>>;   // the Gems tab: counts of 0..GEM_STASH_STACK
-    maps: (MapItem | null)[];              // STASH_PAGE_SIZE × pages, START_MAP_PAGES..MAX_STASH_PAGES pages
+    maps: Record<number, MapItem[]>;       // keyed by tier, at most MAP_TIER_CAP each, in the order put in; an emptied tier loses its key
     materials: Record<Material, number>;   // 0..MATERIAL_STASH_STACK each
-    bought: { general: number; maps: number };   // pages bought with Gold; free pages never count
+    bought: { general: number };           // General pages bought with Gold; free pages never count
   };
-  overflow: GearItem[];                    // gear waiting for room (bagFull 'stop')
+  overflow: Item[];                        // finds held for want of room, oldest first, at most MAX_HELD; digging waits on them
   lootTally: { kept: number; sold: number; salvaged: number };
   settings: Settings;                      // kept across ascension (Plan 6)
   level: number; xp: number;               // character level 1..LEVEL_CAP; xp toward the next level
@@ -106,6 +121,9 @@ export interface GameState {
   activity: Activity;                      // digging, or running a map
   lastRun: RunResult | null;               // the most recent run; the Last run card keeps showing it, and `seen` is whether the result dialog was dismissed
   mapTally: { cleared: number; lost: number };
+  paused: boolean;                         // the player's Pause: digging waits, map runs go on
+  drops: DropEntry[];                      // the drop log, oldest first, at most DROP_LOG_LIMIT
+  deaths: DeathEntry[];                    // the death log, oldest first, at most DEATH_LOG_LIMIT
 }
 export interface Stats {
   digPower: number; autoTicksPerSecond: number; ticksPerClick: number; lampSight: number;
@@ -131,4 +149,5 @@ export interface OfflineSummary {
   finds: Record<FindKind, number>;
   items: { kept: number; sold: number; salvaged: number };
   bagStopped: boolean;
+  paused: boolean;
 }

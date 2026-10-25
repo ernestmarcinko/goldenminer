@@ -20,5 +20,6 @@ export function summarize(before: GameState, after: GameState, elapsedMs: number
       salvaged: after.lootTally.salvaged - before.lootTally.salvaged,
     },
     bagStopped: after.overflow.length > 0,
+    paused: after.paused,
   };
 }

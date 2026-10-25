@@ -10,7 +10,7 @@ import {
 } from '../../src/ui/character/itemActions';
 import { gear, gem } from '../helpers/items';
 import { lootNoteText } from '../../src/ui/character/itemView';
-import { MATERIAL_STASH_STACK, MAX_ITEM_LEVEL } from '../../src/core/balance';
+import { MAP_TIER_CAP, MATERIAL_STASH_STACK, MAX_ITEM_LEVEL } from '../../src/core/balance';
 
 const bag = (index: number): ItemLoc => ({ where: 'bag', index });
 const labels = (specs: ReturnType<typeof itemActions>) => specs.map((a) => [a.id, a.label]);
@@ -139,14 +139,16 @@ it('every refusal has a message, and success has none', () => {
   expect(resultText('stackFull')).toBe('That stack is full.');
   expect(resultText('invalid')).toBe("That can't go there.");
   expect(resultText('ok')).toBeNull();
+  const map: MapItem = { id: 1, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
+  expect(resultText('mapTierFull', map)).toBe('The tier 4 maps are full.');
 });
 
 it('a bag map runs or goes to the Maps tab; a Maps-tab map runs or comes back to the bag', () => {
   const s = newGame(1, 0);
   const carried: MapItem = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
   s.bag[0] = carried;
-  s.stash.maps[2] = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] };
-  const tab: ItemLoc = { where: 'maps', index: 2 };
+  s.stash.maps[1] = [{ id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] }];
+  const tab: ItemLoc = { where: 'maps', tier: 1, index: 0 };
   expect(noCrafts(itemActions(s, bag(0)))).toEqual([
     { id: 'run', label: 'Run this map', disabled: false },
     { id: 'toStash', label: 'To Maps tab', disabled: false },
@@ -167,12 +169,15 @@ it('a bag map runs or goes to the Maps tab; a Maps-tab map runs or comes back to
 it('a map cannot run while another run is going, and moves need room', () => {
   const s = newGame(1, 0);
   s.bag[0] = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
-  s.stash.maps[2] = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] };
+  s.stash.maps[1] = [{ id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] }];
   startMap(s, addMap(s, 1, 2).id);
-  const tab: ItemLoc = { where: 'maps', index: 2 };
+  const tab: ItemLoc = { where: 'maps', tier: 1, index: 0 };
   expect(itemActions(s, bag(0))[0]).toMatchObject({ id: 'run', disabled: true });
   expect(itemActions(s, tab)[0]).toMatchObject({ id: 'run', disabled: true });
-  s.stash.maps = s.stash.maps.map((c) => c ?? { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] });
+  // the bag map is tier 4: a full tier 1 leaves its move open, a full tier 4 shuts it
+  s.stash.maps[1] = Array.from({ length: MAP_TIER_CAP }, () => ({ id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] }));
+  expect(itemActions(s, bag(0))[1]).toMatchObject({ id: 'toStash', disabled: false });
+  s.stash.maps[4] = Array.from({ length: MAP_TIER_CAP }, () => ({ id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] }));
   expect(itemActions(s, bag(0))[1]).toMatchObject({ id: 'toStash', disabled: true });
   s.bag = s.bag.map((c) => c ?? gear(s, 'ring'));
   expect(itemActions(s, tab)[1]).toMatchObject({ id: 'toBag', disabled: true });
@@ -183,14 +188,14 @@ it('Run this map starts that map', () => {
   store.load();
   const s = store.state;
   const map: MapItem = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] };
-  s.stash.maps[5] = map;
-  const t: ItemLoc = { where: 'maps', index: 5 };
+  s.stash.maps[1] = [map];
+  const t: ItemLoc = { where: 'maps', tier: 1, index: 0 };
   const run = itemActions(s, t).find((a) => a.id === 'run');
   if (run === undefined) throw new Error('no run action');
   expect(runAction(store, t, run)).toBe('ok');
   expect(store.state.activity.kind).toBe('map');
   expect(store.state.activity.kind === 'map' && store.state.activity.run.map.id).toBe(map.id);
-  expect(s.stash.maps[5]).toBeNull();
+  expect(s.stash.maps).toEqual({});
 });
 
 it('Run this map during a run is refused as busy', () => {
@@ -293,9 +298,9 @@ it('a craft action crafts through the store', () => {
 it('a map card lists its enchants after Run this map and the move', () => {
   const s = newGame(1, 0);
   s.bag[0] = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
-  s.stash.maps[2] = {
+  s.stash.maps[4] = [{
     id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'magic', mods: [{ kind: 'monsterLife', tier: 2, value: 15 }],
-  };
+  }];
   s.stash.materials.copper = 37;
   s.stash.materials.iron = 37;
   s.souls = 50;
@@ -304,7 +309,7 @@ it('a map card lists its enchants after Run this map and the move', () => {
     { id: 'toStash', label: 'To Maps tab', disabled: false },
     { id: 'craft', kind: 'copper', label: 'Copper ore ×3 + 20 Souls: enchant it', disabled: false },
   ]);
-  const tab = itemActions(s, { where: 'maps', index: 2 });
+  const tab = itemActions(s, { where: 'maps', tier: 4, index: 0 });
   expect(tab.slice(0, 2).map((a) => a.id)).toEqual(['run', 'toBag']);
   expect(tab.slice(2).map((a) => [a.id, a.kind, a.disabled])).toEqual([
     ['craft', 'iron', false], ['craft', 'obsidian', true], ['craft', 'voidCrystal', true],
@@ -317,14 +322,14 @@ it('an enchant action enchants a map through the store, and spends its Souls', (
   const store = new GameStore({ storage: new MemoryStorage(), storageAvailable: true, now: () => 0, newSeed: () => 7 });
   store.load();
   const s = store.state;
-  s.stash.maps[5] = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
+  s.stash.maps[4] = [{ id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] }];
   s.stash.materials.copper = 5;
   s.souls = 50;
-  const t: ItemLoc = { where: 'maps', index: 5 };
+  const t: ItemLoc = { where: 'maps', tier: 4, index: 0 };
   const copper = itemActions(s, t).find((a) => a.id === 'craft' && a.kind === 'copper');
   if (copper === undefined) throw new Error('no copper enchant');
   expect(runAction(store, t, copper)).toBe('ok');
-  expect(s.stash.maps[5]).toMatchObject({ rarity: 'magic' });
+  expect(s.stash.maps[4]?.[0]).toMatchObject({ rarity: 'magic' });
   expect(s.stash.materials.copper).toBe(2);
   expect(s.souls).toBe(30);
 });

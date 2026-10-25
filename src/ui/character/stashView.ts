@@ -1,5 +1,5 @@
 import { stashPagePrice, STASH_PAGE_SIZE } from '../../core/balance';
-import { filledCount, pageCount } from '../../core/cells';
+import { filledCount, mapStashCount, pageCount } from '../../core/cells';
 import { GEM_GRADES, GEM_TYPES, MATERIALS } from '../../core/items';
 import type { GemGrade, GemType, Material } from '../../core/items';
 import { GEM_GRADE_LABELS, GEM_LABELS, MATERIAL_LABELS } from '../../core/itemData';
@@ -15,21 +15,21 @@ export function tabLabel(state: GameState, tab: StashTab): string {
   switch (tab) {
     case 'general': return `General ${formatNumber(filledCount(state.stash.general))} / ${formatNumber(state.stash.general.length)}`;
     case 'gems': return 'Gems';
-    case 'maps': return `Maps ${formatNumber(filledCount(state.stash.maps))} / ${formatNumber(state.stash.maps.length)}`;
+    case 'maps': return `Maps ${formatNumber(mapStashCount(state))}`;
     case 'materials': return 'Materials';
   }
 }
 
-/** The cells of one page of a General or Maps tab, page 0 first. */
+/** The cells of one page of the General tab, page 0 first. */
 export function pageCells<T>(cells: readonly T[], page: number): T[] {
   return cells.slice(page * STASH_PAGE_SIZE, (page + 1) * STASH_PAGE_SIZE);
 }
 
-/** The buy button: the number of the page it would add, its price, and whether the Gold is there. */
-export function buyLabel(state: GameState, tab: 'general' | 'maps'): { text: string; affordable: boolean } {
-  const price = stashPagePrice(state.stash.bought[tab] + 1);
+/** The General tab's buy button: the number of the page it would add, its price, and whether the Gold is there. */
+export function buyLabel(state: GameState): { text: string; affordable: boolean } {
+  const price = stashPagePrice(state.stash.bought.general + 1);
   return {
-    text: `+ Page ${formatNumber(pageCount(state.stash[tab]) + 1)} · ${formatNumber(price)} Gold`,
+    text: `+ Page ${formatNumber(pageCount(state.stash.general) + 1)} · ${formatNumber(price)} Gold`,
     affordable: state.gold >= price,
   };
 }

@@ -197,13 +197,9 @@ button.gm-item:hover { background: #3a2f20; }
 }
 .gm-rule__btn[data-danger] { color: var(--gm-down); }
 .gm-rule__btn:disabled, .gm-dialog .gm-btn:disabled { opacity: 0.4; cursor: default; }
-.gm-rule__select:focus-visible, .gm-rule__btn:focus-visible, .gm-fullmode__opt input:focus-visible {
+.gm-rule__select:focus-visible, .gm-rule__btn:focus-visible {
   outline: 2px solid var(--gm-gold-bright); outline-offset: 2px;
 }
-.gm-fullmode { margin: 16px 0 0; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--gm-line); display: flex; flex-direction: column; gap: 4px; }
-.gm-fullmode legend { padding: 0 6px; font-size: 13px; color: var(--gm-muted); }
-.gm-fullmode__opt { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
-.gm-fullmode__opt input { width: 18px; height: 18px; margin: 0; accent-color: var(--gm-gold); }
 
 /* a 467 px stash panel, the 24 px gap and the 445 px bag */
 @container gm-stash (width < 936px) {

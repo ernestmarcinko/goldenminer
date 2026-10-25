@@ -1,8 +1,8 @@
-import { GEM_BAG_STACK, GEM_STASH_STACK, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK } from '../../core/balance';
-import { firstEmpty, itemAt } from '../../core/cells';
+import { GEM_BAG_STACK, GEM_STASH_STACK, MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK } from '../../core/balance';
+import { firstEmpty, itemAt, mapTierCount } from '../../core/cells';
 import { MATERIAL_LABELS } from '../../core/itemData';
 import { BATTLE_SLOTS, isGear, MATERIALS, MINING_SLOTS, setOfSlot } from '../../core/items';
-import type { GearItem, GemItem, Item, MaterialItem } from '../../core/items';
+import type { GearItem, GemItem, Item, MapItem, MaterialItem } from '../../core/items';
 import { salvagePay, sellPay } from '../../core/loot';
 import { canUpgrade, soulUpgradeCost } from '../../core/soulUpgrade';
 import type { SoulUpgradeCheck } from '../../core/soulUpgrade';
@@ -102,18 +102,18 @@ function materialActions(state: GameState, target: ItemTarget, item: MaterialIte
  * A map runs from its card (not while another run is going), moves between the bag and the Maps tab, and is enchanted
  * from it.
  */
-function mapActions(state: GameState, target: ItemTarget): ActionSpec[] {
+function mapActions(state: GameState, target: ItemTarget, item: MapItem): ActionSpec[] {
   const run: ActionSpec = { id: 'run', label: 'Run this map', disabled: state.activity.kind === 'map' };
   const move: ActionSpec = target.where === 'maps'
     ? { id: 'toBag', label: 'To bag', disabled: firstEmpty(state.bag) < 0 }
-    : { id: 'toStash', label: 'To Maps tab', disabled: firstEmpty(state.stash.maps) < 0 };
+    : { id: 'toStash', label: 'To Maps tab', disabled: mapTierCount(state, item.tier) >= MAP_TIER_CAP };
   return [run, move, ...craftActions(state, target)];
 }
 
 export function itemActions(state: GameState, target: ItemTarget): ActionSpec[] {
   const item = itemAt(state, target);
   if (item === undefined) return [];
-  if (item.type === 'map') return mapActions(state, target);
+  if (item.type === 'map') return mapActions(state, target, item);
   if (item.type === 'material') return materialActions(state, target, item);
   const bagFull = firstEmpty(state.bag) < 0;
   const generalFull = firstEmpty(state.stash.general) < 0;
@@ -228,10 +228,12 @@ export function soulUpgradeResultText(r: SoulUpgradeCheck): string | null {
   }
 }
 
-export function resultText(r: InvResult): string | null {
+/** The status line after a move; `item` is the map whose tier refused it, for 'mapTierFull'. */
+export function resultText(r: InvResult, item?: Item): string | null {
   switch (r) {
     case 'bagFull': return 'The bag is full.';
     case 'stashFull': return 'The stash is full.';
+    case 'mapTierFull': return item?.type === 'map' ? `The tier ${formatNumber(item.tier)} maps are full.` : 'The stash is full.';
     case 'noSocket': return 'That item has no open socket.';
     case 'wrongSlot': return "That doesn't fit that slot.";
     case 'gemsOnly': return 'Only gems go in the Gems tab.';

@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { DROP_CHANCE, MATERIAL_TABLE, MAX_OVERFLOW, soulsPerKill } from '../../src/core/balance';
+import { DROP_CHANCE, MATERIAL_TABLE, MAX_HELD, soulsPerKill } from '../../src/core/balance';
 import { deriveBattleStats } from '../../src/core/battle';
 import { clickHit, onKill, soulsForKill } from '../../src/core/combat';
 import { applyTicks } from '../../src/core/dig';
@@ -61,9 +61,8 @@ it('a cleared tier-1 map pays Souls, 40 Gold and at least the boss and champion 
   expect(s.lastRun?.items).toBeGreaterThanOrEqual(3);
 });
 
-it('a full bag under stop holds map drops but the fight goes on', () => {
+it('a full bag holds map drops but the fight goes on', () => {
   const s = newGame(1, 0);
-  s.settings.bagFull = 'stop';
   s.bag = s.bag.map((_, i) => gear(s, i % 2 ? 'weapon' : 'pickaxe'));
   s.stash.general = s.stash.general.map(() => gear(s, 'weapon'));
   startMap(s, addMap(s, 1, 2).id);
@@ -215,14 +214,13 @@ it('a material drop is noted on the run but not counted as an item', () => {
   expect(sawMaterial).toBeGreaterThan(0);
 });
 
-it('with MAX_OVERFLOW items already held under stop, a further drop is sold and nothing more is held', () => {
+it('with MAX_HELD items already held, a further drop is sold and nothing more is held', () => {
   const { s, run } = kill(1, 'boss', (g) => {
-    g.settings.bagFull = 'stop';
     g.bag = g.bag.map((_, i) => gear(g, i % 2 ? 'weapon' : 'pickaxe'));
     g.stash.general = g.stash.general.map(() => gear(g, 'weapon'));
-    for (let i = 0; i < MAX_OVERFLOW; i++) g.overflow.push(gear(g, 'weapon'));
+    for (let i = 0; i < MAX_HELD; i++) g.overflow.push(gear(g, 'weapon'));
   });
-  expect(s.overflow).toHaveLength(MAX_OVERFLOW);
+  expect(s.overflow).toHaveLength(MAX_HELD);
   expect(run.loot.some((n) => n.outcome === 'sold')).toBe(true);
   expect(run.loot.some((n) => n.outcome === 'held')).toBe(false);
 });
@@ -255,7 +253,6 @@ it('the offline summary counts a lost map', () => {
 it('the offline summary notices the bag holding map drops', () => {
   const before = newGame(1, 0);
   const after = structuredClone(before);
-  after.settings.bagFull = 'stop';
   after.bag = after.bag.map((_, i) => gear(after, i % 2 ? 'weapon' : 'pickaxe'));
   after.stash.general = after.stash.general.map(() => gear(after, 'weapon'));
   startMap(after, addMap(after, 1, 2).id);

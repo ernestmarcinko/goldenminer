@@ -1,4 +1,4 @@
-import type { GemGrade, MapModKind, Material, Rarity, StatKey } from './items';
+import type { GemGrade, MapModKind, MapRarity, Material, Rarity, StatKey } from './items';
 import type { CraftKind, FeatureKind, Hazard, Stats, TemperOutcome } from './types';
 
 export const BASE_DIG_POWER = 10;
@@ -35,10 +35,11 @@ export const FINDS_LOG_LIMIT = 5000;
 export const BAG_SIZE = 60;
 export const STASH_PAGE_SIZE = 60;
 export const START_GENERAL_PAGES = 2;
-export const START_MAP_PAGES = 1;
 export const MAX_STASH_PAGES = 1000;
 export const STASH_PAGE_GOLD = 5000;
-/** The Gold price of the `n`th page bought in a General or Maps tab; each tab counts its own. */
+// The Map stash has no pages: each tier holds this many maps, for nothing.
+export const MAP_TIER_CAP = 200;
+/** The Gold price of the `n`th General page bought (and of the Maps pages old saves bought, which are refunded). */
 export function stashPagePrice(n: number): number {
   return STASH_PAGE_GOLD * n * n;
 }
@@ -52,7 +53,8 @@ export const GEM_STASH_STACK = 1_000_000;
 export const MATERIAL_BAG_STACK = 50;
 export const MATERIAL_STASH_STACK = 1_000_000;
 export const MAX_LOOT_RULES = 20;
-export const MAX_OVERFLOW = 10;
+// Finds held for want of room; past this many, a find is sold (or, for a material, stashed).
+export const MAX_HELD = 60;
 export const MAX_SOCKETS = 3;
 // An item holds at most 3 prefixes and 3 suffixes; crafted lines count outside them.
 export const MAX_SIDE_LINES = 3;
@@ -231,6 +233,13 @@ export const SALVAGE_MATERIALS: Readonly<Record<Rarity, Partial<Record<Material,
 };
 export const GEM_SALVAGE_TIN = 1;
 export const LOOT_NOTES_KEPT = 30;
+// A map sells for MAP_SELL_GOLD × tier², times its rarity's factor.
+export const MAP_SELL_GOLD = 25;
+export const MAP_RARITY_SELL: Readonly<Record<MapRarity, number>> = { normal: 1, magic: 1.5, rare: 2.5 };
+// The logs keep their newest entries; a trail keeps its first step and its newest ones.
+export const DROP_LOG_LIMIT = 300;
+export const DEATH_LOG_LIMIT = 50;
+export const MAX_TRAIL_STEPS = 24;
 
 // Material veins and hazards come from their own seeded layer, so they never disturb the feature roll.
 export const MATERIAL_TABLE: Readonly<Record<Material, { from: number; weight: number; amount: number }>> = {

@@ -18,7 +18,7 @@ import { freshWorld, isValidSeedText, seedFromText } from '../core/seed';
 import { deriveStats } from '../core/stats';
 import { summarize } from '../core/summary';
 import type {
-  BagFullMode, CraftCheck, CraftKind, CraftResult, DropTarget, FindRecord, GameState, InvResult, ItemLoc, LootRule, MotionSettings,
+  CraftCheck, CraftKind, CraftResult, DropTarget, FindRecord, GameState, InvResult, ItemLoc, LootRule, MotionSettings,
   OfflineSummary, Stats, TemperOutcome, TickEvent,
 } from '../core/types';
 import { BACKUP_PREFIX, SAVE_KEY, type StorageLike } from './storage';
@@ -297,9 +297,9 @@ export class GameStore {
     this._lastCraft = { id: ++this.craftCount, target: { ...target }, kind, ...result };
   }
 
-  /** A bought page is new room, so held loot may come in. */
-  buyStashPage(tab: 'general' | 'maps'): 'ok' | 'noGold' | 'full' {
-    const result = coreBuyStashPage(this._state, tab);
+  /** A bought General page is new room, so held loot may come in. */
+  buyStashPage(): 'ok' | 'noGold' | 'full' {
+    const result = coreBuyStashPage(this._state);
     if (result === 'ok') {
       drainOverflow(this._state);
       this.changed();
@@ -309,12 +309,6 @@ export class GameStore {
 
   setLootFilter(rules: LootRule[]): void {
     this._state.settings.lootFilter = rules.slice(0, MAX_LOOT_RULES).map((r) => ({ ...r }));
-    drainOverflow(this._state);
-    this.changed();
-  }
-
-  setBagFull(mode: BagFullMode): void {
-    this._state.settings.bagFull = mode;
     drainOverflow(this._state);
     this.changed();
   }

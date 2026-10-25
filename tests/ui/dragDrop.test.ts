@@ -15,7 +15,7 @@ function migrated() {
 const KINDS: DropTarget[] = [
   { where: 'bag', index: 59 },
   { where: 'stash', index: 119 },
-  { where: 'maps', index: 61 },
+  { where: 'maps', tier: 4, index: 2 },
   { where: 'gems', gem: 'starstone', grade: 'perfect' },
   { where: 'materials', material: 'voidCrystal' },
   { where: 'worn', slot: 'amulet' },
@@ -32,6 +32,7 @@ it('a drag starts after 5 px', () => {
 
 it('dropAttr and parseDrop round-trip every kind of drop target', () => {
   for (const t of KINDS) expect(parseDrop(dropAttr(t))).toEqual(t);
+  expect(parseDrop('{"where":"maps","tier":4,"index":2}')).toEqual({ where: 'maps', tier: 4, index: 2 });
 });
 
 it('parseDrop refuses anything that is not exactly a drop target', () => {
@@ -47,7 +48,10 @@ it('parseDrop checks every value against the game lists and grid sizes', () => {
   expect(parseDrop('{"where":"bag","index":1.5}')).toBeNull();
   expect(parseDrop('{"where":"bag","index":"1"}')).toBeNull();
   expect(parseDrop('{"where":"stash","index":0.5}')).toBeNull();
-  expect(parseDrop('{"where":"maps","index":"3"}')).toBeNull();
+  expect(parseDrop('{"where":"maps","index":3}')).toBeNull();
+  expect(parseDrop('{"where":"maps","tier":4,"index":"3"}')).toBeNull();
+  expect(parseDrop('{"where":"maps","tier":0,"index":3}')).toBeNull();
+  expect(parseDrop('{"where":"maps","tier":2.5,"index":3}')).toBeNull();
   expect(parseDrop('{"where":"materials","material":"gold"}')).toBeNull();
   expect(parseDrop('{"where":"gems","gem":"opal","grade":"tiny"}')).toBeNull();
   expect(parseDrop('{"where":"gems","gem":"ruby","grade":"huge"}')).toBeNull();

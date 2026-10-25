@@ -7,7 +7,7 @@ import './maps.css';
 
 const BUSY = 'Leave the current map first';
 
-const whereText = (r: MapRow): string => (r.where === 'bag' ? 'in your bag' : `Maps tab, page ${formatNumber(r.page)}`);
+const whereText = (r: MapRow): string => (r.where === 'bag' ? 'in your bag' : 'Maps tab');
 
 /** An enchanted map names its rarity; a normal map's row reads as it always has. */
 function rarityText(r: MapRow): string {

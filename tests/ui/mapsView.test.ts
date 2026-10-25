@@ -40,19 +40,17 @@ it('every map is a row: highest tier first, then name, then id, with where it li
 
   state.bag[3] = map(40, 2, 4);
   // the lowest id lies in the dungeon that sorts last, so name order and id order disagree
-  state.stash.maps[0] = map(10, 5, late);
-  state.stash.maps[61] = map(30, 5, early);
-  state.stash.maps[1] = map(20, 5, early);
+  state.stash.maps[5] = [map(10, 5, late), map(30, 5, early), map(20, 5, early)];
   const rows = mapRows(state);
 
   expect(rows.map((r) => r.id)).toEqual([20, 30, 10, 40]);
   expect(rows.map((r) => r.tier)).toEqual([5, 5, 5, 2]);
   expect(rows.slice(0, 3).map((r) => r.name)).toEqual([nameAt(early), nameAt(early), nameAt(late)]);
-  expect(rows[3]).toMatchObject({ id: 40, tier: 2, metre: 4, where: 'bag', page: 0 });
-  expect(rows.find((r) => r.id === 30)).toMatchObject({ where: 'maps', page: 2 });
-  expect(rows.find((r) => r.id === 20)).toMatchObject({ where: 'maps', page: 1 });
+  expect(rows[3]).toMatchObject({ id: 40, tier: 2, metre: 4, where: 'bag' });
+  expect(rows.find((r) => r.id === 30)).toMatchObject({ where: 'maps' });
+  expect(rows.find((r) => r.id === 20)).toMatchObject({ where: 'maps' });
   for (const r of rows) {
-    const src = [...state.bag, ...state.stash.maps].find((c) => c?.id === r.id) as MapItem;
+    const src = [...state.bag, ...Object.values(state.stash.maps).flat()].find((c) => c?.id === r.id) as MapItem;
     const d = mapDungeon(state.seed, src);
     expect(r).toMatchObject({ name: d.type.name, rooms: d.type.rooms });
   }
@@ -76,7 +74,7 @@ it('the map count covers the bag and the Maps tab, as the Maps screen lists them
   expect(mapCount(state)).toBe(0);
   state.bag[0] = map(1, 1);
   state.bag[1] = map(2, 2);
-  state.stash.maps[0] = map(3, 1);
+  state.stash.maps[1] = [map(3, 1)];
   expect(mapCount(state)).toBe(3);
   expect(mapCount(state)).toBe(mapRows(state).length);
 });
@@ -84,15 +82,15 @@ it('the map count covers the bag and the Maps tab, as the Maps screen lists them
 it('an enchanted map\'s row carries its rarity, its modifiers and what they pay; a normal map\'s row has none', () => {
   const state = newGame(9090, 0);
   state.bag[0] = map(1, 4, 7);
-  state.stash.maps[0] = { ...map(2, 3, 9), rarity: 'rare', mods: [
+  state.stash.maps[3] = [{ ...map(2, 3, 9), rarity: 'rare', mods: [
     { kind: 'monsterLife', tier: 4, value: 27 },
     { kind: 'monsterDamage', tier: 3, value: 17 },
     { kind: 'weakHealing', tier: 2, value: 16 },
-  ] };
+  ] }];
   const [plain, rare] = mapRows(state);
   expect(plain).toEqual({
     id: 1, name: mapDungeon(state.seed, { tier: 4, metre: 7 }).type.name, tier: 4, metre: 7,
-    rooms: mapDungeon(state.seed, { tier: 4, metre: 7 }).type.rooms, where: 'bag', page: 0,
+    rooms: mapDungeon(state.seed, { tier: 4, metre: 7 }).type.rooms, where: 'bag',
     rarity: 'normal', mods: [], rewards: '',
   });
   expect(rare).toMatchObject({

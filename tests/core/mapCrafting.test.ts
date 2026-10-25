@@ -12,7 +12,7 @@ import { GameStore } from '../../src/store/gameStore';
 import { MemoryStorage } from '../../src/store/storage';
 
 const bagLoc = (index: number): ItemLoc => ({ where: 'bag', index });
-const mapsLoc = (index: number): ItemLoc => ({ where: 'maps', index });
+const mapsLoc = (tier: number, index = 0): ItemLoc => ({ where: 'maps', tier, index });
 const mat = (s: GameState, material: Material, count: number): MaterialItem => ({ id: s.nextId++, type: 'material', material, count });
 const at = (s: GameState, index: number): MapItem => s.bag[index] as MapItem;
 const count = (s: GameState, index: number): number | null => (s.bag[index] as MaterialItem | null)?.count ?? null;
@@ -372,25 +372,25 @@ describe('dragging a material onto a map', () => {
 
   it('crafts a map in the Maps tab, from a bag stack or the Materials tab', () => {
     const s = withMap((s) => mapOf(s));
-    s.stash.maps[2] = mapOf(s, { tier: 6 });
+    s.stash.maps[6] = [mapOf(s, { tier: 6 })];
     s.bag[4] = mat(s, 'copper', 5);
-    expect(dropItem(s, bagLoc(4), mapsLoc(2))).toBe('ok');
-    expect(s.stash.maps[2]?.rarity).toBe('magic');
+    expect(dropItem(s, bagLoc(4), mapsLoc(6))).toBe('ok');
+    expect(s.stash.maps[6]?.[0]?.rarity).toBe('magic');
     expect(count(s, 4)).toBe(1);
-    expect(dropItem(s, { where: 'materials', material: 'obsidian' }, mapsLoc(2))).toBe('ok');
+    expect(dropItem(s, { where: 'materials', material: 'obsidian' }, mapsLoc(6))).toBe('ok');
     expect(s.stash.materials.obsidian).toBe(99);
     expect(validateState(s)).toBe(true);
   });
 
   it('a refused craft is craftRefused, tells the listener why, and nothing moves or swaps', () => {
     const s = withMap((s) => magic(s));
-    s.stash.maps[1] = mapOf(s);
+    s.stash.maps[4] = [mapOf(s)];
     s.bag[9] = mat(s, 'copper', 10);
     s.bag[8] = mat(s, 'tin', 10);
     const before = snap(s);
     const heard: CraftResult[] = [];
     expect(dropItem(s, bagLoc(9), bagLoc(0), (_t, _i, r) => heard.push(r))).toBe('craftRefused');
-    expect(dropItem(s, bagLoc(8), mapsLoc(1), (_t, _i, r) => heard.push(r))).toBe('craftRefused');
+    expect(dropItem(s, bagLoc(8), mapsLoc(4), (_t, _i, r) => heard.push(r))).toBe('craftRefused');
     expect(heard).toEqual([{ check: 'wrongRarity' }, { check: 'notForMaps' }]);
     expect(snap(s)).toEqual(before);
   });
@@ -400,12 +400,12 @@ describe('dragging a material onto a map', () => {
     store.load();
     const s = store.state;
     s.souls = 100;
-    s.stash.maps[0] = mapOf(s);
+    s.stash.maps[4] = [mapOf(s)];
     s.stash.materials.copper = 10;
-    expect(store.craft(mapsLoc(0), 'copper')).toEqual({ check: 'ok' });
-    expect(store.lastCraft).toMatchObject({ kind: 'copper', check: 'ok', target: mapsLoc(0) });
-    expect([s.stash.maps[0]?.rarity, s.souls]).toEqual(['magic', 80]);
-    expect(store.craft(mapsLoc(0), 'tin')).toEqual({ check: 'notForMaps' });
+    expect(store.craft(mapsLoc(4), 'copper')).toEqual({ check: 'ok' });
+    expect(store.lastCraft).toMatchObject({ kind: 'copper', check: 'ok', target: mapsLoc(4) });
+    expect([s.stash.maps[4]?.[0]?.rarity, s.souls]).toEqual(['magic', 80]);
+    expect(store.craft(mapsLoc(4), 'tin')).toEqual({ check: 'notForMaps' });
   });
 });
 
@@ -432,9 +432,9 @@ describe('random craft chains on maps', () => {
       map.rarity = rarity;
       map.mods = rarity === 'normal' ? [] : rollMapMods(s, map, rarity === 'magic' ? 1 + next(2) : next(MAX_MAP_MODS + 1));
       const inBag = chain % 2 === 0;
-      const target = inBag ? bagLoc(0) : mapsLoc(chain % 10);
+      const target = inBag ? bagLoc(0) : mapsLoc(map.tier);
       if (inBag) s.bag[0] = map;
-      else s.stash.maps[chain % 10] = map;
+      else s.stash.maps[map.tier] = [map];
       expect(validateState(s)).toBe(true);
       for (let step = 0; step < 16; step++) {
         const kind = KINDS[next(KINDS.length)] as CraftKind;

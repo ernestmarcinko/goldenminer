@@ -286,6 +286,8 @@ const emptyMetre = (seed: number, m: number) => rollMetre(seed, m, BASE_ROLL_CHA
 it('ore find adds bonus material veins on metres the seed left empty, at its chance', () => {
   const s = newGame(31, 0);
   s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'oreFind', value: 100 }] });
+  // thousands of metres of chests would fill the bag and hold digging, so the filter sells them
+  s.settings.lootFilter = [{ rarity: 'any', target: 'any', action: 'sell' }];
   const st = deriveStats(s);
   expect(st.oreBonusChance).toBeCloseTo(0.3);
   const fast = { ...st, digPower: 1e6 };

@@ -121,7 +121,7 @@ describe('a refused upgrade', () => {
     refused(s, { where: 'worn', slot: 'armor' }, 'invalid');
     refused(s, { where: 'gems', gem: 'ruby', grade: 'tiny' }, 'invalid');
     refused(s, { where: 'materials', material: 'copper' }, 'invalid');
-    refused(s, { where: 'maps', index: s.stash.maps.indexOf(inTab) }, 'invalid');
+    refused(s, { where: 'maps', tier: inTab.tier, index: s.stash.maps[inTab.tier]?.indexOf(inTab) ?? -1 }, 'invalid');
   });
 });
 

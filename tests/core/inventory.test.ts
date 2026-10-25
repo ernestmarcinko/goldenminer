@@ -1,9 +1,11 @@
 import { expect, it } from 'vitest';
 import fixture3 from '../fixtures/save-schema-3.txt?raw';
+import { MAP_TIER_CAP } from '../../src/core/balance';
 import { itemAt, sameLoc } from '../../src/core/cells';
 import { dropItem, equip, moveItem, salvage, sell, sendItem, socketGem, unequip } from '../../src/core/inventory';
 import { GEM_GRADES, GEM_TYPES, isGear, MINING_SLOTS, BATTLE_SLOTS } from '../../src/core/items';
 import type { Gem, MapItem, Slot } from '../../src/core/items';
+import { putMap } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
 import { mulberry32 } from '../../src/core/rng';
 import { decodeSave, validateState } from '../../src/core/save';
@@ -29,7 +31,7 @@ it('equip and unequip keep positions and swap', () => {
   s.bag[2] = gear(s, 'boots');
   expect(unequip(s, 'pickaxe', bag(2))).toBe('wrongSlot');
   expect(unequip(s, 'pickaxe', { where: 'gems', gem: 'ruby', grade: 'tiny' })).toBe('gemsOnly');
-  expect(unequip(s, 'pickaxe', { where: 'maps', index: 0 })).toBe('mapsOnly');
+  expect(unequip(s, 'pickaxe', { where: 'maps', tier: 1, index: 0 })).toBe('mapsOnly');
 });
 
 it('moves, swaps, merges and refuses', () => {
@@ -235,7 +237,7 @@ function gearIds(s: GameState): number[] {
 }
 
 function mapIds(s: GameState): number[] {
-  return [...s.bag, ...s.stash.maps].flatMap((c) => (c?.type === 'map' ? [c.id] : [])).sort((a, b) => a - b);
+  return [...s.bag, ...Object.values(s.stash.maps).flat()].flatMap((c) => (c?.type === 'map' ? [c.id] : [])).sort((a, b) => a - b);
 }
 
 /** How many gems of each type and grade exist: in bag stacks, the Gems tab and every socket. */
@@ -249,7 +251,7 @@ function gemCounts(s: GameState): Record<string, number> {
   for (const c of s.bag) if (c !== null) { if (isGear(c)) addSocketed(c); else if (c.type === 'gem') add(c, c.count); }
   for (const set of ['mining', 'battle'] as const) for (const g of Object.values(s.equipped[set])) addSocketed(g);
   for (const c of s.stash.general) if (c !== null) addSocketed(c);
-  for (const o of s.overflow) addSocketed(o);
+  for (const o of s.overflow) { if (isGear(o)) addSocketed(o); else if (o.type === 'gem') add(o, o.count); }
   for (const t of GEM_TYPES) for (const grade of GEM_GRADES) if (s.stash.gems[t][grade] > 0) add({ gem: t, grade }, s.stash.gems[t][grade]);
   return counts;
 }
@@ -272,7 +274,7 @@ it('drops, sends and unequips never create or lose items, and the walk reaches e
   s.stash.gems.sapphire.big = 999_990;
   s.stash.gems.emerald.small = 30;
   s.stash.gems.amethyst.giant = 3;
-  for (let i = 0; i < 8; i++) s.stash.maps[i] ??= { id: s.nextId++, type: 'map', tier: 1 + (i % 3), metre: 5 + i, rarity: 'normal', mods: [] };
+  for (let i = 0; i < 8; i++) putMap(s, { id: s.nextId++, type: 'map', tier: 1 + (i % 3), metre: 5 + i, rarity: 'normal', mods: [] });
   let n = 0;
   for (let i = 0; i < s.bag.length; i++) {
     if (s.bag[i] !== null) continue;
@@ -302,19 +304,21 @@ it('drops, sends and unequips never create or lose items, and the walk reaches e
   const cellLocs: ItemLoc[] = [];
   for (let i = 0; i < s.bag.length; i++) cellLocs.push(bag(i));
   for (let i = 0; i < s.stash.general.length; i++) cellLocs.push(cell(i));
-  for (let i = 0; i < s.stash.maps.length; i++) cellLocs.push({ where: 'maps', index: i });
   for (const t of GEM_TYPES) for (const g of GEM_GRADES) cellLocs.push(stack(t, g));
   const wornLocs: ItemLoc[] = ALL_SLOTS.map((slot) => ({ where: 'worn', slot }));
-  const everyLoc = [...cellLocs, ...wornLocs];
+  // The tier lists grow and shrink, so their places are read afresh: each map, and one past the end of tiers 1 to 4.
+  const mapLocs = (): ItemLoc[] => [1, 2, 3, 4].flatMap((tier) =>
+    Array.from({ length: (s.stash.maps[tier]?.length ?? 0) + 1 }, (_, index): ItemLoc => ({ where: 'maps', tier, index })));
+  const allLocs = (): ItemLoc[] => [...cellLocs, ...mapLocs(), ...wornLocs];
   const occupied = (): ItemLoc => {
-    const filled = everyLoc.filter((l) => itemAt(s, l) !== undefined);
+    const filled = allLocs().filter((l) => itemAt(s, l) !== undefined);
     return pick(filled);
   };
   // A place the item would merge or swap with: an identical gem stack, gear for the same slot, or another map.
   const partnerOf = (from: ItemLoc): ItemLoc | undefined => {
     const item = itemAt(s, from);
     if (item === undefined) return undefined;
-    const partners = everyLoc.filter((l) => {
+    const partners = allLocs().filter((l) => {
       const other = itemAt(s, l);
       if (other === undefined || sameLoc(l, from) || other.type !== item.type) return false;
       if (isGear(item)) return isGear(other) && other.slot === item.slot;
@@ -325,16 +329,16 @@ it('drops, sends and unequips never create or lose items, and the walk reaches e
   const wornNow = (): ItemLoc[] => wornLocs.filter((l) => itemAt(s, l) !== undefined);
   const target = (from: ItemLoc): DropTarget => {
     const roll = draw(10);
-    if (roll < 4) return partnerOf(from) ?? pick(everyLoc);
+    if (roll < 4) return partnerOf(from) ?? pick(allLocs());
     const worn = wornNow();
     if (roll < 5 && worn.length > 0) return pick(worn);
     if (roll < 6) return { where: 'stashTab', tab: pick(TABS) };
-    return pick(everyLoc);
+    return pick(allLocs());
   };
 
   const seen = {
     merge: 0, takeTopUp: 0, wornSwap: 0, wornSwapOut: 0, stackFull: 0, bagFull: 0, stashFull: 0,
-    send: 0, unequip: 0, socket: 0, mapMove: 0,
+    send: 0, unequip: 0, socket: 0, mapMove: 0, mapIn: 0, mapOut: 0, mapSwap: 0,
   };
   const kind = (l: ItemLoc | DropTarget): string => {
     if (l.where === 'stashTab') return 'tab';
@@ -359,6 +363,8 @@ it('drops, sends and unequips never create or lose items, and the walk reaches e
       if (result === 'ok' && from.where === 'worn' && (to.where === 'bag' || to.where === 'stash') && kinds[1] === 'gear') seen.wornSwapOut++;
       if (result === 'ok' && a?.type === 'gem' && b !== undefined && isGear(b)) seen.socket++;
       if (result === 'ok' && a?.type === 'map' && !sameLoc(from, to.where === 'stashTab' ? from : to)) seen.mapMove++;
+      if (result === 'ok' && a?.type === 'map' && from.where === 'bag' && (to.where === 'maps' || to.where === 'stashTab')) seen.mapIn++;
+      if (result === 'ok' && from.where === 'maps' && to.where === 'bag') seen[b?.type === 'map' ? 'mapSwap' : 'mapOut']++;
     } else if (op < 8) {
       result = sendItem(s, occupied(), pick(['stash', 'bag'] as const));
       if (result === 'ok') seen.send++;
@@ -378,7 +384,7 @@ it('drops, sends and unequips never create or lose items, and the walk reaches e
 });
 
 const mapAt = (s: GameState, tier: number, metre = 10): MapItem => ({ id: s.nextId++, type: 'map', tier, metre, rarity: 'normal', mods: [] });
-const mapsLoc = (index: number): ItemLoc => ({ where: 'maps', index });
+const mapsLoc = (tier: number, index: number): ItemLoc => ({ where: 'maps', tier, index });
 
 it('gear of either set lives in the one bag', () => {
   const s = newGame(1, 0);
@@ -412,36 +418,75 @@ it('the stash shortcut fills the next General page', () => {
   expect([s.stash.general[60], s.bag[1]]).toEqual([null, ring]);
 });
 
-it('maps live in the bag and the Maps tab only', () => {
+it('maps live in the bag and the Map stash only', () => {
   const s = newGame(1, 0);
   const map = mapAt(s, 2);
   s.bag[0] = map;
   s.bag[1] = gear(s, 'lamp');
   expect(moveItem(s, bag(0), cell(3))).toBe('gearOnly');
-  expect(moveItem(s, bag(1), mapsLoc(5))).toBe('mapsOnly');
-  expect(moveItem(s, bag(0), mapsLoc(5))).toBe('ok');
-  expect([s.bag[0], s.stash.maps[5]]).toEqual([null, map]);
-  expect(moveItem(s, mapsLoc(5), bag(2))).toBe('ok');
+  expect(moveItem(s, bag(1), mapsLoc(2, 0))).toBe('mapsOnly');
+  expect(moveItem(s, bag(0), mapsLoc(7, 5))).toBe('ok');   // any Maps cell: the map joins its own tier
+  expect([s.bag[0], s.stash.maps]).toEqual([null, { 2: [map] }]);
+  expect(moveItem(s, mapsLoc(2, 0), bag(2))).toBe('ok');   // out to an empty bag cell
+  expect([s.bag[2], s.stash.maps]).toEqual([map, {}]);
   expect(dropItem(s, bag(2), { where: 'stashTab', tab: 'maps' })).toBe('ok');
-  expect([s.bag[2], s.stash.maps[0]]).toEqual([null, map]);   // the first empty Maps cell
+  expect([s.bag[2], s.stash.maps[2]]).toEqual([null, [map]]);
+  const other = mapAt(s, 2);
+  s.bag[2] = other;
+  expect(dropItem(s, bag(2), { where: 'stashTab', tab: 'auto' })).toBe('ok');   // the Stash button
+  expect([s.bag[2], s.stash.maps[2]]).toEqual([null, [map, other]]);
   expect(dropItem(s, bag(1), { where: 'stashTab', tab: 'maps' })).toBe('mapsOnly');
-  expect(dropItem(s, mapsLoc(0), { where: 'stashTab', tab: 'general' })).toBe('gearOnly');
-  expect(dropItem(s, mapsLoc(0), { where: 'worn', slot: 'lamp' })).toBe('invalid');
+  expect(dropItem(s, mapsLoc(2, 0), { where: 'stashTab', tab: 'general' })).toBe('gearOnly');
+  expect(dropItem(s, mapsLoc(2, 0), { where: 'worn', slot: 'lamp' })).toBe('invalid');
+  expect(moveItem(s, mapsLoc(2, 0), bag(1))).toBe('invalid');   // a bag cell with gear
+  s.bag[1] = gem(s);
+  expect(moveItem(s, mapsLoc(2, 0), bag(1))).toBe('invalid');   // or a gem stack
+  expect(moveItem(s, mapsLoc(2, 0), mapsLoc(2, 1))).toBe('ok');   // within the stash nothing moves
+  expect(s.stash.maps).toEqual({ 2: [map, other] });
 });
 
-it('the stash shortcut sends a map to the first empty Maps cell, and back to the bag', () => {
+it('a Maps-tab map dropped on a bag map swaps with it, and a full tier refuses', () => {
+  const s = newGame(1, 0);
+  const first = mapAt(s, 3);
+  const tab = mapAt(s, 3);
+  const carried = mapAt(s, 5);
+  s.stash.maps[3] = [first, tab];
+  s.bag[4] = carried;
+  expect(moveItem(s, mapsLoc(3, 1), bag(4))).toBe('ok');
+  expect(s.bag[4]).toBe(tab);
+  expect(s.stash.maps).toEqual({ 3: [first], 5: [carried] });
+  // a full tier: the bag map has nowhere to go, so both stay
+  const full = newGame(1, 0);
+  const inTab = mapAt(full, 3);
+  const inBag = mapAt(full, 5);
+  full.stash.maps[3] = [inTab];
+  full.stash.maps[5] = Array.from({ length: MAP_TIER_CAP }, () => mapAt(full, 5));
+  full.bag[4] = inBag;
+  const before = structuredClone([full.bag, full.stash.maps]);
+  expect(moveItem(full, mapsLoc(3, 0), bag(4))).toBe('mapTierFull');
+  expect(moveItem(full, bag(4), mapsLoc(5, 3))).toBe('mapTierFull');
+  expect(dropItem(full, bag(4), { where: 'stashTab', tab: 'maps' })).toBe('mapTierFull');
+  expect(sendItem(full, bag(4), 'stash')).toBe('mapTierFull');
+  expect([full.bag, full.stash.maps]).toEqual(before);
+});
+
+it('the stash shortcut sends a map to its tier, and back to the bag\'s first empty cell', () => {
   const s = newGame(1, 0);
   const map = mapAt(s, 4);
-  s.stash.maps[0] = mapAt(s, 1);
+  s.stash.maps[4] = [mapAt(s, 4)];
+  s.bag[0] = gear(s, 'lamp');
   s.bag[3] = map;
   expect(sendItem(s, bag(3), 'stash')).toBe('ok');
-  expect(s.stash.maps[1]).toBe(map);
-  expect(sendItem(s, mapsLoc(1), 'bag')).toBe('ok');
-  expect(s.bag[0]).toBe(map);
-  s.stash.maps = s.stash.maps.map((c) => c ?? mapAt(s, 1));
-  expect(sendItem(s, bag(0), 'stash')).toBe('stashFull');
-  expect(sell(s, bag(0))).toBe('invalid');
-  expect(salvage(s, mapsLoc(0))).toBe('invalid');
+  expect([s.bag[3], s.stash.maps[4]?.[1]]).toEqual([null, map]);
+  expect(sendItem(s, mapsLoc(4, 1), 'bag')).toBe('ok');
+  expect(s.bag[1]).toBe(map);
+  expect(s.stash.maps[4]).toHaveLength(1);
+  expect(sendItem(s, mapsLoc(4, 0), 'stash')).toBe('invalid');   // already there
+  expect(sell(s, bag(1))).toBe('invalid');
+  expect(salvage(s, mapsLoc(4, 0))).toBe('invalid');
+  s.bag = s.bag.map((c) => c ?? gear(s, 'boots'));
+  expect(sendItem(s, mapsLoc(4, 0), 'bag')).toBe('bagFull');
+  expect(s.stash.maps[4]).toHaveLength(1);
 });
 
 it('materials go only in their own tab, and cannot be sold or salvaged', () => {

@@ -69,12 +69,16 @@ export function useItemDrag({ store, onResult }: {
 
   const drop = useCallback((from: ItemLoc, to: DropTarget): void => {
     const before = store.lastCraft?.id;
+    // a Maps-tab map dropped on a bag map is refused for the bag map's tier
+    const moved = itemAt(store.state, from);
+    const there = to.where === 'stashTab' ? undefined : itemAt(store.state, to);
+    const refused = from.where === 'maps' && there?.type === 'map' ? there : moved;
     const r: InvResult = store.drop(from, to);
     // a material dropped on gear or a map crafts: its message is the craft's, refused or tempered
     const crafted = store.lastCraft;
     resultRef.current(crafted !== null && crafted.id !== before
       ? craftResultText(crafted, craftTargetAt(store.state, crafted.target)) ?? resultText(r)
-      : resultText(r));
+      : resultText(r, refused));
     if (r === 'ok') setHold(null);
   }, [store, setHold]);
 

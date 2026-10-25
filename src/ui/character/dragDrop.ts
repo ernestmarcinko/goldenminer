@@ -1,4 +1,4 @@
-import { BAG_SIZE } from '../../core/balance';
+import { BAG_SIZE, MAX_ITEM_LEVEL } from '../../core/balance';
 import { itemAt, sameLoc } from '../../core/cells';
 import { BATTLE_SLOTS, GEM_GRADES, GEM_TYPES, MATERIALS, MINING_SLOTS } from '../../core/items';
 import type { DropTarget, GameState, ItemLoc } from '../../core/types';
@@ -19,6 +19,7 @@ export function dropAttr(t: DropTarget): string {
 const oneOf = <T>(list: readonly T[], v: unknown): v is T => (list as readonly unknown[]).includes(v);
 // The stash tabs grow by pages, so their indexes are only checked against the tab when the drop is made.
 const cellIndex = (v: unknown, size = Infinity): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) < size;
+const mapTier = (v: unknown): v is number => cellIndex(v, MAX_ITEM_LEVEL + 1) && v >= 1;
 
 /** Reads a `data-drop` value back; anything that is not exactly a valid drop target gives null. */
 export function parseDrop(attr: string | null): DropTarget | null {
@@ -37,7 +38,7 @@ export function parseDrop(attr: string | null): DropTarget | null {
     case 'stash':
       return cellIndex(o.index) ? { where: 'stash', index: o.index } : null;
     case 'maps':
-      return cellIndex(o.index) ? { where: 'maps', index: o.index } : null;
+      return mapTier(o.tier) && cellIndex(o.index) ? { where: 'maps', tier: o.tier, index: o.index } : null;
     case 'gems':
       return oneOf(GEM_TYPES, o.gem) && oneOf(GEM_GRADES, o.grade) ? { where: 'gems', gem: o.gem, grade: o.grade } : null;
     case 'materials':

@@ -18,7 +18,7 @@ const targetKey = (t: ItemTarget): string => {
     case 'worn': return `worn-${t.slot}`;
     case 'bag': return `bag-${t.index}`;
     case 'stash': return `stash-${t.index}`;
-    case 'maps': return `maps-${t.index}`;
+    case 'maps': return `maps-${t.tier}-${t.index}`;
     case 'gems': return `gems-${t.gem}-${t.grade}`;
     case 'materials': return `materials-${t.material}`;
   }
@@ -70,7 +70,8 @@ export function useItemInteractions({ store, state, containerRef, fallbackRef, d
       setMessage(soulUpgradeResultText(store.soulUpgrade(target)));
       return;
     }
-    setMessage(resultText(runAction(store, target, action)));
+    const item = itemAt(store.state, target);
+    setMessage(resultText(runAction(store, target, action), item));
     release();
     clear();
     closeMenu(fromCard, fallbackRef.current);

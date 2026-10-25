@@ -53,7 +53,7 @@ it('a tier-4 map kills a level-1 miner in the first room', () => {
 it('a cleared run levels up, consumes the map and keeps the tally', () => {
   const s = runMap(1, 0, 1);
   expect(s.level).toBeGreaterThanOrEqual(2);
-  expect(s.stash.maps.every((m) => m === null)).toBe(true);
+  expect(s.stash.maps).toEqual({});
   expect(s.mapTally).toEqual({ cleared: 1, lost: 0 });
   expect(s.lastRun).toMatchObject({ room: s.lastRun?.bossRoom, seen: false, gained: { xp: 200 } });   // 12 normals + 1 champion ×3 + boss ×5 = 20 × 10 XP
   expect(s.activity).toEqual({ kind: 'dig' });
@@ -360,7 +360,7 @@ it('only one run at a time, and only maps that are held', () => {
   expect(startMap(s, 999)).toBe('invalid');
   expect(startMap(s, a.id)).toBe('ok');
   expect(startMap(s, b.id)).toBe('busy');
-  expect(s.stash.maps.filter((m) => m !== null).map((m) => m.id)).toEqual([b.id]);
+  expect(Object.values(s.stash.maps).flat().map((m) => m.id)).toEqual([b.id]);
 });
 
 it('pumped play and one long catch-up give the same run', () => {

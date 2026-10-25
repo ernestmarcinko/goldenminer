@@ -157,7 +157,6 @@ describe('inventory intents', () => {
     const { store } = make();
     store.load();
     const s = store.state;
-    s.settings.bagFull = 'stop';
     s.bag = s.bag.map(() => gem(s));
     s.stash.general = s.stash.general.map(() => gear(s, 'ring'));
     const held = gear(s, 'pickaxe');
@@ -239,19 +238,18 @@ describe('inventory intents', () => {
     expect(store.version).toBe(v + 4);
   });
 
-  it('settings keep at most 20 rules, and switching to sellWorst drains held loot', () => {
+  it('settings keep at most 20 rules, and a new filter drains the held loot it sells', () => {
     const { store } = make();
     store.load();
     const rule: LootRule = { rarity: 'normal', target: 'any', action: 'sell' };
-    store.setLootFilter(Array.from({ length: 25 }, () => rule));
-    expect(store.state.settings.lootFilter).toHaveLength(MAX_LOOT_RULES);
     const s = store.state;
-    s.settings.bagFull = 'stop';
     s.bag = s.bag.map(() => gem(s));
     s.stash.general = s.stash.general.map(() => gear(s, 'ring'));
-    s.overflow.push(gear(s, 'pickaxe'));
-    store.setBagFull('sellWorst');
+    s.overflow.push(gear(s, 'pickaxe', { rarity: 'normal' }));
+    store.setLootFilter(Array.from({ length: 25 }, () => rule));
+    expect(store.state.settings.lootFilter).toHaveLength(MAX_LOOT_RULES);
     expect(s.overflow).toEqual([]);
+    expect('setBagFull' in store).toBe(false);
   });
 
   it('a new world from typed text, or refused when empty', () => {
@@ -313,14 +311,15 @@ describe('crafting', () => {
 });
 
 describe('stash pages', () => {
-  it('buying a Maps page with enough Gold bumps the version and adds the cells', () => {
+  it('buying a General page with enough Gold bumps the version and adds the cells', () => {
     const { store } = make();
     store.load();
     store.state.gold = 5000;
     const v = store.version;
-    expect(store.buyStashPage('maps')).toBe('ok');
+    expect(store.buyStashPage()).toBe('ok');
     expect(store.version).toBe(v + 1);
-    expect(store.state.stash.maps).toHaveLength(120);
+    expect(store.state.stash.general).toHaveLength(180);
+    expect(store.state.stash.bought).toEqual({ general: 1 });
     expect(store.state.gold).toBe(0);
   });
 
@@ -329,7 +328,7 @@ describe('stash pages', () => {
     store.load();
     store.state.gold = 4999;
     const v = store.version;
-    expect(store.buyStashPage('general')).toBe('noGold');
+    expect(store.buyStashPage()).toBe('noGold');
     expect(store.version).toBe(v);
     expect(store.state.stash.general).toHaveLength(120);
   });
@@ -338,13 +337,12 @@ describe('stash pages', () => {
     const { store } = make();
     store.load();
     const s = store.state;
-    s.settings.bagFull = 'stop';
     s.bag = s.bag.map(() => gem(s));
     s.stash.general = s.stash.general.map(() => gear(s, 'ring'));
     const held = gear(s, 'pickaxe');
     s.overflow.push(held);
     s.gold = 5000;
-    expect(store.buyStashPage('general')).toBe('ok');
+    expect(store.buyStashPage()).toBe('ok');
     expect(s.overflow).toEqual([]);
     expect(s.stash.general[120]).toBe(held);
   });

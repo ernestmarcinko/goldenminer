@@ -1,7 +1,6 @@
 import { dungeonIndexAt, dungeonType, type DungeonType } from '../../core/dungeons';
-import { filledCount } from '../../core/cells';
+import { mapStashCount, mapTiers } from '../../core/cells';
 import { xpToNext } from '../../core/levels';
-import { STASH_PAGE_SIZE } from '../../core/balance';
 import { MAP_MOD_TEXT, mapEffects } from '../../core/mapMods';
 import type { GameState, MapItem, RunGains, RunResult } from '../../core/types';
 import { formatNumber, plural } from '../format';
@@ -55,31 +54,28 @@ export function mapModLines(map: MapItem): string[] {
   return rewards === '' ? [] : [...mapModTexts(map), rewards];
 }
 
-/**
- * One map to run, and where it lies. `page` is 1-based within the Maps tab, and 0 for the bag. `mods` is the
- * modifier lines, and `rewards` what they pay ('' for a normal map).
- */
+/** One map to run, and where it lies. `mods` is the modifier lines, and `rewards` what they pay ('' for a normal map). */
 export interface MapRow {
-  id: number; name: string; tier: number; metre: number; rooms: number; where: 'bag' | 'maps'; page: number;
+  id: number; name: string; tier: number; metre: number; rooms: number; where: 'bag' | 'maps';
   rarity: MapItem['rarity']; mods: string[]; rewards: string;
 }
 
-/** Every map in the bag and the Maps tab, the highest tier first, then by name, then by id. */
+/** Every map in the bag and the Map stash, the highest tier first, then by name, then by id. */
 export function mapRows(state: GameState): MapRow[] {
   const rows: MapRow[] = [];
-  const add = (m: MapItem, where: 'bag' | 'maps', page: number): void => {
+  const add = (m: MapItem, where: 'bag' | 'maps'): void => {
     const { type } = mapDungeon(state.seed, m);
     rows.push({
-      id: m.id, name: type.name, tier: m.tier, metre: m.metre, rooms: type.rooms, where, page,
+      id: m.id, name: type.name, tier: m.tier, metre: m.metre, rooms: type.rooms, where,
       rarity: m.rarity, mods: mapModTexts(m), rewards: mapRewardsText(m),
     });
   };
-  state.bag.forEach((c) => { if (c !== null && c.type === 'map') add(c, 'bag', 0); });
-  state.stash.maps.forEach((c, i) => { if (c !== null) add(c, 'maps', Math.floor(i / STASH_PAGE_SIZE) + 1); });
+  state.bag.forEach((c) => { if (c !== null && c.type === 'map') add(c, 'bag'); });
+  for (const tier of mapTiers(state)) for (const m of state.stash.maps[tier] ?? []) add(m, 'maps');
   return rows.sort((a, b) => b.tier - a.tier || a.name.localeCompare(b.name) || a.id - b.id);
 }
 
-/** Every map you hold: those in the bag and those in the Maps tab. */
+/** Every map you hold: those in the bag and those in the Map stash. */
 export function mapCount(state: GameState): number {
-  return filledCount(state.stash.maps) + state.bag.filter((c) => c !== null && c.type === 'map').length;
+  return mapStashCount(state) + state.bag.filter((c) => c !== null && c.type === 'map').length;
 }

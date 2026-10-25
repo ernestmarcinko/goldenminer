@@ -1,14 +1,15 @@
 import { GEM_BAG_STACK, GEM_STASH_STACK, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK } from './balance';
-import { firstEmpty, itemAt, sameLoc } from './cells';
+import { firstEmpty, itemAt, mapTierCount, sameLoc } from './cells';
 import { craft } from './crafting';
 import { isGear, isMap, isStack, setOfSlot } from './items';
 import type { Cell, GearItem, GemItem, Item, MaterialItem, Slot, Stack } from './items';
 import { fillAhead } from './metres';
 import { salvagePay, sellPay, stashMaterials } from './loot';
+import { putMap, takeMapAt } from './maps';
 import { deriveStats } from './stats';
 import type { CraftResult, DropTarget, GameState, InvResult, ItemLoc } from './types';
 
-type CellLoc = Extract<ItemLoc, { where: 'bag' | 'stash' | 'maps' }>;
+type CellLoc = Extract<ItemLoc, { where: 'bag' | 'stash' }>;
 /** A Gems or Materials stack: a count in a stash tab rather than a cell. */
 type TabLoc = Extract<ItemLoc, { where: 'gems' | 'materials' }>;
 
@@ -17,13 +18,12 @@ function refillAhead(state: GameState): void {
 }
 
 const isTabLoc = (loc: ItemLoc): loc is TabLoc => loc.where === 'gems' || loc.where === 'materials';
-const isCellLoc = (loc: ItemLoc): loc is CellLoc => loc.where === 'bag' || loc.where === 'stash' || loc.where === 'maps';
+const isCellLoc = (loc: ItemLoc): loc is CellLoc => loc.where === 'bag' || loc.where === 'stash';
 
 function cellsOf(state: GameState, loc: CellLoc): readonly Cell[] {
   switch (loc.where) {
     case 'bag': return state.bag;
     case 'stash': return state.stash.general;
-    case 'maps': return state.stash.maps;
   }
 }
 
@@ -40,10 +40,6 @@ function writeCell(state: GameState, loc: CellLoc, value: Cell): void {
     case 'stash':
       if (value !== null && !isGear(value)) throw new Error('the General tab holds gear only');
       state.stash.general[loc.index] = value;
-      return;
-    case 'maps':
-      if (value !== null && !isMap(value)) throw new Error('the Maps tab holds maps only');
-      state.stash.maps[loc.index] = value;
   }
 }
 
@@ -122,6 +118,35 @@ function mergeStacks(state: GameState, from: ItemLoc, item: Stack, target: Stack
   return 'ok';
 }
 
+/**
+ * Into or out of the Map stash. A map dropped anywhere on it joins its own tier (the cell is ignored); one taken out
+ * goes to an empty bag cell, or swaps with a bag map, which must have room in its own tier first.
+ */
+function moveMap(state: GameState, from: ItemLoc, item: Item, to: CellLoc | Extract<ItemLoc, { where: 'maps' }>): InvResult {
+  if (to.where === 'maps') {
+    if (!isMap(item)) return 'mapsOnly';
+    if (from.where === 'maps') return 'ok';   // within the stash, nothing moves
+    if (from.where !== 'bag') return 'invalid';
+    const put = putMap(state, item);
+    if (put === 'ok') writeCell(state, from, null);
+    return put;
+  }
+  if (from.where !== 'maps' || !isMap(item)) return 'invalid';
+  const fit = fits(item, to);
+  if (fit !== 'ok') return fit;
+  if (!inGrid(state, to)) return 'invalid';
+  const target = itemAt(state, to);
+  if (target !== undefined && !isMap(target)) return 'invalid';
+  if (target !== undefined) {
+    const put = putMap(state, target);
+    if (put !== 'ok') return put;
+  }
+  // a swap within one tier appended the bag map after this one, so `from` still points at it
+  takeMapAt(state, from);
+  writeCell(state, to, item);
+  return 'ok';
+}
+
 /** Cell to cell: a move, a swap, a stack merge, or a put into or take from a Gems or Materials stack. */
 export function moveItem(state: GameState, from: ItemLoc, to: ItemLoc): InvResult {
   const item = itemAt(state, from);
@@ -133,6 +158,7 @@ export function moveItem(state: GameState, from: ItemLoc, to: ItemLoc): InvResul
     if (item.type !== 'material') return 'materialsOnly';
     return item.material === to.material ? putInTab(state, from, item) : 'invalid';   // only its own slot
   }
+  if (to.where === 'maps' || from.where === 'maps') return moveMap(state, from, item, to);
   if (!inGrid(state, to)) return 'invalid';
   const fit = fits(item, to);
   if (fit !== 'ok') return fit;
@@ -262,8 +288,8 @@ function takeStack(state: GameState, from: TabLoc, item: Stack): InvResult {
 }
 
 /**
- * The click and card shortcut. To 'stash': gear to the first empty General cell, a map to the first empty Maps cell,
- * a gem or material stack to its tab, worn gear unequipped into General. To 'bag': General gear or a Maps-tab map to
+ * The click and card shortcut. To 'stash': gear to the first empty General cell, a map to its tier in the Map stash,
+ * a gem or material stack to its tab, worn gear unequipped into General. To 'bag': General gear or a stashed map to
  * the bag's first empty cell, or up to a bag stack of a Gems or Materials stack.
  */
 export function sendItem(state: GameState, from: ItemLoc, to: 'stash' | 'bag'): InvResult {
@@ -272,10 +298,10 @@ export function sendItem(state: GameState, from: ItemLoc, to: 'stash' | 'bag'): 
   if (to === 'stash') {
     if (from.where === 'stash' || from.where === 'maps' || isTabLoc(from)) return 'invalid';
     if (isStack(item)) return moveItem(state, from, tabLocOf(item));
-    const tab = isMap(item) ? state.stash.maps : state.stash.general;
-    const index = firstEmpty(tab);
+    if (isMap(item)) return moveItem(state, from, { where: 'maps', tier: item.tier, index: mapTierCount(state, item.tier) });
+    const index = firstEmpty(state.stash.general);
     if (index < 0) return 'stashFull';
-    const dest: ItemLoc = { where: isMap(item) ? 'maps' : 'stash', index };
+    const dest: ItemLoc = { where: 'stash', index };
     return from.where === 'worn' ? unequip(state, from.slot, dest) : moveItem(state, from, dest);
   }
   if (isTabLoc(from) && isStack(item)) return takeStack(state, from, item);

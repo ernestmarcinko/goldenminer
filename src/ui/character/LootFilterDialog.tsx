@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { MAX_LOOT_RULES } from '../../core/balance';
-import type { BagFullMode, LootRule } from '../../core/types';
+import type { LootRule } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
 import { formatNumber } from '../format';
 import { useDialog } from '../useDialog';
@@ -8,11 +8,6 @@ import { useGame } from '../useGame';
 import {
   ACTION_OPTIONS, RARITY_OPTIONS, TARGET_OPTIONS, addRule, moveRule, removeRule, updateRule,
 } from './lootFilterView';
-
-const FULL_MODES: readonly { mode: BagFullMode; label: string }[] = [
-  { mode: 'sellWorst', label: 'Sell the cheapest item and keep digging' },
-  { mode: 'stop', label: 'Stop digging until there is room' },
-];
 
 function Select<T extends string>({ label, value, options, onChange }: {
   label: string; value: T; options: readonly { value: T; label: string }[]; onChange: (v: T) => void;
@@ -77,20 +72,6 @@ export function LootFilterDialog({ store, onClose }: { store: GameStore; onClose
           {full && <span className="gm-muted" role="status">{formatNumber(MAX_LOOT_RULES)} rules is the most.</span>}
         </div>
 
-        <fieldset className="gm-fullmode">
-          <legend>When the bag and the stash are both full</legend>
-          {FULL_MODES.map((m) => (
-            <label key={m.mode} className="gm-fullmode__opt">
-              <input
-                type="radio"
-                name="bagFull"
-                checked={state.settings.bagFull === m.mode}
-                onChange={() => store.setBagFull(m.mode)}
-              />
-              {m.label}
-            </label>
-          ))}
-        </fieldset>
       </div>
     </div>
   );
