@@ -1,4 +1,4 @@
-import type { GemGrade, Material, Rarity, StatKey } from './items';
+import type { GemGrade, MapModKind, Material, Rarity, StatKey } from './items';
 import type { CraftKind, FeatureKind, Hazard, Stats, TemperOutcome } from './types';
 
 export const BASE_DIG_POWER = 10;
@@ -179,6 +179,20 @@ export const STAT_TIERS: Readonly<Record<StatKey, { base: number; step: number }
   magicFind: { base: 4, step: 2 },
   xpFind: { base: 3, step: 2 },
 };
+
+// A map modifier's tiers work as a gear line's do. Weak healing and hardened are capped once summed.
+export const MAP_MOD_TIERS: Readonly<Record<MapModKind, { base: number; step: number }>> = {
+  monsterLife: { base: 10, step: 5 },
+  monsterDamage: { base: 8, step: 4 },
+  monsterSpeed: { base: 6, step: 3 },
+  bossPower: { base: 15, step: 7 },
+  weakHealing: { base: 10, step: 5 },
+  hardened: { base: 5, step: 3 },
+};
+export const MAP_MOD_CAPS: Readonly<Partial<Record<MapModKind, number>>> = { weakHealing: 90, hardened: 75 };
+// What a map pays for its modifiers: each reward is this share of the sum of their values, in whole percent.
+export const MAP_REWARD_FACTORS = { quantity: 0.5, rarity: 0.3, souls: 0.5 };
+export const MAX_MAP_MODS = 6;
 
 export const DEFAULT_STAT_WEIGHT = 10;
 export const STAT_WEIGHTS: Readonly<Partial<Record<StatKey, number>>> = { ticksPerClick: 2, lampSight: 4 };

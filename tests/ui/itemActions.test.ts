@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
+import type { MapItem } from '../../src/core/items';
 import type { ItemLoc } from '../../src/core/types';
 import { addMap, startMap } from '../../src/core/maps';
 import { GameStore } from '../../src/store/gameStore';
@@ -140,9 +141,9 @@ it('every refusal has a message, and success has none', () => {
 
 it('a bag map runs or goes to the Maps tab; a Maps-tab map runs or comes back to the bag', () => {
   const s = newGame(1, 0);
-  const carried = { id: s.nextId++, type: 'map', tier: 4, metre: 327 } as const;
+  const carried: MapItem = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
   s.bag[0] = carried;
-  s.stash.maps[2] = { id: s.nextId++, type: 'map', tier: 1, metre: 2 };
+  s.stash.maps[2] = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] };
   const tab: ItemLoc = { where: 'maps', index: 2 };
   expect(itemActions(s, bag(0))).toEqual([
     { id: 'run', label: 'Run this map', disabled: false },
@@ -163,13 +164,13 @@ it('a bag map runs or goes to the Maps tab; a Maps-tab map runs or comes back to
 
 it('a map cannot run while another run is going, and moves need room', () => {
   const s = newGame(1, 0);
-  s.bag[0] = { id: s.nextId++, type: 'map', tier: 4, metre: 327 };
-  s.stash.maps[2] = { id: s.nextId++, type: 'map', tier: 1, metre: 2 };
+  s.bag[0] = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
+  s.stash.maps[2] = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] };
   startMap(s, addMap(s, 1, 2).id);
   const tab: ItemLoc = { where: 'maps', index: 2 };
   expect(itemActions(s, bag(0))[0]).toMatchObject({ id: 'run', disabled: true });
   expect(itemActions(s, tab)[0]).toMatchObject({ id: 'run', disabled: true });
-  s.stash.maps = s.stash.maps.map((c) => c ?? { id: s.nextId++, type: 'map', tier: 1, metre: 2 });
+  s.stash.maps = s.stash.maps.map((c) => c ?? { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] });
   expect(itemActions(s, bag(0))[1]).toMatchObject({ id: 'toStash', disabled: true });
   s.bag = s.bag.map((c) => c ?? gear(s, 'ring'));
   expect(itemActions(s, tab)[1]).toMatchObject({ id: 'toBag', disabled: true });
@@ -179,7 +180,7 @@ it('Run this map starts that map', () => {
   const store = new GameStore({ storage: new MemoryStorage(), storageAvailable: true, now: () => 0, newSeed: () => 7 });
   store.load();
   const s = store.state;
-  const map = { id: s.nextId++, type: 'map', tier: 1, metre: 2 } as const;
+  const map: MapItem = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] };
   s.stash.maps[5] = map;
   const t: ItemLoc = { where: 'maps', index: 5 };
   const run = itemActions(s, t).find((a) => a.id === 'run');
@@ -194,7 +195,7 @@ it('Run this map during a run is refused as busy', () => {
   const store = new GameStore({ storage: new MemoryStorage(), storageAvailable: true, now: () => 0, newSeed: () => 7 });
   store.load();
   const s = store.state;
-  s.bag[0] = { id: s.nextId++, type: 'map', tier: 1, metre: 2 };
+  s.bag[0] = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] };
   store.startMap(addMap(s, 1, 2).id);
   expect(runAction(store, bag(0), { id: 'run', label: 'Run this map', disabled: true })).toBe('busy');
   expect(s.bag[0]).not.toBeNull();

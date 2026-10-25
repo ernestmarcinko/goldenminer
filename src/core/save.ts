@@ -1,8 +1,8 @@
 import { compressToBase64, decompressFromBase64 } from 'lz-string';
 import {
   BAG_SIZE, COMBAT_LOG_LIMIT, FINDS_LOG_LIMIT, GEM_BAG_STACK, GEM_STASH_STACK, LEVEL_CAP, MATERIAL_BAG_STACK,
-  MATERIAL_STASH_STACK, MAX_CRAFTED_LINES, MAX_DAMAGE, MAX_LIFE, MAX_LOOT_RULES, MAX_OVERFLOW, MAX_SIDE_LINES, MAX_SOCKETS,
-  MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MONSTER_BUDGET, RUN_LOOT_LIMIT, START_GENERAL_PAGES, START_MAP_PAGES, STASH_PAGE_SIZE,
+  MATERIAL_STASH_STACK, MAX_CRAFTED_LINES, MAX_DAMAGE, MAX_LIFE, MAX_LOOT_RULES, MAX_MAP_MODS, MAX_OVERFLOW, MAX_SIDE_LINES,
+  MAX_SOCKETS, MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MONSTER_BUDGET, RUN_LOOT_LIMIT, START_GENERAL_PAGES, START_MAP_PAGES, STASH_PAGE_SIZE,
 } from './balance';
 import { metreTier } from './bands';
 import { emptyGemCounts, emptyMaterialCounts, pageCount } from './cells';
@@ -10,9 +10,10 @@ import { dungeonIndexAt, dungeonType } from './dungeons';
 import { gemGradeFor } from './itemData';
 import { sideCount } from './itemGen';
 import {
-  BATTLE_STATS, GEAR_SETS, GEM_GRADES, GEM_TYPES, MATERIALS, MINING_STATS, MOD_SIDE, RARITIES, setOfSlot, slotsOf, statsOf,
+  BATTLE_STATS, GEAR_SETS, GEM_GRADES, GEM_TYPES, MAP_MOD_KINDS, MATERIALS, MINING_STATS, MOD_SIDE, RARITIES, setOfSlot, slotsOf,
+  statsOf,
 } from './items';
-import type { Cell, GearItem, GearSet, GemItem, GemType, MapItem, ModLine, Slot, StatKey } from './items';
+import type { Cell, GearItem, GearSet, GemItem, GemType, MapItem, MapMod, MapRarity, ModLine, Slot, StatKey } from './items';
 import { xpToNext } from './levels';
 import { isValidSeedText, seedFromText } from './seed';
 import { speciesOf } from './species';
@@ -22,7 +23,7 @@ import {
   RUN_OUTCOMES, SHAFT_MOTIONS, type GameState,
 } from './types';
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
@@ -109,7 +110,7 @@ export const MIGRATIONS: Record<number, Migration> = {
     if (!isObject(state) || !Array.isArray(state.finds) || !isObject(state.stash) || !isNonNegInt(state.nextId)) return state;
     // Every past map find becomes a map of the tier its metre was dug at; the Maps tab keeps the newest.
     let nextId = state.nextId;
-    const maps: MapItem[] = [];
+    const maps: Omit<MapItem, 'rarity' | 'mods'>[] = [];
     for (const f of state.finds) {
       if (!isObject(f) || f.kind !== 'map') continue;
       const metre = f.depth;
@@ -178,6 +179,22 @@ export const MIGRATIONS: Record<number, Migration> = {
       next.activity = { ...activity, run: { ...activity.run, regenCarry: 0 } };
     }
     return malformed ? state : next;
+  },
+  7: (state) => {
+    if (!isObject(state) || !Array.isArray(state.bag) || !isObject(state.stash) || !Array.isArray(state.stash.maps)) return state;
+    // Every map so far is a normal one: wherever it lies, it gains a rarity and an empty modifier list.
+    const normal = (cell: unknown): unknown => (isObject(cell) && cell.type === 'map' ? { ...cell, rarity: 'normal', mods: [] } : cell);
+    const next: Record<string, unknown> = {
+      ...state,
+      bag: state.bag.map(normal),
+      stash: { ...state.stash, maps: state.stash.maps.map(normal) },
+    };
+    const { activity, lastRun } = state;
+    if (isObject(activity) && activity.kind === 'map' && isObject(activity.run)) {
+      next.activity = { ...activity, run: { ...activity.run, map: normal(activity.run.map) } };
+    }
+    if (isObject(lastRun)) next.lastRun = { ...lastRun, map: normal(lastRun.map) };
+    return next;
   },
 };
 
@@ -431,8 +448,24 @@ function isSettings(x: unknown): boolean {
   );
 }
 
+const MAP_MOD_KEYS: readonly string[] = ['kind', 'tier', 'value'];
+// A map modifier has no keys but its own. Its tier may sit up to MAX_TIER_OVER_CAP above the map's, as tempering rolls there.
+function isMapMod(x: unknown, mapTier: number): x is MapMod {
+  if (!isObject(x) || !Object.keys(x).every((k) => MAP_MOD_KEYS.includes(k)) || !isIn(MAP_MOD_KINDS, x.kind)) return false;
+  if (!isNonNegInt(x.tier) || x.tier < 1 || x.tier > mapTier + MAX_TIER_OVER_CAP) return false;
+  return isNonNegInt(x.value) && x.value >= 1 && x.value <= 1_000_000;
+}
+
+// The most modifiers each map rarity holds; a normal map has none.
+const MAP_MOD_ROOM: Readonly<Record<MapRarity, number>> = { normal: 0, magic: 2, rare: MAX_MAP_MODS };
+const MAP_RARITIES: readonly string[] = Object.keys(MAP_MOD_ROOM);
+
 function isMapItem(x: unknown, nextId: number, seen: Set<number>): x is MapItem {
   if (!isObject(x) || x.type !== 'map' || !isItemLevel(x.tier) || !isNonNegInt(x.metre) || x.metre < 1) return false;
+  if (!isIn(MAP_RARITIES, x.rarity) || !Array.isArray(x.mods) || x.mods.length > MAP_MOD_ROOM[x.rarity as MapRarity]) return false;
+  const tier = x.tier as number;
+  if (!x.mods.every((m) => isMapMod(m, tier)) || new Set(x.mods.map((m: MapMod) => m.kind)).size !== x.mods.length) return false;
+  if (x.sealed !== undefined && x.sealed !== true) return false;
   return isItemBase(x, nextId, seen, false);
 }
 

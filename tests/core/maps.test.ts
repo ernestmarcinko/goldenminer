@@ -6,7 +6,7 @@ import { addMap, startMap } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
 import { deriveStats } from '../../src/core/stats';
 
-const mapOf = (id: number, tier: number, metre = 10): MapItem => ({ id, type: 'map', tier, metre });
+const mapOf = (id: number, tier: number, metre = 10): MapItem => ({ id, type: 'map', tier, metre, rarity: 'normal', mods: [] });
 
 it('a map find becomes a map in the stash', () => {
   const s = newGame(1, 0);

@@ -1,7 +1,8 @@
 import { hardness, MATERIAL_TABLE, TICKS_PER_METRE_AT_PARITY } from '../../core/balance';
 import { GEM_GRADE_LABELS, gemName, itemName } from '../../core/itemData';
 import { BATTLE_STATS, MOD_SIDE, isGear, setOfSlot } from '../../core/items';
-import type { GearItem, GemType, Item, Material, ModLine, Slot, StatKey } from '../../core/items';
+import type { GearItem, GemType, Item, MapItem, Material, ModLine, Slot, StatKey } from '../../core/items';
+import { MAP_MOD_TEXT, mapEffects } from '../../core/mapMods';
 import { gemEffect, itemTotals } from '../../core/stats';
 import type { GameState, LootNote, Stats } from '../../core/types';
 import type { SpriteName } from '../../sprites/atlas';
@@ -72,14 +73,19 @@ function cardOrder(lines: readonly ModLine[]): ModLine[] {
 export type Tone = 'plain' | 'up' | 'down' | 'gem' | 'muted';
 export interface ViewLine { text: string; tone: Tone }
 
+/** An enchanted map takes the gear colour of its rarity; a normal map keeps the map colour. */
 export function rarityOf(item: Item): GearItem['rarity'] | 'gem' | 'material' | 'map' {
+  if (item.type === 'map') return item.rarity === 'normal' ? 'map' : item.rarity;
   return isGear(item) ? item.rarity : item.type;
 }
 
 const capitalise = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function itemKindLine(item: Item): string {
-  if (item.type === 'map') return `Tier ${formatNumber(item.tier)} map`;
+  if (item.type === 'map') {
+    const tier = `tier ${formatNumber(item.tier)} map`;
+    return item.rarity === 'normal' ? capitalise(tier) : `${capitalise(item.rarity)} ${tier}`;
+  }
   if (item.type === 'material') return 'Crafting material';
   if (item.type === 'gem') {
     const base = `Gem · ${GEM_GRADE_LABELS[item.grade]} · socket into any gear`;
@@ -96,8 +102,21 @@ export function cardHead(seed: number, item: Item): { name: string; kind: string
   return { name: type.name, kind: `${itemKindLine(item)} · ${plural(type.rooms, 'room', 'rooms')}` };
 }
 
+/** A map's modifiers with their tiers, in their rolled order, and what they pay; then where it was found. */
+function mapLines(map: MapItem): ViewLine[] {
+  const lines: ViewLine[] = map.mods.map((m) => ({ text: `T${formatNumber(m.tier)} ${MAP_MOD_TEXT[m.kind](m.value)}`, tone: 'plain' }));
+  if (map.mods.length > 0) {
+    const e = mapEffects(map);
+    const text = `Rewards: +${formatNumber(e.quantity)}% items · +${formatNumber(e.rarity)}% rarity · +${formatNumber(e.souls)}% Souls`;
+    lines.push({ text, tone: 'plain' });
+  }
+  lines.push({ text: `Found at ${formatNumber(map.metre)} m`, tone: 'plain' });
+  if (map.sealed) lines.push({ text: 'Tempered: it can\'t be enchanted any more.', tone: 'muted' });
+  return lines;
+}
+
 export function itemLines(item: Item): ViewLine[] {
-  if (item.type === 'map') return [{ text: `Found at ${formatNumber(item.metre)} m`, tone: 'plain' }];
+  if (item.type === 'map') return mapLines(item);
   if (item.type === 'material') {
     const from = MATERIAL_TABLE[item.material].from;
     return [

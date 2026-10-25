@@ -7,6 +7,7 @@ import {
   statText,
 } from '../../src/ui/character/itemView';
 import { mapDungeon } from '../../src/ui/maps/mapsView';
+import type { MapItem } from '../../src/core/items';
 import { gear, gem } from '../helpers/items';
 
 it('stat text', () => {
@@ -205,7 +206,7 @@ it('loot notes in words', () => {
 });
 
 it('a map card is named after its dungeon, with the tier and the rooms on the kind line', () => {
-  const map = { id: 1, type: 'map', tier: 4, metre: 327 } as const;
+  const map: MapItem = { id: 1, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
   const { type } = mapDungeon(77, map);
   expect(cardHead(77, map)).toEqual({ name: type.name, kind: `Tier 4 map · ${type.rooms} rooms` });
   const s = newGame(1, 0);
@@ -214,10 +215,33 @@ it('a map card is named after its dungeon, with the tier and the rooms on the ki
 });
 
 it('a map item reads as its tier and where it was found', () => {
-  const map = { id: 1, type: 'map', tier: 4, metre: 327 } as const;
+  const map: MapItem = { id: 1, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
   expect([itemName(map), itemKindLine(map), rarityOf(map), itemSprite(map)]).toEqual(['Tier 4 map', 'Tier 4 map', 'map', 'map']);
   expect(itemLines(map)).toEqual([{ text: 'Found at 327 m', tone: 'plain' }]);
   expect(rarityOf({ id: 2, type: 'material', material: 'tin', count: 3 })).toBe('material');
+});
+
+it('an enchanted map card shows its rarity, its modifiers with their tiers and what they pay', () => {
+  const map: MapItem = { id: 1, type: 'map', tier: 4, metre: 327, rarity: 'magic', mods: [
+    { kind: 'monsterLife', tier: 4, value: 27 },
+    { kind: 'monsterDamage', tier: 3, value: 17 },
+  ] };
+  const { type } = mapDungeon(77, map);
+  expect(type.rooms).toBe(6);
+  expect(cardHead(77, map)).toEqual({ name: type.name, kind: 'Magic tier 4 map · 6 rooms' });
+  expect(itemKindLine({ ...map, rarity: 'rare' })).toBe('Rare tier 4 map');
+  expect(rarityOf(map)).toBe('magic');
+  expect(rarityOf({ ...map, rarity: 'rare' })).toBe('rare');
+  const four: MapItem = { ...map, rarity: 'rare', mods: [...map.mods, { kind: 'monsterSpeed', tier: 4, value: 15 }, { kind: 'weakHealing', tier: 2, value: 16 }] };
+  expect(itemLines(four)).toEqual([
+    { text: 'T4 Monsters have +27% life', tone: 'plain' },
+    { text: 'T3 Monsters deal +17% damage', tone: 'plain' },
+    { text: 'T4 Monsters attack 15% faster', tone: 'plain' },
+    { text: 'T2 Rooms heal 16% less', tone: 'plain' },
+    { text: 'Rewards: +38% items · +23% rarity · +38% Souls', tone: 'plain' },
+    { text: 'Found at 327 m', tone: 'plain' },
+  ]);
+  expect(itemLines({ ...four, sealed: true }).at(-1)).toEqual({ text: "Tempered: it can't be enchanted any more.", tone: 'muted' });
 });
 
 it('a material item reads as a crafting material and where it is first found', () => {

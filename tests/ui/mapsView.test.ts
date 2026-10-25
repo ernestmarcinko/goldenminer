@@ -5,7 +5,7 @@ import type { MapItem, RunOutcome } from '../../src/core/types';
 import { newGame } from '../../src/core/newGame';
 import { gainsLine, mapCount, mapDungeon, mapRows, runTitle, xpBar } from '../../src/ui/maps/mapsView';
 
-const map = (id: number, tier: number, metre = 1): MapItem => ({ id, type: 'map', tier, metre });
+const map = (id: number, tier: number, metre = 1): MapItem => ({ id, type: 'map', tier, metre, rarity: 'normal', mods: [] });
 
 it('xp bar', () => {
   expect(xpBar(1, 50)).toEqual({ label: 'Level 1', text: '50 / 100 XP', pct: 0.5 });

@@ -1,6 +1,6 @@
-import type { Cell, GearItem, GearSet, GemGrade, GemType, MapItem, Material, Rarity, Slot } from './items';
+import type { Cell, GearItem, GearSet, GemGrade, GemType, MapItem, MapMod, MapRarity, Material, Rarity, Slot } from './items';
 
-export type { MapItem };
+export type { MapItem, MapMod, MapRarity };
 export const FEATURE_KINDS = ['goldVein', 'diamondVein', 'chest', 'gem', 'map'] as const;
 export type FeatureKind = (typeof FEATURE_KINDS)[number];
 export const FIND_KINDS = [...FEATURE_KINDS, 'materialVein'] as const;

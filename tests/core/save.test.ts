@@ -6,6 +6,7 @@ import fixture3 from '../fixtures/save-schema-3.txt?raw';
 import fixture4 from '../fixtures/save-schema-4.txt?raw';
 import fixture5 from '../fixtures/save-schema-5.txt?raw';
 import fixture6 from '../fixtures/save-schema-6.txt?raw';
+import fixture7 from '../fixtures/save-schema-7.txt?raw';
 import { applyTicks } from '../../src/core/dig';
 import {
   BAG_SIZE, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_LOOT_RULES, MAX_OVERFLOW, MAX_TIER_OVER_CAP, START_GENERAL_PAGES, START_MAP_PAGES,
@@ -18,8 +19,8 @@ import { newGame } from '../../src/core/newGame';
 import { decodeSave, encodeSave, migrate, MIGRATIONS, SCHEMA_VERSION, validateState } from '../../src/core/save';
 import { deriveStats } from '../../src/core/stats';
 import { tierFor, tierRange } from '../../src/core/tiers';
-import { MOD_SIDE } from '../../src/core/items';
-import type { Cell, GemGrade, GemType, MapItem, ModLine } from '../../src/core/items';
+import { MAP_MOD_KINDS, MOD_SIDE } from '../../src/core/items';
+import type { Cell, GemGrade, GemType, MapItem, MapMod, ModLine } from '../../src/core/items';
 import type { BagFullMode, ChampionMod, FindRecord, GameState, LootAction, MapRun, RunOutcome } from '../../src/core/types';
 import { gear, gem } from '../helpers/items';
 
@@ -107,7 +108,7 @@ it('rejects impossible inventories', () => {
     ['a missing Materials-tab count', (s) => { delete (s.stash.materials as Partial<typeof s.stash.materials>).tin; }],
     ['a fractional Materials-tab count', (s) => { s.stash.materials.tin = 0.5; }],
     ['a negative bought count', (s) => { s.stash.bought.general = -1; }],
-    ['a map in the bag at metre 0', (s) => { s.bag[1] = { id: s.nextId++, type: 'map', tier: 1, metre: 0 }; }],
+    ['a map in the bag at metre 0', (s) => { s.bag[1] = { id: s.nextId++, type: 'map', tier: 1, metre: 0, rarity: 'normal', mods: [] }; }],
     ['a gem in General', (s) => { s.stash.general[0] = gem(s) as never; }],
     ['worn under the wrong slot', (s) => { s.equipped.mining.lamp = gear(s, 'pickaxe'); }],
     ['worn in the wrong set', (s) => { s.equipped.battle.pickaxe = gear(s, 'pickaxe'); }],
@@ -167,10 +168,10 @@ it('accepts the limits: full grids, 10 held items, 20 rules, 3 gems in 3 sockets
   s.bag = s.bag.map((c, i) => c ?? (
     i % 4 === 0 ? gem(s, 'sapphire', { count: 25 })
       : i % 4 === 1 ? { id: s.nextId++, type: 'material', material: 'voidCrystal', count: MATERIAL_BAG_STACK }
-      : i % 4 === 2 ? { id: s.nextId++, type: 'map', tier: 3, metre: 200 }
+      : i % 4 === 2 ? { id: s.nextId++, type: 'map', tier: 3, metre: 200, rarity: 'normal', mods: [] }
       : gear(s, i % 8 === 3 ? 'ring' : 'lamp')));
   s.stash.general = s.stash.general.map((c) => c ?? gear(s, 'boots'));
-  s.stash.maps = s.stash.maps.map((c) => c ?? { id: s.nextId++, type: 'map', tier: 1, metre: 5 });
+  s.stash.maps = s.stash.maps.map((c) => c ?? { id: s.nextId++, type: 'map', tier: 1, metre: 5, rarity: 'normal', mods: [] });
   s.stash.materials.copper = MATERIAL_STASH_STACK;
   s.stash.bought.general = 2;
   s.stash.bought.maps = 1;
@@ -384,7 +385,7 @@ it('rejects impossible maps, runs and levels', () => {
     ['a map id reused in the stash', (s) => { const r = run(s); if (r) s.stash.maps[3] = { ...r.map }; }],
     ['an unknown outcome', (s) => { const m = looseMap(s, 1, 2); s.lastRun = { map: m, outcome: 'won' as RunOutcome, room: 6, bossRoom: 6, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, items: 0, seen: false }; }],
     ['a Maps tab of 61 cells', (s) => { s.stash.maps.push(null); }],
-    ['a map at metre 0', (s) => { s.stash.maps[0] = { id: s.nextId++, type: 'map', tier: 1, metre: 0 }; }],
+    ['a map at metre 0', (s) => { s.stash.maps[0] = { id: s.nextId++, type: 'map', tier: 1, metre: 0, rarity: 'normal', mods: [] }; }],
     ['a material note for a gem', (s) => { run(s)?.loot.push({ name: 'Ruby', rarity: 'material', base: 'ruby', outcome: 'bag', value: 2 }); }],
     ['a gem note for a material', (s) => { run(s)?.loot.push({ name: 'Tin ore', rarity: 'gem', base: 'tin', outcome: 'bag', value: 2 }); }],
   ];
@@ -465,7 +466,7 @@ it('the schema-5 fixture migrates to one bag, stash pages and map cells', () => 
   expect(s.stash.general).toHaveLength(START_GENERAL_PAGES * STASH_PAGE_SIZE);
   expect(untiered(s.stash.general.slice(0, 60))).toEqual(raw.stash.general);
   expect(s.stash.maps).toHaveLength(2 * STASH_PAGE_SIZE);                   // 73 maps fill two pages
-  expect(s.stash.maps.filter((m) => m !== null)).toEqual(raw.stash.maps);
+  expect(s.stash.maps.filter((m) => m !== null)).toEqual(raw.stash.maps.map((m: object) => ({ ...m, rarity: 'normal', mods: [] })));
   expect(Object.values(s.stash.materials).every((n) => n === 0)).toBe(true);
   expect(s.stash.bought).toEqual({ general: 0, maps: 0 });
   expect(untiered(s.overflow)).toEqual(raw.overflow.map((h: { item: unknown }) => h.item));
@@ -484,7 +485,7 @@ it('a schema-5 save with no maps still gets the starting Maps pages', () => {
 });
 
 it('every older fixture still loads', () => {
-  for (const f of [fixture, fixture2, fixture3, fixture4, fixture5, fixture6]) expect(decodeSave(f.trim()).ok).toBe(true);
+  for (const f of [fixture, fixture2, fixture3, fixture4, fixture5, fixture6, fixture7]) expect(decodeSave(f.trim()).ok).toBe(true);
 });
 
 it('a schema-5 save carrying more than one bag holds is rejected, not cut short', () => {
@@ -503,10 +504,10 @@ it('the validator holds the schema-6 shape', () => {
   expect(bad((s) => { s.stash.general = s.stash.general.slice(0, 90); })).toBe(false);  // not whole pages
   expect(bad((s) => { s.stash.general = s.stash.general.slice(0, 60); })).toBe(false);  // fewer than 2 pages
   expect(bad((s) => { s.stash.maps[0] = gear(s, 'pickaxe'); })).toBe(false);            // gear in the Maps tab
-  expect(bad((s) => { s.stash.general[0] = { id: s.nextId++, type: 'map', tier: 1, metre: 2 }; })).toBe(false);
+  expect(bad((s) => { s.stash.general[0] = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] }; })).toBe(false);
   expect(bad((s) => { s.bag[0] = { id: s.nextId++, type: 'material', material: 'copper', count: 51 }; })).toBe(false);
   expect(bad((s) => { s.stash.materials.copper = 1_000_001; })).toBe(false);
-  expect(bad((s) => { const m = { id: s.nextId++, type: 'map', tier: 1, metre: 2 }; s.bag[0] = m; s.stash.maps[0] = { ...m }; })).toBe(false); // duplicate id
+  expect(bad((s) => { const m = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] }; s.bag[0] = m; s.stash.maps[0] = { ...m }; })).toBe(false); // duplicate id
   expect(bad((s) => { s.stash.bought.maps = 2; })).toBe(false);                          // more bought than the 1 page held
   expect(bad((s) => { s.finds.push({ id: s.nextId++, depth: 1, kind: 'materialVein', amount: 3, tick: 0 }); })).toBe(false); // no material
 });
@@ -636,4 +637,67 @@ it('a schema-6 run in progress loads with an empty life-regeneration carry', () 
   const r = decodeSave(raw({ schema: 6, savedAt: 0, state: s }));
   if (!r.ok) throw new Error(`rejected: ${r.reason}`);
   expect(r.state.activity.kind === 'map' && r.state.activity.run.regenCarry).toBe(0);
+});
+
+it('the schema-7 fixture migrates every map to a normal map with no modifiers, keeping the rest', () => {
+  const old = JSON.parse(decompressFromBase64(fixture7.trim())).state;
+  const r = decodeSave(fixture7.trim());
+  if (!r.ok) throw new Error(`fixture rejected: ${r.reason}`);
+  const mapsOf = (s: any): any[] => [
+    ...s.bag, ...s.stash.maps, s.activity.kind === 'map' ? s.activity.run.map : null, s.lastRun?.map ?? null,
+  ].filter((c: any) => c?.type === 'map');
+  const before = mapsOf(old);
+  expect(before).toHaveLength(1 + 51 + 1 + 1);   // the bag, the Maps tab, the run in progress and the last run
+  expect(mapsOf(r.state)).toEqual(before.map((m) => ({ ...m, rarity: 'normal', mods: [] })));
+  expect(r.state.activity.kind === 'map' && r.state.activity.run.map).toEqual({ ...old.activity.run.map, rarity: 'normal', mods: [] });
+  expect(r.state.lastRun?.map).toEqual({ ...old.lastRun.map, rarity: 'normal', mods: [] });
+});
+
+it('a malformed schema-7 save is left for the validator to reject', () => {
+  for (const change of [(s: any) => { s.stash.maps = 'x'; }, (s: any) => { s.bag = null; }, (s: any) => { s.stash.maps[0] = { ...s.stash.maps.find((m: any) => m), metre: 0 }; }]) {
+    const env = JSON.parse(decompressFromBase64(fixture7.trim()));
+    change(env.state);
+    expect(decodeSave(raw(env))).toEqual({ ok: false, reason: 'invalid' });
+  }
+});
+
+it('the validator holds the schema-8 maps', () => {
+  const ok = running();
+  const mod = (kind: MapMod['kind'], tier = 1, value = 10): MapMod => ({ kind, tier, value });
+  const SIX = MAP_MOD_KINDS.map((k) => mod(k));
+  // a tier-4 map in the Maps tab, enchanted as `change` says
+  const check = (change: (m: MapItem) => void) => { const s = structuredClone(ok); change(addMap(s, 4, 327)); return decodes(s); };
+  const as = (rarity: MapItem['rarity'], mods: MapMod[], extra: Partial<MapItem> = {}) => (m: MapItem) => { Object.assign(m, { rarity, mods, ...extra }); };
+  expect(check(() => {})).toBe(true);
+  expect(check(as('magic', [mod('monsterLife')]))).toBe(true);
+  expect(check(as('magic', [mod('monsterLife'), mod('hardened')]))).toBe(true);
+  expect(check(as('rare', SIX))).toBe(true);
+  expect(check(as('rare', SIX, { sealed: true }))).toBe(true);
+  expect(check(as('rare', [mod('monsterLife', 6)]))).toBe(true);                                      // tier 4 + 2
+  expect(check(as('rare', [mod('monsterLife'), mod('monsterLife')]))).toBe(false);                     // a repeated kind
+  expect(check(as('rare', [...SIX, mod('bossPower')]))).toBe(false);                                   // more than 6
+  expect(check(as('magic', [mod('monsterLife'), mod('monsterDamage'), mod('monsterSpeed')]))).toBe(false);
+  expect(check(as('normal', [mod('monsterLife')]))).toBe(false);
+  expect(check(as('rare', [mod('monsterLife', 0)]))).toBe(false);
+  expect(check(as('rare', [mod('monsterLife', 7)]))).toBe(false);                                      // above tier 4 + 2
+  expect(check(as('rare', [mod('monsterLife', 1, 2.5)]))).toBe(false);
+  expect(check(as('rare', [mod('monsterLife', 1.5)]))).toBe(false);
+  expect(check(as('rare', [mod('golden' as never)]))).toBe(false);
+  expect(check(as('rare', [{ ...mod('monsterLife'), note: 'x' } as MapMod]))).toBe(false);             // a key a modifier doesn't have
+  expect(check(as('legendary' as never, []))).toBe(false);
+  expect(check((m) => { delete (m as Partial<MapItem>).mods; })).toBe(false);
+  expect(check((m) => { delete (m as Partial<MapItem>).rarity; })).toBe(false);
+  expect(check(as('rare', SIX, { sealed: false as never }))).toBe(false);
+  expect(check(as('rare', SIX, { sealed: 'yes' as never }))).toBe(false);
+  // the running map is held to the same rules
+  const s = structuredClone(ok);
+  if (s.activity.kind !== 'map') throw new Error('no run');
+  Object.assign(s.activity.run.map, { rarity: 'magic', mods: [mod('monsterLife', 1), mod('monsterDamage', 1), mod('bossPower', 1)] });
+  expect(decodes(s)).toBe(false);
+});
+
+it('a found map is a normal map with no modifiers', () => {
+  const s = newGame(1, 0);
+  expect(addMap(s, 3, 40)).toEqual(expect.objectContaining({ rarity: 'normal', mods: [] }));
+  expect(addMap(s, 3, 40).sealed).toBeUndefined();
 });
