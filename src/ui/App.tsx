@@ -2,9 +2,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { GameStore } from '../store/gameStore';
 import type { TabLock } from '../store/tabLock';
 import { startGame, type GameLoop } from './gameLoop';
-import { CharacterPanel } from './character/CharacterPanel';
 import { Header } from './Header';
-import { MapsView } from './maps/MapsView';
+import { InventoryView } from './inventory/InventoryView';
+import { LogView } from './log/LogView';
 import { MerchantView } from './merchant/MerchantView';
 import { MineView } from './mine/MineView';
 import { Nav, type View } from './Nav';
@@ -52,39 +52,41 @@ export function App({ store, lock }: { store: GameStore; lock: TabLock }) {
 
 function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: () => void) => boolean }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const lastRunHeading = useRef<HTMLHeadingElement>(null);
+  const mineTab = useRef<HTMLButtonElement>(null);
   const { offlineSummary, state } = useGame(store);
   const running = state.activity.kind === 'map';
-  const [view, setView] = useState<View>(running ? 'maps' : 'mine');
-  // starting a run, from the Maps view or the stash, brings the player to the map
+  const [view, setView] = useState<View>(running ? 'run' : 'mine');
+  // starting a run, from a map's card, brings the player to the fight; its ending leaves the fight for the Mine
   const wasRunning = useRef(running);
   useEffect(() => {
-    if (running && !wasRunning.current) setView('maps');
+    if (running && !wasRunning.current) setView('run');
+    if (!running && wasRunning.current) setView((v) => (v === 'run' ? 'mine' : v));
     wasRunning.current = running;
   }, [running]);
+  // the Run view without a run (for the one render before the effect above) shows the Mine
+  const shown: View = view === 'run' && !running ? 'mine' : view;
   // digging runs only while the Mine view is on screen
-  useEffect(() => store.setViewPaused(view !== 'mine'), [view, store]);
+  useEffect(() => store.setViewPaused(shown !== 'mine'), [shown, store]);
   return (
     <div className="gm-app">
       <Header store={store} onOpenSettings={() => setSettingsOpen(true)} />
-      <Nav store={store} view={view} onView={setView} />
+      <Nav store={store} view={shown} onView={setView} mineRef={mineTab} />
       <Notices store={store} />
       <main className="gm-app__main">
-        <div className="gm-app__play">
-          {view === 'mine' ? (
-            <MineView store={store} onBackToMap={() => setView('maps')} />
-          ) : view === 'merchant' ? (
-            <MerchantView store={store} />
-          ) : running ? (
-            <RunView store={store} />
-          ) : (
-            <MapsView store={store} lastRunRef={lastRunHeading} />
-          )}
-        </div>
-        <div className="gm-app__side"><CharacterPanel store={store} /></div>
+        {shown === 'mine' ? (
+          <MineView store={store} onBackToMap={() => setView('run')} />
+        ) : shown === 'inventory' ? (
+          <InventoryView store={store} />
+        ) : shown === 'merchant' ? (
+          <MerchantView store={store} />
+        ) : shown === 'log' ? (
+          <LogView store={store} />
+        ) : (
+          <RunView store={store} />
+        )}
       </main>
       <Toast store={store} />
-      <RunResultDialog store={store} fallbackFocus={lastRunHeading} />
+      <RunResultDialog store={store} fallbackFocus={mineTab} onDismiss={() => setView('mine')} />
       {settingsOpen && <SettingsDialog store={store} runAsOwner={runAsOwner} onClose={() => setSettingsOpen(false)} />}
       {offlineSummary && <OfflineSummary summary={offlineSummary} onClose={() => store.dismissSummary()} />}
     </div>

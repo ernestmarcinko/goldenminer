@@ -1,0 +1,2 @@
+.gm-logview { display: flex; flex-direction: column; gap: 16px; min-width: 0; max-width: 760px; }
+.gm-logview__title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 22px; }

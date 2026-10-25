@@ -67,8 +67,10 @@ export function MineView({ store, onBackToMap }: { store: GameStore; onBackToMap
         <div className="gm-mine__minimap-slot">
           <Minimap store={store} />
         </div>
+        <div className="gm-mine__finds-slot">
+          <FindsFeed store={store} />
+        </div>
       </div>
-      <FindsFeed store={store} />
     </div>
   );
 }

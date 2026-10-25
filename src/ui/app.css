@@ -1,11 +1,5 @@
 .gm-app { min-height: 100vh; background: var(--gm-ground); }
-.gm-app__main {
-  display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; padding: 16px 24px 32px; max-width: 1440px;
-  margin: 0 auto; box-sizing: border-box;
-}
-.gm-app__play { flex: 999 1 640px; min-width: 0; }
-/* room for the character panel's 10 × 40 px bag: 445 px plus the panel's padding and border */
-.gm-app__side { flex: 1 1 480px; max-width: 480px; min-width: 0; }
+.gm-app__main { padding: 16px 24px 32px; max-width: 1440px; margin: 0 auto; box-sizing: border-box; }
 
 .gm-nav {
   display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 24px; background: var(--gm-header); border-bottom: 1px solid var(--gm-line);
@@ -17,7 +11,7 @@
 .gm-nav__tab:hover { border-color: var(--gm-line); }
 .gm-nav__tab:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
 .gm-nav__tab[aria-pressed='true'] { background: #2e2617; border-color: var(--gm-gold); color: var(--gm-gold-bright); font-weight: 600; }
-.gm-nav__tab--maps[aria-pressed='true'] { background: var(--gm-soul-panel); border-color: var(--gm-soul); color: var(--gm-soul-bright); }
+.gm-nav__tab--run[aria-pressed='true'] { background: var(--gm-soul-panel); border-color: var(--gm-soul); color: var(--gm-soul-bright); }
 
 .gm-btn {
   min-height: 44px; min-width: 44px; padding: 8px 16px; box-sizing: border-box; cursor: pointer;
@@ -73,7 +67,7 @@
   .gm-nav { padding: 8px 12px; }
 }
 
-/* appears and goes without animating; bottom-centre, so it clears the header and the character panel at the right */
+/* appears and goes without animating; bottom-centre, so it clears the header */
 .gm-toast {
   position: fixed; z-index: 20; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%);
   max-width: calc(100vw - 32px); box-sizing: border-box; display: flex; align-items: center; gap: 10px;

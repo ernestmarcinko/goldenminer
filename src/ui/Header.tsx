@@ -2,7 +2,7 @@ import { LEVEL_CAP } from '../core/balance';
 import type { GameStore } from '../store/gameStore';
 import { Sprite } from '../sprites/Sprite';
 import { formatNumber } from './format';
-import { xpBar } from './maps/mapsView';
+import { xpBar } from './run/runView';
 import { useGame } from './useGame';
 import './mine/mine.css';
 

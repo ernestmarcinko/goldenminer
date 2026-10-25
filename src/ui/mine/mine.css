@@ -36,6 +36,8 @@
 .gm-mine__scene { flex: 999 1 300px; min-width: 0; max-width: 538px; display: flex; flex-direction: column; gap: 10px; }
 .gm-mine__minimap-slot { flex: 1 1 200px; max-width: 240px; min-width: 0; }
 .gm-mine__minimap-slot:empty { display: none; }
+/* with the side panel gone the finds take the rest of the row, or a row of their own when it is narrow */
+.gm-mine__finds-slot { flex: 1 1 300px; min-width: 0; }
 .gm-mine__caption { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 16px; flex-wrap: wrap; }
 .gm-mine__band { font-family: var(--gm-font-display); font-weight: 400; font-size: 18px; }
 .gm-mine__progress { display: flex; flex-direction: column; gap: 6px; }

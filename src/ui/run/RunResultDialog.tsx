@@ -1,12 +1,16 @@
 import { useRef, type RefObject } from 'react';
 import type { GameStore } from '../../store/gameStore';
-import { gainsLine, runTitle } from '../maps/mapsView';
 import { useDialog } from '../useDialog';
 import { useGame } from '../useGame';
-import { runMapLine } from './runView';
+import { gainsLine, runMapLine, runTitle } from './runView';
 
-/** The result of a run that has ended, until the player dismisses it. It shows on any view, since a run ends anywhere. */
-export function RunResultDialog({ store, fallbackFocus }: { store: GameStore; fallbackFocus: RefObject<HTMLElement | null> }) {
+/**
+ * The result of a run that has ended, until the player dismisses it. It shows on any view, since a run ends anywhere;
+ * `onDismiss` runs as it closes.
+ */
+export function RunResultDialog({ store, fallbackFocus, onDismiss }: {
+  store: GameStore; fallbackFocus: RefObject<HTMLElement | null>; onDismiss: () => void;
+}) {
   const { state } = useGame(store);
   const last = state.lastRun;
   if (last === null || last.seen) return null;
@@ -17,7 +21,7 @@ export function RunResultDialog({ store, fallbackFocus }: { store: GameStore; fa
       gains={gainsLine(last.gained, last.items)}
       outcome={last.outcome}
       fallbackFocus={fallbackFocus}
-      onClose={() => store.dismissRun()}
+      onClose={() => { store.dismissRun(); onDismiss(); }}
     />
   );
 }

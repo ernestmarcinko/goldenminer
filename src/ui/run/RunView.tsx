@@ -3,12 +3,11 @@ import { dungeonLayout } from '../../core/dungeons';
 import type { GameStore } from '../../store/gameStore';
 import { lootNoteText } from '../character/itemView';
 import { formatNumber } from '../format';
-import { mapModLines } from '../maps/mapsView';
 import { useGame } from '../useGame';
 import { CombatLog } from './CombatLog';
 import { FightScene } from './FightScene';
 import { RoomTrack } from './RoomTrack';
-import '../maps/maps.css';
+import { mapModLines } from './runView';
 import './run.css';
 
 const LOOT_SHOWN = 5;

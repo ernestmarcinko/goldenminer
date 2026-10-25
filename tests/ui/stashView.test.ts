@@ -1,12 +1,25 @@
 import { expect, it } from 'vitest';
 import fixture3 from '../fixtures/save-schema-3.txt?raw';
+import fixture8 from '../fixtures/save-schema-8.txt?raw';
 import { decodeSave } from '../../src/core/save';
 import { MATERIALS } from '../../src/core/items';
+import type { MapItem } from '../../src/core/items';
+import { putMap } from '../../src/core/maps';
+import { itemAt } from '../../src/core/cells';
 import { newGame } from '../../src/core/newGame';
-import { buyLabel, GRADE_HEADERS, gemTabRows, materialTabCells, pageCells, STASH_TABS, tabLabel } from '../../src/ui/character/stashView';
+import {
+  buyLabel, GRADE_HEADERS, gemTabRows, gridCapacity, mapTierCaption, mapTierCells, mapTiers, materialTabCells, pageCells,
+  pickTier, STASH_TABS, tabLabel,
+} from '../../src/ui/character/stashView';
 
 function migrated() {
   const decoded = decodeSave(fixture3);
+  if (!decoded.ok) throw new Error('fixture does not decode');
+  return decoded.state;
+}
+
+function schema8() {
+  const decoded = decodeSave(fixture8.trim());
   if (!decoded.ok) throw new Error('fixture does not decode');
   return decoded.state;
 }
@@ -74,4 +87,54 @@ it('the Materials tab has one cell per material, in order, with compact counts',
   expect(cells[0]).toEqual({ material: 'copper', label: 'Copper ore', count: 0, text: '' });
   expect(cells[1]).toEqual({ material: 'tin', label: 'Tin ore', count: 7, text: '7' });
   expect(cells[7]).toEqual({ material: 'voidCrystal', label: 'Void crystal', count: 2500, text: '2.5K' });
+});
+
+it('the Maps tab has a chip per tier it holds, lowest first, with its count', () => {
+  const s = schema8();
+  expect(mapTiers(s)).toEqual([
+    { tier: 1, count: 2, label: 'T1 · 2' },
+    { tier: 2, count: 1, label: 'T2 · 1' },
+    { tier: 3, count: 4, label: 'T3 · 4' },
+    { tier: 4, count: 3, label: 'T4 · 3' },
+  ]);
+  expect(mapTiers(newGame(1, 0))).toEqual([]);
+  expect(tabLabel(s, 'maps')).toBe('Maps 10');
+});
+
+it('a tier\'s maps show rare first, then magic, then normal, each newest first, with where each lies', () => {
+  const s = schema8();
+  const cells = mapTierCells(s, 1);
+  const list = s.stash.maps[1] ?? [];
+  expect(cells.map((c) => c.item.rarity)).toEqual(['rare', 'rare']);
+  expect(cells[0]?.item.id).toBeGreaterThan(cells[1]?.item.id ?? Infinity);
+  for (const c of cells) {
+    expect(c.loc).toEqual({ where: 'maps', tier: 1, index: list.indexOf(c.item) });
+    expect(itemAt(s, c.loc)).toBe(c.item);
+  }
+  const plain: MapItem = { id: s.nextId++, type: 'map', tier: 1, metre: 3, rarity: 'normal', mods: [] };
+  const magic: MapItem = { id: 1, type: 'map', tier: 1, metre: 3, rarity: 'magic', mods: [] };
+  expect([putMap(s, plain), putMap(s, magic)]).toEqual(['ok', 'ok']);
+  const after = mapTierCells(s, 1);
+  expect(after.map((c) => c.item.rarity)).toEqual(['rare', 'rare', 'magic', 'normal']);
+  expect(after.at(-1)).toEqual({ item: plain, loc: { where: 'maps', tier: 1, index: 2 } });
+  expect(mapTierCells(s, 9)).toEqual([]);
+});
+
+it('the Maps tab caption names the tier, its count and its room', () => {
+  expect(mapTierCaption(4, 12)).toBe('Tier 4 maps · 12 / 200');
+});
+
+it('the shown tier stays while it holds maps, else the highest tier, else none', () => {
+  expect(pickTier([1, 3], 3)).toBe(3);
+  expect(pickTier([1, 3], 2)).toBe(3);
+  expect(pickTier([1, 3], null)).toBe(3);
+  expect(pickTier([1, 3], 1)).toBe(1);
+  expect(pickTier([], 2)).toBeNull();
+});
+
+it('a grid shows its items in whole rows of ten, never under one page', () => {
+  expect(gridCapacity(0)).toBe(10);
+  expect(gridCapacity(10)).toBe(10);
+  expect(gridCapacity(11)).toBe(20);
+  expect(gridCapacity(200)).toBe(200);
 });

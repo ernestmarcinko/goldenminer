@@ -6,7 +6,7 @@ import {
   battleStatLine, cardHead, clickIntent, compareLines, itemKindLine, itemLines, itemSprite, lootNoteText, miningStatLine, anchorCraft, craftAnchor, craftSlots, fittedCardTop, keptHeight, placeCardTop, placeTooltip, rarityOf,
   statText,
 } from '../../src/ui/character/itemView';
-import { mapDungeon } from '../../src/ui/maps/mapsView';
+import { mapDungeon } from '../../src/ui/run/runView';
 import type { MapItem } from '../../src/core/items';
 import { gear, gem } from '../helpers/items';
 

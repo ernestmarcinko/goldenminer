@@ -1,10 +1,4 @@
-.gm-char {
-  position: relative; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; padding: 16px;
-  border-radius: 12px; background: var(--gm-panel); border: 1px solid var(--gm-line);
-}
-.gm-char__head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
-.gm-char__title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 18px; }
-.gm-char__toggle { display: flex; gap: 4px; padding: 3px; border-radius: 10px; background: var(--gm-ground); }
+.gm-char__toggle { display: flex; align-self: flex-start; gap: 4px; padding: 3px; border-radius: 10px; background: var(--gm-ground); }
 .gm-char__tab {
   min-height: 44px; padding: 0 14px; border-radius: 8px; border: 1px solid transparent; background: transparent;
   color: var(--gm-normal); font: inherit; font-weight: 600; cursor: pointer;
@@ -13,7 +7,6 @@
 .gm-char__tab:focus-visible, .gm-item:focus-visible, .gm-card__btn:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
 .gm-char__stats { padding: 8px 10px; border-radius: 8px; background: var(--gm-panel-raised); font-size: 12px; color: var(--gm-normal); }
 .gm-char__baghead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
-.gm-char__bagbtns { display: flex; flex-wrap: wrap; gap: 8px; }
 .gm-char__bag { margin: 0; font-size: 14px; }
 .gm-char__bag .gm-muted { font-weight: 400; }
 .gm-char__status { min-height: 1.45em; color: var(--gm-down); }
@@ -66,7 +59,6 @@ button.gm-item:hover { background: #3a2f20; }
    the target's outline shows */
 .gm-item[data-drag-source] { opacity: 0.4; }
 [data-drop-over] { outline: 2px dashed var(--gm-up); outline-offset: -3px; }
-.gm-stash__tab[data-drop-over] { outline-offset: -4px; }
 .gm-ghost {
   position: fixed; z-index: 100; pointer-events: none; opacity: 0.85; border-color: var(--gm-tone);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.7); transform: translate(12px, 12px) rotate(-4deg);
@@ -137,38 +129,6 @@ button.gm-item:hover { background: #3a2f20; }
 /* where a craft that went away was, while the card stays open: the other crafts keep their places */
 .gm-card__slot { min-height: 44px; }
 
-.gm-stash { position: relative; display: flex; flex-direction: column; gap: 12px; }
-.gm-overlay.gm-overlay--top { align-items: flex-start; padding-top: max(16px, 6vh); }
-/* the dialog is a size container: the stash page and the bag sit side by side only while both fit at 40 px cells */
-.gm-dialog.gm-stash { max-width: 980px; container: gm-stash / inline-size; }
-.gm-stash .gm-char__status:empty { min-height: 0; margin-top: -12px; }
-.gm-stash__body { display: flex; align-items: flex-start; gap: 24px; }
-.gm-stash__main { display: flex; flex-direction: column; min-width: 0; }
-.gm-stash__tabs { display: flex; gap: 4px; }
-.gm-stash__tab {
-  min-height: 44px; padding: 0 14px; border-radius: 8px 8px 0 0; border: 1px solid var(--gm-line); border-bottom: 0;
-  background: var(--gm-header); color: var(--gm-normal); font: inherit; font-weight: 700; cursor: pointer;
-}
-.gm-stash__tab[aria-selected='true'] { background: var(--gm-panel-raised); border-color: var(--gm-gold); color: var(--gm-gold-bright); }
-.gm-stash__tab:focus-visible, .gm-stash__panel:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: -2px; }
-.gm-stash__panel {
-  box-sizing: border-box; padding: 10px; border-radius: 0 8px 8px 8px; background: var(--gm-panel-raised);
-  border: 1px solid var(--gm-gold);
-}
-.gm-stash__paged { display: flex; flex-direction: column; gap: 10px; }
-.gm-stash__pages { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.gm-stash__page {
-  min-height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--gm-line); background: var(--gm-panel);
-  color: var(--gm-normal); font: inherit; font-size: 13px; cursor: pointer;
-}
-.gm-stash__page:hover { border-color: var(--gm-gold); }
-.gm-stash__page[aria-pressed='true'] { border-color: var(--gm-gold); color: var(--gm-gold-bright); }
-.gm-stash__page--buy { border-style: dashed; border-color: var(--gm-gold); color: var(--gm-gold); }
-.gm-stash__page--buy[aria-disabled='true'] { opacity: 0.5; }
-.gm-stash__page:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
-.gm-stash__bag { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.gm-stash__bag .gm-char__toggle { align-self: flex-start; }
-
 .gm-gemtab { display: grid; grid-template-columns: 72px repeat(5, minmax(44px, 52px)); gap: 6px; align-items: center; }
 .gm-gemtab__cell { display: grid; aspect-ratio: 1; min-width: 44px; }
 .gm-gemtab__cell > .gm-cell { height: 100%; }
@@ -201,14 +161,7 @@ button.gm-item:hover { background: #3a2f20; }
   outline: 2px solid var(--gm-gold-bright); outline-offset: 2px;
 }
 
-/* a 467 px stash panel, the 24 px gap and the 445 px bag */
-@container gm-stash (width < 936px) {
-  .gm-stash__body { flex-direction: column; align-items: stretch; gap: 16px; }
-}
 @media (max-width: 600px) {
-  .gm-char { padding: 12px; }
-  .gm-stash__panel { padding: 8px; }
-  .gm-stash__tab { padding: 0 10px; }
   .gm-gemtab { grid-template-columns: 56px repeat(5, minmax(44px, 52px)); gap: 4px; }
   .gm-gemtab__name { font-size: 12px; }
   .gm-mattab { grid-template-columns: repeat(4, minmax(44px, 60px)); gap: 4px 6px; }
