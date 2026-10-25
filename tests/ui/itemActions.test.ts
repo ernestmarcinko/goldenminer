@@ -1,13 +1,16 @@
 import { expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
+import type { MapItem } from '../../src/core/items';
 import type { ItemLoc } from '../../src/core/types';
 import { addMap, startMap } from '../../src/core/maps';
 import { GameStore } from '../../src/store/gameStore';
 import { MemoryStorage } from '../../src/store/storage';
-import { actionForIntent, hoverNote, itemActions, resultText, runAction } from '../../src/ui/character/itemActions';
+import {
+  actionForIntent, hoverLines, hoverNote, itemActions, resultText, runAction, soulUpgradeResultText,
+} from '../../src/ui/character/itemActions';
 import { gear, gem } from '../helpers/items';
 import { lootNoteText } from '../../src/ui/character/itemView';
-import { MATERIAL_STASH_STACK } from '../../src/core/balance';
+import { MATERIAL_STASH_STACK, MAX_ITEM_LEVEL } from '../../src/core/balance';
 
 const bag = (index: number): ItemLoc => ({ where: 'bag', index });
 const labels = (specs: ReturnType<typeof itemActions>) => specs.map((a) => [a.id, a.label]);
@@ -140,15 +143,15 @@ it('every refusal has a message, and success has none', () => {
 
 it('a bag map runs or goes to the Maps tab; a Maps-tab map runs or comes back to the bag', () => {
   const s = newGame(1, 0);
-  const carried = { id: s.nextId++, type: 'map', tier: 4, metre: 327 } as const;
+  const carried: MapItem = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
   s.bag[0] = carried;
-  s.stash.maps[2] = { id: s.nextId++, type: 'map', tier: 1, metre: 2 };
+  s.stash.maps[2] = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] };
   const tab: ItemLoc = { where: 'maps', index: 2 };
-  expect(itemActions(s, bag(0))).toEqual([
+  expect(noCrafts(itemActions(s, bag(0)))).toEqual([
     { id: 'run', label: 'Run this map', disabled: false },
     { id: 'toStash', label: 'To Maps tab', disabled: false },
   ]);
-  expect(itemActions(s, tab)).toEqual([
+  expect(noCrafts(itemActions(s, tab))).toEqual([
     { id: 'run', label: 'Run this map', disabled: false },
     { id: 'toBag', label: 'To bag', disabled: false },
   ]);
@@ -163,13 +166,13 @@ it('a bag map runs or goes to the Maps tab; a Maps-tab map runs or comes back to
 
 it('a map cannot run while another run is going, and moves need room', () => {
   const s = newGame(1, 0);
-  s.bag[0] = { id: s.nextId++, type: 'map', tier: 4, metre: 327 };
-  s.stash.maps[2] = { id: s.nextId++, type: 'map', tier: 1, metre: 2 };
+  s.bag[0] = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
+  s.stash.maps[2] = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] };
   startMap(s, addMap(s, 1, 2).id);
   const tab: ItemLoc = { where: 'maps', index: 2 };
   expect(itemActions(s, bag(0))[0]).toMatchObject({ id: 'run', disabled: true });
   expect(itemActions(s, tab)[0]).toMatchObject({ id: 'run', disabled: true });
-  s.stash.maps = s.stash.maps.map((c) => c ?? { id: s.nextId++, type: 'map', tier: 1, metre: 2 });
+  s.stash.maps = s.stash.maps.map((c) => c ?? { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] });
   expect(itemActions(s, bag(0))[1]).toMatchObject({ id: 'toStash', disabled: true });
   s.bag = s.bag.map((c) => c ?? gear(s, 'ring'));
   expect(itemActions(s, tab)[1]).toMatchObject({ id: 'toBag', disabled: true });
@@ -179,7 +182,7 @@ it('Run this map starts that map', () => {
   const store = new GameStore({ storage: new MemoryStorage(), storageAvailable: true, now: () => 0, newSeed: () => 7 });
   store.load();
   const s = store.state;
-  const map = { id: s.nextId++, type: 'map', tier: 1, metre: 2 } as const;
+  const map: MapItem = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] };
   s.stash.maps[5] = map;
   const t: ItemLoc = { where: 'maps', index: 5 };
   const run = itemActions(s, t).find((a) => a.id === 'run');
@@ -194,7 +197,7 @@ it('Run this map during a run is refused as busy', () => {
   const store = new GameStore({ storage: new MemoryStorage(), storageAvailable: true, now: () => 0, newSeed: () => 7 });
   store.load();
   const s = store.state;
-  s.bag[0] = { id: s.nextId++, type: 'map', tier: 1, metre: 2 };
+  s.bag[0] = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] };
   store.startMap(addMap(s, 1, 2).id);
   expect(runAction(store, bag(0), { id: 'run', label: 'Run this map', disabled: true })).toBe('busy');
   expect(s.bag[0]).not.toBeNull();
@@ -285,4 +288,122 @@ it('a craft action crafts through the store', () => {
   expect(s.bag[0]).toMatchObject({ rarity: 'magic' });
   expect(s.stash.materials.copper).toBe(2);
   expect(store.lastCraft).toMatchObject({ kind: 'copper', check: 'ok' });
+});
+
+it('a map card lists its enchants after Run this map and the move', () => {
+  const s = newGame(1, 0);
+  s.bag[0] = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
+  s.stash.maps[2] = {
+    id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'magic', mods: [{ kind: 'monsterLife', tier: 2, value: 15 }],
+  };
+  s.stash.materials.copper = 37;
+  s.stash.materials.iron = 37;
+  s.souls = 50;
+  expect(itemActions(s, bag(0))).toEqual([
+    { id: 'run', label: 'Run this map', disabled: false },
+    { id: 'toStash', label: 'To Maps tab', disabled: false },
+    { id: 'craft', kind: 'copper', label: 'Copper ore ×3 + 20 Souls: enchant it', disabled: false },
+  ]);
+  const tab = itemActions(s, { where: 'maps', index: 2 });
+  expect(tab.slice(0, 2).map((a) => a.id)).toEqual(['run', 'toBag']);
+  expect(tab.slice(2).map((a) => [a.id, a.kind, a.disabled])).toEqual([
+    ['craft', 'iron', false], ['craft', 'obsidian', true], ['craft', 'voidCrystal', true],
+  ]);
+  s.souls = 19;
+  expect(itemActions(s, bag(0))[2]).toMatchObject({ kind: 'copper', disabled: true });
+});
+
+it('an enchant action enchants a map through the store, and spends its Souls', () => {
+  const store = new GameStore({ storage: new MemoryStorage(), storageAvailable: true, now: () => 0, newSeed: () => 7 });
+  store.load();
+  const s = store.state;
+  s.stash.maps[5] = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
+  s.stash.materials.copper = 5;
+  s.souls = 50;
+  const t: ItemLoc = { where: 'maps', index: 5 };
+  const copper = itemActions(s, t).find((a) => a.id === 'craft' && a.kind === 'copper');
+  if (copper === undefined) throw new Error('no copper enchant');
+  expect(runAction(store, t, copper)).toBe('ok');
+  expect(s.stash.maps[5]).toMatchObject({ rarity: 'magic' });
+  expect(s.stash.materials.copper).toBe(2);
+  expect(s.souls).toBe(30);
+});
+
+it("a map's hover card says once what enchanting does; other items add nothing", () => {
+  const s = newGame(1, 0);
+  const note = {
+    text: 'Enchanting never changes the dungeon itself; it scales the monsters and the rewards. Dying still loses the map.',
+    tone: 'muted',
+  };
+  expect(hoverLines({ id: 1, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] })).toEqual([note]);
+  expect(hoverLines({ id: 2, type: 'map', tier: 4, metre: 327, rarity: 'rare', mods: [], sealed: true })).toEqual([note]);
+  expect(hoverLines(gear(s, 'pickaxe'))).toEqual([]);
+  expect(hoverLines(gem(s))).toEqual([]);
+});
+
+it('battle gear offers a Soul upgrade after its other actions and before its crafts, in the bag, the General tab and worn', () => {
+  const s = newGame(1, 0);
+  s.souls = 180;
+  s.bag[0] = gear(s, 'ring', { rarity: 'normal', ilvl: 6 });
+  s.stash.general[0] = gear(s, 'helm', { rarity: 'normal', ilvl: 6 });
+  s.equipped.battle.weapon = gear(s, 'weapon', { rarity: 'normal', ilvl: 6 });
+  const upgrade = { id: 'soulUpgrade', label: 'Upgrade with Souls: item level 6 → 7 · 180 Souls', disabled: false };
+  const ids = (t: ItemLoc) => itemActions(s, t).map((a) => a.id);
+  expect(itemActions(s, bag(0))[4]).toEqual(upgrade);
+  expect(ids(bag(0))).toEqual(['equip', 'sell', 'salvage', 'toStash', 'soulUpgrade', 'craft', 'craft']);
+  expect(itemActions(s, { where: 'stash', index: 0 })[4]).toEqual(upgrade);
+  expect(ids({ where: 'stash', index: 0 })).toEqual(['equip', 'toBag', 'sell', 'salvage', 'soulUpgrade', 'craft', 'craft']);
+  expect(itemActions(s, { where: 'worn', slot: 'weapon' })[2]).toEqual(upgrade);
+  expect(ids({ where: 'worn', slot: 'weapon' })).toEqual(['unequip', 'toStash', 'soulUpgrade', 'craft', 'craft']);
+  s.souls = 179;
+  expect(itemActions(s, bag(0))[4]).toEqual({ ...upgrade, disabled: true });
+  s.souls = 1_000_000;
+  (s.bag[0] as { ilvl: number }).ilvl = 7;
+  expect(itemActions(s, bag(0))[4]).toMatchObject({ label: 'Upgrade with Souls: item level 7 → 8 · 245 Souls', disabled: false });
+  (s.bag[0] as { ilvl: number }).ilvl = 1_234;
+  expect(itemActions(s, bag(0))[4]).toMatchObject({ label: 'Upgrade with Souls: item level 1,234 → 1,235 · 7,613,780 Souls', disabled: true });
+});
+
+it('a legendary takes a Soul upgrade; sealed gear, mining gear and other items offer none', () => {
+  const s = newGame(1, 0);
+  s.souls = 1_000;
+  s.bag[0] = gear(s, 'amulet', { rarity: 'legendary', ilvl: 6, affixes: [{ stat: 'life', value: 20, tier: 0 }] });
+  s.bag[1] = gear(s, 'armor', { rarity: 'rare', ilvl: 6, sealed: true });
+  s.bag[2] = gear(s, 'pickaxe', { ilvl: 6 });
+  s.bag[3] = gem(s);
+  s.bag[4] = { id: s.nextId++, type: 'material', material: 'copper', count: 5 };
+  s.bag[5] = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
+  s.equipped.mining.boots = gear(s, 'boots', { ilvl: 6 });
+  const has = (t: ItemLoc) => itemActions(s, t).some((a) => a.id === 'soulUpgrade');
+  expect(has(bag(0))).toBe(true);
+  for (const i of [1, 2, 3, 4, 5]) expect(has(bag(i)), `bag ${i}`).toBe(false);
+  expect(has({ where: 'worn', slot: 'boots' })).toBe(false);
+});
+
+it('at the highest item level the Soul upgrade stays on the card, disabled', () => {
+  const s = newGame(1, 0);
+  s.souls = Number.MAX_SAFE_INTEGER;
+  s.bag[0] = gear(s, 'ring', { ilvl: MAX_ITEM_LEVEL });
+  expect(itemActions(s, bag(0)).find((a) => a.id === 'soulUpgrade')).toEqual({
+    id: 'soulUpgrade', label: 'Upgrade with Souls: item level 100,000 is the highest', disabled: true,
+  });
+});
+
+it('a Soul upgrade action upgrades through the store, and says why it was refused', () => {
+  const store = new GameStore({ storage: new MemoryStorage(), storageAvailable: true, now: () => 0, newSeed: () => 7 });
+  store.load();
+  const s = store.state;
+  s.bag[0] = gear(s, 'ring', { ilvl: 6 });
+  s.souls = 200;
+  const upgrade = itemActions(s, bag(0)).find((a) => a.id === 'soulUpgrade');
+  if (upgrade === undefined) throw new Error('no Soul upgrade');
+  expect(runAction(store, bag(0), upgrade)).toBe('ok');
+  expect(s.bag[0]).toMatchObject({ ilvl: 7 });
+  expect(s.souls).toBe(20);
+  expect(runAction(store, bag(0), upgrade)).toBe('craftRefused');
+  expect(s.bag[0]).toMatchObject({ ilvl: 7 });
+  expect(soulUpgradeResultText('ok')).toBeNull();
+  expect(soulUpgradeResultText('noSouls')).toBe('Not enough Souls.');
+  expect(soulUpgradeResultText('maxLevel')).toBe("It can't go any higher.");
+  for (const r of ['notBattle', 'sealed', 'invalid'] as const) expect(soulUpgradeResultText(r)).toEqual(expect.any(String));
 });

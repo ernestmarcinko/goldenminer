@@ -5,7 +5,7 @@ import { isGear } from '../../core/items';
 import type { GearItem } from '../../core/items';
 import { itemName } from '../../core/itemData';
 import type { GameState } from '../../core/types';
-import { hoverNote, itemActions } from './itemActions';
+import { hoverLines, hoverNote, itemActions } from './itemActions';
 import type { ActionSpec, ItemTarget } from './itemActions';
 import {
   anchorCraft, cardHead, compareLines, craftAnchor, craftSlots, fittedCardTop, itemKindLine, itemLines, keptHeight, rarityOf,
@@ -44,15 +44,20 @@ function EquippedContent({ worn }: { worn: GearItem }) {
   );
 }
 
-/** `card`'s craft slots, measured down the card, or null when it has none. */
+/** The Soul upgrade's slot, kept and anchored with the craft slots below it, by its action id. */
+const UPGRADE: ActionSpec['id'] = 'soulUpgrade';
+
+/** `card`'s Soul upgrade slot and craft slots, measured down the card, or null when it has none. */
 function craftGrid(card: HTMLElement): CraftGrid | null {
+  const upgrade = card.querySelector<HTMLElement>('[data-upgrade]');
   const grid = card.querySelector('.gm-card__crafts');
-  if (grid === null) return null;
+  const first = upgrade ?? grid;
+  if (first === null) return null;
   const top = card.getBoundingClientRect().top;
-  const slots = [...grid.children] as HTMLElement[];
+  const slots = [...(upgrade === null ? [] : [upgrade]), ...(grid === null ? [] : grid.children)] as HTMLElement[];
   return {
-    top: grid.getBoundingClientRect().top - top,
-    kinds: slots.map((b) => b.dataset.craft ?? ''),
+    top: first.getBoundingClientRect().top - top,
+    kinds: slots.map((b) => b.dataset.craft ?? b.dataset.upgrade ?? ''),
     tops: slots.map((b) => b.getBoundingClientRect().top - top),
   };
 }
@@ -100,12 +105,15 @@ export function ItemCard({ state, target, left, top, fit, menu, inline = false, 
       gridEl.style.minHeight = `${tallest.current.crafts}px`;
     }
   });
-  // the craft slots keep their order while a placed card is open; the order is kept once the render commits
+  // the upgrade and craft slots keep their order while a placed card is open; the order is kept once the render commits
   const actions = isMenu ? itemActions(state, target) : [];
+  const upgrade = actions.find((a) => a.id === UPGRADE);
   const crafts = actions.filter((a) => a.id === 'craft');
   const craftKinds = crafts.flatMap((a) => (a.kind === undefined ? [] : [a.kind]));
-  const slots = fit === undefined ? craftKinds : craftSlots(slotOrder.current, craftKinds);
+  const kinds = upgrade === undefined ? craftKinds : [UPGRADE, ...craftKinds];
+  const slots = fit === undefined ? kinds : craftSlots(slotOrder.current, kinds);
   useLayoutEffect(() => { slotOrder.current = slots; });
+  const craftSlotKinds = slots.filter((k) => k !== UPGRADE);
   const anchorOn = (kind: string): void => {
     const grid = ref.current === null ? null : craftGrid(ref.current);
     if (fit !== undefined && grid !== null) anchor.current = craftAnchor(grid, kind);
@@ -116,14 +124,16 @@ export function ItemCard({ state, target, left, top, fit, menu, inline = false, 
     if (inline) ref.current?.scrollIntoView({ block: 'nearest', behavior: smooth ? 'smooth' : 'auto' });
     ref.current?.querySelector('button')?.focus({ preventScroll: inline });
   }, [isMenu, inline]);   // when the card opens, not when `smooth` changes
-  // a craft can take its own button away (Copper makes the item magic): focus stays in the card, on the next craft
+  // a craft can take its own button away (Copper makes the item magic): focus stays in the card, on the next craft,
+  // or on Close once a temper has sealed it, never on an action like "Run this map" that a second Enter would take
   const crafted = useRef(false);
   useEffect(() => {
     if (!crafted.current) return;
     crafted.current = false;
     const card = ref.current;
     if (card === null || card.contains(document.activeElement)) return;
-    (card.querySelector<HTMLElement>('[data-craft]') ?? card.querySelector('button'))?.focus({ preventScroll: true });
+    const next = card.querySelector<HTMLElement>('[data-craft]') ?? card.querySelector<HTMLElement>('[data-close]');
+    next?.focus({ preventScroll: true });
   });
 
   const item = itemAt(state, target);
@@ -132,7 +142,8 @@ export function ItemCard({ state, target, left, top, fit, menu, inline = false, 
   const worn = wornToCompare(state, item, target.where === 'worn');
   const compare = isGear(item) && target.where !== 'worn' ? compareLines(item, worn) : null;
   const beside = pair && !isMenu && worn !== undefined;
-  const others = actions.filter((a) => a.id !== 'craft');
+  const others = actions.filter((a) => a.id !== 'craft' && a.id !== UPGRADE);
+  const lines = isMenu ? itemLines(item) : [...itemLines(item), ...hoverLines(item)];
   const wornBlock = worn !== undefined && !beside && (
     <div className="gm-card__equipped" data-rarity={rarityOf(worn)}><EquippedContent worn={worn} /></div>
   );
@@ -160,7 +171,7 @@ export function ItemCard({ state, target, left, top, fit, menu, inline = false, 
     >
       <div className="gm-card__name">{name}</div>
       <div className="gm-card__kind">{kind}</div>
-      <div className="gm-card__lines"><Lines lines={itemLines(item)} /></div>
+      <div className="gm-card__lines"><Lines lines={lines} /></div>
       {compare !== null && compare.lines.length > 0 && (
         <div className="gm-card__compare">
           <div className="gm-card__kind">{compare.title}</div>
@@ -184,11 +195,26 @@ export function ItemCard({ state, target, left, top, fit, menu, inline = false, 
               {a.label}
             </button>
           ))}
-          {crafts.length > 0 && (
+          {/* the upgrade's slot stays, empty, when a temper seals the item, so the crafts below don't move up */}
+          {slots.includes(UPGRADE) && (upgrade === undefined ? (
+            <div className="gm-card__slot" data-upgrade="" aria-hidden="true" onMouseDown={(e) => e.preventDefault()} />
+          ) : (
+            <button
+              type="button"
+              className="gm-card__btn"
+              data-upgrade={UPGRADE}
+              aria-disabled={upgrade.disabled || undefined}
+              onClick={() => { anchorOn(UPGRADE); menu.onAction(upgrade); }}
+            >
+              {upgrade.label}
+            </button>
+          ))}
+          {/* kept while the card is open, even when a temper seals the item and every slot is empty */}
+          {craftSlotKinds.length > 0 && (
             <>
-              <div className="gm-card__label gm-card__craft">Craft</div>
+              <div className="gm-card__label gm-card__craft">{item.type === 'map' ? 'Enchant' : 'Craft'}</div>
               <div className="gm-card__crafts">
-                {slots.map((k) => {
+                {craftSlotKinds.map((k) => {
                   const a = crafts.find((c) => c.kind === k);
                   // a click on an empty slot keeps focus where it is, in the card
                   if (a === undefined) {
@@ -215,7 +241,7 @@ export function ItemCard({ state, target, left, top, fit, menu, inline = false, 
           {menu.onPutBack !== undefined && (
             <button type="button" className="gm-card__btn" onClick={menu.onPutBack}>Put back</button>
           )}
-          <button type="button" className="gm-card__btn gm-card__btn--quiet" onClick={menu.onClose}>Close</button>
+          <button type="button" className="gm-card__btn gm-card__btn--quiet" data-close="" onClick={menu.onClose}>Close</button>
         </div>
       ) : (
         <div className="gm-card__note">{hoverNote(target, item)}</div>

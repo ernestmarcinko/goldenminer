@@ -1,6 +1,6 @@
-import type { Cell, GearItem, GearSet, GemGrade, GemType, MapItem, Material, Rarity, Slot } from './items';
+import type { Cell, GearItem, GearSet, GemGrade, GemType, MapItem, MapMod, MapRarity, Material, Rarity, Slot } from './items';
 
-export type { MapItem };
+export type { MapItem, MapMod, MapRarity };
 export const FEATURE_KINDS = ['goldVein', 'diamondVein', 'chest', 'gem', 'map'] as const;
 export type FeatureKind = (typeof FEATURE_KINDS)[number];
 export const FIND_KINDS = [...FEATURE_KINDS, 'materialVein'] as const;
@@ -73,7 +73,9 @@ export type InvResult =
   | 'wrongSlot' | 'gemsOnly' | 'gearOnly' | 'mapsOnly' | 'materialsOnly' | 'stackFull' | 'craftRefused';
 /** What a craft spends: a material, or Diamonds for the exalt. */
 export type CraftKind = Material | 'diamond';
-export type CraftCheck = 'ok' | 'notGear' | 'legendary' | 'sealed' | 'wrongRarity' | 'noRoom' | 'nothingToChange' | 'short' | 'gemsFull';
+export type CraftCheck =
+  | 'ok' | 'notGear' | 'legendary' | 'sealed' | 'wrongRarity' | 'noRoom' | 'nothingToChange' | 'short' | 'gemsFull'
+  | 'notForMaps' | 'noSouls';
 export type TemperOutcome = 'craftedLine' | 'raiseTiers' | 'nothing' | 'ruin';
 export interface CraftResult { check: CraftCheck; temper?: TemperOutcome }
 export interface GameState {

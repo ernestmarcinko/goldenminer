@@ -267,12 +267,12 @@ it('drops, sends and unequips never create or lose items, and the walk reaches e
   s.bag[42] = gem(s, 'ruby', { count: 25 });
   s.bag[43] = gem(s, 'sapphire', { grade: 'big', count: 25 });
   s.bag[44] = gem(s, 'sapphire', { grade: 'big', count: 7 });
-  s.bag[45] = { id: s.nextId++, type: 'map', tier: 2, metre: 70 };
+  s.bag[45] = { id: s.nextId++, type: 'map', tier: 2, metre: 70, rarity: 'normal', mods: [] };
   s.stash.gems.ruby.tiny = 60;
   s.stash.gems.sapphire.big = 999_990;
   s.stash.gems.emerald.small = 30;
   s.stash.gems.amethyst.giant = 3;
-  for (let i = 0; i < 8; i++) s.stash.maps[i] ??= { id: s.nextId++, type: 'map', tier: 1 + (i % 3), metre: 5 + i };
+  for (let i = 0; i < 8; i++) s.stash.maps[i] ??= { id: s.nextId++, type: 'map', tier: 1 + (i % 3), metre: 5 + i, rarity: 'normal', mods: [] };
   let n = 0;
   for (let i = 0; i < s.bag.length; i++) {
     if (s.bag[i] !== null) continue;
@@ -377,7 +377,7 @@ it('drops, sends and unequips never create or lose items, and the walk reaches e
   for (const [name, count] of Object.entries(seen)) expect([name, count > 0]).toEqual([name, true]);
 });
 
-const mapAt = (s: GameState, tier: number, metre = 10): MapItem => ({ id: s.nextId++, type: 'map', tier, metre });
+const mapAt = (s: GameState, tier: number, metre = 10): MapItem => ({ id: s.nextId++, type: 'map', tier, metre, rarity: 'normal', mods: [] });
 const mapsLoc = (index: number): ItemLoc => ({ where: 'maps', index });
 
 it('gear of either set lives in the one bag', () => {

@@ -103,7 +103,7 @@ it('salvage gives low-tier materials to the Materials tab, never Diamonds', () =
 
 it('maps and materials yield nothing, and salvage stops at the tab cap', () => {
   const s = newGame(1, 0);
-  expect(salvageYield({ id: 1, type: 'map', tier: 3, metre: 40 })).toEqual({});
+  expect(salvageYield({ id: 1, type: 'map', tier: 3, metre: 40, rarity: 'normal', mods: [] })).toEqual({});
   expect(salvageYield({ id: 2, type: 'material', material: 'tin', count: 9 })).toEqual({});
   expect(salvageYield(gear(s, 'ring', { rarity: 'legendary', ilvl: 0 }))).toEqual({ tin: 3, iron: 3, silver: 1 });
   s.stash.materials.copper = MATERIAL_STASH_STACK - 1;

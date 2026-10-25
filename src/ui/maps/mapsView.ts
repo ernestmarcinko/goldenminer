@@ -2,6 +2,7 @@ import { dungeonIndexAt, dungeonType, type DungeonType } from '../../core/dungeo
 import { filledCount } from '../../core/cells';
 import { xpToNext } from '../../core/levels';
 import { STASH_PAGE_SIZE } from '../../core/balance';
+import { MAP_MOD_TEXT, mapEffects } from '../../core/mapMods';
 import type { GameState, MapItem, RunGains, RunResult } from '../../core/types';
 import { formatNumber, plural } from '../format';
 
@@ -36,15 +37,42 @@ export function mapDungeon(seed: number, map: Pick<MapItem, 'tier' | 'metre'>): 
   return { key: `${map.tier}:${index}`, type: dungeonType(seed, map.tier, index) };
 }
 
-/** One map to run, and where it lies. `page` is 1-based within the Maps tab, and 0 for the bag. */
-export interface MapRow { id: number; name: string; tier: number; metre: number; rooms: number; where: 'bag' | 'maps'; page: number }
+/** A map's modifiers with their tiers, in their rolled order. */
+export function mapModTexts(map: MapItem): string[] {
+  return map.mods.map((m) => `T${formatNumber(m.tier)} ${MAP_MOD_TEXT[m.kind](m.value)}`);
+}
+
+/** What a map's modifiers pay, or '' for a map with none. */
+export function mapRewardsText(map: MapItem): string {
+  if (map.mods.length === 0) return '';
+  const e = mapEffects(map);
+  return `Rewards: +${formatNumber(e.quantity)}% items · +${formatNumber(e.rarity)}% rarity · +${formatNumber(e.souls)}% Souls`;
+}
+
+/** A map's modifiers, then what they pay; none for a normal map. The item card and the run's head show these. */
+export function mapModLines(map: MapItem): string[] {
+  const rewards = mapRewardsText(map);
+  return rewards === '' ? [] : [...mapModTexts(map), rewards];
+}
+
+/**
+ * One map to run, and where it lies. `page` is 1-based within the Maps tab, and 0 for the bag. `mods` is the
+ * modifier lines, and `rewards` what they pay ('' for a normal map).
+ */
+export interface MapRow {
+  id: number; name: string; tier: number; metre: number; rooms: number; where: 'bag' | 'maps'; page: number;
+  rarity: MapItem['rarity']; mods: string[]; rewards: string;
+}
 
 /** Every map in the bag and the Maps tab, the highest tier first, then by name, then by id. */
 export function mapRows(state: GameState): MapRow[] {
   const rows: MapRow[] = [];
   const add = (m: MapItem, where: 'bag' | 'maps', page: number): void => {
     const { type } = mapDungeon(state.seed, m);
-    rows.push({ id: m.id, name: type.name, tier: m.tier, metre: m.metre, rooms: type.rooms, where, page });
+    rows.push({
+      id: m.id, name: type.name, tier: m.tier, metre: m.metre, rooms: type.rooms, where, page,
+      rarity: m.rarity, mods: mapModTexts(m), rewards: mapRewardsText(m),
+    });
   };
   state.bag.forEach((c) => { if (c !== null && c.type === 'map') add(c, 'bag', 0); });
   state.stash.maps.forEach((c, i) => { if (c !== null) add(c, 'maps', Math.floor(i / STASH_PAGE_SIZE) + 1); });

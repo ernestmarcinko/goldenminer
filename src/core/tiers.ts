@@ -1,12 +1,17 @@
 import { STAT_TIERS } from './balance';
 import type { StatKey } from './items';
 
-/** The values a stat can roll at a tier; each tier starts where the one below it ends. */
-export function tierRange(stat: StatKey, tier: number): { lo: number; hi: number } {
-  const { base, step } = STAT_TIERS[stat];
+/** The values a tier rolls, for a gear line or a map modifier; each tier starts where the one below it ends. */
+export function rangeOf(def: { base: number; step: number }, tier: number): { lo: number; hi: number } {
+  const { base, step } = def;
   const lo = Math.max(1, Math.round(base + step * (tier - 1)));
   const hi = Math.max(lo, Math.round(base + step * tier) - 1);
   return { lo, hi };
+}
+
+/** The values a stat can roll at a tier. */
+export function tierRange(stat: StatKey, tier: number): { lo: number; hi: number } {
+  return rangeOf(STAT_TIERS[stat], tier);
 }
 
 /** The lowest tier whose range reaches `value`; worked out directly, so an absurd value from a save costs nothing. */

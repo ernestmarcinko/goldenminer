@@ -3,16 +3,17 @@ import { firstEmpty } from './cells';
 import { endRun } from './combat';
 import { dungeonLayout } from './dungeons';
 import type { Cell, MapItem } from './items';
+import { mapEffects } from './mapMods';
 import { monsterState } from './monsters';
 import type { GameState } from './types';
 
 /**
- * A found map takes the first empty Maps-tab cell. A full tab drops its lowest-tier, oldest map to make room, so on a
- * tie the newer map stays; a new map strictly below every map in the tab is not kept (its id is still used). Maps in
- * the bag are never dropped.
+ * A found map is a normal one, and takes the first empty Maps-tab cell. A full tab drops its lowest-tier, oldest map
+ * to make room, so on a tie the newer map stays; a new map strictly below every map in the tab is not kept (its id is
+ * still used). Maps in the bag are never dropped.
  */
 export function addMap(state: GameState, tier: number, metre: number): MapItem {
-  const map: MapItem = { id: state.nextId++, type: 'map', tier, metre };
+  const map: MapItem = { id: state.nextId++, type: 'map', tier, metre, rarity: 'normal', mods: [] };
   const maps = state.stash.maps;
   const empty = firstEmpty(maps);
   if (empty >= 0) {
@@ -46,7 +47,8 @@ export function startMap(state: GameState, mapId: number): 'ok' | 'busy' | 'inva
   const map = takeMap(state, mapId);
   if (map === undefined) return 'invalid';
   const layout = dungeonLayout(state.seed, map);
-  const queue = (layout.rooms[0] ?? []).map((m) => monsterState(map.tier, m));
+  const fx = mapEffects(map);
+  const queue = (layout.rooms[0] ?? []).map((m) => monsterState(map.tier, m, fx));
   state.activity = {
     kind: 'map',
     run: {

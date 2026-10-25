@@ -5,7 +5,7 @@ import type { MapItem, RunOutcome } from '../../src/core/types';
 import { newGame } from '../../src/core/newGame';
 import { gainsLine, mapCount, mapDungeon, mapRows, runTitle, xpBar } from '../../src/ui/maps/mapsView';
 
-const map = (id: number, tier: number, metre = 1): MapItem => ({ id, type: 'map', tier, metre });
+const map = (id: number, tier: number, metre = 1): MapItem => ({ id, type: 'map', tier, metre, rarity: 'normal', mods: [] });
 
 it('xp bar', () => {
   expect(xpBar(1, 50)).toEqual({ label: 'Level 1', text: '50 / 100 XP', pct: 0.5 });
@@ -79,4 +79,25 @@ it('the map count covers the bag and the Maps tab, as the Maps screen lists them
   state.stash.maps[0] = map(3, 1);
   expect(mapCount(state)).toBe(3);
   expect(mapCount(state)).toBe(mapRows(state).length);
+});
+
+it('an enchanted map\'s row carries its rarity, its modifiers and what they pay; a normal map\'s row has none', () => {
+  const state = newGame(9090, 0);
+  state.bag[0] = map(1, 4, 7);
+  state.stash.maps[0] = { ...map(2, 3, 9), rarity: 'rare', mods: [
+    { kind: 'monsterLife', tier: 4, value: 27 },
+    { kind: 'monsterDamage', tier: 3, value: 17 },
+    { kind: 'weakHealing', tier: 2, value: 16 },
+  ] };
+  const [plain, rare] = mapRows(state);
+  expect(plain).toEqual({
+    id: 1, name: mapDungeon(state.seed, { tier: 4, metre: 7 }).type.name, tier: 4, metre: 7,
+    rooms: mapDungeon(state.seed, { tier: 4, metre: 7 }).type.rooms, where: 'bag', page: 0,
+    rarity: 'normal', mods: [], rewards: '',
+  });
+  expect(rare).toMatchObject({
+    id: 2, rarity: 'rare',
+    mods: ['T4 Monsters have +27% life', 'T3 Monsters deal +17% damage', 'T2 Rooms heal 16% less'],
+    rewards: 'Rewards: +30% items · +18% rarity · +30% Souls',
+  });
 });

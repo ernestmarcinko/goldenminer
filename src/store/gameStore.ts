@@ -9,7 +9,9 @@ import { BATTLE_SLOTS, MINING_SLOTS, setOfSlot } from '../core/items';
 import type { GearItem, Slot } from '../core/items';
 import { drainOverflow } from '../core/loot';
 import { leaveMap as coreLeaveMap, startMap as coreStartMap } from '../core/maps';
+import { gamble as coreGamble, type GambleResult } from '../core/merchant';
 import { newGame } from '../core/newGame';
+import { soulUpgrade as coreSoulUpgrade, type SoulUpgradeCheck } from '../core/soulUpgrade';
 import { buyStashPage as coreBuyStashPage } from '../core/stashPages';
 import { decodeSave, encodeSave, type DecodeResult } from '../core/save';
 import { freshWorld, isValidSeedText, seedFromText } from '../core/seed';
@@ -67,6 +69,7 @@ export class GameStore {
   private noticeCount = 0;
   private _lastCraft: CraftNotice | null = null;
   private craftCount = 0;
+  private _lastGamble: GearItem | null = null;
   private feedback: Feedback = emptyFeedback();
   private readonly listeners = new Set<() => void>();
   private limiter = new ClickLimiter();
@@ -86,6 +89,8 @@ export class GameStore {
   get unreadableSave(): string | null { return this._unreadable; }
   get equipNotice(): EquipNotice | null { return this._equipNotice; }
   get lastCraft(): CraftNotice | null { return this._lastCraft; }
+  /** The newest item bought from the merchant, for its "You got" panel. */
+  get lastGamble(): GearItem | null { return this._lastGamble; }
 
   subscribe(fn: () => void): () => void {
     this.listeners.add(fn);
@@ -104,6 +109,7 @@ export class GameStore {
     this._state = state;
     this._equipNotice = null;
     this._lastCraft = null;
+    this._lastGamble = null;
     this._stats = deriveStats(state);
     this._battle = deriveBattleStats(state);
   }
@@ -258,7 +264,7 @@ export class GameStore {
     return this.act(() => inv.dropItem(this._state, from, to, (target, item, result) => this.noteCraft(target, item.material, result)));
   }
 
-  /** Crafts on gear; only an 'ok' changes anything, but either way it is the last craft. */
+  /** Crafts on gear or a map; only an 'ok' changes anything, but either way it is the last craft. */
   craft(target: ItemLoc, kind: CraftKind, from?: ItemLoc): CraftResult {
     let result: CraftResult = { check: 'notGear' };
     this.act(() => {
@@ -267,6 +273,24 @@ export class GameStore {
       return result.check === 'ok' ? 'ok' : 'craftRefused';
     });
     return result;
+  }
+
+  /** Raises battle gear an item level for Souls; only an 'ok' changes anything. */
+  soulUpgrade(target: ItemLoc): SoulUpgradeCheck {
+    const result = coreSoulUpgrade(this._state, target);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
+  /** Gambles Gold on an item of `slot`; only an 'ok' changes anything. */
+  gamble(slot: Slot): { result: GambleResult; item?: GearItem } {
+    const outcome = coreGamble(this._state, slot);
+    if (outcome.item !== undefined) {
+      // a snapshot: the panel shows what was bought, not what later crafts or moves make of it
+      this._lastGamble = structuredClone(outcome.item);
+      this.changed();
+    }
+    return outcome;
   }
 
   private noteCraft(target: ItemLoc, kind: CraftKind, result: CraftResult): void {

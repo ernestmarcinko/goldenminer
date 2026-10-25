@@ -1,16 +1,18 @@
 import { expect, it } from 'vitest';
+import fixture7 from '../fixtures/save-schema-7.txt?raw';
 import { ARMORED_TAKEN, RUN_LOOT_LIMIT, VAMPIRIC_HEAL } from '../../src/core/balance';
 import { deriveBattleStats } from '../../src/core/battle';
 import { advance } from '../../src/core/clock';
 import { clickHit } from '../../src/core/combat';
 import { applyTicks } from '../../src/core/dig';
 import { dungeonLayout } from '../../src/core/dungeons';
+import type { MapMod } from '../../src/core/items';
 import { xpToNext } from '../../src/core/levels';
 import { addMap, leaveMap, startMap } from '../../src/core/maps';
 import { monsterState } from '../../src/core/monsters';
 import { newGame } from '../../src/core/newGame';
 import { mulberry32 } from '../../src/core/rng';
-import { validateState } from '../../src/core/save';
+import { decodeSave, validateState } from '../../src/core/save';
 import { deriveStats } from '../../src/core/stats';
 import type { GameState, MapRun, MonsterState, Stats, TickEvent } from '../../src/core/types';
 import { gear } from '../helpers/items';
@@ -456,4 +458,67 @@ it('XP find raises the XP of a kill, and the kill line shows it', () => {
   expect(s.xp).toBe(60);
   expect(run.gained.xp).toBe(60);
   expect(run.log).toContainEqual(expect.objectContaining({ kind: 'kill', monster: 'Test Monster', xp: 60 }));
+});
+
+const enchant = (run: MapRun, mods: MapMod[]) => { run.map.rarity = 'magic'; run.map.mods = mods; };
+
+it('a hardened map\'s monsters take less from every strike, never below 1, with no extra draw', () => {
+  for (const [elemental, plainHit, hardHit] of [[9, 10, 5], [0, 1, 1]] as const) {
+    let checked = 0;
+    for (let rng = 1; rng <= 200; rng++) {
+      const { s, run } = started();
+      // No physical damage to speak of (1 a hit), so a strike is 1 plus the elemental part.
+      s.equipped.battle.weapon = gear(s, 'weapon', {
+        affixes: [{ stat: 'damagePct', value: -100 }, { stat: 'elementalDamage', value: elemental }],
+      });
+      s.rng = rng;
+      const plain = structuredClone(s);
+      enchant(run, [{ kind: 'hardened', tier: 10, value: 50 }]);
+      const hardened: TickEvent[] = [];
+      const bare: TickEvent[] = [];
+      clickHit(s, hardened);
+      clickHit(plain, bare);
+      const [hit] = strikes(hardened);
+      const [raw] = strikes(bare);
+      if (hit === undefined || raw === undefined) throw new Error('no strike');
+      expect(s.rng, `rng ${rng}`).toBe(plain.rng);
+      expect(hit, `rng ${rng}`).toEqual({ ...raw, amount: Math.max(1, Math.round(raw.amount * 0.5)) });
+      expect(run.queue[0]?.life).toBe(10_000 - hit.amount);
+      if (raw.crit) continue;
+      expect([raw.amount, hit.amount], `rng ${rng}`).toEqual([plainHit, hardHit]);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(150);
+  }
+});
+
+it('a map with weak healing heals less on each room clear', () => {
+  const s = newGame(1, 0);
+  expect(startMap(s, addMap(s, 2, 2).id)).toBe('ok');   // 6 rooms: a plain clear heals 60 × 1.5 / 5 = 18
+  const run = runOf(s);
+  enchant(run, [{ kind: 'weakHealing', tier: 10, value: 50 }]);
+  run.queue = [monster({ life: 1 })];
+  run.life = 1;
+  clickHit(s);
+  expect(run.room).toBe(2);
+  expect(run.life).toBe(1 + 9);
+});
+
+it('a saved run in progress plays out exactly as before modifiers existed', () => {
+  const replay = (change?: (run: MapRun) => void) => {
+    const r = decodeSave(fixture7.trim());
+    if (!r.ok) throw new Error(`fixture rejected: ${r.reason}`);
+    const s = r.state;
+    const run = runOf(s);
+    change?.(run);
+    const stats = deriveStats(s);
+    while (s.activity.kind === 'map') applyTicks(s, 1, stats);
+    return { rng: s.rng, log: run.log, gained: s.lastRun?.gained, outcome: s.lastRun?.outcome };
+  };
+  const played = replay();
+  expect(replay((run) => { run.map.mods = []; })).toEqual(played);
+  // Pinned before map modifiers touched combat.
+  expect(played).toMatchObject({
+    rng: 1231303081, gained: { xp: 1040, souls: 15, gold: 120, levels: 1 }, outcome: 'cleared',
+  });
 });

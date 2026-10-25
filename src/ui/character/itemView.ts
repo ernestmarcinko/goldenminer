@@ -1,12 +1,12 @@
 import { hardness, MATERIAL_TABLE, TICKS_PER_METRE_AT_PARITY } from '../../core/balance';
 import { GEM_GRADE_LABELS, gemName, itemName } from '../../core/itemData';
 import { BATTLE_STATS, MOD_SIDE, isGear, setOfSlot } from '../../core/items';
-import type { GearItem, GemType, Item, Material, ModLine, Slot, StatKey } from '../../core/items';
+import type { GearItem, GemType, Item, MapItem, Material, ModLine, Slot, StatKey } from '../../core/items';
 import { gemEffect, itemTotals } from '../../core/stats';
 import type { GameState, LootNote, Stats } from '../../core/types';
 import type { SpriteName } from '../../sprites/atlas';
 import { formatDuration, formatNumber, formatRate, plural } from '../format';
-import { mapDungeon } from '../maps/mapsView';
+import { mapDungeon, mapModLines } from '../maps/mapsView';
 
 export const SLOT_LABELS: Readonly<Record<Slot, string>> = {
   pickaxe: 'Pickaxe', lamp: 'Lamp helm', gloves: 'Gloves', boots: 'Boots', weapon: 'Weapon', armor: 'Armor',
@@ -72,20 +72,30 @@ function cardOrder(lines: readonly ModLine[]): ModLine[] {
 export type Tone = 'plain' | 'up' | 'down' | 'gem' | 'muted';
 export interface ViewLine { text: string; tone: Tone }
 
+/** An enchanted map takes the gear colour of its rarity; a normal map keeps the map colour. */
 export function rarityOf(item: Item): GearItem['rarity'] | 'gem' | 'material' | 'map' {
+  if (item.type === 'map') return item.rarity === 'normal' ? 'map' : item.rarity;
   return isGear(item) ? item.rarity : item.type;
 }
 
 const capitalise = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
+/** Gear's rarity, slot and item level, e.g. "Rare gloves · item level 7". */
+export function gearKindBase(item: GearItem): string {
+  return `${capitalise(item.rarity)} ${SLOT_LABELS[item.slot].toLowerCase()} · item level ${formatNumber(item.ilvl)}`;
+}
+
 export function itemKindLine(item: Item): string {
-  if (item.type === 'map') return `Tier ${formatNumber(item.tier)} map`;
+  if (item.type === 'map') {
+    const tier = `tier ${formatNumber(item.tier)} map`;
+    return item.rarity === 'normal' ? capitalise(tier) : `${capitalise(item.rarity)} ${tier}`;
+  }
   if (item.type === 'material') return 'Crafting material';
   if (item.type === 'gem') {
     const base = `Gem · ${GEM_GRADE_LABELS[item.grade]} · socket into any gear`;
     return item.count > 1 ? `${base} · ${formatNumber(item.count)} in this stack` : base;
   }
-  const base = `${capitalise(item.rarity)} ${SLOT_LABELS[item.slot].toLowerCase()} · item level ${formatNumber(item.ilvl)}`;
+  const base = gearKindBase(item);
   return item.sockets > 0 ? `${base} · ${formatNumber(item.gems.length)}/${formatNumber(item.sockets)} sockets` : base;
 }
 
@@ -96,14 +106,22 @@ export function cardHead(seed: number, item: Item): { name: string; kind: string
   return { name: type.name, kind: `${itemKindLine(item)} · ${plural(type.rooms, 'room', 'rooms')}` };
 }
 
+/** A map's modifiers with their tiers, in their rolled order, and what they pay; then where it was found. */
+function mapLines(map: MapItem): ViewLine[] {
+  const lines: ViewLine[] = mapModLines(map).map((text) => ({ text, tone: 'plain' }));
+  lines.push({ text: `Found at ${formatNumber(map.metre)} m`, tone: 'plain' });
+  if (map.sealed) lines.push({ text: 'Tempered: it can\'t be enchanted any more.', tone: 'muted' });
+  return lines;
+}
+
 export function itemLines(item: Item): ViewLine[] {
-  if (item.type === 'map') return [{ text: `Found at ${formatNumber(item.metre)} m`, tone: 'plain' }];
+  if (item.type === 'map') return mapLines(item);
   if (item.type === 'material') {
     const from = MATERIAL_TABLE[item.material].from;
     return [
       { text: from === 0 ? 'Found at every depth' : `First found below ${formatNumber(from)} m`, tone: 'plain' },
       { text: 'Kept for crafting.', tone: 'muted' },
-      { text: "Drag it onto gear to craft, or pick a craft in the gear's card.", tone: 'muted' },
+      { text: "Drag it onto gear or a map, or pick it under Craft or Enchant in that item's card.", tone: 'muted' },
     ];
   }
   if (item.type === 'gem') {
@@ -199,17 +217,18 @@ export function fittedCardTop(fitted: CardFit | undefined, fit: CardFit | undefi
 }
 
 /**
- * The order of an open action card's craft slots: the crafts it has shown, in the order they first showed, then any
- * new ones. A craft that goes leaves its slot empty and the rest stay put, so no craft takes another one's place
- * under the pointer.
+ * The order of an open action card's craft slots, its Soul upgrade's first: the ones it has shown, in the order they
+ * first showed, then any new ones. A craft that goes leaves its slot empty and the rest stay put, so no craft takes
+ * another one's place under the pointer.
  */
 export function craftSlots(was: readonly string[], now: readonly string[]): string[] {
   return [...was, ...now.filter((kind) => !was.includes(kind))];
 }
 
 /**
- * An action card's craft slots, measured down the card: the grid's top, and each slot's kind ('' when it is empty)
- * and top.
+ * An action card's craft slots, measured down the card: where they start, and each slot's kind ('' when it is empty)
+ * and top. A battle gear's Soul upgrade is the first slot, under the action id 'soulUpgrade', so an upgrade keeps its
+ * button under the pointer as a craft does.
  */
 export interface CraftGrid { top: number; kinds: string[]; tops: number[] }
 

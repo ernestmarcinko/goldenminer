@@ -11,6 +11,7 @@ export const BATTLE_STATS = ['damage', 'damagePct', 'attackSpeed', 'life', 'armo
 export const GEM_TYPES = ['ruby', 'sapphire', 'emerald', 'amethyst', 'starstone'] as const;
 export const GEM_GRADES = ['tiny', 'small', 'big', 'giant', 'perfect'] as const;
 export const MATERIALS = ['copper', 'tin', 'iron', 'silver', 'mithril', 'starsteel', 'obsidian', 'voidCrystal'] as const;
+export const MAP_MOD_KINDS = ['monsterLife', 'monsterDamage', 'monsterSpeed', 'bossPower', 'weakHealing', 'hardened'] as const;
 
 export type Rarity = (typeof RARITIES)[number];
 export type GearSet = (typeof GEAR_SETS)[number];
@@ -23,6 +24,8 @@ export type StatKey = MiningStat | BattleStat;
 export type GemType = (typeof GEM_TYPES)[number];
 export type GemGrade = (typeof GEM_GRADES)[number];
 export type Material = (typeof MATERIALS)[number];
+export type MapModKind = (typeof MAP_MOD_KINDS)[number];
+export type MapRarity = 'normal' | 'magic' | 'rare';
 
 export interface StatLine { stat: StatKey; value: number }
 /** A rolled modifier; `tier` is 0 only for a legendary's hand-written line. */
@@ -36,7 +39,13 @@ export interface GearItem {
   sealed?: true;
 }
 export interface MaterialItem { id: number; type: 'material'; material: Material; count: number }
-export interface MapItem { id: number; type: 'map'; tier: number; metre: number }
+/** A map modifier: each kind at most once on a map, rolled in its tier's range. */
+export interface MapMod { kind: MapModKind; tier: number; value: number }
+export interface MapItem {
+  id: number; type: 'map'; tier: number; metre: number; rarity: MapRarity; mods: MapMod[];
+  /** Set by tempering: the map takes no more enchanting. */
+  sealed?: true;
+}
 export type Item = GearItem | GemItem | MaterialItem | MapItem;
 /** What stacks in a bag cell and counts up in its stash tab. */
 export type Stack = GemItem | MaterialItem;

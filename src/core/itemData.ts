@@ -107,6 +107,12 @@ export function itemName(item: Item): string {
     case 'gear': return item.name;
     case 'gem': return gemName(item);
     case 'material': return MATERIAL_LABELS[item.material];
-    case 'map': return `Tier ${item.tier} map`;
+    case 'map':
+      // the rarity leads, so a grid cell's label tells an enchanted map from a plain one
+      switch (item.rarity) {
+        case 'normal': return `Tier ${item.tier} map`;
+        case 'magic': return `Magic tier ${item.tier} map`;
+        case 'rare': return `Rare tier ${item.tier} map`;
+      }
   }
 }

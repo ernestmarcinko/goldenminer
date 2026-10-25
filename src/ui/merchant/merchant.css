@@ -1,0 +1,37 @@
+.gm-merchant { display: flex; flex-direction: column; gap: 12px; min-width: 0; max-width: 760px; }
+/* one row that never wraps, so a Gold total gaining a digit can't push the slot grids down */
+.gm-merchant__head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; white-space: nowrap; }
+.gm-merchant__title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 22px; }
+.gm-merchant__gold {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; font-family: var(--gm-font-mono); color: var(--gm-gold-bright);
+}
+.gm-merchant__text { margin: 0; }
+
+.gm-merchant__group { display: flex; flex-direction: column; gap: 8px; }
+.gm-merchant__group-title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 15px; }
+.gm-merchant__slots { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.gm-merchant__slots--mining { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.gm-merchant__slots--battle { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.gm-merchant__slot {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; padding: 10px;
+  border-radius: 10px; background: var(--gm-panel); border: 1px solid var(--gm-line);
+}
+.gm-merchant__label { font-weight: 700; overflow-wrap: anywhere; }
+.gm-merchant__gamble { width: 100%; margin-top: auto; padding: 6px 8px; font-size: 13px; line-height: 1.3; }
+.gm-merchant__gamble[aria-disabled='true'] { opacity: 0.55; }
+.gm-merchant__gamble[aria-disabled='true']:hover { border-color: var(--gm-line); }
+
+.gm-merchant__got {
+  display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 8px;
+  background: var(--gm-panel-raised); border: 1px solid var(--gm-tone, var(--gm-line));
+}
+.gm-merchant__got[data-rarity='normal'] { --gm-tone: var(--gm-normal); }
+.gm-merchant__got[data-rarity='magic'] { --gm-tone: var(--gm-magic); }
+.gm-merchant__got[data-rarity='rare'] { --gm-tone: var(--gm-rare); }
+.gm-merchant__got[data-rarity='legendary'] { --gm-tone: var(--gm-legendary); }
+.gm-merchant__got-name { font-family: var(--gm-font-display); font-size: 17px; color: var(--gm-tone); overflow-wrap: anywhere; }
+.gm-merchant__status { min-height: 1.45em; color: var(--gm-down); }
+
+@media (max-width: 600px) {
+  .gm-merchant__slots--mining, .gm-merchant__slots--battle { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

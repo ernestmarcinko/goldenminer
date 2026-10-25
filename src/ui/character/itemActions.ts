@@ -4,18 +4,20 @@ import { MATERIAL_LABELS } from '../../core/itemData';
 import { BATTLE_SLOTS, isGear, MATERIALS, MINING_SLOTS, setOfSlot } from '../../core/items';
 import type { GearItem, GemItem, Item, MaterialItem } from '../../core/items';
 import { salvagePay, sellPay } from '../../core/loot';
+import { canUpgrade, soulUpgradeCost } from '../../core/soulUpgrade';
+import type { SoulUpgradeCheck } from '../../core/soulUpgrade';
 import { deriveStats, gemEffect } from '../../core/stats';
 import type { CraftKind, GameState, InvResult, ItemLoc, Stats } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
 import { formatNumber } from '../format';
 import { craftOptions } from './craftView';
-import type { ClickIntent } from './itemView';
+import type { ClickIntent, ViewLine } from './itemView';
 import { statText } from './itemView';
 
 export type ItemTarget = ItemLoc;
 
 export interface ActionSpec {
-  id: 'equip' | 'unequip' | 'sell' | 'salvage' | 'toStash' | 'toBag' | 'take' | 'socket' | 'run' | 'craft';
+  id: 'equip' | 'unequip' | 'sell' | 'salvage' | 'toStash' | 'toBag' | 'take' | 'socket' | 'run' | 'soulUpgrade' | 'craft';
   label: string;
   disabled: boolean;
   /** For 'socket': the gear that takes the gem. */
@@ -24,9 +26,22 @@ export interface ActionSpec {
   kind?: CraftKind;
 }
 
-/** One action per craft the gear's card offers, after its other actions. */
+/**
+ * After a gear's or map's other actions: a battle gear's Soul upgrade, then one action per craft its card offers. Sealed
+ * gear has no upgrade; one the player can't pay for yet, or at the highest level, stays on the card, disabled.
+ */
 function craftActions(state: GameState, target: ItemTarget): ActionSpec[] {
-  return craftOptions(state, target).map((o) => ({ id: 'craft', kind: o.kind, label: o.label, disabled: !o.enabled }));
+  const crafts = craftOptions(state, target).map((o): ActionSpec => ({
+    id: 'craft', kind: o.kind, label: o.label, disabled: !o.enabled,
+  }));
+  const item = itemAt(state, target);
+  const check = canUpgrade(state, target);
+  if (item === undefined || !isGear(item) || check === 'notBattle' || check === 'sealed' || check === 'invalid') return crafts;
+  const label = check === 'maxLevel'
+    ? `Upgrade with Souls: item level ${formatNumber(item.ilvl)} is the highest`
+    : `Upgrade with Souls: item level ${formatNumber(item.ilvl)} → ${formatNumber(item.ilvl + 1)}`
+      + ` · ${formatNumber(soulUpgradeCost(item.ilvl))} Souls`;
+  return [{ id: 'soulUpgrade', label, disabled: check !== 'ok' }, ...crafts];
 }
 
 /** One "Socket into …" action per worn item, then per carried item, that has an open socket. */
@@ -83,11 +98,16 @@ function materialActions(state: GameState, target: ItemTarget, item: MaterialIte
   return [{ id: 'toStash', label: 'To Materials tab', disabled: full }];
 }
 
-/** A map runs from its card (not while another run is going) and moves between the bag and the Maps tab. */
+/**
+ * A map runs from its card (not while another run is going), moves between the bag and the Maps tab, and is enchanted
+ * from it.
+ */
 function mapActions(state: GameState, target: ItemTarget): ActionSpec[] {
   const run: ActionSpec = { id: 'run', label: 'Run this map', disabled: state.activity.kind === 'map' };
-  if (target.where === 'maps') return [run, { id: 'toBag', label: 'To bag', disabled: firstEmpty(state.bag) < 0 }];
-  return [run, { id: 'toStash', label: 'To Maps tab', disabled: firstEmpty(state.stash.maps) < 0 }];
+  const move: ActionSpec = target.where === 'maps'
+    ? { id: 'toBag', label: 'To bag', disabled: firstEmpty(state.bag) < 0 }
+    : { id: 'toStash', label: 'To Maps tab', disabled: firstEmpty(state.stash.maps) < 0 };
+  return [run, move, ...craftActions(state, target)];
 }
 
 export function itemActions(state: GameState, target: ItemTarget): ActionSpec[] {
@@ -167,6 +187,15 @@ export function hoverNote(target: ItemTarget, item: Item): string {
     : 'Click for actions · Alt+click to sell · Shift+click to the Gems tab';
 }
 
+/** Lines a hover card adds under the item's own, which its action card leaves out. */
+export function hoverLines(item: Item): ViewLine[] {
+  if (item.type !== 'map') return [];
+  return [{
+    text: 'Enchanting never changes the dungeon itself; it scales the monsters and the rewards. Dying still loses the map.',
+    tone: 'muted',
+  }];
+}
+
 export function runAction(store: GameStore, target: ItemTarget, action: ActionSpec): InvResult {
   const item = itemAt(store.state, target);
   if (item === undefined) return 'invalid';
@@ -180,9 +209,22 @@ export function runAction(store: GameStore, target: ItemTarget, action: ActionSp
     case 'take': return store.sendItem(target, 'bag');
     case 'socket': return action.into !== undefined ? store.socketGem(target, action.into) : 'invalid';
     case 'run': return item.type === 'map' ? store.startMap(item.id) : 'invalid';
+    case 'soulUpgrade': return store.soulUpgrade(target) === 'ok' ? 'ok' : 'craftRefused';
     case 'craft':
       if (action.kind === undefined) return 'invalid';
       return store.craft(target, action.kind).check === 'ok' ? 'ok' : 'craftRefused';
+  }
+}
+
+/** The status line after a Soul upgrade: why it was refused; null for a success, which the card's label shows. */
+export function soulUpgradeResultText(r: SoulUpgradeCheck): string | null {
+  switch (r) {
+    case 'ok': return null;
+    case 'noSouls': return 'Not enough Souls.';
+    case 'maxLevel': return "It can't go any higher.";
+    case 'sealed': return "It was tempered and can't be upgraded any more.";
+    case 'notBattle': return 'Only battle gear takes Souls.';
+    case 'invalid': return 'Only gear can be upgraded.';
   }
 }
 

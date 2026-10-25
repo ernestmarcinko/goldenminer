@@ -45,7 +45,7 @@ it('tab labels show the General and Maps fill, and the other tabs just their nam
   const fresh = newGame(1, 0);
   expect(tabLabel(fresh, 'general')).toBe('General 0 / 120');
   expect(tabLabel(fresh, 'maps')).toBe('Maps 0 / 60');
-  fresh.stash.maps = Array.from({ length: 120 }, (_, i) => (i < 73 ? { id: i + 1, type: 'map', tier: 1, metre: 2 } : null));
+  fresh.stash.maps = Array.from({ length: 120 }, (_, i) => (i < 73 ? { id: i + 1, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] } : null));
   expect(tabLabel(fresh, 'maps')).toBe('Maps 73 / 120');
 });
 

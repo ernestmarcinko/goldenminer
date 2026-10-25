@@ -1,8 +1,9 @@
 import { expect, it } from 'vitest';
 import {
-  combatLineText, fightTiles, hurtParticle, monsterCaption, monsterTags, roomTrack, strikeParticle,
+  combatLineText, fightTiles, hurtParticle, monsterCaption, monsterTags, roomTrack, runMapLine, strikeParticle,
 } from '../../src/ui/run/runView';
 import type { MapRun, MonsterState } from '../../src/core/types';
+import { mapDungeon, mapModLines } from '../../src/ui/maps/mapsView';
 
 const shades: [string, string, string] = ['#111111', '#222222', '#333333'];
 
@@ -12,7 +13,7 @@ const monster = (over: Partial<MonsterState> = {}): MonsterState => ({
 });
 
 const run = (room: number, left: number, bossRoom = 6): MapRun => ({
-  map: { id: 1, type: 'map', tier: 4, metre: 305 }, room, bossRoom, life: 50, hitCarry: 0, monsterCarry: 0, regenCarry: 0,
+  map: { id: 1, type: 'map', tier: 4, metre: 305, rarity: 'normal', mods: [] }, room, bossRoom, life: 50, hitCarry: 0, monsterCarry: 0, regenCarry: 0,
   gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [],  loot: [], items: 0,
   queue: Array.from({ length: left }, () => monster({ rank: room === bossRoom ? 'boss' : 'normal' })),
 });
@@ -101,4 +102,26 @@ it('a strike floats its damage, a crit larger with a bang', () => {
 
 it('hurt floats red', () => {
   expect(hurtParticle(21, { x: 50, y: 60 }, 3, 500)).toEqual({ id: 3, kind: 'hurt', text: '-21', x: 50, y: 60, bornAt: 500 });
+});
+
+it('the run\'s head lists an enchanted map\'s modifiers and what they pay, and nothing for a normal map', () => {
+  const plain = run(1, 3);
+  expect(mapModLines(plain.map)).toEqual([]);
+  const enchanted = { ...plain.map, rarity: 'magic' as const, mods: [
+    { kind: 'monsterSpeed' as const, tier: 4, value: 15 },
+    { kind: 'hardened' as const, tier: 1, value: 6 },
+  ] };
+  expect(mapModLines(enchanted)).toEqual([
+    'T4 Monsters attack 15% faster',
+    'T1 Monsters take 6% less damage',
+    'Rewards: +11% items · +6% rarity · +11% Souls',
+  ]);
+});
+
+it('the last run names its map\'s rarity when it was enchanted', () => {
+  const m = run(1, 3).map;
+  const name = mapDungeon(77, m).type.name;
+  expect(runMapLine(77, m)).toBe(`${name} · Tier 4 map`);
+  expect(runMapLine(77, { ...m, rarity: 'magic', mods: [{ kind: 'monsterLife', tier: 4, value: 27 }] })).toBe(`${name} · Magic tier 4 map`);
+  expect(runMapLine(77, { ...m, rarity: 'rare', mods: [{ kind: 'monsterLife', tier: 4, value: 27 }] })).toBe(`${name} · Rare tier 4 map`);
 });

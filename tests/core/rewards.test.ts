@@ -1,11 +1,12 @@
 import { expect, it, vi } from 'vitest';
-import { MATERIAL_TABLE, MAX_OVERFLOW } from '../../src/core/balance';
+import { DROP_CHANCE, MATERIAL_TABLE, MAX_OVERFLOW, soulsPerKill } from '../../src/core/balance';
 import { deriveBattleStats } from '../../src/core/battle';
 import { clickHit, onKill, soulsForKill } from '../../src/core/combat';
 import { applyTicks } from '../../src/core/dig';
 import { addMap, startMap } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
-import { isGear, setOfSlot, type Material } from '../../src/core/items';
+import { isGear, setOfSlot, type MapMod, type Material } from '../../src/core/items';
+import { mapEffects } from '../../src/core/mapMods';
 import { pickMaterial } from '../../src/core/layer';
 import { nextRandom } from '../../src/core/rng';
 import { deriveStats } from '../../src/core/stats';
@@ -79,12 +80,17 @@ function runOf(s: GameState): MapRun {
   return s.activity.run;
 }
 
-// A started run (seed `seed`, a tier-1 map unless `map` says otherwise), and a hand-built monster of `rank` ready to fall.
-function kill(seed: number, rank: Rank, prepare?: (s: GameState) => void, map = { tier: 1, metre: 2 }) {
+// A started run (seed `seed`, a tier-1 map with no modifiers unless `map` says otherwise), and a hand-built monster of
+// `rank` ready to fall.
+function kill(
+  seed: number, rank: Rank, prepare?: (s: GameState) => void,
+  map: { tier: number; metre: number; mods?: MapMod[] } = { tier: 1, metre: 2 },
+) {
   const s = newGame(seed, 0);
   prepare?.(s);
   startMap(s, addMap(s, map.tier, map.metre).id);
   const run = runOf(s);
+  if (map.mods !== undefined) Object.assign(run.map, { rarity: 'rare', mods: map.mods });
   const m: MonsterState = {
     name: 'Test Monster', species: 0, rank, mods: [], extra: 0, element: 'physical',
     life: 0, maxLife: 10, damage: 1, intervalS: 1, xp: 10,
@@ -256,4 +262,63 @@ it('the offline summary notices the bag holding map drops', () => {
   fight(after);
   expect(after.overflow.length).toBeGreaterThan(0);
   expect(summarize(before, after, 600_000, 600, 28_800_000).bagStopped).toBe(true);
+});
+
+// Modifiers worth 200 in all: 100% more item quantity and Souls, 60% more magic find.
+const RICH = {
+  tier: 1, metre: 2, mods: [{ kind: 'monsterLife', tier: 1, value: 120 }, { kind: 'monsterDamage', tier: 1, value: 80 }] as MapMod[],
+};
+
+// Worth 2,000 in all: 1,000% more quantity puts the item and material chances at 1.
+const CAPPED = { tier: 1, metre: 2, mods: [{ kind: 'monsterLife', tier: 1, value: 2000 }] as MapMod[] };
+
+it('the enchanted test maps pay what the next tests assume', () => {
+  const fx = mapEffects({ id: 1, type: 'map', rarity: 'rare', ...RICH });
+  expect(fx).toMatchObject({ quantity: 100, rarity: 60, souls: 100 });
+  expect(mapEffects({ id: 1, type: 'map', rarity: 'rare', ...CAPPED }).quantity).toBe(1000);
+});
+
+it('item quantity raises the drop chance of every kill', () => {
+  let dropped = 0;
+  const kills = 4000;
+  for (let seed = 1; seed <= kills; seed++) {
+    kill(seed, 'normal', undefined, RICH);
+    dropped += spy.rarityArgs.length;
+  }
+  expect(Math.abs(dropped / kills - Math.min(1, 2 * DROP_CHANCE))).toBeLessThan(0.02);
+});
+
+it('a map\'s magic find multiplies the miner\'s', () => {
+  for (let seed = 1; seed <= 60; seed++) {
+    const { b } = kill(seed, 'champion', undefined, RICH);
+    expect(spy.rarityArgs[0], `seed ${seed}`).toBeCloseTo(b.magicFindMultiplier * 1.6 * 3);
+    for (const a of spy.rarityArgs.slice(1)) expect(a, `seed ${seed}`).toBeCloseTo(b.magicFindMultiplier * 1.6);
+  }
+});
+
+it('a map\'s Souls bonus multiplies the Souls of every kill', () => {
+  let souls = 0;
+  const kills = 4000;
+  for (let seed = 1; seed <= kills; seed++) souls += kill(seed, 'normal', undefined, RICH).run.gained.souls;
+  const plain = soulsPerKill(1);   // a naked miner's Souls a tier-1 kill
+  expect(Math.abs(souls / kills / (2 * plain) - 1)).toBeLessThan(0.05);
+});
+
+it('a map\'s rewards change the thresholds, never the draws', () => {
+  // Every kill draws Souls, the item chance, each item, the gem chance and the material chances, even a chance raised
+  // to 1. Where an enchanted kill drops just what the plain kill drops, both leave the rng in the same place.
+  const drops = (run: MapRun) => JSON.stringify([run.loot, spy.rarityArgs.length, spy.gems]);
+  // A capped map rarely drops just what a plain one does, so it takes more kills to find enough of them.
+  for (const [map, kills, least] of [[RICH, 2000, 1000], [CAPPED, 10_000, 50]] as const) {
+    let same = 0;
+    for (let seed = 1; seed <= kills; seed++) {
+      const plain = kill(seed, 'normal');
+      const plainDrops = drops(plain.run);
+      const enchanted = kill(seed, 'normal', undefined, map);
+      if (drops(enchanted.run) !== plainDrops) continue;
+      expect(enchanted.s.rng, `seed ${seed}`).toBe(plain.s.rng);
+      same++;
+    }
+    expect(same).toBeGreaterThan(least);
+  }
 });

@@ -1,4 +1,4 @@
-import type { GemGrade, Material, Rarity, StatKey } from './items';
+import type { GemGrade, MapModKind, Material, Rarity, StatKey } from './items';
 import type { CraftKind, FeatureKind, Hazard, Stats, TemperOutcome } from './types';
 
 export const BASE_DIG_POWER = 10;
@@ -42,6 +42,8 @@ export const STASH_PAGE_GOLD = 5000;
 export function stashPagePrice(n: number): number {
   return STASH_PAGE_GOLD * n * n;
 }
+// The merchant's gamble costs GAMBLE_GOLD × tier² at the deepest tier reached, so it keeps pace with Gold income.
+export const GAMBLE_GOLD = 300;
 // The item level a gem's value is worked out at, and the first tier each grade is found at.
 export const GEM_GRADE_LEVEL: Readonly<Record<GemGrade, number>> = { tiny: 2, small: 5, big: 8, giant: 12, perfect: 18 };
 export const GEM_GRADE_FROM_TIER: Readonly<Record<GemGrade, number>> = { tiny: 1, small: 4, big: 7, giant: 10, perfect: 15 };
@@ -58,6 +60,8 @@ export const MAX_CRAFTED_LINES = 2;
 // A line may sit above an item's tier cap by up to this many tiers: a crafted line rolls there, and a migrated line's
 // old value can fall there.
 export const MAX_TIER_OVER_CAP = 2;
+// The highest item level an item, gem or map tier can have; a save holding more is refused.
+export const MAX_ITEM_LEVEL = 100_000;
 
 export const LEVEL_CAP = 60;
 export const COMBAT_LOG_LIMIT = 20;
@@ -180,6 +184,22 @@ export const STAT_TIERS: Readonly<Record<StatKey, { base: number; step: number }
   xpFind: { base: 3, step: 2 },
 };
 
+// A map modifier's tiers work as a gear line's do. Weak healing and hardened are capped once summed.
+export const MAP_MOD_TIERS: Readonly<Record<MapModKind, { base: number; step: number }>> = {
+  monsterLife: { base: 10, step: 5 },
+  monsterDamage: { base: 8, step: 4 },
+  monsterSpeed: { base: 6, step: 3 },
+  bossPower: { base: 15, step: 7 },
+  weakHealing: { base: 10, step: 5 },
+  hardened: { base: 5, step: 3 },
+};
+export const MAP_MOD_CAPS: Readonly<Partial<Record<MapModKind, number>>> = { weakHealing: 90, hardened: 75 };
+// What a map pays for its modifiers: each reward is this share of the sum of their values, in whole percent.
+export const MAP_REWARD_FACTORS: Readonly<Record<'quantity' | 'rarity' | 'souls', number>> = {
+  quantity: 0.5, rarity: 0.3, souls: 0.5,
+};
+export const MAX_MAP_MODS = 6;
+
 export const DEFAULT_STAT_WEIGHT = 10;
 export const STAT_WEIGHTS: Readonly<Partial<Record<StatKey, number>>> = { ticksPerClick: 2, lampSight: 4 };
 export const RARITY_WEIGHTS: Readonly<Record<Rarity, number>> = { normal: 60, magic: 30, rare: 9, legendary: 1 };
@@ -189,7 +209,8 @@ export const SOCKET_WEIGHTS: readonly number[] = [40, 35, 18, 7];
 export const CHEST_SECOND_ITEM_CHANCE = 0.2;
 export const CHEST_BATTLE_CHANCE = 0.2;
 
-// A craft costs base + floor(ilvl / per) of its material, or base alone when per is 0.
+// A craft costs base + floor(level / per) of its material, or base alone when per is 0. Gear's level is its ilvl, a
+// map's its tier.
 export const CRAFT_COST: Readonly<Record<CraftKind, { base: number; per: number }>> = {
   copper: { base: 1, per: 2 }, tin: { base: 1, per: 2 }, iron: { base: 1, per: 2 },
   silver: { base: 1, per: 4 }, mithril: { base: 1, per: 4 }, starsteel: { base: 1, per: 4 },
@@ -197,6 +218,10 @@ export const CRAFT_COST: Readonly<Record<CraftKind, { base: number; per: number 
   obsidian: { base: 1, per: 0 }, voidCrystal: { base: 1, per: 0 },
 };
 export const TEMPER_WEIGHTS: readonly [TemperOutcome, number][] = [['craftedLine', 30], ['raiseTiers', 25], ['nothing', 25], ['ruin', 20]];
+// Enchanting a map also spends Souls, this many for each of its tiers.
+export const MAP_CRAFT_SOULS_PER_TIER = 5;
+// Raising battle gear one item level costs SOUL_UPGRADE_BASE × ilvl² Souls, so each level costs more than the last.
+export const SOUL_UPGRADE_BASE = 5;
 
 export const SELL_GOLD: Readonly<Record<Rarity, number>> = { normal: 5, magic: 12, rare: 30, legendary: 80 };
 export const GEM_SELL_GOLD = 20;

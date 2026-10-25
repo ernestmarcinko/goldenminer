@@ -4,10 +4,10 @@ import { itemAt, sameLoc } from '../../core/cells';
 import type { GameState } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
 import { effectiveMotion, usePrefersReducedMotion } from '../settings/motion';
-import { craftResultText } from './craftView';
+import { craftResultText, craftTargetAt } from './craftView';
 import { ItemCard } from './ItemCard';
 import type { ItemHandlers } from './ItemGrid';
-import { actionForIntent, itemActions, resultText, runAction } from './itemActions';
+import { actionForIntent, itemActions, resultText, runAction, soulUpgradeResultText } from './itemActions';
 import type { ActionSpec, ItemTarget } from './itemActions';
 import { wornToCompare } from './itemView';
 import type { ItemDrag } from './useItemDrag';
@@ -61,9 +61,13 @@ export function useItemInteractions({ store, state, containerRef, fallbackRef, d
   }, [dragging, clear, closeMenu]);
 
   const perform = (target: ItemTarget, action: ActionSpec, fromCard = false): void => {
-    // a craft keeps the card open on the same item, so crafts can chain
+    // a craft or a Soul upgrade keeps the card open on the same item, so they can chain
     if (action.id === 'craft' && action.kind !== undefined) {
-      setMessage(craftResultText(store.craft(target, action.kind)));
+      setMessage(craftResultText(store.craft(target, action.kind), craftTargetAt(store.state, target)));
+      return;
+    }
+    if (action.id === 'soulUpgrade') {
+      setMessage(soulUpgradeResultText(store.soulUpgrade(target)));
       return;
     }
     setMessage(resultText(runAction(store, target, action)));

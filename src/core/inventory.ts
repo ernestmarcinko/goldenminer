@@ -299,7 +299,7 @@ function homeOf(item: Item): ItemLoc['where'] {
 /** Told of every craft a drop makes, refused or not, so the store can say why. */
 export type CraftListener = (target: ItemLoc, item: MaterialItem, result: CraftResult) => void;
 
-/** A material dropped on gear crafts with it, paid from the dragged stack first. */
+/** A material dropped on gear or a map crafts with it, paid from the dragged stack first. */
 function craftDrop(state: GameState, from: ItemLoc, item: MaterialItem, to: ItemLoc, onCraft?: CraftListener): InvResult {
   const result = craft(state, to, item.material, from);
   onCraft?.(to, item, result);
@@ -312,7 +312,7 @@ export function dropItem(state: GameState, from: ItemLoc, to: DropTarget, onCraf
   if (item === undefined) return 'invalid';
   if (item.type === 'material' && to.where !== 'stashTab') {
     const target = itemAt(state, to);
-    if (target !== undefined && isGear(target)) return craftDrop(state, from, item, to, onCraft);
+    if (target !== undefined && (isGear(target) || isMap(target))) return craftDrop(state, from, item, to, onCraft);
   }
   if (to.where === 'worn') {
     if (from.where === 'worn') return sameLoc(from, to) ? 'ok' : 'wrongSlot';

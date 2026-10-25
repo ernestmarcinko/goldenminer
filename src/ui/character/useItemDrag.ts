@@ -3,7 +3,7 @@ import type { PointerEvent as ReactPointerEvent } from 'react';
 import { itemAt } from '../../core/cells';
 import type { DropTarget, InvResult, ItemLoc } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
-import { craftResultText } from './craftView';
+import { craftResultText, craftTargetAt } from './craftView';
 import { DRAG_THRESHOLD_PX, heldLoc, parseDrop, tapAction } from './dragDrop';
 import type { Hold } from './dragDrop';
 import { resultText } from './itemActions';
@@ -70,9 +70,11 @@ export function useItemDrag({ store, onResult }: {
   const drop = useCallback((from: ItemLoc, to: DropTarget): void => {
     const before = store.lastCraft?.id;
     const r: InvResult = store.drop(from, to);
-    // a material dropped on gear crafts: its message is the craft's, refused or tempered
+    // a material dropped on gear or a map crafts: its message is the craft's, refused or tempered
     const crafted = store.lastCraft;
-    resultRef.current(crafted !== null && crafted.id !== before ? craftResultText(crafted) ?? resultText(r) : resultText(r));
+    resultRef.current(crafted !== null && crafted.id !== before
+      ? craftResultText(crafted, craftTargetAt(store.state, crafted.target)) ?? resultText(r)
+      : resultText(r));
     if (r === 'ok') setHold(null);
   }, [store, setHold]);
 

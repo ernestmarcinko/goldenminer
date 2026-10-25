@@ -7,6 +7,7 @@ import {
   statText,
 } from '../../src/ui/character/itemView';
 import { mapDungeon } from '../../src/ui/maps/mapsView';
+import type { MapItem } from '../../src/core/items';
 import { gear, gem } from '../helpers/items';
 
 it('stat text', () => {
@@ -180,6 +181,23 @@ describe('an action card stays inside the rows that show', () => {
       .toEqual({ top: 262, anchor: { kind: 'tin', slot: 0, top: 262, inGrid: 0 } });
   });
 
+  it('anchors the Soul upgrade, the first slot, by its action id, as it does a craft', () => {
+    // the upgrade's button sits above the grid: 52 px tall, then the Craft label
+    const card = (kinds: string[], top = 280) => {
+      const g = grid(kinds.slice(1), top + 80);
+      return { top, kinds, tops: [top, ...g.tops] };
+    };
+    expect(craftSlots([], ['soulUpgrade', 'copper', 'mithril'])).toEqual(['soulUpgrade', 'copper', 'mithril']);
+    const was = craftAnchor(card(['soulUpgrade', 'copper', 'mithril']), 'soulUpgrade');
+    expect(was).toEqual({ kind: 'soulUpgrade', slot: 0, top: 280, inGrid: 0 });
+    // the sell label above it wrapped onto a second line: the card moves up by as much
+    expect(anchorCraft(224, was, card(['soulUpgrade', 'copper', 'mithril'], 298)).top).toBe(206);
+    // a temper sealed the item: the upgrade's slot stays, empty, and the grid below it stays put
+    expect(craftSlots(['soulUpgrade', 'voidCrystal'], [])).toEqual(['soulUpgrade', 'voidCrystal']);
+    const sealed = anchorCraft(224, craftAnchor(card(['soulUpgrade', 'voidCrystal']), 'voidCrystal'), card(['', '']));
+    expect(sealed).toEqual({ top: 224, anchor: { kind: 'voidCrystal', slot: 1, top: 360, inGrid: 80 } });
+  });
+
   it('never gets shorter while it is open, so the pointer cannot fall off its bottom', () => {
     expect(keptHeight(0, 545)).toBe(545);                            // opens at its own height
     expect(keptHeight(545, 773)).toBe(773);                          // grows with a craft
@@ -205,7 +223,7 @@ it('loot notes in words', () => {
 });
 
 it('a map card is named after its dungeon, with the tier and the rooms on the kind line', () => {
-  const map = { id: 1, type: 'map', tier: 4, metre: 327 } as const;
+  const map: MapItem = { id: 1, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
   const { type } = mapDungeon(77, map);
   expect(cardHead(77, map)).toEqual({ name: type.name, kind: `Tier 4 map · ${type.rooms} rooms` });
   const s = newGame(1, 0);
@@ -214,10 +232,40 @@ it('a map card is named after its dungeon, with the tier and the rooms on the ki
 });
 
 it('a map item reads as its tier and where it was found', () => {
-  const map = { id: 1, type: 'map', tier: 4, metre: 327 } as const;
+  const map: MapItem = { id: 1, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
   expect([itemName(map), itemKindLine(map), rarityOf(map), itemSprite(map)]).toEqual(['Tier 4 map', 'Tier 4 map', 'map', 'map']);
   expect(itemLines(map)).toEqual([{ text: 'Found at 327 m', tone: 'plain' }]);
   expect(rarityOf({ id: 2, type: 'material', material: 'tin', count: 3 })).toBe('material');
+});
+
+it('an enchanted map card shows its rarity, its modifiers with their tiers and what they pay', () => {
+  const map: MapItem = { id: 1, type: 'map', tier: 4, metre: 327, rarity: 'magic', mods: [
+    { kind: 'monsterLife', tier: 4, value: 27 },
+    { kind: 'monsterDamage', tier: 3, value: 17 },
+  ] };
+  const { type } = mapDungeon(77, map);
+  expect(type.rooms).toBe(6);
+  expect(cardHead(77, map)).toEqual({ name: type.name, kind: 'Magic tier 4 map · 6 rooms' });
+  expect(itemKindLine({ ...map, rarity: 'rare' })).toBe('Rare tier 4 map');
+  expect(rarityOf(map)).toBe('magic');
+  expect(rarityOf({ ...map, rarity: 'rare' })).toBe('rare');
+  const four: MapItem = { ...map, rarity: 'rare', mods: [...map.mods, { kind: 'monsterSpeed', tier: 4, value: 15 }, { kind: 'weakHealing', tier: 2, value: 16 }] };
+  expect(itemLines(four)).toEqual([
+    { text: 'T4 Monsters have +27% life', tone: 'plain' },
+    { text: 'T3 Monsters deal +17% damage', tone: 'plain' },
+    { text: 'T4 Monsters attack 15% faster', tone: 'plain' },
+    { text: 'T2 Rooms heal 16% less', tone: 'plain' },
+    { text: 'Rewards: +38% items · +23% rarity · +38% Souls', tone: 'plain' },
+    { text: 'Found at 327 m', tone: 'plain' },
+  ]);
+  expect(itemLines({ ...four, sealed: true }).at(-1)).toEqual({ text: "Tempered: it can't be enchanted any more.", tone: 'muted' });
+});
+
+it('a map\'s name, the label of its grid cell, leads with its rarity when it is enchanted', () => {
+  const map: MapItem = { id: 1, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
+  expect(itemName(map)).toBe('Tier 4 map');
+  expect(itemName({ ...map, rarity: 'magic', mods: [{ kind: 'monsterLife', tier: 4, value: 27 }] })).toBe('Magic tier 4 map');
+  expect(itemName({ ...map, rarity: 'rare', mods: [{ kind: 'monsterLife', tier: 4, value: 27 }] })).toBe('Rare tier 4 map');
 });
 
 it('a material item reads as a crafting material and where it is first found', () => {
@@ -227,7 +275,7 @@ it('a material item reads as a crafting material and where it is first found', (
   expect(itemLines(tin)).toEqual([
     { text: 'Found at every depth', tone: 'plain' },
     { text: 'Kept for crafting.', tone: 'muted' },
-    { text: "Drag it onto gear to craft, or pick a craft in the gear's card.", tone: 'muted' },
+    { text: "Drag it onto gear or a map, or pick it under Craft or Enchant in that item's card.", tone: 'muted' },
   ]);
   expect(itemLines(iron)[0]).toEqual({ text: 'First found below 50 m', tone: 'plain' });
   expect(itemSprite({ id: 4, type: 'material', material: 'voidCrystal', count: 1 })).toBe('voidCrystal');

@@ -6,6 +6,10 @@
 .gm-run__head { display: flex; align-items: center; gap: 10px; }
 .gm-run__tier { flex: 0 0 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
 .gm-run__name { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 17px; line-height: 1.2; overflow-wrap: anywhere; }
+.gm-run__mods {
+  list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px;
+  font-size: 13px; color: var(--gm-normal); overflow-wrap: anywhere;
+}
 
 .gm-rooms { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .gm-rooms__row {
