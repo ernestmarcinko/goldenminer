@@ -191,7 +191,9 @@ export const MAP_MOD_TIERS: Readonly<Record<MapModKind, { base: number; step: nu
 };
 export const MAP_MOD_CAPS: Readonly<Partial<Record<MapModKind, number>>> = { weakHealing: 90, hardened: 75 };
 // What a map pays for its modifiers: each reward is this share of the sum of their values, in whole percent.
-export const MAP_REWARD_FACTORS = { quantity: 0.5, rarity: 0.3, souls: 0.5 };
+export const MAP_REWARD_FACTORS: Readonly<Record<'quantity' | 'rarity' | 'souls', number>> = {
+  quantity: 0.5, rarity: 0.3, souls: 0.5,
+};
 export const MAX_MAP_MODS = 6;
 
 export const DEFAULT_STAT_WEIGHT = 10;

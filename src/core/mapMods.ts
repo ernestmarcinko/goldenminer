@@ -17,6 +17,11 @@ export interface MapEffects {
   quantity: number; rarity: number; souls: number;
 }
 
+/** What a normal map does: nothing. */
+export const NO_MAP_EFFECTS: Readonly<MapEffects> = {
+  lifeMult: 1, damageMult: 1, speedMult: 1, bossMult: 1, healMult: 1, takenMult: 1, quantity: 0, rarity: 0, souls: 0,
+};
+
 export function mapEffects(map: MapItem): MapEffects {
   const sum = (kind: MapModKind) => map.mods.reduce((n, m) => (m.kind === kind ? n + m.value : n), 0);
   const capped = (kind: MapModKind) => Math.min(MAP_MOD_CAPS[kind] ?? Infinity, sum(kind));

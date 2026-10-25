@@ -9,6 +9,7 @@ import { gainXp } from './levels';
 import { rollGear, rollGem, rollRarity } from './itemGen';
 import { materialAmount, pickMaterial } from './layer';
 import { receiveItem, receiveMaterial } from './loot';
+import { mapEffects } from './mapMods';
 import { monsterState, rankReward } from './monsters';
 import { nextRandom } from './rng';
 import type {
@@ -36,9 +37,10 @@ export function noteLoot(run: MapRun, note: LootNote): void {
  */
 function roomQueue(state: GameState, run: MapRun, room: number): MonsterState[] {
   const layout = dungeonLayout(state.seed, run.map);
+  const fx = mapEffects(run.map);
   const monsters = room < run.bossRoom ? layout.rooms[room - 1] ?? [] : [];
-  if (monsters.length === 0) return [monsterState(run.map.tier, layout.boss)];
-  return monsters.map((m) => monsterState(run.map.tier, m));
+  if (monsters.length === 0) return [monsterState(run.map.tier, layout.boss, fx)];
+  return monsters.map((m) => monsterState(run.map.tier, m, fx));
 }
 
 /** The run is over: it becomes the last run, the tally counts it and the miner goes back to digging. */
@@ -73,9 +75,12 @@ function takeDrop(run: MapRun, notes: LootNote[], isItem = true): void {
 /**
  * A monster fell: its XP (levelling up heals by the max-life gained), then Souls, Gold, items, a gem chance and the
  * material chances, in that draw order (exported so the rewards can be pinned per rank). Champions guarantee an item of raised rarity, bosses guarantee BOSS_DROPS, anything may add one more.
+ * The map's modifiers raise the Souls, the magic find and the drop chances, but every draw is made as on a normal map.
  */
 export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: BattleStats): void {
   const tier = run.map.tier;
+  const fx = mapEffects(run.map);
+  const more = (chance: number) => Math.min(1, chance * (1 + fx.quantity / 100));
   const levelBefore = state.level;
   const xp = Math.round(monster.xp * b.xpMultiplier);
   const levels = gainXp(state, xp);
@@ -89,7 +94,7 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
   }
   if (b.lifeOnKill > 0) run.life = Math.min(maxLife, run.life + Math.round(b.lifeOnKill));
 
-  const souls = soulsForKill(nextRandom(state), tier, monster.rank, b.soulMultiplier);
+  const souls = soulsForKill(nextRandom(state), tier, monster.rank, b.soulMultiplier * (1 + fx.souls / 100));
   state.souls += souls;
   run.gained.souls += souls;
   logLine(run, { kind: 'kill', monster: monster.name, xp, souls });
@@ -99,18 +104,19 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
   run.gained.gold += gold;
 
   const guaranteed = monster.rank === 'boss' ? BOSS_DROPS : monster.rank === 'champion' ? CHAMPION_DROPS : 0;
-  const count = guaranteed + (nextRandom(state) < DROP_CHANCE ? 1 : 0);
+  const count = guaranteed + (nextRandom(state) < more(DROP_CHANCE) ? 1 : 0);
+  const magicFind = b.magicFindMultiplier * (1 + fx.rarity / 100);
   for (let i = 0; i < count; i++) {
     const set = nextRandom(state) < MAP_DROP_BATTLE_CHANCE ? 'battle' : 'mining';
     const raised = monster.rank === 'champion' && i < guaranteed;
-    const item = rollGear(state, tier, set, rollRarity(state, b.magicFindMultiplier * (raised ? CHAMPION_MAGIC_FIND : 1)));
+    const item = rollGear(state, tier, set, rollRarity(state, magicFind * (raised ? CHAMPION_MAGIC_FIND : 1)));
     takeDrop(run, receiveItem(state, item));
   }
-  if (nextRandom(state) < MAP_GEM_CHANCE) takeDrop(run, receiveItem(state, rollGem(state, tier)));
+  if (nextRandom(state) < more(MAP_GEM_CHANCE)) takeDrop(run, receiveItem(state, rollGem(state, tier)));
   // Materials of the map's depth: rankReward chances, each pass drawing its material and then its amount.
   const metre = run.map.metre;
   for (let i = 0; i < rankReward(monster.rank); i++) {
-    if (nextRandom(state) >= MAP_MATERIAL_CHANCE) continue;
+    if (nextRandom(state) >= more(MAP_MATERIAL_CHANCE)) continue;
     const material = pickMaterial(metre, nextRandom(state));
     takeDrop(run, receiveMaterial(state, material, materialAmount(material, metre, nextRandom(state))), false);
   }
@@ -128,7 +134,8 @@ function strike(state: GameState, run: MapRun, b: BattleStats, click: boolean, e
   }
   // Armored softens only the physical part.
   if (m.mods.includes('armored')) physical = Math.max(1, Math.round(physical * ARMORED_TAKEN));
-  const amount = physical + elemental;
+  // A hardened map softens the whole hit, after everything else.
+  const amount = Math.max(1, Math.round((physical + elemental) * mapEffects(run.map).takenMult));
   m.life -= amount;
   events?.push({ kind: 'strike', amount, crit, click });
   logLine(run, { kind: 'hit', monster: m.name, amount, crit, click });
@@ -145,7 +152,8 @@ function strike(state: GameState, run: MapRun, b: BattleStats, click: boolean, e
   logLine(run, { kind: 'room', room: run.room });
   run.room += 1;
   const { maxLife } = deriveBattleStats(state);
-  run.life = Math.min(maxLife, run.life + Math.round((maxLife * ROOM_REGEN_TOTAL) / (run.bossRoom - 1)));
+  const heal = mapEffects(run.map).healMult;
+  run.life = Math.min(maxLife, run.life + Math.round((maxLife * ROOM_REGEN_TOTAL * heal) / (run.bossRoom - 1)));
   run.queue = roomQueue(state, run, run.room);
   return 'room';
 }

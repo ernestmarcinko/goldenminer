@@ -1,9 +1,11 @@
 import { expect, it } from 'vitest';
 import { MAP_MOD_KINDS } from '../../src/core/items';
 import type { MapItem, MapMod } from '../../src/core/items';
-import { MAP_MOD_TEXT, mapEffects, mapModRange } from '../../src/core/mapMods';
+import { MAP_MOD_TEXT, NO_MAP_EFFECTS, mapEffects, mapModRange } from '../../src/core/mapMods';
 import { rangeOf, tierRange } from '../../src/core/tiers';
 import { STAT_TIERS } from '../../src/core/balance';
+import { dungeonLayout } from '../../src/core/dungeons';
+import { monsterState } from '../../src/core/monsters';
 
 const map = (mods: MapMod[], rarity: MapItem['rarity'] = mods.length > 2 ? 'rare' : mods.length > 0 ? 'magic' : 'normal'): MapItem =>
   ({ id: 1, type: 'map', tier: 4, metre: 327, rarity, mods });
@@ -45,6 +47,7 @@ it('a normal map changes nothing and pays nothing extra', () => {
   expect(mapEffects(map([]))).toEqual({
     lifeMult: 1, damageMult: 1, speedMult: 1, bossMult: 1, healMult: 1, takenMult: 1, quantity: 0, rarity: 0, souls: 0,
   });
+  expect(NO_MAP_EFFECTS).toEqual(mapEffects(map([])));
 });
 
 it('every modifier reads as its effect', () => {
@@ -56,4 +59,38 @@ it('every modifier reads as its effect', () => {
     'Rooms heal 12% less',
     'Monsters take 12% less damage',
   ]);
+});
+
+it('an enchanted map is the same dungeon, its monsters scaled by the modifiers', () => {
+  const plain = map([]);
+  const enchanted = map([
+    { kind: 'monsterLife', tier: 4, value: 27 },
+    { kind: 'monsterDamage', tier: 4, value: 21 },
+    { kind: 'monsterSpeed', tier: 4, value: 15 },
+    { kind: 'bossPower', tier: 4, value: 36 },
+  ]);
+  const fx = mapEffects(enchanted);
+  const ranks = new Set<string>();
+  for (const seed of [1, 2, 3]) {
+    const layout = dungeonLayout(seed, plain);
+    expect(dungeonLayout(seed, enchanted), `seed ${seed}`).toEqual(layout);
+    for (const lm of [...layout.rooms.flat(), layout.boss]) {
+      ranks.add(lm.rank);
+      const p = monsterState(plain.tier, lm);
+      const e = monsterState(enchanted.tier, lm, fx);
+      expect(monsterState(plain.tier, lm, mapEffects(plain))).toEqual(p);
+      const { name, species, rank, mods, extra, element, xp } = p;
+      expect(e).toMatchObject({ name, species, rank, mods, extra, element, xp, life: e.maxLife });
+      // Both sides are rounded, so each may sit half a unit off the exact product.
+      const power = lm.rank === 'normal' ? 1 : fx.bossMult;
+      const scales: [number, number, number][] = [
+        [e.maxLife, p.maxLife, fx.lifeMult * power], [e.damage, p.damage, fx.damageMult * power],
+      ];
+      for (const [scaled, base, mult] of scales) {
+        expect(Math.abs(scaled - base * mult), `seed ${seed} ${lm.name}`).toBeLessThanOrEqual(0.5 + 0.5 * mult);
+      }
+      expect(e.intervalS).toBeCloseTo(p.intervalS / fx.speedMult, 12);
+    }
+  }
+  expect([...ranks].sort()).toEqual(['boss', 'champion', 'normal']);
 });

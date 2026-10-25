@@ -3,6 +3,7 @@ import { firstEmpty } from './cells';
 import { endRun } from './combat';
 import { dungeonLayout } from './dungeons';
 import type { Cell, MapItem } from './items';
+import { mapEffects } from './mapMods';
 import { monsterState } from './monsters';
 import type { GameState } from './types';
 
@@ -46,7 +47,8 @@ export function startMap(state: GameState, mapId: number): 'ok' | 'busy' | 'inva
   const map = takeMap(state, mapId);
   if (map === undefined) return 'invalid';
   const layout = dungeonLayout(state.seed, map);
-  const queue = (layout.rooms[0] ?? []).map((m) => monsterState(map.tier, m));
+  const fx = mapEffects(map);
+  const queue = (layout.rooms[0] ?? []).map((m) => monsterState(map.tier, m, fx));
   state.activity = {
     kind: 'map',
     run: {
