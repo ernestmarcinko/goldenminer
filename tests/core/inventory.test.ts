@@ -494,8 +494,6 @@ it('the stash shortcut sends a map to its tier, and back to the bag\'s first emp
   expect(s.bag[1]).toBe(map);
   expect(s.stash.maps[4]).toHaveLength(1);
   expect(sendItem(s, mapsLoc(4, 0), 'stash')).toBe('invalid');   // already there
-  expect(sell(s, bag(1))).toBe('invalid');
-  expect(salvage(s, mapsLoc(4, 0))).toBe('invalid');
   s.bag = s.bag.map((c) => c ?? gear(s, 'boots'));
   expect(sendItem(s, mapsLoc(4, 0), 'bag')).toBe('bagFull');
   expect(s.stash.maps[4]).toHaveLength(1);
@@ -521,4 +519,22 @@ it('materials go only in their own tab, and cannot be sold or salvaged', () => {
   s.bag[3] = { id: s.nextId++, type: 'material', material: 'iron', count: 2 };
   expect(dropItem(s, bag(3), { where: 'stashTab', tab: 'auto' })).toBe('ok');      // the Stash button
   expect([s.bag[3], s.stash.materials.iron]).toEqual([null, 2]);
+});
+
+it('a map sells for its value and salvages into ore, from the bag or its tier list; a material does neither', () => {
+  const s = newGame(1, 0);
+  s.bag[2] = mapAt(s, 4);
+  expect(sell(s, bag(2))).toBe('ok');
+  expect([s.gold, s.bag[2]]).toEqual([400, null]);
+  const rare: MapItem = { ...mapAt(s, 5), rarity: 'rare', mods: [] };
+  s.stash.maps[5] = [mapAt(s, 5), rare, mapAt(s, 5)];
+  expect(salvage(s, mapsLoc(5, 1))).toBe('ok');
+  expect(s.stash.maps[5]).toHaveLength(2);
+  expect(s.stash.maps[5]).not.toContain(rare);
+  expect([s.stash.materials.copper, s.stash.materials.tin]).toEqual([4, 2]);
+  s.bag[0] = { id: s.nextId++, type: 'material', material: 'copper', count: 5 };
+  const before = structuredClone(s);
+  expect(sell(s, bag(0))).toBe('invalid');
+  expect(salvage(s, bag(0))).toBe('invalid');
+  expect(s).toEqual(before);
 });

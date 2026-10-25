@@ -1,12 +1,12 @@
 import { MAP_TIER_CAP } from './balance';
 import { deriveBattleStats } from './battle';
-import { firstEmpty } from './cells';
 import { endRun } from './combat';
 import { dungeonLayout } from './dungeons';
 import type { MapItem } from './items';
+import { receiveItem } from './loot';
 import { mapEffects } from './mapMods';
 import { monsterState } from './monsters';
-import type { GameState } from './types';
+import type { GameState, LootNote } from './types';
 
 /** Puts a map at the end of its tier's list in the Map stash; a full tier refuses it and nothing changes. */
 export function putMap(state: GameState, map: MapItem): 'ok' | 'mapTierFull' {
@@ -30,16 +30,9 @@ export function takeMapAt(state: GameState, loc: { tier: number; index: number }
   return map;
 }
 
-/**
- * A found map is a normal one, and joins its tier in the Map stash; past a full tier it takes the bag's first empty
- * cell, and with none it is not kept (its id is still used).
- */
-export function addMap(state: GameState, tier: number, metre: number): MapItem {
-  const map: MapItem = { id: state.nextId++, type: 'map', tier, metre, rarity: 'normal', mods: [] };
-  if (putMap(state, map) === 'ok') return map;
-  const empty = firstEmpty(state.bag);
-  if (empty >= 0) state.bag[empty] = map;
-  return map;
+/** A found map is a normal one, and goes where every find goes: to the bag, else held, else sold. */
+export function addMap(state: GameState, tier: number, metre: number): LootNote[] {
+  return receiveItem(state, { id: state.nextId++, type: 'map', tier, metre, rarity: 'normal', mods: [] });
 }
 
 /** Takes a map out of its bag cell or its tier list. */

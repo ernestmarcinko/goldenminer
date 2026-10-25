@@ -4,7 +4,8 @@ import { deriveStats } from '../../src/core/stats';
 import { advance, ClickLimiter, clickTicks } from '../../src/core/clock';
 import { summarize } from '../../src/core/summary';
 import { applyTicks } from '../../src/core/dig';
-import { addMap, startMap } from '../../src/core/maps';
+import { startMap } from '../../src/core/maps';
+import { stashMap } from '../helpers/items';
 
 const stats = deriveStats(newGame(1, 0));
 
@@ -80,7 +81,7 @@ it('paused dig ticks are dropped, not banked', () => {
 
 it('a map run keeps fighting while digging is paused, and the ticks after it ends are not dug', () => {
   const s = newGame(1, 0);
-  expect(startMap(s, addMap(s, 1, 2).id)).toBe('ok');
+  expect(startMap(s, stashMap(s, 1, 2).id)).toBe('ok');
   const deepest = s.deepest;
   const progress = s.progress;
   expect(advance(s, 3_600_000, deriveStats(s), [], true)).toBe(3600);

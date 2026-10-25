@@ -4,8 +4,11 @@ import { filledCount } from '../../src/core/cells';
 import { applyTicks } from '../../src/core/dig';
 import { itemName } from '../../src/core/itemData';
 import { salvage, sell } from '../../src/core/inventory';
-import { drainOverflow, lootAction, receiveItem, salvagePay, salvageYield, sellPay, sellValue } from '../../src/core/loot';
+import {
+  drainOverflow, lootAction, receiveItem, receiveMaterial, salvagePay, salvageYield, sellPay, sellValue,
+} from '../../src/core/loot';
 import { newGame } from '../../src/core/newGame';
+import { validateState } from '../../src/core/save';
 import { deriveStats } from '../../src/core/stats';
 import { summarize } from '../../src/core/summary';
 import type { MapItem, MaterialItem } from '../../src/core/items';
@@ -64,23 +67,149 @@ it('the filter sells and salvages before anything is stowed', () => {
   expect(s.lootTally).toEqual({ kept: 0, sold: 1, salvaged: 1 });
 });
 
-it('kept items go to the bag, then overflow into the stash', () => {
+it('kept items go to the bag, then are held', () => {
   const s = newGame(1, 0);
   expect(receiveItem(s, gear(s, 'weapon')).map((n) => n.outcome)).toEqual(['bag']);
   expect(receiveItem(s, gear(s, 'pickaxe')).map((n) => n.outcome)).toEqual(['bag']);
   expect(filledCount(s.bag)).toBe(2);
   s.bag = s.bag.map((c) => c ?? gear(s, 'boots'));
-  expect(receiveItem(s, gear(s, 'pickaxe')).map((n) => n.outcome)).toEqual(['stash']);
-  expect(filledCount(s.stash.general)).toBe(1);
+  const pick = gear(s, 'pickaxe');
+  expect(receiveItem(s, pick).map((n) => n.outcome)).toEqual(['held']);
+  expect([filledCount(s.stash.general), s.overflow]).toEqual([0, [pick]]);
 });
 
-it('found gear fills the bag, then General pages in order', () => {
-  const s = newGame(1, 0);
-  s.bag = s.bag.map(() => gear(s, 'boots'));
-  for (let i = 0; i < 60; i++) s.stash.general[i] = gear(s, 'gloves');
-  const ring = gear(s, 'ring');
-  expect(receiveItem(s, ring).map((n) => n.outcome)).toEqual(['stash']);
-  expect(s.stash.general[60]).toBe(ring);
+const mapOf = (s: GameState, tier: number, rarity: MapItem['rarity'] = 'normal'): MapItem => (
+  { id: s.nextId++, type: 'map', tier, metre: 10, rarity, mods: [] }
+);
+const ore = (s: GameState, count: number, material: MaterialItem['material'] = 'copper'): MaterialItem => (
+  { id: s.nextId++, type: 'material', material, count }
+);
+const fullBag = (s: GameState): void => { s.bag = s.bag.map(() => gear(s, 'boots')); };
+
+describe('every find goes to the bag', () => {
+  it('a found map goes to the bag\'s first empty cell, never to the stash', () => {
+    const s = newGame(1, 0);
+    s.bag[0] = gear(s, 'boots');
+    const map = mapOf(s, 4);
+    expect(receiveItem(s, map)).toEqual([{ name: 'Tier 4 map', rarity: 'normal', base: 'map', outcome: 'bag', value: 0 }]);
+    expect(s.bag[1]).toBe(map);
+    expect(s.stash.maps).toEqual({});
+  });
+
+  it('a found gem tops up bag stacks, then opens one new cell, and the rest is held', () => {
+    const s = newGame(1, 0);
+    fullBag(s);
+    for (const i of [4, 9, 30]) s.bag[i] = gem(s, 'ruby', { count: 24 });
+    const found = gem(s, 'ruby', { count: 10 });
+    expect(receiveItem(s, found)).toEqual([expect.objectContaining({ outcome: 'bag' })]);
+    expect([4, 9, 30].map((i) => s.bag[i]?.type === 'gem' && s.bag[i].count)).toEqual([25, 25, 25]);
+    expect(s.overflow).toEqual([{ ...found, count: 7 }]);
+
+    // one new cell only: a second empty cell stays empty, and the held rest takes a fresh id
+    const t = newGame(1, 0);
+    fullBag(t);
+    t.bag[2] = null;
+    t.bag[3] = null;
+    const big = gem(t, 'emerald', { count: 30 });
+    const next = t.nextId;
+    expect(receiveItem(t, big)).toEqual([expect.objectContaining({ outcome: 'bag' })]);
+    expect([t.bag[2], t.bag[3]]).toEqual([{ ...big, count: 25 }, null]);
+    expect(t.overflow).toEqual([{ ...big, id: next, count: 5 }]);
+  });
+
+  it('a found material fills existing stacks, then new cells, and the rest is held as a stack', () => {
+    const s = newGame(1, 0);
+    fullBag(s);
+    const copper = ore(s, 40);
+    s.bag[7] = copper;
+    s.bag[20] = null;
+    s.bag[41] = null;
+    expect(receiveMaterial(s, 'copper', 130)).toEqual([
+      { name: 'Copper ore', rarity: 'material', base: 'copper', outcome: 'bag', value: 130 },
+    ]);
+    expect([7, 20, 41].map((i) => s.bag[i])).toEqual([
+      copper, expect.objectContaining({ type: 'material', material: 'copper', count: 50 }),
+      expect.objectContaining({ type: 'material', material: 'copper', count: 50 }),
+    ]);
+    expect(copper.count).toBe(50);
+    expect(s.overflow).toEqual([expect.objectContaining({ type: 'material', material: 'copper', count: 20 })]);
+    expect(s.stash.materials.copper).toBe(0);
+    expect(validateState(s)).toBe(true);
+  });
+
+  it('with the bag full, any find is held, up to 60', () => {
+    const s = newGame(1, 0);
+    fullBag(s);
+    const ring = gear(s, 'ring');
+    const ruby = gem(s, 'ruby', { count: 3 });
+    const map = mapOf(s, 2);
+    expect([
+      ...receiveItem(s, ring), ...receiveItem(s, ruby), ...receiveItem(s, map), ...receiveMaterial(s, 'tin', 12),
+    ].map((n) => n.outcome)).toEqual(['held', 'held', 'held', 'held']);
+    expect(s.overflow).toEqual([ring, ruby, map, expect.objectContaining({ type: 'material', material: 'tin', count: 12 })]);
+    while (s.overflow.length < MAX_HELD) receiveItem(s, gear(s, 'boots'));
+    expect(s.overflow).toHaveLength(MAX_HELD);
+    expect(validateState(s)).toBe(true);
+  });
+
+  it('past 60 held, gear, gems and maps are sold and materials go to the Materials tab', () => {
+    const s = newGame(1, 0);
+    fullBag(s);
+    for (let i = 0; i < MAX_HELD; i++) s.overflow.push(gear(s, 'boots'));
+    const held = structuredClone(s.overflow);
+    expect(receiveItem(s, mapOf(s, 4))).toEqual([{ name: 'Tier 4 map', rarity: 'normal', base: 'map', outcome: 'sold', value: 400 }]);
+    expect(s.gold).toBe(400);
+    expect(receiveItem(s, gear(s, 'ring', { rarity: 'rare', ilvl: 5 })).map((n) => [n.outcome, n.value])).toEqual([['sold', 150]]);
+    expect(receiveItem(s, gem(s, 'ruby')).map((n) => [n.outcome, n.value])).toEqual([['sold', 40]]);
+    expect(s.gold).toBe(590);
+    expect(receiveMaterial(s, 'iron', 9)).toEqual([
+      { name: 'Iron ore', rarity: 'material', base: 'iron', outcome: 'stash', value: 9 },
+    ]);
+    expect(s.stash.materials.iron).toBe(9);
+    expect(s.overflow).toEqual(held);
+  });
+
+  it('held finds move into the bag as room frees, in order, the loot filter first', () => {
+    const s = newGame(1, 0);
+    fullBag(s);
+    const first = gear(s, 'ring', { rarity: 'magic' });
+    const second = gear(s, 'gloves', { rarity: 'normal', ilvl: 4 });
+    receiveItem(s, first);
+    receiveItem(s, second);
+    s.bag[12] = null;
+    drainOverflow(s);
+    expect([s.bag[12], s.overflow]).toEqual([first, [second]]);
+    s.settings.lootFilter = [{ rarity: 'normal', target: 'any', action: 'sell' }];
+    drainOverflow(s);
+    expect([s.overflow, s.gold]).toEqual([[], 20]);
+  });
+
+  it('nothing goes to the stash on its own', () => {
+    const s = newGame(1, 0);
+    fullBag(s);
+    const before = structuredClone([s.stash.general, s.stash.gems, s.stash.maps]);
+    for (let i = 0; i < 500; i++) receiveItem(s, i % 2 ? gear(s, 'ring') : gem(s, 'sapphire'));
+    expect([s.stash.general, s.stash.gems, s.stash.maps]).toEqual(before);
+    expect(s.overflow).toHaveLength(MAX_HELD);
+  });
+
+  it('the loot filter never matches a map', () => {
+    const s = newGame(1, 0);
+    s.settings.lootFilter = [{ rarity: 'any', target: 'any', action: 'sell' }];
+    expect(receiveItem(s, gem(s)).map((n) => n.outcome)).toEqual(['sold']);
+    const map = mapOf(s, 3);
+    expect(lootAction(s.settings.lootFilter, map)).toBe('keep');
+    expect(receiveItem(s, map).map((n) => n.outcome)).toEqual(['bag']);
+    expect(s.bag[0]).toBe(map);
+  });
+
+  it('a map salvages into Copper ore, plus Tin ore from tier 3', () => {
+    const s = newGame(1, 0);
+    expect([1, 3, 5, 10].map((tier) => salvageYield(mapOf(s, tier)))).toEqual([
+      { copper: 2 }, { copper: 2, tin: 1 }, { copper: 4, tin: 2 }, { copper: 6, tin: 3 },
+    ]);
+    expect(salvageYield(mapOf(s, 5, 'rare'))).toEqual({ copper: 4, tin: 2 });
+  });
 });
 
 describe('when the bag and the General tab are full', () => {
@@ -227,7 +356,7 @@ it('the offline summary counts loot and notices a full stop', () => {
   expect(summarize(before, before, 600_000, 600, 28_800_000).bagStopped).toBe(false);
 });
 
-it('found gems stack in the bag, then go to the Gems tab, and never wait', () => {
+it('found gems stack in the bag, then are held, and past the held cap are sold', () => {
   const s = newGame(1, 0);
   s.bag[3] = gem(s, 'ruby', { count: 24 });
   receiveItem(s, gem(s, 'ruby'));
@@ -235,13 +364,14 @@ it('found gems stack in the bag, then go to the Gems tab, and never wait', () =>
   receiveItem(s, gem(s, 'ruby'));
   expect(s.bag[0]).toMatchObject({ gem: 'ruby', grade: 'tiny', count: 1 });
   s.bag = s.bag.map((c, i) => c ?? gear(s, i % 2 ? 'pickaxe' : 'boots'));
-  expect(receiveItem(s, gem(s, 'emerald'))).toEqual([expect.objectContaining({ outcome: 'stash' })]);
-  expect(s.stash.gems.emerald.tiny).toBe(1);
-  s.stash.gems.emerald.tiny = 1_000_000;
+  const emerald = gem(s, 'emerald');
+  expect(receiveItem(s, emerald)).toEqual([expect.objectContaining({ outcome: 'held' })]);
+  expect([s.stash.gems.emerald.tiny, s.overflow]).toEqual([0, [emerald]]);
+  while (s.overflow.length < MAX_HELD) s.overflow.push(gear(s, 'boots'));
   const gold = s.gold;
   expect(receiveItem(s, gem(s, 'emerald'))).toEqual([expect.objectContaining({ outcome: 'sold', value: 40 })]);
   expect(s.gold).toBe(gold + 40);
-  expect(s.overflow).toEqual([]);
+  expect(s.overflow).toHaveLength(MAX_HELD);
 });
 
 it('a found stack of 3 tops up a stack of 24, then takes an empty cell with its own id', () => {
@@ -274,7 +404,7 @@ it('sell bonus raises what selling pays, by hand and by the loot filter', () => 
   expect(s.gold).toBe(450);
 });
 
-it('sell bonus raises a find sold past the held cap, held loot sold by the filter, and a found gem stack sold for want of room', () => {
+it('sell bonus raises a find sold past the held cap, held loot sold by the filter, and a found gem stack sold past the held cap', () => {
   const s = wearing('sellBonus', 50);
   fill(s);
   for (let i = 0; i < MAX_HELD; i++) receiveItem(s, gear(s, 'pickaxe'));
@@ -291,7 +421,7 @@ it('sell bonus raises a find sold past the held cap, held loot sold by the filte
 
   const gems = wearing('sellBonus', 50);
   gems.bag = gems.bag.map(() => gear(gems, 'boots'));
-  gems.stash.gems.emerald.tiny = 1_000_000;
+  for (let i = 0; i < MAX_HELD; i++) gems.overflow.push(gear(gems, 'boots'));
   expect(receiveItem(gems, gem(gems, 'emerald'))).toEqual([expect.objectContaining({ outcome: 'sold', value: 60 })]);
   expect(gems.gold).toBe(60);
 });

@@ -36,7 +36,7 @@ export function collect(
   if (bonus) find.bonus = true;
   const loot: LootNote[] = [];
   if (roll.feature === 'map') {
-    addMap(state, tier, depth);
+    loot.push(...addMap(state, tier, depth));
   } else if (roll.feature === 'chest') {
     for (const item of rollChest(state, tier)) loot.push(...receiveItem(state, item));
   } else if (roll.feature === 'gem') {
@@ -46,7 +46,7 @@ export function collect(
   logFind(state, find, events);
 }
 
-/** A material vein, seeded or from ore find: its amount times vein yield goes to the bag (or the Materials tab), and is logged. */
+/** A material vein, seeded or from ore find: its amount times vein yield goes to the bag (or is held), and is logged. */
 function collectMaterialVein(
   state: GameState, vein: { material: Material; amount: number }, depth: number, stats: Stats, events?: TickEvent[],
   bonus = false,

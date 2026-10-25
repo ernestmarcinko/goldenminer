@@ -2,9 +2,10 @@ import { GEM_BAG_STACK, GEM_STASH_STACK, MATERIAL_BAG_STACK, MATERIAL_STASH_STAC
 import { firstEmpty, itemAt, mapTierCount, sameLoc } from './cells';
 import { craft } from './crafting';
 import { isGear, isMap, isStack, setOfSlot } from './items';
-import type { Cell, GearItem, GemItem, Item, MaterialItem, Slot, Stack } from './items';
+import type { Cell, GearItem, Item, MaterialItem, Slot, Stack } from './items';
 import { fillAhead } from './metres';
-import { salvagePay, sellPay, stashMaterials } from './loot';
+import { salvagePay, sellPay, stackIntoBag, stashMaterials } from './loot';
+import type { Loot } from './loot';
 import { putMap, takeMapAt } from './maps';
 import { deriveStats } from './stats';
 import type { CraftResult, DropTarget, GameState, InvResult, ItemLoc } from './types';
@@ -246,11 +247,15 @@ export function socketGem(state: GameState, gem: ItemLoc, into: ItemLoc): InvRes
   return 'ok';
 }
 
-/** Empties a cell or a Gems-tab stack (all of it) of gear or gems, returning what was there. Maps and materials stay. */
-function discard(state: GameState, from: ItemLoc): GearItem | GemItem | undefined {
+/**
+ * Empties a cell, a tier list's place or a Gems-tab stack (all of it) of gear, gems or a map, returning what was there.
+ * Materials stay: they are crafting currency.
+ */
+function discard(state: GameState, from: ItemLoc): Loot | undefined {
   const item = itemAt(state, from);
-  if (item === undefined || item.type === 'map' || item.type === 'material') return undefined;
+  if (item === undefined || item.type === 'material') return undefined;
   if (from.where === 'gems') state.stash.gems[from.gem][from.grade] = 0;
+  else if (from.where === 'maps') takeMapAt(state, from);
   else if (isCellLoc(from)) writeCell(state, from, null);
   else return undefined;
   return item;
@@ -272,22 +277,8 @@ export function salvage(state: GameState, from: ItemLoc): InvResult {
 
 /** Up to a bag stack of a tab stack goes into the bag: existing stacks are topped up first, then one new cell. */
 function takeStack(state: GameState, from: TabLoc, item: Stack): InvResult {
-  const cells = state.bag;
-  const cap = bagStackCap(item);
-  const total = Math.min(cap, item.count);
-  let left = total;
-  for (const c of cells) {
-    if (left === 0) break;
-    if (c === null || !isStack(c) || !sameStack(c, item) || c.count >= cap) continue;
-    const n = Math.min(left, cap - c.count);
-    c.count += n;
-    left -= n;
-  }
-  const empty = firstEmpty(cells);
-  if (left > 0 && empty >= 0) {
-    cells[empty] = newStack(state, item, left);
-    left = 0;
-  }
+  const total = Math.min(bagStackCap(item), item.count);
+  const left = stackIntoBag(state, item, total, 1, (n) => newStack(state, item, n));
   if (left === total) return 'bagFull';
   removeUnits(state, from, item, total - left);
   return 'ok';

@@ -23,7 +23,7 @@ import { tierFor, tierRange } from '../../src/core/tiers';
 import { MAP_MOD_KINDS, MOD_SIDE } from '../../src/core/items';
 import type { Cell, GemGrade, GemType, MapItem, MapMod, ModLine } from '../../src/core/items';
 import type { ChampionMod, DeathEntry, DropEntry, FindRecord, GameState, LootAction, MapRun, RunOutcome } from '../../src/core/types';
-import { gear, gem } from '../helpers/items';
+import { gear, gem, stashMap } from '../helpers/items';
 
 const raw = (env: unknown) => compressToBase64(JSON.stringify(env));
 
@@ -332,7 +332,7 @@ const tabMaps = (s: GameState): MapItem[] => Object.values(s.stash.maps).flat();
 
 /** A new map that is in no cell: for a run or a last run. */
 function looseMap(s: GameState, tier: number, metre: number): MapItem {
-  const map = takeMap(s, addMap(s, tier, metre).id);
+  const map = takeMap(s, stashMap(s, tier, metre).id);
   if (map === undefined) throw new Error('map not kept');
   return map;
 }
@@ -370,7 +370,7 @@ it('rejects impossible maps, runs and levels', () => {
     ['a hand-edited boss room on a started map', (s) => {
       // seed 1's tier-1 dungeon at metre 11 has 6 rooms: its boss room is 7, not 8
       s.activity = { kind: 'dig' };
-      startMap(s, addMap(s, 1, 11).id);
+      startMap(s, stashMap(s, 1, 11).id);
       const r = run(s);
       if (r) r.bossRoom = 8;
     }],
@@ -410,7 +410,7 @@ it('accepts the legal extremes of maps, runs and levels', () => {
     ['the last xp below a level', (s) => { s.level = 2; s.xp = 282; }],
     ['a champion with two distinct mods', (s) => { Object.assign(monster(s), { rank: 'champion', mods: ['brutal', 'swift'] }); }],
     ['the boss room with a boss in front', (s) => { run(s).room = 6; monster(s).rank = 'boss'; }],
-    ['a started map with its own boss room', (s) => { s.activity = { kind: 'dig' }; startMap(s, addMap(s, 1, 11).id); }],
+    ['a started map with its own boss room', (s) => { s.activity = { kind: 'dig' }; startMap(s, stashMap(s, 1, 11).id); }],
     ['more items than the run keeps notes of', (s) => { run(s).items = 500; }],
     ['a log with heal, drop and level lines', (s) => {
       run(s).log = [
@@ -673,7 +673,7 @@ it('the validator holds the schema-8 maps', () => {
   const mod = (kind: MapMod['kind'], tier = 1, value = 10): MapMod => ({ kind, tier, value });
   const SIX = MAP_MOD_KINDS.map((k) => mod(k));
   // a tier-4 map in the Maps tab, enchanted as `change` says
-  const check = (change: (m: MapItem) => void) => { const s = structuredClone(ok); change(addMap(s, 4, 327)); return decodes(s); };
+  const check = (change: (m: MapItem) => void) => { const s = structuredClone(ok); change(stashMap(s, 4, 327)); return decodes(s); };
   const as = (rarity: MapItem['rarity'], mods: MapMod[], extra: Partial<MapItem> = {}) => (m: MapItem) => { Object.assign(m, { rarity, mods, ...extra }); };
   expect(check(() => {})).toBe(true);
   expect(check(as('magic', [mod('monsterLife')]))).toBe(true);
@@ -705,8 +705,9 @@ it('the validator holds the schema-8 maps', () => {
 
 it('a found map is a normal map with no modifiers', () => {
   const s = newGame(1, 0);
-  expect(addMap(s, 3, 40)).toEqual(expect.objectContaining({ rarity: 'normal', mods: [] }));
-  expect(addMap(s, 3, 40).sealed).toBeUndefined();
+  addMap(s, 3, 40);
+  expect(s.bag[0]).toEqual(expect.objectContaining({ type: 'map', rarity: 'normal', mods: [] }));
+  expect(s.bag[0]?.type === 'map' && s.bag[0].sealed).toBeUndefined();
 });
 
 it('the schema-8 fixture migrates to hold mode, keeps its held gear, groups its maps by tier and refunds its Maps page', () => {

@@ -5,7 +5,7 @@ import { decodeSave, encodeSave } from '../../src/core/save';
 import { compressToBase64 } from 'lz-string';
 import fixture5 from '../fixtures/save-schema-5.txt?raw';
 import { newGame } from '../../src/core/newGame';
-import { addMap, startMap } from '../../src/core/maps';
+import { startMap } from '../../src/core/maps';
 import { advance } from '../../src/core/clock';
 import { freshWorld } from '../../src/core/seed';
 import { deriveBattleStats } from '../../src/core/battle';
@@ -14,7 +14,7 @@ import { xpToNext } from '../../src/core/levels';
 import { seedFromText } from '../../src/core/seed';
 import { MAX_LOOT_RULES } from '../../src/core/balance';
 import type { LootRule, TickEvent } from '../../src/core/types';
-import { gear, gem } from '../helpers/items';
+import { gear, gem, stashMap } from '../helpers/items';
 
 function make(now = { t: 0 }, storage = new MemoryStorage(), available = true) {
   const store = new GameStore({ storage, storageAvailable: available, now: () => now.t, newSeed: () => 7 });
@@ -333,7 +333,7 @@ describe('stash pages', () => {
     expect(store.state.stash.general).toHaveLength(120);
   });
 
-  it('a bought page lets held loot into it', () => {
+  it('a bought page leaves held loot held: only the bag takes it', () => {
     const { store } = make();
     store.load();
     const s = store.state;
@@ -343,8 +343,7 @@ describe('stash pages', () => {
     s.overflow.push(held);
     s.gold = 5000;
     expect(store.buyStashPage()).toBe('ok');
-    expect(s.overflow).toEqual([]);
-    expect(s.stash.general[120]).toBe(held);
+    expect([s.overflow, s.stash.general[120]]).toEqual([[held], null]);
   });
 });
 
@@ -380,7 +379,7 @@ describe('a migrated save with held loot', () => {
 describe('maps', () => {
   it('a click in a map is a hit, never a dig, and still capped', () => {
     const { store } = make(); store.load();
-    const map = addMap(store.state, 1, 2);
+    const map = stashMap(store.state, 1, 2);
     expect(store.startMap(map.id)).toBe('ok');
     const ticks = store.state.tickCount;
     const events = store.click();
@@ -393,7 +392,7 @@ describe('maps', () => {
 
   it('leaving and dismissing', () => {
     const { store } = make(); store.load();
-    store.startMap(addMap(store.state, 1, 2).id);
+    store.startMap(stashMap(store.state, 1, 2).id);
     expect(store.leaveMap()).toBe(true);
     expect(store.state.lastRun).toMatchObject({ outcome: 'left', seen: false });
     store.dismissRun();
@@ -402,7 +401,7 @@ describe('maps', () => {
 
   it('auto strikes reach the feedback', () => {
     const { store, now } = make(); store.load();
-    store.startMap(addMap(store.state, 1, 2).id);
+    store.startMap(stashMap(store.state, 1, 2).id);
     now.t = 3000; store.pump();
     const fb = store.drainFeedback();
     expect(fb.strikes.length).toBeGreaterThan(0);
@@ -411,7 +410,7 @@ describe('maps', () => {
   /** The same run on a plain core game, pumped at the same moments, with every event it produced. */
   function runEvents(seconds: number): TickEvent[] {
     const reference = freshWorld(() => 7, 0);
-    startMap(reference, addMap(reference, 1, 2).id);
+    startMap(reference, stashMap(reference, 1, 2).id);
     const events: TickEvent[] = [];
     for (let t = 250; t <= seconds * 1000; t += 250) advance(reference, t, deriveStats(reference), events);
     expect(reference.activity.kind).toBe('map');
@@ -420,7 +419,7 @@ describe('maps', () => {
 
   function pumpedRun(seconds: number) {
     const { store, now } = make(); store.load();
-    store.startMap(addMap(store.state, 1, 2).id);
+    store.startMap(stashMap(store.state, 1, 2).id);
     for (now.t = 250; now.t <= seconds * 1000; now.t += 250) store.pump();
     expect(store.state.activity.kind).toBe('map');
     return store;
@@ -434,7 +433,7 @@ describe('maps', () => {
 
   it('click strikes stay out of the feedback', () => {
     const { store } = make(); store.load();
-    store.startMap(addMap(store.state, 1, 2).id);
+    store.startMap(stashMap(store.state, 1, 2).id);
     expect(store.click().some((e) => e.kind === 'strike' && e.click)).toBe(true);
     expect(store.drainFeedback().strikes).toEqual([]);
   });
@@ -449,7 +448,7 @@ describe('maps', () => {
 
   it('a click after the run has ended digs again', () => {
     const { store } = make(); store.load();
-    store.startMap(addMap(store.state, 1, 2).id);
+    store.startMap(stashMap(store.state, 1, 2).id);
     store.leaveMap();
     expect(store.state.activity.kind).toBe('dig');
     const ticks = store.state.tickCount;
@@ -463,7 +462,7 @@ describe('maps', () => {
     store.dismissRun();
     expect(store.state.lastRun).toBeNull();
     expect(store.version).toBe(v);
-    store.startMap(addMap(store.state, 1, 2).id);
+    store.startMap(stashMap(store.state, 1, 2).id);
     store.leaveMap();
     store.dismissRun();
     v = store.version;
@@ -473,7 +472,7 @@ describe('maps', () => {
 
   it('a dismissed run stays dismissed across a save and load', () => {
     const { store, storage, now } = make(); store.load();
-    store.startMap(addMap(store.state, 1, 2).id);
+    store.startMap(stashMap(store.state, 1, 2).id);
     store.leaveMap();
     store.dismissRun();
     store.save();
@@ -497,7 +496,7 @@ describe('battle stats', () => {
     const { store, now } = make(); store.load();
     const before = store.battle.maxLife;
     store.state.xp = xpToNext(store.state.level) - 1;
-    store.startMap(addMap(store.state, 1, 2).id);
+    store.startMap(stashMap(store.state, 1, 2).id);
     for (now.t = 250; store.state.level === 1 && now.t <= 60_000; now.t += 250) store.pump();
     expect(store.state.level).toBeGreaterThan(1);
     expect(store.battle.maxLife).toBeGreaterThan(before);

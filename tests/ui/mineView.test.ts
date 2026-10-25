@@ -2,9 +2,9 @@ import { expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
 import { deriveStats } from '../../src/core/stats';
 import { digSpeed } from '../../src/core/dig';
-import { addMap, startMap } from '../../src/core/maps';
+import { startMap } from '../../src/core/maps';
 import { digStatus, hazardText, pauseLabel, speedText } from '../../src/ui/mine/mineView';
-import { gear } from '../helpers/items';
+import { gear, stashMap } from '../helpers/items';
 
 it('speedText and hazardText', () => {
   expect(speedText({ metresPerMinute: 1.3, secondsToNext: 42 })).toBe('1.3 m/min · next metre in 42 s');
@@ -23,7 +23,7 @@ it('digStatus: the run first, then the Pause, then a full bag, else the speed', 
   expect(digStatus(s, stats)).toEqual({ kind: 'bagFull', text: 'Your bag is full. Make room to dig on.' });
   s.paused = true;
   expect(digStatus(s, stats)).toEqual({ kind: 'paused', text: 'Paused. Press Continue digging to dig on.' });
-  startMap(s, addMap(s, 1, 2).id);
+  startMap(s, stashMap(s, 1, 2).id);
   expect(digStatus(s, stats)).toEqual({ kind: 'run', text: 'Paused while the map runs.' });
 });
 

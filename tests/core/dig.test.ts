@@ -2,6 +2,8 @@ import { expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
 import { deriveStats } from '../../src/core/stats';
 import { applyTicks, digSpeed, faceTicksPerMetre } from '../../src/core/dig';
+import { drainOverflow } from '../../src/core/loot';
+import { digClearing } from '../helpers/dig';
 import { gear } from '../helpers/items';
 import { validateState } from '../../src/core/save';
 import type { GameState, Stats, TickEvent } from '../../src/core/types';
@@ -94,7 +96,7 @@ it('worldGen 1 worlds get material veins too', () => {
 
 it('the face keeps its seeded features', () => {
   const s = newGame(21, 0);
-  while (s.deepest < 300) applyTicks(s, 100, stats);
+  while (s.deepest < 300) digClearing(s, 100, stats);
   const seeded = s.finds.filter((f) => !f.bonus && f.kind !== 'materialVein' && f.depth >= 3 && f.depth <= 300);
   const expected: { depth: number; kind: string }[] = [];
   for (let m = 3; m <= 300; m++) {
@@ -286,14 +288,13 @@ const emptyMetre = (seed: number, m: number) => rollMetre(seed, m, BASE_ROLL_CHA
 it('ore find adds bonus material veins on metres the seed left empty, at its chance', () => {
   const s = newGame(31, 0);
   s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'oreFind', value: 100 }] });
-  // thousands of metres of chests would fill the bag and hold digging, so the filter sells them
-  s.settings.lootFilter = [{ rarity: 'any', target: 'any', action: 'sell' }];
+  // thousands of metres of finds would fill the bag and hold digging, so each tick clears them
   const st = deriveStats(s);
   expect(st.oreBonusChance).toBeCloseTo(0.3);
   const fast = { ...st, digPower: 1e6 };
   let last = 3;   // one past the 2,000th empty metre from metre 3
   for (let seen = 0; seen < 2000; last++) if (emptyMetre(31, last)) seen++;
-  while (s.deepest < last) applyTicks(s, 1, fast);
+  while (s.deepest < last) digClearing(s, 1, fast);
   const bonusAt = new Set(s.finds.filter((f) => f.kind === 'materialVein' && f.bonus === true).map((f) => f.depth));
   let hit = 0;
   for (let m = 3; m < last; m++) {
@@ -309,7 +310,7 @@ it('ore find adds bonus material veins on metres the seed left empty, at its cha
 it('a sure ore find still never touches a metre with a feature or a layer vein', () => {
   const s = newGame(11, 0);
   const sure = { ...stats, oreBonusChance: 1, digPower: 1e6 };
-  while (s.deepest < 600) applyTicks(s, 1, sure);
+  while (s.deepest < 600) digClearing(s, 1, sure);
   for (let m = 3; m <= 600; m++) {
     const bonus = s.finds.filter((f) => f.depth === m && f.kind === 'materialVein' && f.bonus === true);
     expect(bonus, `metre ${m}`).toHaveLength(emptyMetre(11, m) ? 1 : 0);
@@ -322,7 +323,7 @@ it('without ore find, digging draws exactly what it drew before ore find existed
   s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'chestFind', value: 50 }] });
   const st = deriveStats(s);
   expect(st.oreBonusChance).toBe(0);
-  while (s.deepest < 400) applyTicks(s, 1, st);
+  while (s.deepest < 400) digClearing(s, 1, st);
   expect([s.rng, s.deepest, s.finds.length, s.tickCount]).toEqual([3752176977, 400, 201, 38027]);
   expect(s.finds.some((f) => f.kind === 'materialVein' && f.bonus === true)).toBe(false);
 });
@@ -335,4 +336,23 @@ it('a paused dig tick digs nothing and still counts, and held loot does the same
   held.overflow.push(gear(held, 'boots'));
   applyTicks(held, 10, stats, [], false);
   expect([held.deepest, held.progress, held.tickCount]).toEqual([0, 0, 10]);
+});
+
+it('digging stops while finds are held and resumes when the bag has room', () => {
+  const s = fresh();
+  s.bag = s.bag.map(() => gear(s, 'boots'));
+  s.ahead[1] = { feature: 'map', amount: 0, hardRock: false };
+  while (s.deepest < 1) applyTicks(s, 1, stats);
+  expect(s.finds.at(-1)?.loot?.map((n) => [n.base, n.outcome])).toEqual([['map', 'held']]);
+  expect(s.overflow).toEqual([expect.objectContaining({ type: 'map', tier: 1, metre: 1 })]);
+  expect(s.stash.maps).toEqual({});
+  const before = { deepest: s.deepest, progress: s.progress, ticks: s.tickCount };
+  applyTicks(s, 200, stats);
+  expect([s.deepest, s.progress, s.tickCount]).toEqual([before.deepest, before.progress, before.ticks + 200]);
+  expect(digSpeed(s, stats)).toBeNull();
+  s.bag[33] = null;
+  drainOverflow(s);
+  expect([s.overflow, s.bag.findIndex((c) => c?.type === 'map')]).toEqual([[], 33]);
+  applyTicks(s, 1, stats);
+  expect(s.progress).toBeGreaterThan(before.progress);
 });

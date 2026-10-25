@@ -4,6 +4,7 @@ import { MATERIAL_LABELS } from '../../core/itemData';
 import { BATTLE_SLOTS, isGear, MATERIALS, MINING_SLOTS, setOfSlot } from '../../core/items';
 import type { GearItem, GemItem, Item, MapItem, MaterialItem } from '../../core/items';
 import { salvagePay, sellPay } from '../../core/loot';
+import type { Loot } from '../../core/loot';
 import { canUpgrade, soulUpgradeCost } from '../../core/soulUpgrade';
 import type { SoulUpgradeCheck } from '../../core/soulUpgrade';
 import { deriveStats, gemEffect } from '../../core/stats';
@@ -98,16 +99,25 @@ function materialActions(state: GameState, target: ItemTarget, item: MaterialIte
   return [{ id: 'toStash', label: 'To Materials tab', disabled: full }];
 }
 
+/** The sell and salvage actions, labelled with what sell bonus and salvage yield will pay; `all` for a Gems-tab stack. */
+function sellSalvage(state: GameState, item: Loot, all = false): [ActionSpec, ActionSpec] {
+  const stats = deriveStats(state);
+  return [
+    { id: 'sell', label: `Sell${all ? ' all' : ''} (+${formatNumber(sellPay(item, stats))} Gold)`, disabled: false },
+    { id: 'salvage', label: `Salvage${all ? ' all' : ''} (${yieldText(item, stats)})`, disabled: false },
+  ];
+}
+
 /**
- * A map runs from its card (not while another run is going), moves between the bag and the Maps tab, and is enchanted
- * from it.
+ * A map runs from its card (not while another run is going), moves between the bag and the Maps tab, sells, salvages,
+ * and is enchanted from it.
  */
 function mapActions(state: GameState, target: ItemTarget, item: MapItem): ActionSpec[] {
   const run: ActionSpec = { id: 'run', label: 'Run this map', disabled: state.activity.kind === 'map' };
   const move: ActionSpec = target.where === 'maps'
     ? { id: 'toBag', label: 'To bag', disabled: firstEmpty(state.bag) < 0 }
     : { id: 'toStash', label: 'To Maps tab', disabled: mapTierCount(state, item.tier) >= MAP_TIER_CAP };
-  return [run, move, ...craftActions(state, target)];
+  return [run, move, ...sellSalvage(state, item), ...craftActions(state, target)];
 }
 
 export function itemActions(state: GameState, target: ItemTarget): ActionSpec[] {
@@ -124,14 +134,7 @@ export function itemActions(state: GameState, target: ItemTarget): ActionSpec[] 
       ...craftActions(state, target),
     ];
   }
-  const all = target.where === 'gems';
-  const stats = deriveStats(state);   // the labels show what sell bonus and salvage yield will pay
-  const sell: ActionSpec = {
-    id: 'sell', label: `Sell${all ? ' all' : ''} (+${formatNumber(sellPay(item, stats))} Gold)`, disabled: false,
-  };
-  const salvage: ActionSpec = {
-    id: 'salvage', label: `Salvage${all ? ' all' : ''} (${yieldText(item, stats)})`, disabled: false,
-  };
+  const [sell, salvage] = sellSalvage(state, item, target.where === 'gems');
   if (item.type === 'gem' && target.where === 'gems') {
     const take: ActionSpec = {
       id: 'take', label: `Take to bag (up to ${formatNumber(GEM_BAG_STACK)})`, disabled: !bagTakesGem(state, item),

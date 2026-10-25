@@ -236,6 +236,8 @@ export const LOOT_NOTES_KEPT = 30;
 // A map sells for MAP_SELL_GOLD × tier², times its rarity's factor.
 export const MAP_SELL_GOLD = 25;
 export const MAP_RARITY_SELL: Readonly<Record<MapRarity, number>> = { normal: 1, magic: 1.5, rare: 2.5 };
+// A map salvages into Copper ore, plus Tin ore from `tinFromTier`, each times its tier's factor as gear's item level is.
+export const MAP_SALVAGE: Readonly<{ copper: number; tin: number; tinFromTier: number }> = { copper: 2, tin: 1, tinFromTier: 3 };
 // The logs keep their newest entries; a trail keeps its first step and its newest ones.
 export const DROP_LOG_LIMIT = 300;
 export const DEATH_LOG_LIMIT = 50;

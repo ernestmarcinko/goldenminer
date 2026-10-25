@@ -73,7 +73,7 @@ export function RunView({ store }: { store: GameStore }) {
               {run.loot.length > loot.length && <li className="gm-muted">and {formatNumber(run.loot.length - loot.length)} more</li>}
             </ul>
           )}
-          <div className="gm-muted gm-small">Drops go to the battle bag</div>
+          <div className="gm-muted gm-small">Drops go to your bag</div>
         </section>
       </div>
     </div>

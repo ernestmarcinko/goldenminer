@@ -6,15 +6,19 @@ import type { MapItem } from '../../src/core/items';
 import { addMap, putMap, startMap, takeMap, takeMapAt } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
 import { deriveStats } from '../../src/core/stats';
+import { stashMap } from '../helpers/items';
 
 const mapOf = (id: number, tier: number, metre = 10): MapItem => ({ id, type: 'map', tier, metre, rarity: 'normal', mods: [] });
 
-it('a map find becomes a map in its tier of the Map stash', () => {
+it('a map find becomes a map in the bag, and its find notes it', () => {
   const s = newGame(1, 0);
   while (s.deepest < 2) applyTicks(s, 1, deriveStats(s));
-  expect(Object.keys(s.stash.maps)).toEqual(['1']);
-  expect(s.stash.maps[1]).toEqual([expect.objectContaining({ type: 'map', tier: 1, metre: 2 })]);
-  expect(s.stash.maps[1]?.[0]?.id).toBeGreaterThan(s.finds.find((f) => f.kind === 'map')?.id ?? Infinity);
+  expect(s.stash.maps).toEqual({});
+  const map = s.bag.find((c) => c?.type === 'map');
+  expect(map).toEqual(expect.objectContaining({ type: 'map', tier: 1, metre: 2 }));
+  const find = s.finds.find((f) => f.kind === 'map');
+  expect(map?.id).toBeGreaterThan(find?.id ?? Infinity);
+  expect(find?.loot).toEqual([{ name: 'Tier 1 map', rarity: 'normal', base: 'map', outcome: 'bag', value: 0 }]);
 });
 
 it('putMap appends a map under its own tier, creating the list', () => {
@@ -62,20 +66,17 @@ it('takeMap finds a map in the bag or in any tier', () => {
   expect(s.stash.maps[9]).toHaveLength(1);
 });
 
-it('a found map joins its tier; past a full tier it takes the first empty bag cell, and with none it is not kept', () => {
+it('a found map takes the bag\'s first empty cell, is held when the bag is full, and never joins its tier', () => {
   const s = newGame(1, 0);
-  const a = addMap(s, 3, 120);
-  expect(s.stash.maps[3]).toEqual([a]);
-  s.stash.maps[3] = Array.from({ length: MAP_TIER_CAP }, () => mapOf(s.nextId++, 3));
   s.bag[0] = mapOf(s.nextId++, 1);
-  const b = addMap(s, 3, 130);
-  expect(s.bag[1]).toBe(b);
+  const id = s.nextId;
+  expect(addMap(s, 3, 120)).toEqual([{ name: 'Tier 3 map', rarity: 'normal', base: 'map', outcome: 'bag', value: 0 }]);
+  expect(s.bag[1]).toEqual({ id, type: 'map', tier: 3, metre: 120, rarity: 'normal', mods: [] });
+  expect(s.stash.maps).toEqual({});
   s.bag = s.bag.map((c) => c ?? mapOf(s.nextId++, 1));
-  const before = structuredClone([s.bag, s.stash.maps]);
-  const next = s.nextId;
-  const lost = addMap(s, 3, 140);
-  expect(lost.id).toBe(next);
-  expect([s.bag, s.stash.maps]).toEqual(before);
+  expect(addMap(s, 3, 130).map((n) => n.outcome)).toEqual(['held']);
+  expect(s.overflow).toEqual([expect.objectContaining({ type: 'map', tier: 3, metre: 130 })]);
+  expect(s.stash.maps).toEqual({});
 });
 
 it('maps run from the bag or from a tier list', () => {
@@ -86,7 +87,7 @@ it('maps run from the bag or from a tier list', () => {
   expect(startMap(s, inBag.id)).toBe('ok');
   expect(s.bag[4]).toBeNull();
   expect(s.activity.kind === 'map' && s.activity.run.map).toBe(inBag);
-  const inTab = addMap(s, 1, 3);
+  const inTab = stashMap(s, 1, 3);
   expect(startMap(s, inTab.id)).toBe('busy');
   s.activity = { kind: 'dig' };
   expect(startMap(s, inTab.id)).toBe('ok');

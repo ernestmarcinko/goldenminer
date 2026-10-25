@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { BAG_SIZE, MATERIAL_STASH_STACK } from '../../src/core/balance';
+import { BAG_SIZE, MATERIAL_STASH_STACK, MAX_HELD } from '../../src/core/balance';
 import { dropItem, moveItem, salvage, sendItem } from '../../src/core/inventory';
 import type { MaterialItem } from '../../src/core/items';
 import { receiveItem, receiveMaterial, salvageYield } from '../../src/core/loot';
@@ -9,21 +9,26 @@ import { gear, gem } from '../helpers/items';
 
 const bagLoc = (index: number): ItemLoc => ({ where: 'bag', index });
 
-it('a found material tops up its bag stack, opens at most one stack, then joins the tab', () => {
+it('a found material tops up its bag stacks, then opens new ones, and never joins the tab on its own', () => {
   const s = newGame(1, 0);
   receiveMaterial(s, 'copper', 30);
   expect(s.bag[0]).toMatchObject({ type: 'material', material: 'copper', count: 30 });
   receiveMaterial(s, 'copper', 30);
-  expect([s.bag[0]?.type === 'material' && s.bag[0].count, s.stash.materials.copper]).toEqual([50, 10]);
-  receiveMaterial(s, 'copper', 5);                       // the bag already has a copper stack: no second one
-  expect([s.bag.filter((c) => c !== null).length, s.stash.materials.copper]).toEqual([1, 15]);
+  expect([s.bag[0], s.bag[1], s.stash.materials.copper]).toEqual([
+    expect.objectContaining({ count: 50 }), expect.objectContaining({ material: 'copper', count: 10 }), 0,
+  ]);
+  receiveMaterial(s, 'copper', 5);                       // the open stack takes it: no third one
+  expect([s.bag.filter((c) => c !== null).length, (s.bag[1] as MaterialItem).count]).toEqual([2, 15]);
   receiveMaterial(s, 'tin', 2);
-  expect(s.bag[1]).toMatchObject({ material: 'tin', count: 2 });
+  expect(s.bag[2]).toMatchObject({ material: 'tin', count: 2 });
 });
 
-it('a full bag sends found materials to the tab; past the cap they are lost', () => {
+it('a full bag holds found materials; past the held cap they join the tab, and past its cap they are lost', () => {
   const s = newGame(1, 0);
   for (let i = 0; i < BAG_SIZE; i++) s.bag[i] = gear(s, 'pickaxe');
+  expect(receiveMaterial(s, 'iron', 10)[0]).toMatchObject({ outcome: 'held' });
+  expect(s.overflow).toEqual([expect.objectContaining({ type: 'material', material: 'iron', count: 10 })]);
+  while (s.overflow.length < MAX_HELD) s.overflow.push(gear(s, 'pickaxe'));
   s.stash.materials.iron = MATERIAL_STASH_STACK - 3;
   const notes = receiveMaterial(s, 'iron', 10);
   expect(s.stash.materials.iron).toBe(MATERIAL_STASH_STACK);
@@ -37,6 +42,7 @@ it('the note says where the first unit went and how many were found', () => {
   ]);
   s.stash.materials.mithril = MATERIAL_STASH_STACK;
   for (let i = 0; i < BAG_SIZE; i++) s.bag[i] ??= gear(s, 'pickaxe');
+  while (s.overflow.length < MAX_HELD) s.overflow.push(gear(s, 'pickaxe'));
   expect(receiveMaterial(s, 'mithril', 4)).toEqual([
     { name: 'Mithril', rarity: 'material', base: 'mithril', outcome: 'stash', value: 4 },
   ]);
@@ -46,10 +52,11 @@ it('the note says where the first unit went and how many were found', () => {
   expect([s.stash.materials.tin, s.nextId]).toEqual([0, before]);
 });
 
-it('a found material larger than a bag stack opens one stack and sends the rest to the tab', () => {
+it('a found material larger than a bag stack opens as many stacks as it needs', () => {
   const s = newGame(1, 0);
   receiveMaterial(s, 'obsidian', 70);
-  expect([(s.bag[0] as MaterialItem).count, s.bag[1], s.stash.materials.obsidian]).toEqual([50, null, 20]);
+  expect([(s.bag[0] as MaterialItem).count, (s.bag[1] as MaterialItem).count, s.bag[2], s.stash.materials.obsidian])
+    .toEqual([50, 20, null, 0]);
 });
 
 it('material stacks move, merge, swap and come out of the tab', () => {
@@ -101,9 +108,9 @@ it('salvage gives low-tier materials to the Materials tab, never Diamonds', () =
   expect(salvage(s, bagLoc(3))).toBe('invalid');
 });
 
-it('maps and materials yield nothing, and salvage stops at the tab cap', () => {
+it('materials yield nothing, a map yields ore, and salvage stops at the tab cap', () => {
   const s = newGame(1, 0);
-  expect(salvageYield({ id: 1, type: 'map', tier: 3, metre: 40, rarity: 'normal', mods: [] })).toEqual({});
+  expect(salvageYield({ id: 1, type: 'map', tier: 3, metre: 40, rarity: 'normal', mods: [] })).toEqual({ copper: 2, tin: 1 });
   expect(salvageYield({ id: 2, type: 'material', material: 'tin', count: 9 })).toEqual({});
   expect(salvageYield(gear(s, 'ring', { rarity: 'legendary', ilvl: 0 }))).toEqual({ tin: 3, iron: 3, silver: 1 });
   s.stash.materials.copper = MATERIAL_STASH_STACK - 1;
