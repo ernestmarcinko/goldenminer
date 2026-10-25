@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { sameLoc } from '../../core/cells';
 import type { ItemTarget } from './itemActions';
 import { CARD_PAIR_GAP, cardPairLayout, placeCardLeft, TOOLTIP_WIDTH } from './itemView';
-import type { CardFit } from './itemView';
+import type { CardFit, Span } from './itemView';
 
 /**
  * A card's place on the screen, in viewport coordinates (the cards are `position: fixed`, outside every scrolling
@@ -15,6 +15,11 @@ export interface Placed { target: ItemTarget; left: number; inline?: true; pair?
 /** How far inside the screen's top and bottom a card stays. */
 const SCREEN_MARGIN = 8;
 
+/** The rows of the screen a placed card stays inside. */
+export function screenView(): Span {
+  return { top: SCREEN_MARGIN, bottom: window.innerHeight - SCREEN_MARGIN };
+}
+
 /**
  * The hover card, the pinned card (a plain click) and the action card (a right-click). `hasWornCard` says whether an
  * item's hover card shows the worn item's card too.
@@ -23,6 +28,8 @@ export function useItemPopover(hasWornCard: (target: ItemTarget) => boolean) {
   const [hover, setHover] = useState<Placed | null>(null);
   const [pinned, setPinned] = useState<Placed | null>(null);
   const [menu, setMenu] = useState<Placed | null>(null);
+  /** How far the action card's item has moved on the screen since the card opened (`by`); `n` re-renders on a resize. */
+  const [follow, setFollow] = useState({ by: 0, n: 0 });
   const menuNow = useRef<Placed | null>(null);
   menuNow.current = menu;
   const pinnedNow = useRef<Placed | null>(null);
@@ -39,10 +46,7 @@ export function useItemPopover(hasWornCard: (target: ItemTarget) => boolean) {
   const place = useCallback((target: ItemTarget, el: HTMLElement, canPair: boolean): Placed => {
     const pair = canPair && cardPairLayout(window.innerWidth, false) === 'row' && hasWornCardNow.current(target);
     const r = el.getBoundingClientRect();
-    const fit: CardFit = {
-      anchor: { top: r.top, bottom: r.bottom },
-      view: { top: SCREEN_MARGIN, bottom: window.innerHeight - SCREEN_MARGIN },
-    };
+    const fit: CardFit = { anchor: { top: r.top, bottom: r.bottom }, view: screenView() };
     const width = pair ? 2 * TOOLTIP_WIDTH + CARD_PAIR_GAP : TOOLTIP_WIDTH;
     const left = placeCardLeft(r.left, width, document.documentElement.clientWidth);
     return pair ? { target, left, pair: true, fit } : { target, left, fit };
@@ -70,6 +74,7 @@ export function useItemPopover(hasWornCard: (target: ItemTarget) => boolean) {
     opener.current = el;
     setHover(null);
     setPinned(null);
+    setFollow({ by: 0, n: 0 });
     setMenu(inline ? { target, left: 0, inline: true } : place(target, el, false));
   }, [place]);
 
@@ -101,6 +106,8 @@ export function useItemPopover(hasWornCard: (target: ItemTarget) => boolean) {
       if (!(e.target instanceof Node)) return;
       const inCard = e.target instanceof Element ? e.target.closest('[data-item-card]') : null;
       if (inCard !== null && !inCard.hasAttribute('data-pinned')) return;
+      // a right-click on the pinned card only closes it, without the browser's menu
+      if (inCard !== null && e.type === 'contextmenu') e.preventDefault();
       setMenu(null);
       if (e.type === 'click' && pinOpener.current?.contains(e.target) === true) return;
       setPinned(null);
@@ -117,5 +124,30 @@ export function useItemPopover(hasWornCard: (target: ItemTarget) => boolean) {
     };
   }, [isOpen]);
 
-  return { hover, pinned, menu, inspect, clear, pin, unpin, openMenu, closeMenu, leaveMenu };
+  // The page scrolls, or the window resizes, under a placed card. A hover card goes. A pinned card closes: it would sit
+  // beside another item, and a Ctrl+click or Alt+click there would sell or salvage what the card doesn't show. An action
+  // card follows its item, and closes once its item has left the screen. A card's own scroll inside doesn't count.
+  const placedOpen = hover !== null || pinned !== null || (menu !== null && menu.inline !== true);
+  const anchorTop = menu?.fit?.anchor.top;
+  useEffect(() => {
+    if (!placedOpen) return undefined;
+    const onMove = (e: Event): void => {
+      if (e.target instanceof Element && e.target.closest('[data-item-card]') !== null) return;
+      setHover(null);
+      setPinned(null);
+      const el = opener.current;
+      if (anchorTop === undefined || el === null || !el.isConnected) return;
+      const r = el.getBoundingClientRect();
+      if (r.bottom <= 0 || r.top >= window.innerHeight) setMenu(null);
+      else setFollow((f) => ({ by: r.top - anchorTop, n: f.n + 1 }));
+    };
+    document.addEventListener('scroll', onMove, { capture: true, passive: true });
+    window.addEventListener('resize', onMove);
+    return () => {
+      document.removeEventListener('scroll', onMove, { capture: true });
+      window.removeEventListener('resize', onMove);
+    };
+  }, [placedOpen, anchorTop]);
+
+  return { hover, pinned, menu, follow: follow.by, inspect, clear, pin, unpin, openMenu, closeMenu, leaveMenu };
 }

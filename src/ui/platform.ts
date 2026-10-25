@@ -5,5 +5,3 @@ export const IS_MAC: boolean = typeof navigator !== 'undefined' && /Mac|iPhone|i
 export function sellKey(mac: boolean): string {
   return mac ? '⌘' : 'Ctrl';
 }
-
-export const SELL_KEY = sellKey(IS_MAC);

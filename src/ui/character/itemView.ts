@@ -217,12 +217,37 @@ export function cardMaxHeight(anchor: Span, view: Span, height: number): number 
 }
 
 /**
- * An open action card's scroll after a craft, when `anchorCraft` asks to move its box from `top` to `placed`: a card
- * that scrolls inside scrolls its content by as much instead, as far as `maxScroll` lets it, and its box moves only by
- * the rest. Either keeps the clicked button under the pointer; scrolling keeps the card on the screen.
+ * An open action card's scroll inside after a craft, when `anchorCraft` asks to move its box from `top` to `placed`: a
+ * card that scrolls inside (one taller than the screen, capped) scrolls its content by as much instead, as far as
+ * `maxScroll` lets it, and its box moves only by the rest. Either keeps the clicked button under the pointer; moving
+ * a capped box would take its bottom, and the pointer's button with it, away from the pointer.
  */
 export function cardScroll(top: number, placed: number, scroll: number, maxScroll: number): number {
   return Math.max(0, Math.min(maxScroll, scroll + top - placed));
+}
+
+/**
+ * The part of an open action card that shows on the screen. The card would be at `top`, `height` tall, its content
+ * running from `content.top` to `content.bottom` on the screen; after a craft (Plan 7's anchoring) or as its item
+ * scrolls with the page, that can be past the screen's edge, where a fixed card could never be reached. So it shows
+ * only what is on the screen and scrolls inside to the rest, its content left where it is: the clicked button stays
+ * under the pointer, and the card's name, lines and Close can still be scrolled to.
+ */
+export function cardWindow(top: number, height: number, content: Span, view: Span): Span {
+  const lo = Math.max(content.top, view.top);
+  const hi = Math.min(content.bottom, view.bottom);
+  const shown = Math.min(Math.max(top, lo), hi);
+  return { top: shown, bottom: Math.min(Math.max(top + height, shown), hi) };
+}
+
+/**
+ * Whether an open card's scroll moved since the card last set it (`was`) because the player scrolled it, so a craft
+ * must not pull it back. A scroll the browser pulled back to the content's new end (`maxScroll`), after a craft made
+ * the content shorter, is not the player's.
+ */
+export function userScrolled(was: number, now: number, maxScroll: number): boolean {
+  if (Math.abs(now - was) <= 0.5) return false;
+  return !(now < was && now >= maxScroll - 0.5);
 }
 
 /** Where a card's item is and which rows show, so the card can be fitted once its height is known. */

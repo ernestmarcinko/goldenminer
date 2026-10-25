@@ -84,8 +84,9 @@ button.gm-item:hover { background: #3a2f20; }
 @container (width < 385px) { .gm-grid > .gm-item > :first-child { transform: scale(0.6667); } }
 .gm-cell--empty { box-sizing: border-box; border-radius: 6px; background: #1a1613; border: 1px solid #2e2722; }
 
+/* above the page, below the dialogs (.gm-overlay, z-index 10 and up), which must cover an open card */
 .gm-card {
-  position: fixed; z-index: 30; width: 270px; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px;
+  position: fixed; z-index: 9; width: 270px; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px;
   padding: 12px; border-radius: 8px; background: #0f0d0b; border: 1px solid var(--gm-tone, var(--gm-normal));
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6); pointer-events: none;
 }
@@ -102,7 +103,7 @@ button.gm-item:hover { background: #3a2f20; }
 /* the label over a gear or map card's craft buttons, set apart from the actions above it */
 .gm-card__craft { padding-top: 6px; }
 /* a hover card and the worn item's card, side by side as one placed pair */
-.gm-cardpair { position: fixed; z-index: 30; display: flex; align-items: flex-start; gap: 8px; pointer-events: none; }
+.gm-cardpair { position: fixed; z-index: 9; display: flex; align-items: flex-start; gap: 8px; pointer-events: none; }
 .gm-cardpair > .gm-card { position: static; }
 .gm-card--equipped { opacity: 0.92; border-color: var(--gm-line); }
 .gm-card__equipped { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px solid var(--gm-line); }

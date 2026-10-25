@@ -98,7 +98,7 @@ export function useItemInteractions({ store, state, fallbackRef, drag }: {
     <ItemCard
       key={`menu-${targetKey(menu.target)}`}
       state={state} target={menu.target}
-      left={menu.left} fit={menu.fit} inline={menu.inline === true} smooth={smooth}
+      left={menu.left} fit={menu.fit} follow={popover.follow} inline={menu.inline === true} smooth={smooth}
       menu={{
         onAction: (a) => perform(menu.target, a, true),
         onClose: () => closeMenu(true, fallbackRef.current),

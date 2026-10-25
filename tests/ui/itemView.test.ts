@@ -3,8 +3,8 @@ import { newGame } from '../../src/core/newGame';
 import { deriveStats, gearTotals } from '../../src/core/stats';
 import { itemName } from '../../src/core/itemData';
 import {
-  battleStatLine, cardHead, clickIntent, compareLines, itemKindLine, itemLines, itemSprite, lootNoteText, miningStatLine, anchorCraft, craftAnchor, cardMaxHeight, cardScroll, craftSlots, fittedCardTop, keptHeight, placeCardLeft, placeCardTop, rarityOf,
-  statText,
+  battleStatLine, cardHead, clickIntent, compareLines, itemKindLine, itemLines, itemSprite, lootNoteText, miningStatLine, anchorCraft, craftAnchor, cardMaxHeight, cardScroll, cardWindow, craftSlots, fittedCardTop, keptHeight, placeCardLeft, placeCardTop, rarityOf,
+  statText, userScrolled,
 } from '../../src/ui/character/itemView';
 import { mapDungeon } from '../../src/ui/run/runView';
 import type { MapItem } from '../../src/core/items';
@@ -141,6 +141,31 @@ it('after a craft, a card that scrolls inside scrolls its content as far as it c
   // a line went away above the button: the box would go down to 60
   expect(cardScroll(8, 60, 100, 300)).toBe(48);
   expect(cardScroll(8, 60, 10, 300)).toBe(0);
+});
+
+it('an open action card shows the part of itself that is on the screen, its content left where it is', () => {
+  const view = { top: 8, bottom: 892 };
+  // inside the screen: all of it, where it is
+  expect(cardWindow(100, 600, { top: 100, bottom: 700 }, view)).toEqual({ top: 100, bottom: 700 });
+  // a craft moved it up past the top: it shows from the screen's top and scrolls inside to the rest
+  expect(cardWindow(-109, 600, { top: -109, bottom: 491 }, view)).toEqual({ top: 8, bottom: 491 });
+  // or down past the bottom
+  expect(cardWindow(500, 600, { top: 500, bottom: 1100 }, view)).toEqual({ top: 500, bottom: 892 });
+  // a card that scrolls inside (capped at 802 px) whose item scrolled 100 px up with the page: it follows, cut at the top
+  expect(cardWindow(-92, 802, { top: -92, bottom: 838 }, { top: 8, bottom: 836 })).toEqual({ top: 8, bottom: 710 });
+  // the same card scrolled 100 px inside by the player, where it was: unchanged
+  expect(cardWindow(8, 802, { top: -92, bottom: 838 }, { top: 8, bottom: 836 })).toEqual({ top: 8, bottom: 810 });
+  // past both edges
+  expect(cardWindow(-100, 1200, { top: -100, bottom: 1100 }, view)).toEqual({ top: 8, bottom: 892 });
+});
+
+it('a scroll inside an open card that the card did not make is the player re-aiming', () => {
+  expect(userScrolled(120, 120, 300)).toBe(false);
+  expect(userScrolled(120, 120.4, 300)).toBe(false);   // rounding
+  expect(userScrolled(120, 160, 300)).toBe(true);      // scrolled down
+  expect(userScrolled(120, 40, 300)).toBe(true);       // scrolled up
+  // a craft made the content shorter and the browser pulled the scroll back to its new end: not the player
+  expect(userScrolled(120, 90, 90)).toBe(false);
 });
 
 describe('an action card stays inside the rows that show', () => {
