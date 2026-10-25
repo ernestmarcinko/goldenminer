@@ -21,6 +21,8 @@ export interface CardMenu {
   onClose: () => void;
   /** Keyboard focus moved out of the card, so it closes without taking focus back. */
   onLeave: () => void;
+  /** The card has no part left on the screen: it closes, as Enter must not craft on a card no one can see. */
+  onLost: () => void;
   /** Set while this card's item is lifted by a touch tap. */
   onPutBack?: () => void;
 }
@@ -103,6 +105,7 @@ export function ItemCard({
   /** An action card taller than the screen opens at most this tall (`cardMaxHeight`). */
   const cap = useRef<number | undefined>(undefined);
   const followed = useRef(0);
+  const lost = useRef(false);
   const anchor = useRef<CraftAnchor | null>(null);
   const tallest = useRef({ card: 0, crafts: 0 });
   const slotOrder = useRef<string[]>([]);
@@ -132,8 +135,12 @@ export function ItemCard({
         inner.current += scroll - shown.current.scroll;
         anchor.current = null;
       }
-      at.current += follow - followed.current;
-      followed.current = follow;
+      // its item scrolled with the page: the card moves with it, and that is a new aim, as a scroll inside is
+      if (follow !== followed.current) {
+        anchor.current = null;
+        at.current += follow - followed.current;
+        followed.current = follow;
+      }
       const grid = craftGrid(card);
       if (anchor.current !== null && grid !== null) {
         const next = anchorCraft(card.getBoundingClientRect().top, anchor.current, grid);
@@ -156,6 +163,11 @@ export function ItemCard({
       // the content runs the card's full scroll height, between its borders (which scrollHeight leaves out)
       const extent = card.scrollHeight + card.offsetHeight - card.clientHeight;
       const w = cardWindow(at.current, height, { top: origin, bottom: origin + extent }, screenView());
+      if (w.bottom - w.top < 1) {
+        if (!lost.current) menu.onLost();
+        lost.current = true;
+        return;
+      }
       if (w.bottom - w.top < height - 0.5) {
         card.style.maxHeight = `${w.bottom - w.top}px`;
         card.style.minHeight = `${Math.min(tallest.current.card, w.bottom - w.top)}px`;

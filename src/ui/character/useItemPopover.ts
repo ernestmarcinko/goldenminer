@@ -21,6 +21,16 @@ export function screenView(): Span {
 }
 
 /**
+ * How far everything that scrolls around `el` has scrolled, down the page: the page itself and any scrolling box it
+ * sits in. A change in it moves `el` on the screen by as much, the other way; a reflow (after a craft) does not.
+ */
+function scrolledAround(el: HTMLElement): number {
+  let sum = 0;
+  for (let p = el.parentElement; p !== null; p = p.parentElement) sum += p.scrollTop;
+  return sum;
+}
+
+/**
  * The hover card, the pinned card (a plain click) and the action card (a right-click). `hasWornCard` says whether an
  * item's hover card shows the worn item's card too.
  */
@@ -28,8 +38,13 @@ export function useItemPopover(hasWornCard: (target: ItemTarget) => boolean) {
   const [hover, setHover] = useState<Placed | null>(null);
   const [pinned, setPinned] = useState<Placed | null>(null);
   const [menu, setMenu] = useState<Placed | null>(null);
-  /** How far the action card's item has moved on the screen since the card opened (`by`); `n` re-renders on a resize. */
-  const [follow, setFollow] = useState({ by: 0, n: 0 });
+  /**
+   * How far the page's scrolling has moved the action card's item on the screen since the card opened (`by`), and the
+   * card's left edge after a resize (`left`, null until one).
+   */
+  const [follow, setFollow] = useState<{ by: number; left: number | null }>({ by: 0, left: null });
+  /** `scrolledAround` the action card's item, when it was last read. */
+  const scrolledAt = useRef(0);
   const menuNow = useRef<Placed | null>(null);
   menuNow.current = menu;
   const pinnedNow = useRef<Placed | null>(null);
@@ -74,7 +89,8 @@ export function useItemPopover(hasWornCard: (target: ItemTarget) => boolean) {
     opener.current = el;
     setHover(null);
     setPinned(null);
-    setFollow({ by: 0, n: 0 });
+    setFollow({ by: 0, left: null });
+    scrolledAt.current = scrolledAround(el);
     setMenu(inline ? { target, left: 0, inline: true } : place(target, el, false));
   }, [place]);
 
@@ -124,11 +140,20 @@ export function useItemPopover(hasWornCard: (target: ItemTarget) => boolean) {
     };
   }, [isOpen]);
 
+  /** An open action card has no part left on the screen (its item still partly is): it closes, focus back on its item. */
+  const loseMenu = useCallback(() => {
+    setMenu(null);
+    const el = opener.current;
+    setTimeout(() => { if (el?.isConnected) el.focus({ preventScroll: true }); }, 0);
+  }, []);
+
   // The page scrolls, or the window resizes, under a placed card. A hover card goes. A pinned card closes: it would sit
   // beside another item, and a Ctrl+click or Alt+click there would sell or salvage what the card doesn't show. An action
-  // card follows its item, and closes once its item has left the screen. A card's own scroll inside doesn't count.
+  // card follows its item by as far as the scrolling moved it (a reflow, after a craft, never moves the card), keeps
+  // inside the screen's width after a resize, and closes once its item has left the screen. A card's own scroll inside
+  // doesn't count.
   const placedOpen = hover !== null || pinned !== null || (menu !== null && menu.inline !== true);
-  const anchorTop = menu?.fit?.anchor.top;
+  const menuPlaced = menu !== null && menu.inline !== true;
   useEffect(() => {
     if (!placedOpen) return undefined;
     const onMove = (e: Event): void => {
@@ -136,10 +161,17 @@ export function useItemPopover(hasWornCard: (target: ItemTarget) => boolean) {
       setHover(null);
       setPinned(null);
       const el = opener.current;
-      if (anchorTop === undefined || el === null || !el.isConnected) return;
+      if (!menuPlaced || el === null || !el.isConnected) return;
       const r = el.getBoundingClientRect();
-      if (r.bottom <= 0 || r.top >= window.innerHeight) setMenu(null);
-      else setFollow((f) => ({ by: r.top - anchorTop, n: f.n + 1 }));
+      if (r.bottom <= 0 || r.top >= window.innerHeight) {
+        setMenu(null);
+        return;
+      }
+      const now = scrolledAround(el);
+      const by = scrolledAt.current - now;
+      scrolledAt.current = now;
+      const left = e.type === 'resize' ? placeCardLeft(r.left, TOOLTIP_WIDTH, document.documentElement.clientWidth) : null;
+      setFollow((f) => ({ by: f.by + by, left: left ?? f.left }));
     };
     document.addEventListener('scroll', onMove, { capture: true, passive: true });
     window.addEventListener('resize', onMove);
@@ -147,7 +179,10 @@ export function useItemPopover(hasWornCard: (target: ItemTarget) => boolean) {
       document.removeEventListener('scroll', onMove, { capture: true });
       window.removeEventListener('resize', onMove);
     };
-  }, [placedOpen, anchorTop]);
+  }, [placedOpen, menuPlaced]);
 
-  return { hover, pinned, menu, follow: follow.by, inspect, clear, pin, unpin, openMenu, closeMenu, leaveMenu };
+  return {
+    hover, pinned, menu, follow: follow.by, menuLeft: follow.left ?? menu?.left ?? 0,
+    inspect, clear, pin, unpin, openMenu, closeMenu, leaveMenu, loseMenu,
+  };
 }

@@ -98,11 +98,12 @@ export function useItemInteractions({ store, state, fallbackRef, drag }: {
     <ItemCard
       key={`menu-${targetKey(menu.target)}`}
       state={state} target={menu.target}
-      left={menu.left} fit={menu.fit} follow={popover.follow} inline={menu.inline === true} smooth={smooth}
+      left={popover.menuLeft} fit={menu.fit} follow={popover.follow} inline={menu.inline === true} smooth={smooth}
       menu={{
         onAction: (a) => perform(menu.target, a, true),
         onClose: () => closeMenu(true, fallbackRef.current),
         onLeave: leaveMenu,
+        onLost: popover.loseMenu,
         onPutBack: held !== null && sameLoc(held, menu.target)
           ? () => { release(); closeMenu(true, fallbackRef.current); }
           : undefined,
