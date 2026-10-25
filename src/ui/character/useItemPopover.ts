@@ -140,6 +140,17 @@ export function useItemPopover(hasWornCard: (target: ItemTarget) => boolean) {
     };
   }, [isOpen]);
 
+  // While an action card is open the page never scrolls by itself to keep what shows still (scroll anchoring): content
+  // growing above the screen, such as a status line that wraps after a craft, would scroll the page, and the card would
+  // follow an item that did not move. The page scroller is the root element; the grids only scroll sideways.
+  const menuOpen = menu !== null;
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const root = document.documentElement;
+    root.style.overflowAnchor = 'none';
+    return () => { root.style.overflowAnchor = ''; };
+  }, [menuOpen]);
+
   /** An open action card has no part left on the screen (its item still partly is): it closes, focus back on its item. */
   const loseMenu = useCallback(() => {
     setMenu(null);
