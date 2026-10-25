@@ -40,6 +40,9 @@
 .gm-mine__band { font-family: var(--gm-font-display); font-weight: 400; font-size: 18px; }
 .gm-mine__progress { display: flex; flex-direction: column; gap: 6px; }
 .gm-mine__progress-text { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.gm-mine__status { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.gm-mine__status-text { font-family: var(--gm-font-mono); font-size: 13px; color: var(--gm-gold-bright); }
+.gm-mine__status-text:not([data-kind='digging']) { font-family: inherit; font-size: 14px; color: var(--gm-text); }
 .gm-mine__hazard { color: var(--gm-legendary); font-size: 13px; }
 .gm-bar { height: 10px; border-radius: 5px; background: #2e2722; overflow: hidden; }
 .gm-bar__fill { height: 10px; background: var(--gm-gold); }

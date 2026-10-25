@@ -59,9 +59,16 @@ export function startGame(
     return true;
   };
 
+  // A hidden tab counts as idle, so it digs even from another view. Coming back, the hidden stretch is dug first,
+  // and only then does the view pause hold again.
   function onVisibility(): void {
-    if (env.doc.visibilityState === 'hidden') guardedSave();
-    else owns();
+    if (env.doc.visibilityState === 'hidden') {
+      store.setHidden(true);
+      guardedSave();
+    } else {
+      if (owns()) store.pump();
+      store.setHidden(false);
+    }
   }
 
   function onPageHide(): void {

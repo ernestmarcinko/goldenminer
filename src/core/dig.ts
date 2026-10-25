@@ -150,15 +150,16 @@ function digFace(state: GameState, stats: Stats, events?: TickEvent[]): void {
   }
 }
 
-export function applyTicks(state: GameState, count: number, stats: Stats, events?: TickEvent[]): void {
+/** Runs `count` ticks. A paused dig tick is dropped, not banked: it still counts, and nothing digs it later. */
+export function applyTicks(state: GameState, count: number, stats: Stats, events?: TickEvent[], digPaused = false): void {
   for (let i = 0; i < count; i++) {
-    // A running map takes the whole tick, with no digging; held loot doesn't pause it.
+    // A running map takes the whole tick, with no digging; neither a pause nor held loot stops it.
     if (state.activity.kind === 'map') {
       mapTick(state, stats, events);
       state.tickCount += 1;
       continue;
     }
-    if (state.overflow.length > 0) {
+    if (digPaused || state.overflow.length > 0) {
       state.tickCount += 1;
       continue;
     }

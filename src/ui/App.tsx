@@ -62,6 +62,8 @@ function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: ()
     if (running && !wasRunning.current) setView('maps');
     wasRunning.current = running;
   }, [running]);
+  // digging runs only while the Mine view is on screen
+  useEffect(() => store.setViewPaused(view !== 'mine'), [view, store]);
   return (
     <div className="gm-app">
       <Header store={store} onOpenSettings={() => setSettingsOpen(true)} />

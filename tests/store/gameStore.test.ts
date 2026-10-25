@@ -516,3 +516,78 @@ describe('battle stats', () => {
     expect(store.battle.maxLife).toBe(deriveBattleStats(newGame(2, 0)).maxLife);
   });
 });
+
+describe('pausing', () => {
+  const dug = (s: { deepest: number; progress: number }) => [s.deepest, s.progress];
+
+  it('offline catch-up digs unless the player pressed Pause', () => {
+    const storage = new MemoryStorage();
+    const paused = newGame(1, 0);
+    paused.paused = true;
+    storage.setItem(SAVE_KEY, encodeSave(paused, 0));
+    const away = make({ t: 600_000 }, storage).store;
+    // the view the game was left on doesn't matter offline
+    away.setViewPaused(true);
+    away.load();
+    expect(dug(away.state)).toEqual([0, 0]);
+    expect(away.state.tickCount).toBe(600);
+    expect(away.offlineSummary?.paused).toBe(true);
+    expect(away.offlineSummary?.metres).toBe(0);
+
+    storage.setItem(SAVE_KEY, encodeSave(newGame(1, 0), 0));
+    const digging = make({ t: 600_000 }, storage).store;
+    digging.setViewPaused(true);
+    digging.load();
+    expect(digging.state.deepest).toBeGreaterThan(0);
+    expect(digging.offlineSummary?.paused).toBe(false);
+  });
+
+  it('the view pause gates live ticks only, and a hidden tab digs', () => {
+    const { store, now } = make(); store.load();
+    store.setViewPaused(true);
+    expect(store.digPaused).toBe(true);
+    now.t = 10_000; store.pump();
+    expect(dug(store.state)).toEqual([0, 0]);
+    expect(store.state.tickCount).toBe(10);
+
+    store.setHidden(true);
+    expect(store.digPaused).toBe(false);
+    now.t = 20_000; store.pump();
+    const hidden = dug(store.state);
+    expect(hidden).not.toEqual([0, 0]);
+
+    store.setHidden(false);
+    store.setViewPaused(false);
+    expect(store.digPaused).toBe(false);
+    now.t = 30_000; store.pump();
+    expect(dug(store.state)).not.toEqual(hidden);
+
+    // the player's Pause holds even while hidden
+    store.setPaused(true);
+    store.setHidden(true);
+    expect(store.digPaused).toBe(true);
+  });
+
+  it('setPaused writes the save flag and bumps the version; the view pause and hidden do not', () => {
+    const { store } = make(); store.load();
+    const v = store.version;
+    store.setPaused(true);
+    expect(store.state.paused).toBe(true);
+    expect(store.version).toBe(v + 1);
+    store.setViewPaused(true);
+    store.setHidden(true);
+    expect(store.state.paused).toBe(true);
+    store.setPaused(false);
+    expect(store.state.paused).toBe(false);
+  });
+
+  it('the player\'s Pause survives a save and a load', () => {
+    const { store, storage, now } = make(); store.load();
+    store.setPaused(true);
+    store.save();
+    now.t = 600_000;
+    const again = make(now, storage).store; again.load();
+    expect(again.state.paused).toBe(true);
+    expect(dug(again.state)).toEqual(dug(store.state));
+  });
+});

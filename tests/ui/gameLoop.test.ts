@@ -7,7 +7,7 @@ beforeEach(() => { vi.useFakeTimers(); });
 afterEach(() => { vi.useRealTimers(); });
 
 function setup() {
-  const store = { load: vi.fn(), pump: vi.fn(), save: vi.fn() };
+  const store = { load: vi.fn(), pump: vi.fn(), save: vi.fn(), setHidden: vi.fn() };
   let held = true;
   const lock = {
     heartbeat: vi.fn(() => held),
@@ -55,5 +55,21 @@ it('blocks when the lock was lost, without saving', () => {
 it('starting the loop does not load: the app loads before it starts', () => {
   const { store, loop } = setup();
   expect(store.load).not.toHaveBeenCalled();
+  loop.stop();
+});
+
+it('a hidden tab lifts the view pause, and the hidden stretch is dug before it comes back', () => {
+  const { store, doc, loop } = setup();
+  const calls: string[] = [];
+  store.pump.mockImplementation(() => { calls.push('pump'); });
+  store.save.mockImplementation(() => { calls.push('save'); });
+  store.setHidden.mockImplementation((hidden: boolean) => { calls.push(`setHidden(${hidden})`); });
+  doc.visibilityState = 'hidden';
+  doc.dispatchEvent(new Event('visibilitychange'));
+  expect(calls).toEqual(['setHidden(true)', 'save']);
+  calls.length = 0;
+  doc.visibilityState = 'visible';
+  doc.dispatchEvent(new Event('visibilitychange'));
+  expect(calls).toEqual(['pump', 'setHidden(false)']);
   loop.stop();
 });

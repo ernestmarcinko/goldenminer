@@ -1,13 +1,12 @@
 import type { GameStore } from '../../store/gameStore';
 import { bandAt } from '../../core/bands';
-import { digSpeed } from '../../core/dig';
 import { metreLayer } from '../../core/layer';
 import { bandTitle, worldOf } from '../../core/mineLook';
 import { formatNumber, formatRate, plural } from '../format';
 import { useGame } from '../useGame';
 import { FindsFeed } from './FindsFeed';
 import { Minimap } from './Minimap';
-import { hazardText, speedText } from './mineView';
+import { digStatus, hazardText, pauseLabel } from './mineView';
 import { ShaftScene } from './ShaftScene';
 import './mine.css';
 
@@ -16,17 +15,13 @@ export function MineView({ store, onBackToMap }: { store: GameStore; onBackToMap
   const band = bandAt(state.deepest);
   const pct = Math.round(Math.min(1, Math.max(0, state.progress)) * 100);
   const hazard = hazardText(metreLayer(state.seed, state.deepest + 1).hazard, stats.hazardWard);
+  const status = digStatus(state, stats);
   return (
     <div className="gm-mine">
       {state.activity.kind === 'map' && (
         <div role="status" className="gm-banner gm-banner--run">
           <span>Digging is paused while you're in a map.</span>
           <button type="button" className="gm-btn" onClick={onBackToMap}>Back to the map</button>
-        </div>
-      )}
-      {state.overflow.length > 0 && (
-        <div role="status" className="gm-banner">
-          Your bag and the stash are full, so digging has stopped. Sell or salvage something to carry on.
         </div>
       )}
       <div className="gm-mine__top">
@@ -42,7 +37,6 @@ export function MineView({ store, onBackToMap }: { store: GameStore; onBackToMap
           <div className="gm-mine__progress">
             <div className="gm-mine__progress-text gm-muted">
               <span>Next metre</span>
-              <span>{speedText(digSpeed(state, stats))}</span>
             </div>
             <div
               className="gm-bar"
@@ -53,6 +47,17 @@ export function MineView({ store, onBackToMap }: { store: GameStore; onBackToMap
               aria-valuenow={pct}
             >
               <div className="gm-bar__fill" style={{ width: `${pct}%` }} />
+            </div>
+            <div className="gm-mine__status">
+              <span className="gm-mine__status-text" data-kind={status.kind}>{status.text}</span>
+              <button
+                type="button"
+                className="gm-btn gm-btn--primary"
+                aria-pressed={state.paused}
+                onClick={() => store.setPaused(!state.paused)}
+              >
+                {pauseLabel(state.paused)}
+              </button>
             </div>
             <div className="gm-muted gm-small">
               Auto {formatRate(stats.autoTicksPerSecond)} tick/s · each click +{plural(stats.ticksPerClick, 'tick', 'ticks')}

@@ -73,6 +73,9 @@ export class GameStore {
   private feedback: Feedback = emptyFeedback();
   private readonly listeners = new Set<() => void>();
   private limiter = new ClickLimiter();
+  // UI state, never saved: another view pauses live digging, and a hidden tab lifts that, since away counts as idle.
+  private viewPaused = false;
+  private hidden = false;
 
   constructor(private readonly deps: Deps) {
     this._state = freshWorld(deps.newSeed, deps.now());
@@ -91,6 +94,8 @@ export class GameStore {
   get lastCraft(): CraftNotice | null { return this._lastCraft; }
   /** The newest item bought from the merchant, for its "You got" panel. */
   get lastGamble(): GearItem | null { return this._lastGamble; }
+  /** Whether live ticks dig: the player's Pause always holds, the view pause only while the tab is on screen. */
+  get digPaused(): boolean { return this._state.paused || (this.viewPaused && !this.hidden); }
 
   subscribe(fn: () => void): () => void {
     this.listeners.add(fn);
@@ -114,8 +119,11 @@ export class GameStore {
     this._battle = deriveBattleStats(state);
   }
 
-  /** Advances to now; returns the ticks applied. Clones a "before" snapshot only when a summary is possible. */
-  private catchUp(events?: TickEvent[]): number {
+  /**
+   * Advances to now; returns the ticks applied. Clones a "before" snapshot only when a summary is possible.
+   * Offline catch-up gates digging on the player's Pause alone: the view the game was left on doesn't matter.
+   */
+  private catchUp(events?: TickEvent[], live = false): number {
     const now = this.deps.now();
     const state = this._state;
     const stats = this._stats;
@@ -123,7 +131,7 @@ export class GameStore {
       now - state.lastTickAt >= (OFFLINE_SUMMARY_MIN_TICKS * 1000) / stats.autoTicksPerSecond;
     const before = summaryPossible ? structuredClone(state) : null;
     const elapsed = now - state.lastTickAt;
-    const ticks = advance(state, now, stats, events);
+    const ticks = advance(state, now, stats, events, live ? this.digPaused : state.paused);
     if (before && ticks >= OFFLINE_SUMMARY_MIN_TICKS) {
       this._summary = summarize(before, state, elapsed, ticks, stats.offlineCapMs);
     }
@@ -188,7 +196,7 @@ export class GameStore {
 
   pump(): void {
     const events: TickEvent[] = [];
-    const ticks = this.catchUp(events);
+    const ticks = this.catchUp(events, true);
     if (ticks === 0) return;
     this.fold(events);
     this.changed();
@@ -373,6 +381,15 @@ export class GameStore {
     this.save();
     return true;
   }
+
+  /** The player's Pause; it is saved, so a paused game stays paused after a reload. */
+  setPaused(paused: boolean): void {
+    this._state.paused = paused;
+    this.changed();
+  }
+
+  setViewPaused(paused: boolean): void { this.viewPaused = paused; }
+  setHidden(hidden: boolean): void { this.hidden = hidden; }
 
   setMotion(patch: Partial<MotionSettings>): void {
     // An explicit undefined must not overwrite a setting: it would make the next save invalid.

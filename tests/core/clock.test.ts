@@ -3,6 +3,8 @@ import { newGame } from '../../src/core/newGame';
 import { deriveStats } from '../../src/core/stats';
 import { advance, ClickLimiter, clickTicks } from '../../src/core/clock';
 import { summarize } from '../../src/core/summary';
+import { applyTicks } from '../../src/core/dig';
+import { addMap, startMap } from '../../src/core/maps';
 
 const stats = deriveStats(newGame(1, 0));
 
@@ -62,4 +64,28 @@ it('a zero or non-finite tick rate applies nothing and keeps lastTickAt finite',
     expect(advance(s, 5000, { ...stats, autoTicksPerSecond: rate })).toBe(0);
     expect(s.lastTickAt).toBe(5000);
   }
+});
+
+it('paused dig ticks are dropped, not banked', () => {
+  const s = newGame(1, 0);
+  expect(advance(s, 60_000, stats, [], true)).toBe(60);
+  expect([s.deepest, s.progress, s.tickCount, s.lastTickAt]).toEqual([0, 0, 60, 60_000]);
+  expect(advance(s, 61_000, stats, [], false)).toBe(1);
+  const oneTick = newGame(1, 0);
+  applyTicks(oneTick, 1, stats);
+  expect(oneTick.progress).toBeGreaterThan(0);
+  expect(s.progress).toBe(oneTick.progress);
+  expect(s.deepest).toBe(0);
+});
+
+it('a map run keeps fighting while digging is paused, and the ticks after it ends are not dug', () => {
+  const s = newGame(1, 0);
+  expect(startMap(s, addMap(s, 1, 2).id)).toBe('ok');
+  const deepest = s.deepest;
+  const progress = s.progress;
+  expect(advance(s, 3_600_000, deriveStats(s), [], true)).toBe(3600);
+  expect(s.activity.kind).toBe('dig');
+  expect(s.lastRun).not.toBeNull();
+  expect(s.deepest).toBe(deepest);
+  expect(s.progress).toBe(progress);
 });

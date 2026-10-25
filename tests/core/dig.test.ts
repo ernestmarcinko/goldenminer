@@ -326,3 +326,13 @@ it('without ore find, digging draws exactly what it drew before ore find existed
   expect([s.rng, s.deepest, s.finds.length, s.tickCount]).toEqual([3752176977, 400, 201, 38027]);
   expect(s.finds.some((f) => f.kind === 'materialVein' && f.bonus === true)).toBe(false);
 });
+
+it('a paused dig tick digs nothing and still counts, and held loot does the same', () => {
+  const paused = fresh();
+  applyTicks(paused, 10, stats, [], true);
+  expect([paused.deepest, paused.progress, paused.tickCount]).toEqual([0, 0, 10]);
+  const held = fresh();
+  held.overflow.push(gear(held, 'boots'));
+  applyTicks(held, 10, stats, [], false);
+  expect([held.deepest, held.progress, held.tickCount]).toEqual([0, 0, 10]);
+});

@@ -2,7 +2,8 @@ import { MAX_CLICKS_PER_SECOND } from './balance';
 import { applyTicks } from './dig';
 import type { GameState, Stats, TickEvent } from './types';
 
-export function advance(state: GameState, nowMs: number, stats: Stats, events?: TickEvent[]): number {
+// lastTickAt moves the same whether digging is paused or not, so paused ticks are never due again.
+export function advance(state: GameState, nowMs: number, stats: Stats, events?: TickEvent[], digPaused = false): number {
   const elapsed = nowMs - state.lastTickAt;
   if (elapsed < 0) {
     state.lastTickAt = nowMs;
@@ -15,7 +16,7 @@ export function advance(state: GameState, nowMs: number, stats: Stats, events?: 
   const interval = 1000 / stats.autoTicksPerSecond;
   const capped = elapsed > stats.offlineCapMs;
   const due = Math.floor(Math.min(elapsed, stats.offlineCapMs) / interval);
-  applyTicks(state, due, stats, events);
+  applyTicks(state, due, stats, events, digPaused);
   state.lastTickAt = capped ? nowMs : state.lastTickAt + due * interval;
   return due;
 }
