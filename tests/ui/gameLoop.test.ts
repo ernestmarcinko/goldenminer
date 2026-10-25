@@ -6,7 +6,7 @@ import type { TabLock } from '../../src/store/tabLock';
 beforeEach(() => { vi.useFakeTimers(); });
 afterEach(() => { vi.useRealTimers(); });
 
-function setup() {
+function setup(visibilityState = 'visible') {
   const store = { load: vi.fn(), pump: vi.fn(), save: vi.fn(), setHidden: vi.fn() };
   let held = true;
   const lock = {
@@ -14,7 +14,7 @@ function setup() {
     release: vi.fn(() => { held = false; }),
     tryAcquire: vi.fn(() => true),
   };
-  const doc = Object.assign(new EventTarget(), { visibilityState: 'visible' });
+  const doc = Object.assign(new EventTarget(), { visibilityState });
   const win = new EventTarget();
   const onBlocked = vi.fn();
   const loop = startGame(store as unknown as GameStore, lock as unknown as TabLock, onBlocked, { doc, win });
@@ -72,4 +72,13 @@ it('a hidden tab lifts the view pause, and the hidden stretch is dug before it c
   doc.dispatchEvent(new Event('visibilitychange'));
   expect(calls).toEqual(['pump', 'setHidden(false)']);
   loop.stop();
+});
+
+it('a game started in a background tab counts as hidden from the start', () => {
+  const hidden = setup('hidden');
+  expect(hidden.store.setHidden).toHaveBeenCalledWith(true);
+  hidden.loop.stop();
+  const shown = setup();
+  expect(shown.store.setHidden).toHaveBeenCalledWith(false);
+  shown.loop.stop();
 });

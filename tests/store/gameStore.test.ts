@@ -576,6 +576,7 @@ describe('pausing', () => {
     expect(store.version).toBe(v + 1);
     store.setViewPaused(true);
     store.setHidden(true);
+    expect(store.version).toBe(v + 1);
     expect(store.state.paused).toBe(true);
     store.setPaused(false);
     expect(store.state.paused).toBe(false);

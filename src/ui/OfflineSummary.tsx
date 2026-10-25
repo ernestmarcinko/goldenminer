@@ -47,7 +47,7 @@ export function OfflineSummary({ summary, onClose }: { summary: Summary; onClose
         )}
         {(summary.souls > 0 || summary.levels > 0) && <p>{soulsLine(summary.souls, summary.levels)}</p>}
         {summary.paused && <p>Digging was paused, so nothing was dug.</p>}
-        {summary.bagStopped && <p>Digging stopped because your bag was full.</p>}
+        {summary.bagStopped && !summary.paused && <p>Digging stopped because your bag was full.</p>}
         {finds.length > 0 && (
           <ul className="gm-dialog__list">
             {finds.map((k) => (

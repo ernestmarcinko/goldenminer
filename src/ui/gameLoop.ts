@@ -89,6 +89,8 @@ export function startGame(
     }
   }
 
+  // a game loaded in a background tab is already away, so it digs from the first pump
+  store.setHidden(env.doc.visibilityState === 'hidden');
   timers.push(setInterval(() => store.pump(), PUMP_MS));
   timers.push(setInterval(guardedSave, AUTOSAVE_INTERVAL_MS));
   timers.push(setInterval(owns, TAB_HEARTBEAT_MS));
