@@ -10,6 +10,7 @@ import type { GearItem, Slot } from '../core/items';
 import { drainOverflow } from '../core/loot';
 import { leaveMap as coreLeaveMap, startMap as coreStartMap } from '../core/maps';
 import { newGame } from '../core/newGame';
+import { soulUpgrade as coreSoulUpgrade, type SoulUpgradeCheck } from '../core/soulUpgrade';
 import { buyStashPage as coreBuyStashPage } from '../core/stashPages';
 import { decodeSave, encodeSave, type DecodeResult } from '../core/save';
 import { freshWorld, isValidSeedText, seedFromText } from '../core/seed';
@@ -266,6 +267,13 @@ export class GameStore {
       this.noteCraft(target, kind, result);
       return result.check === 'ok' ? 'ok' : 'craftRefused';
     });
+    return result;
+  }
+
+  /** Raises battle gear an item level for Souls; only an 'ok' changes anything. */
+  soulUpgrade(target: ItemLoc): SoulUpgradeCheck {
+    const result = coreSoulUpgrade(this._state, target);
+    if (result === 'ok') this.changed();
     return result;
   }
 

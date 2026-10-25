@@ -181,6 +181,23 @@ describe('an action card stays inside the rows that show', () => {
       .toEqual({ top: 262, anchor: { kind: 'tin', slot: 0, top: 262, inGrid: 0 } });
   });
 
+  it('anchors the Soul upgrade, the first slot, by its action id, as it does a craft', () => {
+    // the upgrade's button sits above the grid: 52 px tall, then the Craft label
+    const card = (kinds: string[], top = 280) => {
+      const g = grid(kinds.slice(1), top + 80);
+      return { top, kinds, tops: [top, ...g.tops] };
+    };
+    expect(craftSlots([], ['soulUpgrade', 'copper', 'mithril'])).toEqual(['soulUpgrade', 'copper', 'mithril']);
+    const was = craftAnchor(card(['soulUpgrade', 'copper', 'mithril']), 'soulUpgrade');
+    expect(was).toEqual({ kind: 'soulUpgrade', slot: 0, top: 280, inGrid: 0 });
+    // the sell label above it wrapped onto a second line: the card moves up by as much
+    expect(anchorCraft(224, was, card(['soulUpgrade', 'copper', 'mithril'], 298)).top).toBe(206);
+    // a temper sealed the item: the upgrade's slot stays, empty, and the grid below it stays put
+    expect(craftSlots(['soulUpgrade', 'voidCrystal'], [])).toEqual(['soulUpgrade', 'voidCrystal']);
+    const sealed = anchorCraft(224, craftAnchor(card(['soulUpgrade', 'voidCrystal']), 'voidCrystal'), card(['', '']));
+    expect(sealed).toEqual({ top: 224, anchor: { kind: 'voidCrystal', slot: 1, top: 360, inGrid: 80 } });
+  });
+
   it('never gets shorter while it is open, so the pointer cannot fall off its bottom', () => {
     expect(keptHeight(0, 545)).toBe(545);                            // opens at its own height
     expect(keptHeight(545, 773)).toBe(773);                          // grows with a craft

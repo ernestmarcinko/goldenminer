@@ -1,8 +1,9 @@
 import { compressToBase64, decompressFromBase64 } from 'lz-string';
 import {
   BAG_SIZE, COMBAT_LOG_LIMIT, FINDS_LOG_LIMIT, GEM_BAG_STACK, GEM_STASH_STACK, LEVEL_CAP, MATERIAL_BAG_STACK,
-  MATERIAL_STASH_STACK, MAX_CRAFTED_LINES, MAX_DAMAGE, MAX_LIFE, MAX_LOOT_RULES, MAX_MAP_MODS, MAX_OVERFLOW, MAX_SIDE_LINES,
-  MAX_SOCKETS, MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MONSTER_BUDGET, RUN_LOOT_LIMIT, START_GENERAL_PAGES, START_MAP_PAGES, STASH_PAGE_SIZE,
+  MATERIAL_STASH_STACK, MAX_CRAFTED_LINES, MAX_DAMAGE, MAX_ITEM_LEVEL, MAX_LIFE, MAX_LOOT_RULES, MAX_MAP_MODS, MAX_OVERFLOW,
+  MAX_SIDE_LINES, MAX_SOCKETS, MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MONSTER_BUDGET, RUN_LOOT_LIMIT, START_GENERAL_PAGES, START_MAP_PAGES,
+  STASH_PAGE_SIZE,
 } from './balance';
 import { metreTier } from './bands';
 import { emptyGemCounts, emptyMaterialCounts, pageCount } from './cells';
@@ -276,7 +277,7 @@ const LOOT_TARGETS: readonly string[] = [...GEAR_SETS, 'gem', 'any'];
 const ALL_SLOTS: readonly string[] = GEAR_SETS.flatMap((set) => slotsOf(set));
 const isIn = (list: readonly string[], x: unknown): boolean => typeof x === 'string' && list.includes(x);
 const isIdBelow = (x: unknown, nextId: number): x is number => isNonNegInt(x) && x >= 1 && x < nextId;
-const isItemLevel = (x: unknown): boolean => isNonNegInt(x) && x >= 1 && x <= 100_000;
+const isItemLevel = (x: unknown): boolean => isNonNegInt(x) && x >= 1 && x <= MAX_ITEM_LEVEL;
 
 function isFindRecord(x: unknown, nextId: number): boolean {
   if (!isObject(x)) return false;

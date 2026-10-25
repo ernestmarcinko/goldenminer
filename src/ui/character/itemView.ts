@@ -218,17 +218,18 @@ export function fittedCardTop(fitted: CardFit | undefined, fit: CardFit | undefi
 }
 
 /**
- * The order of an open action card's craft slots: the crafts it has shown, in the order they first showed, then any
- * new ones. A craft that goes leaves its slot empty and the rest stay put, so no craft takes another one's place
- * under the pointer.
+ * The order of an open action card's craft slots, its Soul upgrade's first: the ones it has shown, in the order they
+ * first showed, then any new ones. A craft that goes leaves its slot empty and the rest stay put, so no craft takes
+ * another one's place under the pointer.
  */
 export function craftSlots(was: readonly string[], now: readonly string[]): string[] {
   return [...was, ...now.filter((kind) => !was.includes(kind))];
 }
 
 /**
- * An action card's craft slots, measured down the card: the grid's top, and each slot's kind ('' when it is empty)
- * and top.
+ * An action card's craft slots, measured down the card: where they start, and each slot's kind ('' when it is empty)
+ * and top. A battle gear's Soul upgrade is the first slot, under the action id 'soulUpgrade', so an upgrade keeps its
+ * button under the pointer as a craft does.
  */
 export interface CraftGrid { top: number; kinds: string[]; tops: number[] }
 

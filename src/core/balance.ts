@@ -58,6 +58,8 @@ export const MAX_CRAFTED_LINES = 2;
 // A line may sit above an item's tier cap by up to this many tiers: a crafted line rolls there, and a migrated line's
 // old value can fall there.
 export const MAX_TIER_OVER_CAP = 2;
+// The highest item level an item, gem or map tier can have; a save holding more is refused.
+export const MAX_ITEM_LEVEL = 100_000;
 
 export const LEVEL_CAP = 60;
 export const COMBAT_LOG_LIMIT = 20;
@@ -216,6 +218,8 @@ export const CRAFT_COST: Readonly<Record<CraftKind, { base: number; per: number 
 export const TEMPER_WEIGHTS: readonly [TemperOutcome, number][] = [['craftedLine', 30], ['raiseTiers', 25], ['nothing', 25], ['ruin', 20]];
 // Enchanting a map also spends Souls, this many for each of its tiers.
 export const MAP_CRAFT_SOULS_PER_TIER = 5;
+// Raising battle gear one item level costs SOUL_UPGRADE_BASE × ilvl² Souls, so each level costs more than the last.
+export const SOUL_UPGRADE_BASE = 5;
 
 export const SELL_GOLD: Readonly<Record<Rarity, number>> = { normal: 5, magic: 12, rare: 30, legendary: 80 };
 export const GEM_SELL_GOLD = 20;
