@@ -7,7 +7,7 @@ import { useGame } from '../useGame';
 import { CombatLog } from './CombatLog';
 import { FightScene } from './FightScene';
 import { RoomTrack } from './RoomTrack';
-import { mapModLines } from './runView';
+import { mapModLines, mapRewardsText } from './runView';
 import './run.css';
 
 const LOOT_SHOWN = 5;
@@ -28,6 +28,7 @@ export function RunView({ store }: { store: GameStore }) {
   const g = run.gained;
   const loot = run.loot.slice(-LOOT_SHOWN).reverse();
   const mods = mapModLines(run.map);
+  const rewards = mapRewardsText(run.map);
   return (
     <div className="gm-run">
       <div className="gm-run__top">
@@ -41,9 +42,15 @@ export function RunView({ store }: { store: GameStore }) {
           </div>
           {mods.length > 0 && (
             <ul className="gm-run__mods">
-              {mods.map((text, i) => <li key={i}>{text}</li>)}
+              {mods.map((l, i) => (
+                <li key={i}>
+                  <span>{l.text}</span>
+                  {l.tier !== undefined && <span className="gm-run__modtier">T{formatNumber(l.tier)}</span>}
+                </li>
+              ))}
             </ul>
           )}
+          {rewards !== '' && <div className="gm-run__rewards gm-small">{rewards}</div>}
           <RoomTrack run={run} bossName={type.bossName} />
           <button type="button" className="gm-btn" onClick={() => store.leaveMap()}>Leave map</button>
           <div className="gm-muted gm-small">Leaving or dying loses the map. XP and drops are kept.</div>

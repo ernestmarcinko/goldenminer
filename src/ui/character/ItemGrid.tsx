@@ -6,6 +6,7 @@ import type { DropTarget } from '../../core/types';
 import { itemName } from '../../core/itemData';
 import { Sprite } from '../../sprites/Sprite';
 import { formatCompact, formatNumber } from '../format';
+import { IS_MAC } from '../platform';
 import { clickRoute, dropAttr } from './dragDrop';
 import type { ItemTarget } from './itemActions';
 import { itemSprite, rarityOf } from './itemView';
@@ -62,8 +63,9 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
       onClick={(e) => {
         if (drag.consumeClick()) return;
         const route = clickRoute({
-          altKey: e.altKey, shiftKey: e.shiftKey, detail: e.detail, pointerType: pointerType.current,
-        }, drag.held !== null);
+          altKey: e.altKey, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey, detail: e.detail,
+          pointerType: pointerType.current,
+        }, drag.held !== null, IS_MAC);
         if (route.kind === 'pick') handlers.onPick(target, route.intent, e.currentTarget);
         else if (drag.onTap(target, true) && route.kind === 'lift') handlers.onLift(target, e.currentTarget);
       }}

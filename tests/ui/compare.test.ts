@@ -1,16 +1,16 @@
 import { expect, test } from 'vitest';
-import { cardPairLayout, placeTooltip } from '../../src/ui/character/itemView';
+import { cardPairLayout, placeCardLeft } from '../../src/ui/character/itemView';
 
-const anchor = { left: 100, top: 0, width: 52, height: 52 };
-
-test('a card pair may reach left of its container, down to minLeft', () => {
-  expect(placeTooltip(anchor, 388, 548, -900)).toEqual({ left: -160, top: 56 });
-  expect(placeTooltip(anchor, 388, 548, -50)).toEqual({ left: -50, top: 56 });
+test('a card pair starts at its item, and keeps 8 px inside the screen', () => {
+  expect(placeCardLeft(100, 548, 1280)).toBe(100);
+  expect(placeCardLeft(900, 548, 1280)).toBe(724);
+  expect(placeCardLeft(900, 548, 1280, 40)).toBe(724);
+  expect(placeCardLeft(10, 548, 1280, 40)).toBe(40);
 });
 
-test('a single card keeps to its container by default', () => {
-  expect(placeTooltip(anchor, 388)).toEqual({ left: 100, top: 56 });
-  expect(placeTooltip(anchor, 300)).toEqual({ left: 30, top: 56 });
+test('a single card keeps to the screen', () => {
+  expect(placeCardLeft(100, 270, 388)).toBe(100);
+  expect(placeCardLeft(300, 270, 388)).toBe(110);
 });
 
 test('the equipped card sits beside the compared one only for a hover card on a wide screen', () => {

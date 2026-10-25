@@ -4,6 +4,7 @@ import { xpToNext } from '../../core/levels';
 import { MAP_MOD_TEXT, mapEffects } from '../../core/mapMods';
 import type { ChampionMod, CombatLine, MapRun, MonsterState, RunGains, RunResult } from '../../core/types';
 import { itemKindLine, lootNoteText } from '../character/itemView';
+import type { ViewLine } from '../character/itemView';
 import { formatNumber, plural } from '../format';
 
 export interface XpBar { label: string; text: string; pct: number }
@@ -37,9 +38,9 @@ export function mapDungeon(seed: number, map: Pick<MapItem, 'tier' | 'metre'>): 
   return { key: `${map.tier}:${index}`, type: dungeonType(seed, map.tier, index) };
 }
 
-/** A map's modifiers with their tiers, in their rolled order. */
-export function mapModTexts(map: MapItem): string[] {
-  return map.mods.map((m) => `T${formatNumber(m.tier)} ${MAP_MOD_TEXT[m.kind](m.value)}`);
+/** A map's modifiers in their rolled order, each with its tier; none for a normal map. The item card and the run's head show these. */
+export function mapModLines(map: MapItem): ViewLine[] {
+  return map.mods.map((m) => ({ text: MAP_MOD_TEXT[m.kind](m.value), tone: 'plain', tier: m.tier }));
 }
 
 /** What a map's modifiers pay, or '' for a map with none. */
@@ -47,12 +48,6 @@ export function mapRewardsText(map: MapItem): string {
   if (map.mods.length === 0) return '';
   const e = mapEffects(map);
   return `Rewards: +${formatNumber(e.quantity)}% items · +${formatNumber(e.rarity)}% rarity · +${formatNumber(e.souls)}% Souls`;
-}
-
-/** A map's modifiers, then what they pay; none for a normal map. The item card and the run's head show these. */
-export function mapModLines(map: MapItem): string[] {
-  const rewards = mapRewardsText(map);
-  return rewards === '' ? [] : [...mapModTexts(map), rewards];
 }
 
 export const FIGHT_COLS = 14;

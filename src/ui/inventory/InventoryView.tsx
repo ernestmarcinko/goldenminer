@@ -106,7 +106,7 @@ function MapsTab({ state, handlers, tier, onTier }: {
 
 /**
  * The doll, the bag and the stash side by side (stacked on a phone). They share one drag controller, one status line
- * and one set of cards, placed inside the view's root. The General tab shows one page at a time and the Maps tab one
+ * and one set of cards, placed on the screen. The General tab shows one page at a time and the Maps tab one
  * tier, each remembered while the view is open.
  */
 export function InventoryView({ store }: { store: GameStore }) {
@@ -119,13 +119,12 @@ export function InventoryView({ store }: { store: GameStore }) {
   const [tab, setTab] = useState<StashTab>('general');
   const [page, setPage] = useState(0);
   const [wantedTier, setWantedTier] = useState<number | null>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
   const bagHeadingRef = useRef<HTMLHeadingElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const tabRefs = useRef<Partial<Record<StashTab, HTMLButtonElement | null>>>({});
   const drag = useItemDrag({ store, onResult: (text) => say(text) });
   const { handlers, message, say, cards, tapCard, reset } = useItemInteractions({
-    store, state, containerRef: rootRef, fallbackRef: bagHeadingRef, drag,
+    store, state, fallbackRef: bagHeadingRef, drag,
   });
 
   // a run starting shows the Battle set and its ending the Mining set; an equip shows the set it went into, so its glow is seen
@@ -192,7 +191,7 @@ export function InventoryView({ store }: { store: GameStore }) {
   const offset = shownPage * STASH_PAGE_SIZE;
   const bag = state.bag;
   return (
-    <div ref={rootRef} className="gm-inv">
+    <div className="gm-inv">
       <h2 className="gm-visually-hidden">Inventory</h2>
       <section aria-label="Gear" className="gm-inv__col gm-inv__col--doll">
         <div role="group" aria-label="Gear set" className="gm-char__toggle">
@@ -232,9 +231,10 @@ export function InventoryView({ store }: { store: GameStore }) {
         {tapCard}
         <div className="gm-char__status gm-small" role="status">{message}</div>
         <p className="gm-char__hint gm-muted gm-small">
-          Hover an item to inspect it, click to equip, or drag it to a cell, a slot or a stash tab. Alt+click sells,
-          Shift+click stashes, right-click shows everything. On a touch screen, tap an item to pick it up, then tap
-          where it goes.
+          Hover an item to inspect it, click for its card, right-click for actions. Ctrl+click sells, Alt+click salvages,
+          Shift+click moves between bag and stash (⌘ instead of Ctrl on a Mac). Drag items to cells, slots and tabs;
+          drag a gem onto gear to socket it, a material onto gear or a map to craft. On a touch screen, tap an item to
+          pick it up, then tap where it goes.
         </p>
       </section>
 

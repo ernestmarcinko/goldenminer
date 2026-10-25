@@ -10,6 +10,10 @@
   list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px;
   font-size: 13px; color: var(--gm-normal); overflow-wrap: anywhere;
 }
+/* each modifier's tier sits at the right edge, in grey, as on the item card */
+.gm-run__mods > li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.gm-run__modtier { flex: none; color: var(--gm-muted); font-family: var(--gm-font-mono); font-size: 12px; }
+.gm-run__rewards { color: var(--gm-normal); overflow-wrap: anywhere; }
 
 .gm-rooms { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .gm-rooms__row {

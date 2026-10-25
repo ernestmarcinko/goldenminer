@@ -1,80 +1,76 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { RefObject } from 'react';
+import { sameLoc } from '../../core/cells';
 import type { ItemTarget } from './itemActions';
-import { CARD_PAIR_GAP, cardPairLayout, placeTooltip, TOOLTIP_WIDTH } from './itemView';
-import type { CardFit, Span } from './itemView';
+import { CARD_PAIR_GAP, cardPairLayout, placeCardLeft, TOOLTIP_WIDTH } from './itemView';
+import type { CardFit } from './itemView';
 
 /**
- * `inline`: a card opened by a touch tap, shown in the page flow below the grid instead of placed near the item.
- * `pair`: a hover card placed with the worn item's card beside it, so `left` is the pair's left edge.
- * `fit`: set on a placed action card, whose `top` is only where it starts.
+ * A card's place on the screen, in viewport coordinates (the cards are `position: fixed`, outside every scrolling
+ * container). `inline`: a card opened by a touch tap, shown in the page flow below the grid instead of placed near the
+ * item. `pair`: a hover or pinned card placed with the worn item's card beside it, so `left` is the pair's left edge.
+ * `fit`: the item and the screen, so the card sets its own top once its height is known.
  */
-export interface Placed { target: ItemTarget; left: number; top: number; inline?: true; pair?: true; fit?: CardFit }
+export interface Placed { target: ItemTarget; left: number; inline?: true; pair?: true; fit?: CardFit }
 
-/** How far inside the screen's edges a placed card stays. */
+/** How far inside the screen's top and bottom a card stays. */
 const SCREEN_MARGIN = 8;
 
 /**
- * The rows of `c`, in its own coordinates, that show on screen: the viewport, cut by every ancestor (or `c`) that
- * clips, such as a scrolling dialog.
+ * The hover card, the pinned card (a plain click) and the action card (a right-click). `hasWornCard` says whether an
+ * item's hover card shows the worn item's card too.
  */
-function visibleRows(c: HTMLElement): Span {
-  let top = 0;
-  let bottom = window.innerHeight;
-  for (let el: HTMLElement | null = c; el !== null && el !== document.body; el = el.parentElement) {
-    if (getComputedStyle(el).overflowY === 'visible') continue;
-    const r = el.getBoundingClientRect();
-    top = Math.max(top, r.top + el.clientTop);
-    bottom = Math.min(bottom, r.top + el.clientTop + el.clientHeight);
-  }
-  const origin = c.getBoundingClientRect().top + c.clientTop - c.scrollTop;
-  return { top: top + SCREEN_MARGIN - origin, bottom: bottom - SCREEN_MARGIN - origin };
-}
-
-/**
- * Hover tooltip and action-card state; positions are relative to the container, which must be `position: relative`.
- * `hasWornCard` says whether an item's hover card shows the worn item's card too.
- */
-export function useItemPopover(containerRef: RefObject<HTMLElement | null>, hasWornCard: (target: ItemTarget) => boolean) {
+export function useItemPopover(hasWornCard: (target: ItemTarget) => boolean) {
   const [hover, setHover] = useState<Placed | null>(null);
+  const [pinned, setPinned] = useState<Placed | null>(null);
   const [menu, setMenu] = useState<Placed | null>(null);
   const menuNow = useRef<Placed | null>(null);
   menuNow.current = menu;
+  const pinnedNow = useRef<Placed | null>(null);
+  pinnedNow.current = pinned;
   const opener = useRef<HTMLElement | null>(null);
+  const pinOpener = useRef<HTMLElement | null>(null);
   const hasWornCardNow = useRef(hasWornCard);
   hasWornCardNow.current = hasWornCard;
 
-  const place = useCallback((target: ItemTarget, el: HTMLElement, pair = false, menu = false): Placed | null => {
-    const c = containerRef.current;
-    if (c === null) return null;
-    const cr = c.getBoundingClientRect();
-    const er = el.getBoundingClientRect();
-    const anchor = {
-      left: er.left - cr.left - c.clientLeft + c.scrollLeft, top: er.top - cr.top - c.clientTop + c.scrollTop,
-      width: er.width, height: er.height,
+  /**
+   * Where a card opens for `el`; only the screen bounds it, so no container can cut it off. With `canPair`, a wide
+   * screen shows the worn item's card beside it.
+   */
+  const place = useCallback((target: ItemTarget, el: HTMLElement, canPair: boolean): Placed => {
+    const pair = canPair && cardPairLayout(window.innerWidth, false) === 'row' && hasWornCardNow.current(target);
+    const r = el.getBoundingClientRect();
+    const fit: CardFit = {
+      anchor: { top: r.top, bottom: r.bottom },
+      view: { top: SCREEN_MARGIN, bottom: window.innerHeight - SCREEN_MARGIN },
     };
-    if (menu) {
-      const fit = { anchor: { top: anchor.top, bottom: anchor.top + anchor.height }, view: visibleRows(c) };
-      return { target, ...placeTooltip(anchor, c.clientWidth), fit };
-    }
-    if (!pair) return { target, ...placeTooltip(anchor, c.clientWidth) };
-    // the pair may reach left of the container, but stays 8 px inside the viewport
-    const minLeft = 8 - (cr.left + c.clientLeft - c.scrollLeft);
-    return { target, pair: true, ...placeTooltip(anchor, c.clientWidth, 2 * TOOLTIP_WIDTH + CARD_PAIR_GAP, minLeft) };
-  }, [containerRef]);
+    const width = pair ? 2 * TOOLTIP_WIDTH + CARD_PAIR_GAP : TOOLTIP_WIDTH;
+    const left = placeCardLeft(r.left, width, document.documentElement.clientWidth);
+    return pair ? { target, left, pair: true, fit } : { target, left, fit };
+  }, []);
 
+  /** A pinned card stays as it is until it closes, so hovering other items shows nothing meanwhile. */
   const inspect = useCallback((target: ItemTarget, el: HTMLElement) => {
-    if (menuNow.current !== null) return;
-    const pair = cardPairLayout(window.innerWidth, false) === 'row' && hasWornCardNow.current(target);
-    setHover(place(target, el, pair));
+    if (menuNow.current !== null || pinnedNow.current !== null) return;
+    setHover(place(target, el, true));
   }, [place]);
 
   const clear = useCallback(() => setHover(null), []);
 
+  /** A plain click: pins the item's card, or closes it when it is that item's card already. */
+  const pin = useCallback((target: ItemTarget, el: HTMLElement) => {
+    pinOpener.current = el;
+    setHover(null);
+    const was = pinnedNow.current;
+    setPinned(was !== null && sameLoc(was.target, target) ? null : place(target, el, true));
+  }, [place]);
+
+  const unpin = useCallback(() => setPinned(null), []);
+
   const openMenu = useCallback((target: ItemTarget, el: HTMLElement, inline = false) => {
     opener.current = el;
     setHover(null);
-    setMenu(inline ? { target, left: 0, top: 0, inline: true } : place(target, el, false, true));
+    setPinned(null);
+    setMenu(inline ? { target, left: 0, inline: true } : place(target, el, false));
   }, [place]);
 
   /** With `restoreFocus`, focus goes back to the opener, or to `fallback` when the opener is gone. */
@@ -95,21 +91,31 @@ export function useItemPopover(containerRef: RefObject<HTMLElement | null>, hasW
     setTimeout(() => setMenu((m) => (m === leaving ? null : m)), 0);
   }, []);
 
-  const isOpen = menu !== null;
+  const isOpen = menu !== null || pinned !== null;
   useEffect(() => {
     if (!isOpen) return undefined;
-    // on click (or right-click), not pointerdown, for the same reason as leaveMenu
+    // on click (or right-click), not pointerdown, for the same reason as leaveMenu. A click on the pinned card closes
+    // it too (it has no controls, and it may cover its own item). A click on the pinned card's own item is left to that
+    // item, whose click closes it (or acts on it): closed here first, the item would pin it again.
     const onOutside = (e: MouseEvent): void => {
-      if (e.target instanceof Element && e.target.closest('[data-item-card]') !== null) return;
+      if (!(e.target instanceof Node)) return;
+      const inCard = e.target instanceof Element ? e.target.closest('[data-item-card]') : null;
+      if (inCard !== null && !inCard.hasAttribute('data-pinned')) return;
       setMenu(null);
+      if (e.type === 'click' && pinOpener.current?.contains(e.target) === true) return;
+      setPinned(null);
     };
+    // the action card closes itself on Escape, from inside; the pinned card never takes focus
+    const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') setPinned(null); };
     document.addEventListener('click', onOutside, true);
     document.addEventListener('contextmenu', onOutside, true);
+    document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('click', onOutside, true);
       document.removeEventListener('contextmenu', onOutside, true);
+      document.removeEventListener('keydown', onKey);
     };
   }, [isOpen]);
 
-  return { hover, menu, inspect, clear, openMenu, closeMenu, leaveMenu };
+  return { hover, pinned, menu, inspect, clear, pin, unpin, openMenu, closeMenu, leaveMenu };
 }

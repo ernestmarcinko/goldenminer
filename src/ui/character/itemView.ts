@@ -6,7 +6,7 @@ import { gemEffect, itemTotals } from '../../core/stats';
 import type { GameState, LootNote, Stats } from '../../core/types';
 import type { SpriteName } from '../../sprites/atlas';
 import { formatDuration, formatNumber, formatRate, plural } from '../format';
-import { mapDungeon, mapModLines } from '../run/runView';
+import { mapDungeon, mapModLines, mapRewardsText } from '../run/runView';
 
 export const SLOT_LABELS: Readonly<Record<Slot, string>> = {
   pickaxe: 'Pickaxe', lamp: 'Lamp helm', gloves: 'Gloves', boots: 'Boots', weapon: 'Weapon', armor: 'Armor',
@@ -57,10 +57,14 @@ export function statText(stat: StatKey, value: number): string {
 
 const lineText = (l: { stat: StatKey; value: number }): string => statText(l.stat, l.value);
 
-/** A legendary's hand-written lines have no tier to show. */
-function modText(l: ModLine, legendary: boolean): string {
-  const text = legendary ? lineText(l) : `T${formatNumber(l.tier)} ${lineText(l)}`;
-  return l.crafted ? `${text} (crafted)` : text;
+function modText(l: ModLine): string {
+  return l.crafted ? `${lineText(l)} (crafted)` : lineText(l);
+}
+
+/** A modifier's line, its tier shown at the right; a legendary's hand-written lines have no tier to show. */
+function modLine(l: ModLine, legendary: boolean): ViewLine {
+  const tone: Tone = l.value < 0 ? 'down' : 'plain';
+  return legendary ? { text: modText(l), tone } : { text: modText(l), tone, tier: l.tier };
 }
 
 /** Prefixes first, then suffixes, then crafted lines, each group in its rolled order. */
@@ -70,7 +74,8 @@ function cardOrder(lines: readonly ModLine[]): ModLine[] {
 }
 
 export type Tone = 'plain' | 'up' | 'down' | 'gem' | 'muted';
-export interface ViewLine { text: string; tone: Tone }
+/** `tier`: a modifier's tier, shown at the line's right edge. */
+export interface ViewLine { text: string; tone: Tone; tier?: number }
 
 /** An enchanted map takes the gear colour of its rarity; a normal map keeps the map colour. */
 export function rarityOf(item: Item): GearItem['rarity'] | 'gem' | 'material' | 'map' {
@@ -108,7 +113,9 @@ export function cardHead(seed: number, item: Item): { name: string; kind: string
 
 /** A map's modifiers with their tiers, in their rolled order, and what they pay; then where it was found. */
 function mapLines(map: MapItem): ViewLine[] {
-  const lines: ViewLine[] = mapModLines(map).map((text) => ({ text, tone: 'plain' }));
+  const lines = mapModLines(map);
+  const rewards = mapRewardsText(map);
+  if (rewards !== '') lines.push({ text: rewards, tone: 'plain' });
   lines.push({ text: `Found at ${formatNumber(map.metre)} m`, tone: 'plain' });
   if (map.sealed) lines.push({ text: 'Tempered: it can\'t be enchanted any more.', tone: 'muted' });
   return lines;
@@ -131,7 +138,7 @@ export function itemLines(item: Item): ViewLine[] {
     ];
   }
   const lines: ViewLine[] = [{ text: lineText(item.implicit), tone: item.implicit.value < 0 ? 'down' : 'plain' }];
-  for (const a of cardOrder(item.affixes)) lines.push({ text: modText(a, item.rarity === 'legendary'), tone: a.value < 0 ? 'down' : 'plain' });
+  for (const a of cardOrder(item.affixes)) lines.push(modLine(a, item.rarity === 'legendary'));
   const set = setOfSlot(item.slot);
   for (const g of item.gems) lines.push({ text: `${gemName(g)}: ${lineText(gemEffect(g, set))}`, tone: 'gem' });
   const empty = item.sockets - item.gems.length;
@@ -174,43 +181,57 @@ export const CARD_PAIR_GAP = 8;
 const CARD_PAIR_MIN_VIEWPORT = 900;
 /** The space between an item and its card. */
 const CARD_GAP = 4;
+/** How far inside the screen's edges a card stays. */
+const SCREEN_MARGIN = 8;
 
-/** `minLeft` lets a wide card pair reach left of its container; the container's right edge still bounds it. */
-export function placeTooltip(
-  anchor: { left: number; top: number; width: number; height: number },
-  containerWidth: number,
-  width: number = TOOLTIP_WIDTH,
-  minLeft = 0,
-): { left: number; top: number } {
-  return {
-    left: Math.max(minLeft, Math.min(anchor.left, containerWidth - width)),
-    top: anchor.top + anchor.height + CARD_GAP,
-  };
+/** A card's left edge on the screen: at its item's, moved left as far as it takes to keep it inside the screen. */
+export function placeCardLeft(anchorLeft: number, width: number, viewportWidth: number, minLeft = SCREEN_MARGIN): number {
+  return Math.max(minLeft, Math.min(anchorLeft, viewportWidth - width - SCREEN_MARGIN));
 }
 
 /** A stretch of rows, top to bottom. */
 export interface Span { top: number; bottom: number }
 
 /**
- * An action card's top, so its bottom stays inside `view` (the rows that show): below its item when it fits there,
- * else above it, else pinned to the top of the view. A card taller than the view runs past its bottom, and the page
- * scrolls to the rest.
+ * A card's top on the screen, so it stays inside `view`: below its item when it fits there, else above it when it fits
+ * there, else on the side with more room, moved as far as it takes to fit. A card taller than the view starts at its
+ * top.
  */
 export function placeCardTop(anchor: Span, height: number, view: Span): number {
   const below = anchor.bottom + CARD_GAP;
   if (below + height <= view.bottom) return below;
   const above = anchor.top - CARD_GAP - height;
   if (above >= view.top) return above;
-  return view.top;
+  const top = view.bottom - below >= anchor.top - CARD_GAP - view.top ? below : above;
+  return Math.max(view.top, Math.min(top, view.bottom - height));
 }
 
-/** Where an action card's item is and which rows show, so the card can be fitted once its height is known. */
+/**
+ * The tallest an action card of `height` opens, or undefined when it fits the screen and shows whole. A card taller
+ * than the screen would run off it, where its buttons could not be reached (the card is fixed on the screen), so it
+ * scrolls inside, in the room on the larger side of its item, which it then never covers.
+ */
+export function cardMaxHeight(anchor: Span, view: Span, height: number): number | undefined {
+  if (height <= view.bottom - view.top) return undefined;
+  return Math.max(view.bottom - anchor.bottom - CARD_GAP, anchor.top - CARD_GAP - view.top);
+}
+
+/**
+ * An open action card's scroll after a craft, when `anchorCraft` asks to move its box from `top` to `placed`: a card
+ * that scrolls inside scrolls its content by as much instead, as far as `maxScroll` lets it, and its box moves only by
+ * the rest. Either keeps the clicked button under the pointer; scrolling keeps the card on the screen.
+ */
+export function cardScroll(top: number, placed: number, scroll: number, maxScroll: number): number {
+  return Math.max(0, Math.min(maxScroll, scroll + top - placed));
+}
+
+/** Where a card's item is and which rows show, so the card can be fitted once its height is known. */
 export interface CardFit { anchor: Span; view: Span }
 
 /**
- * An action card's new top, or undefined to leave it where it is. It fits only when it opens on an item (a new
- * `fit`, after `fitted`): a craft keeps the card open and changes its height, and fitting it again would put another
- * button under the pointer. A card that grew runs down, over its item or past the view, and the page scrolls.
+ * A card's new top, or undefined to leave it where it is. It fits only when it opens on an item (a new `fit`, after
+ * `fitted`): a craft keeps an action card open and changes its height, and fitting it again would put another button
+ * under the pointer. A card that grew runs down, over its item or past the screen's edge.
  */
 export function fittedCardTop(fitted: CardFit | undefined, fit: CardFit | undefined, height: number): number | undefined {
   return fit === undefined || fit === fitted ? undefined : placeCardTop(fit.anchor, height, fit.view);
@@ -271,13 +292,22 @@ export function wornToCompare(state: GameState, item: Item, isWorn: boolean): Ge
   return isGear(item) && !isWorn ? state.equipped[setOfSlot(item.slot)][item.slot] : undefined;
 }
 
-export type ClickIntent = 'primary' | 'sell' | 'move' | 'menu';
+export type ClickIntent = 'card' | 'menu' | 'sell' | 'salvage' | 'move';
 
-export function clickIntent(e: { altKey: boolean; shiftKey: boolean; detail: number; pointerType: string }): ClickIntent {
+export interface ClickKeys {
+  altKey: boolean; shiftKey: boolean; ctrlKey: boolean; metaKey: boolean; detail: number; pointerType: string;
+}
+
+/**
+ * What a click on an item asks for. A keyboard click (detail 0) and a touch open the action card; Ctrl+click sells,
+ * Cmd+click on a Mac (`mac`), where Ctrl+click is the context menu.
+ */
+export function clickIntent(e: ClickKeys, mac: boolean): ClickIntent {
   if (e.pointerType === 'touch' || e.detail === 0) return 'menu';
-  if (e.altKey) return 'sell';
+  if (mac ? e.metaKey : e.ctrlKey) return 'sell';
+  if (e.altKey) return 'salvage';
   if (e.shiftKey) return 'move';
-  return 'primary';
+  return 'card';
 }
 
 const SLOT_SPRITES: Readonly<Record<Slot, SpriteName>> = {

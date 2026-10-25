@@ -3,7 +3,7 @@ import { newGame } from '../../src/core/newGame';
 import { deriveStats, gearTotals } from '../../src/core/stats';
 import { itemName } from '../../src/core/itemData';
 import {
-  battleStatLine, cardHead, clickIntent, compareLines, itemKindLine, itemLines, itemSprite, lootNoteText, miningStatLine, anchorCraft, craftAnchor, craftSlots, fittedCardTop, keptHeight, placeCardTop, placeTooltip, rarityOf,
+  battleStatLine, cardHead, clickIntent, compareLines, itemKindLine, itemLines, itemSprite, lootNoteText, miningStatLine, anchorCraft, craftAnchor, cardMaxHeight, cardScroll, craftSlots, fittedCardTop, keptHeight, placeCardLeft, placeCardTop, rarityOf,
   statText,
 } from '../../src/ui/character/itemView';
 import { mapDungeon } from '../../src/ui/run/runView';
@@ -36,7 +36,7 @@ it('item lines list the implicit, affixes, gems and empty sockets', () => {
   });
   expect(itemLines(item)).toEqual([
     { text: '+8 dig power', tone: 'plain' },
-    { text: 'T1 −10% chest find', tone: 'down' },
+    { text: '−10% chest find', tone: 'down', tier: 1 },
     { text: 'Small Ruby: +13% Gold yield', tone: 'gem' },
     { text: '1 empty socket', tone: 'muted' },
   ]);
@@ -46,7 +46,7 @@ it('item lines list the implicit, affixes, gems and empty sockets', () => {
   ]);
 });
 
-it('card lines show each line\'s tier, prefixes first, then suffixes, then crafted lines', () => {
+it('tiers sit on the right', () => {
   const s = newGame(1, 0);
   const item = gear(s, 'pickaxe', {
     rarity: 'rare', implicit: { stat: 'digPower', value: 8 },
@@ -58,12 +58,13 @@ it('card lines show each line\'s tier, prefixes first, then suffixes, then craft
   });
   expect(itemLines(item)).toEqual([
     { text: '+8 dig power', tone: 'plain' },
-    { text: 'T3 +12% Gold yield', tone: 'plain' },
-    { text: 'T2 +9% chest find', tone: 'plain' },
-    { text: 'T9 +20% Gold from selling (crafted)', tone: 'plain' },
+    { text: '+12% Gold yield', tone: 'plain', tier: 3 },
+    { text: '+9% chest find', tone: 'plain', tier: 2 },
+    { text: '+20% Gold from selling (crafted)', tone: 'plain', tier: 9 },
   ]);
-  expect(itemLines(gear(s, 'pickaxe', { affixes: [{ stat: 'digPowerPct', value: 12, tier: 3 }] }))[1]?.text).toBe('T3 +12% dig power');
-  expect(itemLines(gear(s, 'gloves', { affixes: [{ stat: 'digPower', value: 12, tier: 3 }] }))[1]?.text).toBe('T3 +12 dig power');
+  expect(itemLines(item)[0]).not.toHaveProperty('tier');
+  expect(itemLines(gear(s, 'pickaxe', { affixes: [{ stat: 'digPowerPct', value: 12, tier: 3 }] }))[1]).toEqual({ text: '+12% dig power', tone: 'plain', tier: 3 });
+  expect(itemLines(gear(s, 'gloves', { affixes: [{ stat: 'digPower', value: 12, tier: 3 }] }))[1]).toEqual({ text: '+12 dig power', tone: 'plain', tier: 3 });
 });
 
 it('a legendary line has no tier, and a sealed item says so', () => {
@@ -73,10 +74,11 @@ it('a legendary line has no tier, and a sealed item says so', () => {
     { text: '+8 dig power', tone: 'plain' },
     { text: '−10% chest find', tone: 'down' },
   ]);
+  expect(itemLines(legend)[1]).not.toHaveProperty('tier');
   const sealed = gear(s, 'pickaxe', { implicit: { stat: 'digPower', value: 8 }, affixes: [{ stat: 'goldYield', value: 4, tier: 1 }], sockets: 1, sealed: true });
   expect(itemLines(sealed)).toEqual([
     { text: '+8 dig power', tone: 'plain' },
-    { text: 'T1 +4% Gold yield', tone: 'plain' },
+    { text: '+4% Gold yield', tone: 'plain', tier: 1 },
     { text: '1 empty socket', tone: 'muted' },
     { text: 'Tempered: it can\'t be crafted any more.', tone: 'muted' },
   ]);
@@ -107,9 +109,38 @@ it('summarises each set', () => {
   expect(battleStatLine(gearTotals(s, 'battle'))).toBe('Battle gear: +14 damage · +30 armor · +5% crit chance');
 });
 
-it('keeps the tooltip inside the panel', () => {
-  expect(placeTooltip({ left: 0, top: 0, width: 52, height: 52 }, 342)).toEqual({ left: 0, top: 56 });
-  expect(placeTooltip({ left: 290, top: 116, width: 52, height: 52 }, 342)).toEqual({ left: 72, top: 172 });
+it('a card opens below its item, above it when there is more room above, and always inside the screen', () => {
+  const view = { top: 8, bottom: 892 };
+  expect(placeCardTop({ top: 100, bottom: 152 }, 344, view)).toBe(156);     // below
+  expect(placeCardTop({ top: 800, bottom: 852 }, 344, view)).toBe(452);     // above: no room below
+  expect(placeCardTop({ top: 400, bottom: 452 }, 900, view)).toBe(8);       // more room below, but taller than the view
+  expect(placeCardTop({ top: 860, bottom: 900 }, 300, view)).toBe(556);     // the bag's last cell on a phone
+  expect(placeCardTop({ top: 300, bottom: 352 }, 600, view)).toBe(292);     // more room below: there, moved up to fit
+  expect(placeCardLeft(1200, 270, 1280)).toBe(1002);                         // kept 8 px inside the right edge
+  expect(placeCardLeft(0, 548, 390)).toBe(8);                                // and the left one
+  expect(placeCardLeft(100, 270, 1280)).toBe(100);
+});
+
+it('an action card taller than the screen scrolls inside, in the room beside its item; one that fits shows whole', () => {
+  const view = { top: 8, bottom: 836 };
+  expect(cardMaxHeight({ top: 814, bottom: 844 }, view, 930)).toBe(802);  // the bag's last cell on a phone: the room above
+  expect(cardMaxHeight({ top: 133, bottom: 164 }, view, 930)).toBe(668);  // the first cell: the room below
+  // capped to the room above, it opens above its item, inside the screen
+  expect(placeCardTop({ top: 814, bottom: 844 }, 802, view)).toBe(8);
+  // a card that fits the screen is never capped: it shows whole, over its item when neither side has the room
+  expect(cardMaxHeight({ top: 219, bottom: 259 }, { top: 8, bottom: 892 }, 800)).toBeUndefined();
+  expect(cardMaxHeight({ top: 219, bottom: 259 }, { top: 8, bottom: 892 }, 884)).toBeUndefined();
+  expect(placeCardTop({ top: 219, bottom: 259 }, 800, { top: 8, bottom: 892 })).toBe(92);
+});
+
+it('after a craft, a card that scrolls inside scrolls its content as far as it can, and moves only by the rest', () => {
+  // anchorCraft asks for the box to go from 8 to -54 (a line was added above the button)
+  expect(cardScroll(8, -54, 0, 0)).toBe(0);         // it can't scroll: the box moves, as before
+  expect(cardScroll(8, -54, 0, 200)).toBe(62);      // it scrolls 62 px down instead, and the box stays
+  expect(cardScroll(8, -54, 30, 50)).toBe(50);      // as far as it can: the box moves the other 42 px
+  // a line went away above the button: the box would go down to 60
+  expect(cardScroll(8, 60, 100, 300)).toBe(48);
+  expect(cardScroll(8, 60, 10, 300)).toBe(0);
 });
 
 describe('an action card stays inside the rows that show', () => {
@@ -205,13 +236,22 @@ describe('an action card stays inside the rows that show', () => {
   });
 });
 
-it('reads what a click means', () => {
-  const base = { altKey: false, shiftKey: false, detail: 1, pointerType: 'mouse' };
-  expect(clickIntent(base)).toBe('primary');
-  expect(clickIntent({ ...base, altKey: true })).toBe('sell');
-  expect(clickIntent({ ...base, shiftKey: true })).toBe('move');
-  expect(clickIntent({ ...base, detail: 0 })).toBe('menu');
-  expect(clickIntent({ ...base, pointerType: 'touch', altKey: true })).toBe('menu');
+it('click intents: click card, keyboard and touch menu, Ctrl or Cmd sells, Alt salvages, Shift moves', () => {
+  const base = { altKey: false, shiftKey: false, ctrlKey: false, metaKey: false, detail: 1, pointerType: 'mouse' };
+  expect(clickIntent(base, false)).toBe('card');
+  expect(clickIntent(base, true)).toBe('card');
+  expect(clickIntent({ ...base, ctrlKey: true }, false)).toBe('sell');
+  expect(clickIntent({ ...base, metaKey: true }, false)).toBe('card');
+  expect(clickIntent({ ...base, metaKey: true }, true)).toBe('sell');
+  expect(clickIntent({ ...base, ctrlKey: true }, true)).toBe('card');     // a Mac's Ctrl+click is its context menu
+  for (const mac of [false, true]) {
+    expect(clickIntent({ ...base, altKey: true }, mac)).toBe('salvage');
+    expect(clickIntent({ ...base, shiftKey: true }, mac)).toBe('move');
+    expect(clickIntent({ ...base, detail: 0 }, mac)).toBe('menu');
+    expect(clickIntent({ ...base, detail: 0, ctrlKey: true, metaKey: true }, mac)).toBe('menu');
+    expect(clickIntent({ ...base, pointerType: 'touch', altKey: true }, mac)).toBe('menu');
+    expect(clickIntent({ ...base, pointerType: 'pen' }, mac)).toBe('card');
+  }
 });
 
 it('loot notes in words', () => {
@@ -251,13 +291,14 @@ it('an enchanted map card shows its rarity, its modifiers with their tiers and w
   expect(rarityOf({ ...map, rarity: 'rare' })).toBe('rare');
   const four: MapItem = { ...map, rarity: 'rare', mods: [...map.mods, { kind: 'monsterSpeed', tier: 4, value: 15 }, { kind: 'weakHealing', tier: 2, value: 16 }] };
   expect(itemLines(four)).toEqual([
-    { text: 'T4 Monsters have +27% life', tone: 'plain' },
-    { text: 'T3 Monsters deal +17% damage', tone: 'plain' },
-    { text: 'T4 Monsters attack 15% faster', tone: 'plain' },
-    { text: 'T2 Rooms heal 16% less', tone: 'plain' },
+    { text: 'Monsters have +27% life', tone: 'plain', tier: 4 },
+    { text: 'Monsters deal +17% damage', tone: 'plain', tier: 3 },
+    { text: 'Monsters attack 15% faster', tone: 'plain', tier: 4 },
+    { text: 'Rooms heal 16% less', tone: 'plain', tier: 2 },
     { text: 'Rewards: +38% items · +23% rarity · +38% Souls', tone: 'plain' },
     { text: 'Found at 327 m', tone: 'plain' },
   ]);
+  expect(itemLines(four)[4]).not.toHaveProperty('tier');
   expect(itemLines({ ...four, sealed: true }).at(-1)).toEqual({ text: "Tempered: it can't be enchanted any more.", tone: 'muted' });
 });
 

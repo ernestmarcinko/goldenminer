@@ -3,7 +3,7 @@ import { itemAt, sameLoc } from '../../core/cells';
 import { BATTLE_SLOTS, GEM_GRADES, GEM_TYPES, MATERIALS, MINING_SLOTS } from '../../core/items';
 import type { DropTarget, GameState, ItemLoc } from '../../core/types';
 import { clickIntent } from './itemView';
-import type { ClickIntent } from './itemView';
+import type { ClickIntent, ClickKeys } from './itemView';
 
 /** A mouse or pen press turns into a drag once it has moved this far. */
 export const DRAG_THRESHOLD_PX = 5;
@@ -76,13 +76,10 @@ export function heldLoc(state: GameState, hold: Hold | null): ItemLoc | null {
 export type ClickRoute =
   | { kind: 'lift' }                           // a touch tap with nothing held: lift the item and open its card
   | { kind: 'tap' }                            // a touch tap with an item held: place it here, or put it back
-  | { kind: 'pick'; intent: ClickIntent };     // a mouse, pen or keyboard click: today's shortcuts
+  | { kind: 'pick'; intent: ClickIntent };     // a mouse, pen or keyboard click: its card, or a shortcut
 
-/** How a click on an item is handled. A keyboard click (detail 0) never lifts or places anything. */
-export function clickRoute(
-  e: { altKey: boolean; shiftKey: boolean; detail: number; pointerType: string },
-  holding: boolean,
-): ClickRoute {
+/** How a click on an item is handled; `mac` picks the key that sells. A keyboard click (detail 0) never lifts or places anything. */
+export function clickRoute(e: ClickKeys, holding: boolean, mac: boolean): ClickRoute {
   if (e.pointerType === 'touch' && e.detail !== 0) return holding ? { kind: 'tap' } : { kind: 'lift' };
-  return { kind: 'pick', intent: clickIntent(e) };
+  return { kind: 'pick', intent: clickIntent(e, mac) };
 }

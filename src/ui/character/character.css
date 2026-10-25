@@ -85,12 +85,16 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-cell--empty { box-sizing: border-box; border-radius: 6px; background: #1a1613; border: 1px solid #2e2722; }
 
 .gm-card {
-  position: absolute; z-index: 2; width: 270px; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px;
+  position: fixed; z-index: 30; width: 270px; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px;
   padding: 12px; border-radius: 8px; background: #0f0d0b; border: 1px solid var(--gm-tone, var(--gm-normal));
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6); pointer-events: none;
 }
 .gm-card[role='dialog'] { pointer-events: auto; }
-/* the card moves itself after a craft; a scrolling dialog must not also scroll to follow it (scroll anchoring) */
+/* a pinned card takes its own clicks, which close it, so none reaches (and sells, with Ctrl) an item hidden under it */
+.gm-card[data-pinned], .gm-cardpair[data-pinned], .gm-cardpair[data-pinned] > .gm-card { pointer-events: auto; }
+/* a placed action card taller than the screen (given a max-height) scrolls inside, and never the page */
+.gm-card[role='dialog']:not(.gm-card--inline) { overflow-y: auto; overscroll-behavior: contain; }
+/* the card moves itself after a craft; nothing that scrolls may also move to follow it (scroll anchoring) */
 .gm-card { overflow-anchor: none; }
 /* the card a touch tap opens: in the flow below the grid, so the targets above stay uncovered */
 .gm-card.gm-card--inline { position: static; width: 100%; box-shadow: none; }
@@ -98,13 +102,19 @@ button.gm-item:hover { background: #3a2f20; }
 /* the label over a gear or map card's craft buttons, set apart from the actions above it */
 .gm-card__craft { padding-top: 6px; }
 /* a hover card and the worn item's card, side by side as one placed pair */
-.gm-cardpair { position: absolute; z-index: 2; display: flex; align-items: flex-start; gap: 8px; pointer-events: none; }
+.gm-cardpair { position: fixed; z-index: 30; display: flex; align-items: flex-start; gap: 8px; pointer-events: none; }
 .gm-cardpair > .gm-card { position: static; }
 .gm-card--equipped { opacity: 0.92; border-color: var(--gm-line); }
 .gm-card__equipped { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px solid var(--gm-line); }
 .gm-card__name { font-family: var(--gm-font-display); font-weight: 400; font-size: 15px; color: var(--gm-tone, var(--gm-normal)); }
 .gm-card__kind { font-size: 12px; color: var(--gm-muted); }
 .gm-card__lines { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+/* a modifier's text on the left, its tier on the right in grey */
+.gm-card__line { display: flex; justify-content: space-between; gap: 12px; }
+.gm-card__text { min-width: 0; overflow-wrap: anywhere; }
+.gm-card__tier { flex: none; color: var(--gm-muted); font-family: var(--gm-font-mono); font-size: 12px; }
+/* what the item sells and salvages for, and its shortcuts, closing a hover or pinned card */
+.gm-card__notes { display: flex; flex-direction: column; gap: 2px; padding-top: 4px; font-size: 12px; }
 .gm-card__line[data-tone='plain'] { color: var(--gm-normal); }
 .gm-card__line[data-tone='up'] { color: var(--gm-up); }
 .gm-card__line[data-tone='down'] { color: var(--gm-down); }

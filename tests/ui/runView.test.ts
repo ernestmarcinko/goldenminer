@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import {
-  combatLineText, fightTiles, gainsLine, hurtParticle, mapDungeon, mapModLines, monsterCaption, monsterTags, roomTrack,
-  runMapLine, runTitle, strikeParticle, xpBar,
+  combatLineText, fightTiles, gainsLine, hurtParticle, mapDungeon, mapModLines, mapRewardsText, monsterCaption, monsterTags,
+  roomTrack, runMapLine, runTitle, strikeParticle, xpBar,
 } from '../../src/ui/run/runView';
 import { dungeonIndexAt, dungeonType } from '../../src/core/dungeons';
 import type { MapItem } from '../../src/core/items';
@@ -114,10 +114,11 @@ it('the run\'s head lists an enchanted map\'s modifiers and what they pay, and n
     { kind: 'hardened' as const, tier: 1, value: 6 },
   ] };
   expect(mapModLines(enchanted)).toEqual([
-    'T4 Monsters attack 15% faster',
-    'T1 Monsters take 6% less damage',
-    'Rewards: +11% items · +6% rarity · +11% Souls',
+    { text: 'Monsters attack 15% faster', tone: 'plain', tier: 4 },
+    { text: 'Monsters take 6% less damage', tone: 'plain', tier: 1 },
   ]);
+  expect(mapRewardsText(enchanted)).toBe('Rewards: +11% items · +6% rarity · +11% Souls');
+  expect(mapRewardsText(plain.map)).toBe('');
 });
 
 it('the last run names its map\'s rarity when it was enchanted', () => {

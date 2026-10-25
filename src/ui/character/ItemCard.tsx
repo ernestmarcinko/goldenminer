@@ -5,11 +5,13 @@ import { isGear } from '../../core/items';
 import type { GearItem } from '../../core/items';
 import { itemName } from '../../core/itemData';
 import type { GameState } from '../../core/types';
-import { hoverLines, hoverNote, itemActions } from './itemActions';
+import { formatNumber } from '../format';
+import { IS_MAC } from '../platform';
+import { hoverLines, hoverNotes, itemActions, menuNote } from './itemActions';
 import type { ActionSpec, ItemTarget } from './itemActions';
 import {
-  anchorCraft, cardHead, compareLines, craftAnchor, craftSlots, fittedCardTop, itemKindLine, itemLines, keptHeight, rarityOf,
-  wornToCompare,
+  anchorCraft, cardHead, cardMaxHeight, cardScroll, compareLines, craftAnchor, craftSlots, fittedCardTop, itemKindLine,
+  itemLines, keptHeight, rarityOf, wornToCompare,
 } from './itemView';
 import type { CardFit, CraftAnchor, CraftGrid, ViewLine } from './itemView';
 
@@ -22,11 +24,15 @@ export interface CardMenu {
   onPutBack?: () => void;
 }
 
+/** Each line's text, and a modifier's tier at the right edge. */
 function Lines({ lines }: { lines: ViewLine[] }) {
   return (
     <>
       {lines.map((l, i) => (
-        <div key={i} className="gm-card__line" data-tone={l.tone}>{l.text}</div>
+        <div key={i} className="gm-card__line" data-tone={l.tone}>
+          <span className="gm-card__text">{l.text}</span>
+          {l.tier !== undefined && <span className="gm-card__tier">T{formatNumber(l.tier)}</span>}
+        </div>
       ))}
     </>
   );
@@ -63,22 +69,28 @@ function craftGrid(card: HTMLElement): CraftGrid | null {
 }
 
 /**
- * The hover tooltip, or with `menu` the action card: same content, plus one button per action. An `inline` card
- * (opened by a touch tap) sits in the page flow and scrolls just into view, `smooth` only when motion is allowed.
- * Gear that is not worn also shows the worn item's card: beside this one when `pair` (a hover card on a wide
- * screen, placed by the caller as one pair), otherwise as a block inside it.
+ * The hover card, the `pinned` card (a plain click; the hover card that stays), or with `menu` the action card: same
+ * content, plus one button per action. A placed card is fixed on the screen at `left`, its top set here from `fit`.
+ * An `inline` card (opened by a touch tap) sits in the page flow and scrolls just into view, `smooth` only when motion
+ * is allowed. Gear that is not worn also shows the worn item's card: beside this one when `pair` (a hover or pinned
+ * card on a wide screen, placed by the caller as one pair), otherwise as a block inside it.
  */
-export function ItemCard({ state, target, left, top, fit, menu, inline = false, smooth = false, pair = false }: {
-  state: GameState; target: ItemTarget; left: number; top: number; fit?: CardFit; menu?: CardMenu;
-  inline?: boolean; smooth?: boolean; pair?: boolean;
+export function ItemCard({
+  state, target, left, fit, menu, inline = false, smooth = false, pair = false, pinned = false,
+}: {
+  state: GameState; target: ItemTarget; left: number; fit?: CardFit; menu?: CardMenu;
+  inline?: boolean; smooth?: boolean; pair?: boolean; pinned?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  /** The pair's box, when the worn item's card shows beside this one: the pair is placed as one. */
+  const pairRef = useRef<HTMLDivElement>(null);
   const isMenu = menu !== undefined;
   // With `fit`, the card moves to where it fits once its height is known: before it paints, and before focus goes
-  // into it, so that focus never scrolls the page. Only when it opens: after a craft it moves just enough to keep the
-  // clicked button under the pointer (`anchor`), its crafts keep their slots (`slotOrder`), and neither it nor its
-  // craft grid gets shorter, so the pointer stays on it. Its top is kept here, not read back from the page, and set
-  // after every render.
+  // into it. Only when it opens: after a craft it moves just enough to keep the clicked button under the pointer
+  // (`anchor`), its crafts keep their slots (`slotOrder`), and neither it nor its craft grid gets shorter, so the
+  // pointer stays on it. Its top is kept here, not read back from the page, and set after every render. The card is
+  // fixed on the screen, so scrolling the page never moves it, and nothing scrolls to follow it either. An action card
+  // taller than the screen scrolls inside; after a craft it scrolls its content before it moves its box.
   const fitted = useRef<CardFit | undefined>(undefined);
   const at = useRef(0);
   const anchor = useRef<CraftAnchor | null>(null);
@@ -86,22 +98,35 @@ export function ItemCard({ state, target, left, top, fit, menu, inline = false, 
   const slotOrder = useRef<string[]>([]);
   useLayoutEffect(() => {
     const card = ref.current;
-    if (card === null || fit === undefined) return;
-    const placed = fittedCardTop(fitted.current, fit, card.offsetHeight);
+    const box = pairRef.current ?? card;
+    if (card === null || box === null || fit === undefined) return;
+    if (isMenu && fit !== fitted.current) {
+      card.style.maxHeight = '';
+      const max = cardMaxHeight(fit.anchor, fit.view, card.getBoundingClientRect().height);
+      if (max !== undefined) card.style.maxHeight = `${max}px`;
+    }
+    // exact heights throughout, as offsetHeight rounds: a rounded-up least height would beat a card's max-height
+    const placed = fittedCardTop(fitted.current, fit, box.getBoundingClientRect().height);
     fitted.current = fit;
     const grid = craftGrid(card);
     if (placed !== undefined) {
       at.current = placed;
       anchor.current = null;
     } else if (anchor.current !== null && grid !== null) {
-      ({ top: at.current, anchor: anchor.current } = anchorCraft(at.current, anchor.current, grid));
+      const next = anchorCraft(at.current, anchor.current, grid);
+      const was = card.scrollTop;
+      card.scrollTop = cardScroll(at.current, next.top, was, card.scrollHeight - card.clientHeight);
+      // read back, as the browser may round it; the button is that much higher in the card now
+      const scrolled = card.scrollTop - was;
+      at.current = next.top + scrolled;
+      anchor.current = { ...next.anchor, top: next.anchor.top - scrolled };
     }
-    card.style.top = `${at.current}px`;
-    tallest.current.card = keptHeight(tallest.current.card, card.offsetHeight);
+    box.style.top = `${at.current}px`;
+    tallest.current.card = keptHeight(tallest.current.card, card.getBoundingClientRect().height);
     card.style.minHeight = `${tallest.current.card}px`;
     const gridEl = card.querySelector<HTMLElement>('.gm-card__crafts');
     if (gridEl !== null) {
-      tallest.current.crafts = keptHeight(tallest.current.crafts, gridEl.offsetHeight);
+      tallest.current.crafts = keptHeight(tallest.current.crafts, gridEl.getBoundingClientRect().height);
       gridEl.style.minHeight = `${tallest.current.crafts}px`;
     }
   });
@@ -120,9 +145,10 @@ export function ItemCard({ state, target, left, top, fit, menu, inline = false, 
   };
   useEffect(() => {
     if (!isMenu) return;
-    // 'nearest' scrolls only as far as needed; the card sits below the grid, so nothing above it moves in the page
+    // 'nearest' scrolls only as far as needed; the card sits below the grid, so nothing above it moves in the page. A
+    // placed card is on the screen already, and focus must not scroll the page under it.
     if (inline) ref.current?.scrollIntoView({ block: 'nearest', behavior: smooth ? 'smooth' : 'auto' });
-    ref.current?.querySelector('button')?.focus({ preventScroll: inline });
+    ref.current?.querySelector('button')?.focus({ preventScroll: true });
   }, [isMenu, inline]);   // when the card opens, not when `smooth` changes
   // a craft can take its own button away (Copper makes the item magic): focus stays in the card, on the next craft,
   // or on Close once a temper has sealed it, never on an action like "Run this map" that a second Enter would take
@@ -142,6 +168,7 @@ export function ItemCard({ state, target, left, top, fit, menu, inline = false, 
   const worn = wornToCompare(state, item, target.where === 'worn');
   const compare = isGear(item) && target.where !== 'worn' ? compareLines(item, worn) : null;
   const beside = pair && !isMenu && worn !== undefined;
+  const note = isMenu ? menuNote(item) : null;
   const others = actions.filter((a) => a.id !== 'craft' && a.id !== UPGRADE);
   const lines = isMenu ? itemLines(item) : [...itemLines(item), ...hoverLines(item)];
   const wornBlock = worn !== undefined && !beside && (
@@ -163,15 +190,17 @@ export function ItemCard({ state, target, left, top, fit, menu, inline = false, 
       className={inline ? 'gm-card gm-card--inline' : 'gm-card'}
       data-rarity={rarityOf(item)}
       data-item-card=""
+      data-pinned={pinned ? '' : undefined}
       role={isMenu ? 'dialog' : 'tooltip'}
       aria-label={isMenu ? name : undefined}
-      style={inline || beside ? undefined : { left, top }}
+      style={inline || beside ? undefined : { left }}
       onKeyDown={onKeyDown}
       onBlur={onBlur}
     >
       <div className="gm-card__name">{name}</div>
       <div className="gm-card__kind">{kind}</div>
       <div className="gm-card__lines"><Lines lines={lines} /></div>
+      {note !== null && <div className="gm-card__note">{note}</div>}
       {compare !== null && compare.lines.length > 0 && (
         <div className="gm-card__compare">
           <div className="gm-card__kind">{compare.title}</div>
@@ -244,14 +273,20 @@ export function ItemCard({ state, target, left, top, fit, menu, inline = false, 
           <button type="button" className="gm-card__btn gm-card__btn--quiet" data-close="" onClick={menu.onClose}>Close</button>
         </div>
       ) : (
-        <div className="gm-card__note">{hoverNote(target, item)}</div>
+        <div className="gm-card__notes">
+          {hoverNotes(state, target, item, IS_MAC).map((t) => <div key={t} className="gm-card__line" data-tone="muted">{t}</div>)}
+        </div>
       )}
       {inline && wornBlock}
     </div>
   );
   if (!beside) return card;
   return (
-    <div className="gm-cardpair" style={{ left, top }}>
+    // a pinned pair is one card to a click, the worn item's half too
+    <div
+      ref={pairRef} className="gm-cardpair" data-item-card={pinned ? '' : undefined} data-pinned={pinned ? '' : undefined}
+      style={{ left }}
+    >
       <div className="gm-card gm-card--equipped" data-rarity={rarityOf(worn)}><EquippedContent worn={worn} /></div>
       {card}
     </div>
