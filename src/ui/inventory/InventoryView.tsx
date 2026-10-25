@@ -194,7 +194,7 @@ export function InventoryView({ store }: { store: GameStore }) {
   return (
     <div ref={rootRef} className="gm-inv">
       <h2 className="gm-visually-hidden">Inventory</h2>
-      <section aria-label="Gear" className="gm-inv__col">
+      <section aria-label="Gear" className="gm-inv__col gm-inv__col--doll">
         <div role="group" aria-label="Gear set" className="gm-char__toggle">
           {SETS.map((s) => (
             <button

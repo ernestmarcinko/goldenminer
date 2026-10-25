@@ -1,5 +1,6 @@
-/* the doll, the bag and the stash side by side, as on the Round 4 board; one column on a narrow screen. The root
-   places the item cards, so it is the positioned box. */
+/* the doll, the bag and the stash side by side, as on the Round 4 board. A 10 × 28 px grid needs 325 px of content,
+   so below 1100 px the doll takes a row of its own above the bag and the stash, and below 820 px all three stack. The
+   root places the item cards, so it is the positioned box. */
 .gm-inv {
   position: relative; display: grid; grid-template-columns: 260px minmax(0, 1fr) minmax(0, 1fr); gap: 16px;
   align-items: start;
@@ -12,10 +13,17 @@
 /* the 260 px column keeps both 60 px slot boxes beside a narrower figure */
 .gm-inv .gm-doll { gap: 6px; }
 .gm-inv .gm-doll__figure { width: 100px; height: 136px; border-radius: 50px; }
-@media (max-width: 899px) {
-  .gm-inv { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 1099px) {
+  .gm-inv { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gm-inv__col--doll { grid-column: 1 / -1; }
   .gm-inv .gm-doll { gap: 12px; }
   .gm-inv .gm-doll__figure { width: 132px; height: 168px; border-radius: 66px; }
+}
+@media (max-width: 819px) {
+  .gm-inv { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+  .gm-inv__col { padding: 8px; }
 }
 
 /* the stash's tabs, and the page and tier rows inside them */

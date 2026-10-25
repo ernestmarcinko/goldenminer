@@ -132,7 +132,7 @@ it('the shown tier stays while it holds maps, else the highest tier, else none',
   expect(pickTier([], 2)).toBeNull();
 });
 
-it('a grid shows its items in whole rows of ten, never under one page', () => {
+it('a grid shows its items in whole rows of ten, never under one row', () => {
   expect(gridCapacity(0)).toBe(10);
   expect(gridCapacity(10)).toBe(10);
   expect(gridCapacity(11)).toBe(20);

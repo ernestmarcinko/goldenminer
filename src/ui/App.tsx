@@ -53,13 +53,18 @@ export function App({ store, lock }: { store: GameStore; lock: TabLock }) {
 function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: () => void) => boolean }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const mineTab = useRef<HTMLButtonElement>(null);
+  const runTab = useRef<HTMLButtonElement>(null);
   const { offlineSummary, state } = useGame(store);
   const running = state.activity.kind === 'map';
   const [view, setView] = useState<View>(running ? 'run' : 'mine');
-  // starting a run, from a map's card, brings the player to the fight; its ending leaves the fight for the Mine
+  // starting a run, from a map's card, brings the player to the fight; its ending leaves the fight for the Mine. The
+  // card's Run button goes with the view it was in, so focus moves to the Run tab rather than drop to the page.
   const wasRunning = useRef(running);
   useEffect(() => {
-    if (running && !wasRunning.current) setView('run');
+    if (running && !wasRunning.current) {
+      setView('run');
+      setTimeout(() => runTab.current?.focus(), 0);
+    }
     if (!running && wasRunning.current) setView((v) => (v === 'run' ? 'mine' : v));
     wasRunning.current = running;
   }, [running]);
@@ -70,7 +75,7 @@ function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: ()
   return (
     <div className="gm-app">
       <Header store={store} onOpenSettings={() => setSettingsOpen(true)} />
-      <Nav store={store} view={shown} onView={setView} mineRef={mineTab} />
+      <Nav store={store} view={shown} onView={setView} mineRef={mineTab} runRef={runTab} />
       <Notices store={store} />
       <main className="gm-app__main">
         {shown === 'mine' ? (

@@ -5,9 +5,10 @@ import { useGame } from './useGame';
 
 export type { View } from './navView';
 
-/** `mineRef` is the Mine tab, where focus lands when the run result is dismissed. */
-export function Nav({ store, view, onView, mineRef }: {
-  store: GameStore; view: View; onView: (view: View) => void; mineRef?: RefObject<HTMLButtonElement | null>;
+/** `mineRef` is the Mine tab, where focus lands when the run result is dismissed; `runRef` the Run tab, while a run goes on. */
+export function Nav({ store, view, onView, mineRef, runRef }: {
+  store: GameStore; view: View; onView: (view: View) => void;
+  mineRef?: RefObject<HTMLButtonElement | null>; runRef?: RefObject<HTMLButtonElement | null>;
 }) {
   const { state } = useGame(store);
   return (
@@ -16,7 +17,7 @@ export function Nav({ store, view, onView, mineRef }: {
         <button
           key={tab.view}
           type="button"
-          ref={tab.view === 'mine' ? mineRef : undefined}
+          ref={tab.view === 'mine' ? mineRef : tab.view === 'run' ? runRef : undefined}
           className={tab.view === 'run' ? 'gm-nav__tab gm-nav__tab--run' : 'gm-nav__tab'}
           aria-pressed={view === tab.view}
           onClick={() => onView(tab.view)}
