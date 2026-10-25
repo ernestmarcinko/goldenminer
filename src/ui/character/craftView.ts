@@ -24,10 +24,10 @@ const CRAFT_EFFECTS: Readonly<Record<CraftKind, string>> = {
   voidCrystal: 'temper it (risky)', diamond: 'add a modifier',
 };
 
-// The other materials are refused by every map, so a map never offers them.
-const MAP_CRAFT_EFFECTS: Readonly<Partial<Record<CraftKind, string>>> = {
-  copper: 'enchant it', iron: 'add a modifier', silver: 'reroll its modifiers', obsidian: 'remove a modifier',
-  voidCrystal: 'temper it (risky)',
+// null: every map refuses that material, so a map never offers it.
+const MAP_CRAFT_EFFECTS: Readonly<Record<CraftKind, string | null>> = {
+  copper: 'enchant it', tin: null, iron: 'add a modifier', silver: 'reroll its modifiers', mithril: null, starsteel: null,
+  obsidian: 'remove a modifier', voidCrystal: 'temper it (risky)', diamond: null,
 };
 
 export type CraftTarget = 'gear' | 'map';
@@ -41,7 +41,8 @@ export function craftTargetAt(state: GameState, target: ItemLoc): CraftTarget {
 export function craftLabel(kind: CraftKind, cost: number, souls: number, target: CraftTarget): string {
   const name = kind === 'diamond' ? 'Diamonds' : MATERIAL_LABELS[kind];
   if (target === 'gear') return `${name} ×${formatNumber(cost)}: ${CRAFT_EFFECTS[kind]}`;
-  const effect = MAP_CRAFT_EFFECTS[kind] ?? CRAFT_EFFECTS[kind];
+  const effect = MAP_CRAFT_EFFECTS[kind];
+  if (effect === null) throw new Error(`${kind} does nothing to a map`);
   return `${name} ×${formatNumber(cost)} + ${formatNumber(souls)} Souls: ${effect}`;
 }
 

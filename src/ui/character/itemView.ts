@@ -122,7 +122,7 @@ export function itemLines(item: Item): ViewLine[] {
     return [
       { text: from === 0 ? 'Found at every depth' : `First found below ${formatNumber(from)} m`, tone: 'plain' },
       { text: 'Kept for crafting.', tone: 'muted' },
-      { text: "Drag it onto gear to craft, or pick a craft in the gear's card.", tone: 'muted' },
+      { text: "Drag it onto gear or a map, or pick it under Craft or Enchant in that item's card.", tone: 'muted' },
     ];
   }
   if (item.type === 'gem') {

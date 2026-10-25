@@ -151,6 +151,7 @@ it('every map craft label', () => {
   expect(craftLabel('silver', 2, 20, 'map')).toBe('Silver ore ×2 + 20 Souls: reroll its modifiers');
   expect(craftLabel('obsidian', 1, 20, 'map')).toBe('Obsidian shard ×1 + 20 Souls: remove a modifier');
   expect(craftLabel('voidCrystal', 1, 1500, 'map')).toBe('Void crystal ×1 + 1,500 Souls: temper it (risky)');
+  for (const kind of ['tin', 'mithril', 'starsteel', 'diamond'] as const) expect(() => craftLabel(kind, 1, 20, 'map')).toThrow();
 });
 
 it('every map craft result text, and the new refusals', () => {

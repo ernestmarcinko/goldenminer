@@ -116,14 +116,16 @@ export function ItemCard({ state, target, left, top, fit, menu, inline = false, 
     if (inline) ref.current?.scrollIntoView({ block: 'nearest', behavior: smooth ? 'smooth' : 'auto' });
     ref.current?.querySelector('button')?.focus({ preventScroll: inline });
   }, [isMenu, inline]);   // when the card opens, not when `smooth` changes
-  // a craft can take its own button away (Copper makes the item magic): focus stays in the card, on the next craft
+  // a craft can take its own button away (Copper makes the item magic): focus stays in the card, on the next craft,
+  // or on Close once a temper has sealed it, never on an action like "Run this map" that a second Enter would take
   const crafted = useRef(false);
   useEffect(() => {
     if (!crafted.current) return;
     crafted.current = false;
     const card = ref.current;
     if (card === null || card.contains(document.activeElement)) return;
-    (card.querySelector<HTMLElement>('[data-craft]') ?? card.querySelector('button'))?.focus({ preventScroll: true });
+    const next = card.querySelector<HTMLElement>('[data-craft]') ?? card.querySelector<HTMLElement>('[data-close]');
+    next?.focus({ preventScroll: true });
   });
 
   const item = itemAt(state, target);
@@ -217,7 +219,7 @@ export function ItemCard({ state, target, left, top, fit, menu, inline = false, 
           {menu.onPutBack !== undefined && (
             <button type="button" className="gm-card__btn" onClick={menu.onPutBack}>Put back</button>
           )}
-          <button type="button" className="gm-card__btn gm-card__btn--quiet" onClick={menu.onClose}>Close</button>
+          <button type="button" className="gm-card__btn gm-card__btn--quiet" data-close="" onClick={menu.onClose}>Close</button>
         </div>
       ) : (
         <div className="gm-card__note">{hoverNote(target, item)}</div>
