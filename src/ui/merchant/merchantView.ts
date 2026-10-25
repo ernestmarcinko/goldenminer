@@ -1,11 +1,10 @@
-import { BATTLE_SLOTS, MINING_SLOTS, type GearItem, type Slot } from '../../core/items';
+import { BATTLE_SLOTS, MINING_SLOTS, type GearItem, type GearSet, type Slot } from '../../core/items';
 import { gamblePrice, type GambleResult } from '../../core/merchant';
 import type { GameState } from '../../core/types';
-import { SLOT_LABELS } from '../character/itemView';
-import { formatNumber } from '../format';
+import { SLOT_LABELS, gearKindBase } from '../character/itemView';
 
 export interface GambleSlot { slot: Slot; label: string; price: number; affordable: boolean }
-export interface GambleGroup { set: 'mining' | 'battle'; slots: GambleSlot[] }
+export interface GambleGroup { set: GearSet; slots: GambleSlot[] }
 
 /** The slots the merchant gambles on, mining gear then battle gear, each at today's price. */
 export function gambleSlots(state: GameState): GambleGroup[] {
@@ -28,6 +27,5 @@ export function gambleResultText(r: GambleResult): string | null {
 
 /** The "You got" panel's line under the item's name, e.g. "Rare gloves · item level 7 · now in your bag". */
 export function gambledLine(item: GearItem): string {
-  const rarity = item.rarity.charAt(0).toUpperCase() + item.rarity.slice(1);
-  return `${rarity} ${SLOT_LABELS[item.slot].toLowerCase()} · item level ${formatNumber(item.ilvl)} · now in your bag`;
+  return `${gearKindBase(item)} · now in your bag`;
 }

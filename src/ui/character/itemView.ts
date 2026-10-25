@@ -81,6 +81,11 @@ export function rarityOf(item: Item): GearItem['rarity'] | 'gem' | 'material' | 
 
 const capitalise = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
+/** Gear's rarity, slot and item level, e.g. "Rare gloves · item level 7". */
+export function gearKindBase(item: GearItem): string {
+  return `${capitalise(item.rarity)} ${SLOT_LABELS[item.slot].toLowerCase()} · item level ${formatNumber(item.ilvl)}`;
+}
+
 export function itemKindLine(item: Item): string {
   if (item.type === 'map') {
     const tier = `tier ${formatNumber(item.tier)} map`;
@@ -91,7 +96,7 @@ export function itemKindLine(item: Item): string {
     const base = `Gem · ${GEM_GRADE_LABELS[item.grade]} · socket into any gear`;
     return item.count > 1 ? `${base} · ${formatNumber(item.count)} in this stack` : base;
   }
-  const base = `${capitalise(item.rarity)} ${SLOT_LABELS[item.slot].toLowerCase()} · item level ${formatNumber(item.ilvl)}`;
+  const base = gearKindBase(item);
   return item.sockets > 0 ? `${base} · ${formatNumber(item.gems.length)}/${formatNumber(item.sockets)} sockets` : base;
 }
 

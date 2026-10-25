@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { firstEmpty } from '../../core/cells';
 import { itemName } from '../../core/itemData';
-import { gambleTier } from '../../core/merchant';
+import type { GearSet } from '../../core/items';
+import { gamblePrice, gambleTier, type GambleResult } from '../../core/merchant';
 import type { GameStore } from '../../store/gameStore';
 import { Sprite } from '../../sprites/Sprite';
 import { baseSprite } from '../character/itemView';
@@ -9,7 +11,7 @@ import { useGame } from '../useGame';
 import { gambleResultText, gambledLine, gambleSlots } from './merchantView';
 import './merchant.css';
 
-const GROUP_TITLES = { mining: 'Mining gear', battle: 'Battle gear' } as const;
+const GROUP_TITLES: Readonly<Record<GearSet, string>> = { mining: 'Mining gear', battle: 'Battle gear' };
 
 /**
  * The merchant gambles Gold on an item of the slot you pick. What a gamble shows, the item or a refusal, sits below
@@ -17,7 +19,9 @@ const GROUP_TITLES = { mining: 'Mining gear', battle: 'Battle gear' } as const;
  */
 export function MerchantView({ store }: { store: GameStore }) {
   const { state } = useGame(store);
-  const [message, setMessage] = useState<string | null>(null);
+  const [refused, setRefused] = useState<GambleResult>('ok');
+  // a refusal shows only while it still holds, so it never contradicts a button that Gold or room has since enabled
+  const holds = refused === 'noGold' ? state.gold < gamblePrice(state) : refused === 'bagFull' ? firstEmpty(state.bag) < 0 : false;
   const got = store.lastGamble;
   return (
     <div className="gm-merchant">
@@ -44,7 +48,7 @@ export function MerchantView({ store }: { store: GameStore }) {
                   // stays clickable so a click can say why it was refused
                   aria-disabled={!s.affordable || undefined}
                   aria-label={`Gamble · ${formatNumber(s.price)} Gold: ${s.label}`}
-                  onClick={() => setMessage(gambleResultText(store.gamble(s.slot).result))}
+                  onClick={() => setRefused(store.gamble(s.slot).result)}
                 >
                   Gamble · {formatNumber(s.price)} Gold
                 </button>
@@ -60,7 +64,7 @@ export function MerchantView({ store }: { store: GameStore }) {
           <div className="gm-small gm-muted">{gambledLine(got)}</div>
         </section>
       )}
-      <div className="gm-merchant__status" role="status">{message}</div>
+      <div className="gm-merchant__status" role="status">{holds ? gambleResultText(refused) : null}</div>
       <p className="gm-merchant__text gm-small gm-muted">
         The merchant never sells Diamonds or Souls. Selling items stays in their cards.
       </p>

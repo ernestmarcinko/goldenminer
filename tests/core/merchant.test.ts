@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BAG_SIZE, GAMBLE_GOLD } from '../../src/core/balance';
 import { firstEmpty } from '../../src/core/cells';
 import { rollGear } from '../../src/core/itemGen';
-import { RARITIES, isGear, type GearItem, type Rarity } from '../../src/core/items';
+import { BATTLE_SLOTS, MINING_SLOTS, RARITIES, isGear, setOfSlot, type GearItem, type Rarity } from '../../src/core/items';
 import { gamble, gamblePrice } from '../../src/core/merchant';
 import { newGame } from '../../src/core/newGame';
 import { encodeSave, validateState } from '../../src/core/save';
@@ -10,6 +10,8 @@ import type { GameState } from '../../src/core/types';
 import { GameStore } from '../../src/store/gameStore';
 import { MemoryStorage } from '../../src/store/storage';
 import { gear } from '../helpers/items';
+
+const SLOTS = [...MINING_SLOTS, ...BATTLE_SLOTS];
 
 /** Deepest 1,100 is tier 7, so a gamble costs 14,700; bag cells 0 and 1 are taken. */
 function atTier7(gold = 100_000): GameState {
@@ -49,7 +51,7 @@ describe('a gamble', () => {
 
   it('rolls every slot, mining and battle', () => {
     const s = atTier7(10_000_000);
-    for (const slot of ['pickaxe', 'lamp', 'gloves', 'boots', 'weapon', 'armor', 'helm', 'ring', 'amulet'] as const) {
+    for (const slot of SLOTS) {
       const r = gamble(s, slot);
       expect(r.result).toBe('ok');
       expect(r.item?.slot).toBe(slot);
@@ -99,6 +101,21 @@ describe('rolling for a slot', () => {
     expect(rollGear(s, 7, 'mining', 'legendary', 'lamp')).toMatchObject({ slot: 'lamp', rarity: 'legendary', uniqueId: 'blackLantern' });
   });
 
+  it('gives valid gear for every slot at every rarity, through a gamble and through rollGear', () => {
+    const s = atTier7(10_000_000);
+    s.bag = s.bag.map(() => null);
+    for (const slot of SLOTS) {
+      for (const rarity of RARITIES) {
+        const item = rollGear(s, 7, setOfSlot(slot), rarity, slot);
+        expect(item.slot).toBe(slot);
+        s.bag[firstEmpty(s.bag)] = item;
+        expect(validateState(s)).toBe(true);
+      }
+      expect(gamble(s, slot).result).toBe('ok');
+      expect(validateState(s)).toBe(true);
+    }
+  });
+
   it('keeps every slot for each rarity', () => {
     const s = newGame(9, 0);
     for (const rarity of RARITIES) {
@@ -137,13 +154,31 @@ describe('the store', () => {
     const ok = store.gamble('ring');
     expect(ok.result).toBe('ok');
     expect(ok.item?.slot).toBe('ring');
-    expect(store.lastGamble).toBe(ok.item);
+    expect(store.lastGamble).toEqual(ok.item);
     expect(store.version).toBe(version + 1);
     expect(store.gamble('ring')).toEqual({ result: 'noGold' });
     expect(store.version).toBe(version + 1);
-    expect(store.lastGamble).toBe(ok.item);
+    expect(store.lastGamble).toEqual(ok.item);
     // another world has none
     expect(store.importSave(encodeSave(newGame(3, 0), 0)).ok).toBe(true);
     expect(store.lastGamble).toBeNull();
+  });
+
+  it('keeps the gambled item as it was bought, whatever happens to it in the bag', () => {
+    const store = new GameStore({ storage: new MemoryStorage(), storageAvailable: true, now: () => 0, newSeed: () => 7 });
+    store.load();
+    const s = store.state;
+    s.deepest = 1_100;
+    s.gold = 20_000;
+    s.souls = 1_000_000;
+    const ok = store.gamble('ring');
+    const bought = structuredClone(ok.item);
+    const index = s.bag.findIndex((c) => c?.id === bought?.id);
+    expect(store.soulUpgrade({ where: 'bag', index })).toBe('ok');
+    expect(s.bag[index]).toMatchObject({ ilvl: 8 });
+    expect(store.sendItem({ where: 'bag', index }, 'stash')).toBe('ok');
+    expect(s.bag[index]).toBeNull();
+    expect(store.lastGamble).toEqual(bought);
+    expect(store.lastGamble?.ilvl).toBe(7);
   });
 });

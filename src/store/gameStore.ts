@@ -286,7 +286,8 @@ export class GameStore {
   gamble(slot: Slot): { result: GambleResult; item?: GearItem } {
     const outcome = coreGamble(this._state, slot);
     if (outcome.item !== undefined) {
-      this._lastGamble = outcome.item;
+      // a snapshot: the panel shows what was bought, not what later crafts or moves make of it
+      this._lastGamble = structuredClone(outcome.item);
       this.changed();
     }
     return outcome;
