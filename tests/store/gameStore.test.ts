@@ -274,6 +274,44 @@ describe('inventory intents', () => {
   });
 });
 
+describe('crafting', () => {
+  it('a craft bumps the version and is kept as the last craft; a refusal is kept but changes nothing', () => {
+    const { store } = make();
+    store.load();
+    const s = store.state;
+    s.bag[0] = gear(s, 'pickaxe', { rarity: 'normal', ilvl: 4 });
+    s.stash.materials.copper = 10;
+    expect(store.lastCraft).toBeNull();
+    const v = store.version;
+    expect(store.craft({ where: 'bag', index: 0 }, 'copper')).toEqual({ check: 'ok' });
+    expect(store.version).toBe(v + 1);
+    expect(store.lastCraft).toEqual({ id: 1, target: { where: 'bag', index: 0 }, kind: 'copper', check: 'ok' });
+    expect(s.stash.materials.copper).toBe(7);
+    expect(store.craft({ where: 'bag', index: 0 }, 'copper')).toEqual({ check: 'wrongRarity' });
+    expect(store.version).toBe(v + 1);
+    expect(store.lastCraft).toEqual({ id: 2, target: { where: 'bag', index: 0 }, kind: 'copper', check: 'wrongRarity' });
+  });
+
+  it('a material dropped on gear crafts through the store and keeps the check', () => {
+    const { store } = make();
+    store.load();
+    const s = store.state;
+    s.bag[0] = gear(s, 'pickaxe', { rarity: 'rare', ilvl: 4 });
+    s.bag[1] = { id: s.nextId++, type: 'material', material: 'tin', count: 5 };
+    const v = store.version;
+    expect(store.drop({ where: 'bag', index: 1 }, { where: 'bag', index: 0 })).toBe('craftRefused');
+    expect(store.version).toBe(v);
+    expect(store.lastCraft).toMatchObject({ id: 1, kind: 'tin', check: 'wrongRarity' });
+    s.bag[1] = { id: s.nextId++, type: 'material', material: 'obsidian', count: 5 };
+    s.bag[0] = gear(s, 'pickaxe', { rarity: 'rare', affixes: [{ stat: 'goldYield', value: 4 }] });
+    expect(store.drop({ where: 'bag', index: 1 }, { where: 'bag', index: 0 })).toBe('ok');
+    expect(store.version).toBe(v + 1);
+    expect(store.lastCraft).toMatchObject({ id: 2, kind: 'obsidian', check: 'ok' });
+    expect(store.importSave(store.exportSave()).ok).toBe(true);
+    expect(store.lastCraft).toBeNull();
+  });
+});
+
 describe('stash pages', () => {
   it('buying a Maps page with enough Gold bumps the version and adds the cells', () => {
     const { store } = make();

@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
 import { deriveStats, gearTotals, itemTotals } from '../../src/core/stats';
-import { MAX_HAZARD_WARD } from '../../src/core/balance';
+import { MAX_HAZARD_WARD, MAX_ORE_BONUS_CHANCE } from '../../src/core/balance';
 import { MINING_STATS } from '../../src/core/items';
 import { gear, gem } from '../helpers/items';
 
@@ -43,9 +43,9 @@ it('a gem counts with the stat of the set it sits in', () => {
   const pick = gear(s, 'pickaxe', { implicit: { stat: 'digPower', value: 4 }, sockets: 1, gems: [gem(s, 'ruby')] });
   s.equipped.mining.pickaxe = pick;
   s.equipped.battle.helm = gear(s, 'helm', { implicit: { stat: 'life', value: 20 }, sockets: 1, gems: [gem(s, 'ruby')] });
-  expect(itemTotals(pick)).toEqual({ digPower: 4, goldYield: 8 });
-  expect(deriveStats(s).goldMultiplier).toBeCloseTo(1.08);
-  expect(gearTotals(s, 'battle').damagePct).toBe(6);
+  expect(itemTotals(pick)).toEqual({ digPower: 4, goldYield: 7 });
+  expect(deriveStats(s).goldMultiplier).toBeCloseTo(1.07);
+  expect(gearTotals(s, 'battle').damagePct).toBe(7);
 });
 
 it('find chances are capped together and never go below zero', () => {
@@ -74,4 +74,31 @@ it('hazard ward rolls on mining gear and adds up, capped', () => {
   s.equipped.mining.gloves = gear(s, 'gloves', { affixes: [{ stat: 'hazardWard', value: 40 }] });
   expect(deriveStats(s).hazardWard).toBe(MAX_HAZARD_WARD);
   expect(MINING_STATS).toContain('hazardWard');
+});
+
+it('percent dig power multiplies the base and the flat dig power', () => {
+  const s = newGame(1, 0);
+  s.equipped.mining.pickaxe = gear(s, 'pickaxe', { implicit: { stat: 'digPower', value: 4 }, affixes: [{ stat: 'digPowerPct', value: 50 }] });
+  expect(deriveStats(s).digPower).toBe(21);
+});
+
+it('the new mining modifiers become multipliers and the ore bonus chance', () => {
+  const bare = deriveStats(newGame(1, 0));
+  expect(bare).toMatchObject({ veinMultiplier: 1, oreBonusChance: 0, sellMultiplier: 1, salvageMultiplier: 1 });
+  const s = newGame(1, 0);
+  s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'veinYield', value: 20 }, { stat: 'oreFind', value: 100 }] });
+  s.equipped.mining.gloves = gear(s, 'gloves', { affixes: [{ stat: 'sellBonus', value: 50 }, { stat: 'salvageYield', value: 100 }] });
+  const st = deriveStats(s);
+  expect(st.veinMultiplier).toBeCloseTo(1.2);
+  expect(st.oreBonusChance).toBeCloseTo(0.3);
+  expect(st.sellMultiplier).toBeCloseTo(1.5);
+  expect(st.salvageMultiplier).toBeCloseTo(2);
+});
+
+it('the ore bonus chance is capped and never negative', () => {
+  const s = newGame(1, 0);
+  s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'oreFind', value: 1000 }] });
+  expect(deriveStats(s).oreBonusChance).toBe(MAX_ORE_BONUS_CHANCE);
+  s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'oreFind', value: -50 }] });
+  expect(deriveStats(s).oreBonusChance).toBe(0);
 });

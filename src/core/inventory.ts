@@ -1,11 +1,12 @@
 import { GEM_BAG_STACK, GEM_STASH_STACK, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK } from './balance';
 import { firstEmpty, itemAt, sameLoc } from './cells';
+import { craft } from './crafting';
 import { isGear, isMap, isStack, setOfSlot } from './items';
-import type { Cell, GearItem, GemItem, Item, Slot, Stack } from './items';
+import type { Cell, GearItem, GemItem, Item, MaterialItem, Slot, Stack } from './items';
 import { fillAhead } from './metres';
-import { salvageYield, sellValue, stashMaterials } from './loot';
+import { salvagePay, sellPay, stashMaterials } from './loot';
 import { deriveStats } from './stats';
-import type { DropTarget, GameState, InvResult, ItemLoc } from './types';
+import type { CraftResult, DropTarget, GameState, InvResult, ItemLoc } from './types';
 
 type CellLoc = Extract<ItemLoc, { where: 'bag' | 'stash' | 'maps' }>;
 /** A Gems or Materials stack: a count in a stash tab rather than a cell. */
@@ -226,14 +227,14 @@ function discard(state: GameState, from: ItemLoc): GearItem | GemItem | undefine
 export function sell(state: GameState, from: ItemLoc): InvResult {
   const item = discard(state, from);
   if (item === undefined) return 'invalid';
-  state.gold += sellValue(item);
+  state.gold += sellPay(item, deriveStats(state));
   return 'ok';
 }
 
 export function salvage(state: GameState, from: ItemLoc): InvResult {
   const item = discard(state, from);
   if (item === undefined) return 'invalid';
-  stashMaterials(state, salvageYield(item));
+  stashMaterials(state, salvagePay(item, deriveStats(state)));
   return 'ok';
 }
 
@@ -295,10 +296,24 @@ function homeOf(item: Item): ItemLoc['where'] {
   }
 }
 
-/** Every drag-and-drop, however it ends: equip, unequip, socket, move, swap, merge or send to a tab. */
-export function dropItem(state: GameState, from: ItemLoc, to: DropTarget): InvResult {
+/** Told of every craft a drop makes, refused or not, so the store can say why. */
+export type CraftListener = (target: ItemLoc, item: MaterialItem, result: CraftResult) => void;
+
+/** A material dropped on gear crafts with it, paid from the dragged stack first. */
+function craftDrop(state: GameState, from: ItemLoc, item: MaterialItem, to: ItemLoc, onCraft?: CraftListener): InvResult {
+  const result = craft(state, to, item.material, from);
+  onCraft?.(to, item, result);
+  return result.check === 'ok' ? 'ok' : 'craftRefused';
+}
+
+/** Every drag-and-drop, however it ends: equip, unequip, socket, craft, move, swap, merge or send to a tab. */
+export function dropItem(state: GameState, from: ItemLoc, to: DropTarget, onCraft?: CraftListener): InvResult {
   const item = itemAt(state, from);
   if (item === undefined) return 'invalid';
+  if (item.type === 'material' && to.where !== 'stashTab') {
+    const target = itemAt(state, to);
+    if (target !== undefined && isGear(target)) return craftDrop(state, from, item, to, onCraft);
+  }
   if (to.where === 'worn') {
     if (from.where === 'worn') return sameLoc(from, to) ? 'ok' : 'wrongSlot';
     if (item.type === 'gem') return socketGem(state, from, to);

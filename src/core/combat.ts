@@ -77,18 +77,22 @@ function takeDrop(run: MapRun, notes: LootNote[], isItem = true): void {
 export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: BattleStats): void {
   const tier = run.map.tier;
   const levelBefore = state.level;
-  const levels = gainXp(state, monster.xp);
-  run.gained.xp += monster.xp;
+  const xp = Math.round(monster.xp * b.xpMultiplier);
+  const levels = gainXp(state, xp);
+  run.gained.xp += xp;
+  let { maxLife } = b;
   if (levels > 0) {
-    run.life += deriveBattleStats(state).maxLife - b.maxLife;
+    maxLife = deriveBattleStats(state).maxLife;
+    run.life += maxLife - b.maxLife;
     run.gained.levels += levels;
     for (let l = 1; l <= levels; l++) logLine(run, { kind: 'level', level: levelBefore + l });
   }
+  if (b.lifeOnKill > 0) run.life = Math.min(maxLife, run.life + Math.round(b.lifeOnKill));
 
   const souls = soulsForKill(nextRandom(state), tier, monster.rank, b.soulMultiplier);
   state.souls += souls;
   run.gained.souls += souls;
-  logLine(run, { kind: 'kill', monster: monster.name, xp: monster.xp, souls });
+  logLine(run, { kind: 'kill', monster: monster.name, xp, souls });
 
   const gold = goldPerKill(tier) * rankReward(monster.rank);
   state.gold += gold;
@@ -115,10 +119,16 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
 function strike(state: GameState, run: MapRun, b: BattleStats, click: boolean, events?: TickEvent[]): StrikeOutcome {
   const m = run.queue[0];
   if (m === undefined) return 'fight';
-  let amount = b.damageMin + Math.floor(nextRandom(state) * (b.damageMax - b.damageMin + 1));
+  let physical = b.damageMin + Math.floor(nextRandom(state) * (b.damageMax - b.damageMin + 1));
+  let elemental = b.elementalDamage;
   const crit = nextRandom(state) < b.critChance;
-  if (crit) amount = Math.round(amount * b.critMultiplier);
-  if (m.mods.includes('armored')) amount = Math.max(1, Math.round(amount * ARMORED_TAKEN));
+  if (crit) {
+    physical = Math.round(physical * b.critMultiplier);
+    elemental = Math.round(elemental * b.critMultiplier);
+  }
+  // Armored softens only the physical part.
+  if (m.mods.includes('armored')) physical = Math.max(1, Math.round(physical * ARMORED_TAKEN));
+  const amount = physical + elemental;
   m.life -= amount;
   events?.push({ kind: 'strike', amount, crit, click });
   logLine(run, { kind: 'hit', monster: m.name, amount, crit, click });
@@ -141,10 +151,16 @@ function strike(state: GameState, run: MapRun, b: BattleStats, click: boolean, e
 }
 
 /**
- * One combat step of `dt` seconds: the miner's auto hits, then (unless the room fell) the fighting monster's attacks.
- * Returns the battle stats to use next, re-derived after a level-up.
+ * One combat step of `dt` seconds: life regeneration, the miner's auto hits, then (unless the room fell) the fighting
+ * monster's attacks. Returns the battle stats to use next, re-derived after a level-up.
  */
 function combatStep(state: GameState, run: MapRun, b: BattleStats, dt: number, events?: TickEvent[]): BattleStats {
+  // Regeneration heals in whole life; the fraction waits in the carry.
+  run.regenCarry += b.lifeRegen * dt;
+  const healed = Math.floor(run.regenCarry);
+  run.regenCarry -= healed;
+  if (healed > 0) run.life = Math.min(b.maxLife, run.life + healed);
+
   run.hitCarry += b.attacksPerSecond * dt;
   while (run.hitCarry >= 1) {
     run.hitCarry -= 1;

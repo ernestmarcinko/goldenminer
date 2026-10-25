@@ -98,9 +98,13 @@ button.gm-item:hover { background: #3a2f20; }
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6); pointer-events: none;
 }
 .gm-card[role='dialog'] { pointer-events: auto; }
+/* the card moves itself after a craft; a scrolling dialog must not also scroll to follow it (scroll anchoring) */
+.gm-card { overflow-anchor: none; }
 /* the card a touch tap opens: in the flow below the grid, so the targets above stay uncovered */
 .gm-card.gm-card--inline { position: static; width: 100%; box-shadow: none; }
 .gm-card__label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gm-muted); }
+/* the label over a gear card's craft buttons, set apart from the actions above it */
+.gm-card__craft { padding-top: 6px; }
 /* a hover card and the worn item's card, side by side as one placed pair */
 .gm-cardpair { position: absolute; z-index: 2; display: flex; align-items: flex-start; gap: 8px; pointer-events: none; }
 .gm-cardpair > .gm-card { position: static; }
@@ -124,6 +128,14 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-card__btn:hover { border-color: var(--gm-gold); }
 .gm-card__btn[aria-disabled='true'] { opacity: 0.5; }
 .gm-card__btn--quiet { border-color: transparent; background: transparent; color: var(--gm-muted); }
+/* the craft buttons, two to a row while each is 120 px or wider (their labels wrap to two lines there), else one */
+.gm-card__crafts {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(max(120px, calc((100% - 4px) / 2)), 1fr)); gap: 4px;
+  align-content: start;   /* kept at its tallest while a card is open: its rows stay as they are */
+}
+.gm-card__crafts > .gm-card__btn { padding: 4px 8px; font-size: 12px; line-height: 1.3; }
+/* where a craft that went away was, while the card stays open: the other crafts keep their places */
+.gm-card__slot { min-height: 44px; }
 
 .gm-stash { position: relative; display: flex; flex-direction: column; gap: 12px; }
 .gm-overlay.gm-overlay--top { align-items: flex-start; padding-top: max(16px, 6vh); }

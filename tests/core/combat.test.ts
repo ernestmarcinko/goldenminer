@@ -386,3 +386,74 @@ it('pumped play and one long catch-up give the same run at a fractional tick rat
   expect(once.lastRun?.outcome).toBe('cleared');
   expect(once.deepest).toBeGreaterThan(0);
 });
+
+it('elemental damage adds to every hit, Armored softens only the physical part, and a crit multiplies both', () => {
+  let crits = 0;
+  for (let rng = 1; rng <= 2000; rng++) {
+    const { s } = started({ rank: 'champion', mods: ['armored'] });
+    s.equipped.battle.weapon = gear(s, 'weapon', { affixes: [{ stat: 'elementalDamage', value: 5 }] });
+    s.rng = rng;
+    const plain = structuredClone(s);
+    runOf(plain).queue[0]?.mods.splice(0);
+    plain.equipped.battle.weapon!.affixes = [];
+    const armored: TickEvent[] = [];
+    const bare: TickEvent[] = [];
+    clickHit(s, armored);
+    clickHit(plain, bare);
+    const [hit] = strikes(armored);
+    const [raw] = strikes(bare);
+    if (hit === undefined || raw === undefined) throw new Error('no strike');
+    const elemental = raw.crit ? Math.round(5 * deriveBattleStats(s).critMultiplier) : 5;
+    expect(hit, `rng ${rng}`).toEqual({ ...raw, amount: Math.max(1, Math.round(raw.amount * ARMORED_TAKEN)) + elemental });
+    if (raw.crit) crits++;
+  }
+  expect(crits).toBeGreaterThan(20);
+});
+
+it('life regeneration heals per second, capped at max life', () => {
+  const { s, run } = started({ intervalS: 1000 });
+  s.equipped.battle.ring = gear(s, 'ring', { affixes: [{ stat: 'lifeRegen', value: 2 }] });
+  run.life = 10;
+  applyTicks(s, 1, at(s, 1));   // one second, fought in four steps of 0.25 s
+  expect(run.life).toBe(12);
+  const { maxLife } = deriveBattleStats(s);
+  run.life = maxLife - 1;
+  applyTicks(s, 1, at(s, 1));
+  expect(run.life).toBe(maxLife);
+});
+
+it('life regeneration heals before the monster attacks in the same step', () => {
+  const { s, run } = started({ damage: 1, intervalS: 1 });
+  s.equipped.battle.ring = gear(s, 'ring', { affixes: [{ stat: 'lifeRegen', value: 4 }] });   // 1 life a 0.25 s step
+  run.life = 1;
+  run.monsterCarry = 0.99;
+  const events: TickEvent[] = [];
+  applyTicks(s, 1, at(s, 4), events);
+  expect(events).toContainEqual({ kind: 'hurt', amount: 1 });
+  expect(s.activity.kind).toBe('map');
+  expect(run.life).toBe(1);
+});
+
+it('life per kill heals on each kill, capped at max life', () => {
+  const { s, run } = started({ life: 1 });
+  s.equipped.battle.ring = gear(s, 'ring', { affixes: [{ stat: 'lifeOnKill', value: 5 }] });
+  run.queue.push(monster({ life: 1 }), monster());   // the room stays uncleared, so no room regen
+  run.life = 10;
+  clickHit(s);
+  expect(run.life).toBe(15);
+  const { maxLife } = deriveBattleStats(s);
+  run.life = maxLife - 2;
+  clickHit(s);
+  expect(run.queue).toHaveLength(1);
+  expect(run.life).toBe(maxLife);
+});
+
+it('XP find raises the XP of a kill, and the kill line shows it', () => {
+  const { s, run } = started({ life: 1, xp: 40 });
+  s.equipped.battle.amulet = gear(s, 'amulet', { affixes: [{ stat: 'xpFind', value: 50 }] });
+  run.queue.push(monster());
+  clickHit(s);
+  expect(s.xp).toBe(60);
+  expect(run.gained.xp).toBe(60);
+  expect(run.log).toContainEqual(expect.objectContaining({ kind: 'kill', monster: 'Test Monster', xp: 60 }));
+});

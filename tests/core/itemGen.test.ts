@@ -1,25 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { statRange } from '../../src/core/balance';
 import { emptyInventory, firstEmpty } from '../../src/core/cells';
-import { LEGENDARIES, STAT_WORDS, baseName, gemName } from '../../src/core/itemData';
-import { rollChest, rollGear, rollGem } from '../../src/core/itemGen';
-import { SLOT_IMPLICIT, setOfSlot, statsOf, type GearItem, type GearSet, type Rarity } from '../../src/core/items';
+import { LEGENDARIES, RARE_FIRST, RARE_SECOND, baseName, gemName } from '../../src/core/itemData';
+import { magicName, rareName, rollChest, rollGear, rollGem, rollLines, rollModLine, sideCount } from '../../src/core/itemGen';
+import { MOD_SIDE, SLOT_IMPLICIT, setOfSlot, statsOf, type GearItem, type GearSet, type ModLine, type Rarity } from '../../src/core/items';
+import { tierRange } from '../../src/core/tiers';
 import { newGame } from '../../src/core/newGame';
 import { validateState } from '../../src/core/save';
 import type { Item } from '../../src/core/items';
-
-describe('stat ranges', () => {
-  it('grow with item level and respect caps', () => {
-    expect(statRange('digPower', 1)).toEqual({ min: 2, max: 4 });
-    expect(statRange('digPower', 10)).toEqual({ min: 11, max: 22 });
-    expect(statRange('lampSight', 1)).toEqual({ min: 1, max: 1 });
-    expect(statRange('lampSight', 40)).toEqual({ min: 3, max: 6 });
-    expect(statRange('ticksPerClick', 50)).toEqual({ min: 1, max: 1 });
-    expect(statRange('offlineCap', 1)).toEqual({ min: 10, max: 20 });
-    expect(statRange('offlineCap', 100)).toEqual({ min: 120, max: 240 });
-    expect(statRange('critChance', 1)).toEqual({ min: 1, max: 2 });
-  });
-});
 
 it('gems roll the grade their tier allows, one at a time', () => {
   const gems = [1, 4, 7, 10, 15].map((tier) => rollGem(newGame(1, 0), tier));
@@ -51,31 +38,101 @@ it('every item fits its set, rarity and item level', () => {
       expect(item.gems).toEqual([]);
       expect([0, 1, 2, 3]).toContain(item.sockets);
       expect(item.implicit.stat).toBe(SLOT_IMPLICIT[item.slot]);
-      const imp = statRange(item.implicit.stat, 7);
-      expect(item.implicit.value).toBeGreaterThanOrEqual(imp.min);
-      expect(item.implicit.value).toBeLessThanOrEqual(imp.max);
+      const imp = tierRange(item.implicit.stat, 7);
+      expect(item.implicit.value).toBeGreaterThanOrEqual(imp.lo);
+      expect(item.implicit.value).toBeLessThanOrEqual(imp.hi);
       if (item.rarity === 'legendary') continue;
-      const stats = item.affixes.map((a) => a.stat);
-      expect(new Set(stats).size).toBe(stats.length);
-      expect(stats).not.toContain(item.implicit.stat);
-      for (const a of item.affixes) {
-        expect(statsOf(set)).toContain(a.stat);
-        const r = statRange(a.stat, 7);
-        expect(a.value).toBeGreaterThanOrEqual(r.min);
-        expect(a.value).toBeLessThanOrEqual(r.max);
-      }
+      for (const a of item.affixes) expect(statsOf(set)).toContain(a.stat);
       const base = baseName(item.slot, 7);
       if (item.rarity === 'normal') expect([item.affixes, item.name]).toEqual([[], base]);
-      if (item.rarity === 'magic') {
-        expect(item.affixes).toHaveLength(2);
-        expect(item.name).toBe(`${STAT_WORDS[item.affixes[0]!.stat].prefix} ${base} of ${STAT_WORDS[item.affixes[1]!.stat].suffix}`);
-      }
-      if (item.rarity === 'rare') expect([3, 4]).toContain(item.affixes.length);
+      if (item.rarity === 'magic') expect(item.name).toBe(magicName(item.slot, 7, item.affixes));
     }
   }
 });
 
-it('rarity, socket and affix-count odds follow the weights', () => {
+it('lines follow the rarity, the sides and the tiers', () => {
+  for (const set of ['mining', 'battle'] as const) {
+    const tiers: number[] = [];
+    for (const item of many(set, 2000, 8)) {
+      const n = item.affixes.length;
+      const sides = [sideCount(item.affixes, 'prefix'), sideCount(item.affixes, 'suffix')];
+      if (item.rarity === 'normal') expect(n).toBe(0);
+      if (item.rarity === 'magic') {
+        expect(n).toBeGreaterThanOrEqual(1); expect(n).toBeLessThanOrEqual(2);
+        for (const c of sides) expect(c).toBeLessThanOrEqual(1);
+      }
+      if (item.rarity === 'rare') {
+        expect(n).toBeGreaterThanOrEqual(4); expect(n).toBeLessThanOrEqual(6);
+        for (const c of sides) expect(c).toBeLessThanOrEqual(3);
+      }
+      if (item.rarity === 'legendary') {                                          // hand-written lines, which may share the implicit's stat
+        for (const a of item.affixes) expect(a.tier).toBe(0);
+        continue;
+      }
+      const stats = item.affixes.map((a) => a.stat);
+      expect(new Set(stats).size).toBe(stats.length);
+      expect(stats).not.toContain(item.implicit.stat);
+      for (const a of item.affixes) {
+        expect(a.tier).toBeGreaterThanOrEqual(1);
+        expect(a.tier).toBeLessThanOrEqual(8);
+        const { lo, hi } = tierRange(a.stat, a.tier);
+        expect(a.value).toBeGreaterThanOrEqual(lo);
+        expect(a.value).toBeLessThanOrEqual(hi);
+        tiers.push(a.tier);
+      }
+    }
+    const share = (t: number) => tiers.filter((x) => x === t).length / tiers.length;
+    expect(share(1)).toBeGreaterThan(share(8));
+  }
+});
+
+it('magic names take a prefix word and a suffix word', () => {
+  const sharp: ModLine = { stat: 'digPower', value: 2, tier: 1 };
+  const treasure: ModLine = { stat: 'chestFind', value: 5, tier: 1 };
+  expect(magicName('pickaxe', 4, [sharp, treasure])).toBe('Sharp Iron Pick of Treasure');
+  expect(magicName('pickaxe', 4, [treasure, sharp])).toBe('Sharp Iron Pick of Treasure');
+  expect(magicName('pickaxe', 4, [treasure])).toBe('Iron Pick of Treasure');
+  expect(magicName('pickaxe', 4, [sharp])).toBe('Sharp Iron Pick');
+});
+
+it('rolled lines add to what an item has without breaking its sides', () => {
+  const s = newGame(4, 0);
+  for (let i = 0; i < 500; i++) {
+    const one = rollLines(s, 'pickaxe', 6, 1, [], 1);
+    const two = rollLines(s, 'pickaxe', 6, 1, one, 1);
+    expect(MOD_SIDE[two[0]!.stat]).not.toBe(MOD_SIDE[one[0]!.stat]);          // a magic item's second line takes the free side
+    const rare = rollLines(s, 'pickaxe', 6, 4, [...one, ...two]);
+    const all = [...one, ...two, ...rare];
+    expect(new Set(all.map((a) => a.stat)).size).toBe(6);
+    expect(all.map((a) => a.stat)).not.toContain('digPower');
+    expect([sideCount(all, 'prefix'), sideCount(all, 'suffix')]).toEqual([3, 3]);
+  }
+  const line = rollModLine(s, 'goldYield', 1);
+  expect(line).toEqual({ stat: 'goldYield', value: line.value, tier: 1 });
+  expect(rareName(s, 'pickaxe')).toMatch(new RegExp(`^(${RARE_FIRST.join('|')}) (${RARE_SECOND.pickaxe.join('|')})$`));
+});
+
+it('a magic item\'s room counts only its own lines, never a crafted one', () => {
+  const s = newGame(6, 0);
+  const crafted: ModLine = { stat: 'goldYield', value: 40, tier: 8, crafted: true };
+  for (let i = 0; i < 500; i++) {
+    const added = rollLines(s, 'pickaxe', 6, 2, [crafted], 1);
+    expect(added.every((a) => a.crafted !== true && a.stat !== 'goldYield')).toBe(true);
+    expect([sideCount(added, 'prefix'), sideCount(added, 'suffix')]).toEqual([1, 1]);
+  }
+});
+
+it('with room for 3 a side, a new line can land on either side', () => {
+  const s = newGame(6, 0);
+  const sides = new Set<string>();
+  for (let i = 0; i < 200; i++) {
+    const [line] = rollLines(s, 'pickaxe', 6, 1, [{ stat: 'goldYield', value: 5, tier: 1 }], 3);
+    sides.add(MOD_SIDE[line!.stat]);
+  }
+  expect([...sides].sort()).toEqual(['prefix', 'suffix']);
+});
+
+it('rarity, socket and line-count odds follow the weights', () => {
   const items = many('mining', 20_000, 3);
   const share = (f: (i: GearItem) => boolean) => items.filter(f).length / items.length;
   const r = (x: Rarity) => share((i) => i.rarity === x);
@@ -85,9 +142,13 @@ it('rarity, socket and affix-count odds follow the weights', () => {
   expect(r('legendary')).toBeGreaterThan(0.006); expect(r('legendary')).toBeLessThan(0.014);
   expect(share((i) => i.sockets === 0)).toBeGreaterThan(0.38); expect(share((i) => i.sockets === 0)).toBeLessThan(0.42);
   expect(share((i) => i.sockets === 3)).toBeGreaterThan(0.06); expect(share((i) => i.sockets === 3)).toBeLessThan(0.08);
-  const rares = items.filter((i) => i.rarity === 'rare');
-  const four = rares.filter((i) => i.affixes.length === 4).length / rares.length;
-  expect(four).toBeGreaterThan(0.44); expect(four).toBeLessThan(0.56);
+  const of = (rarity: Rarity, n: number) => {
+    const all = items.filter((i) => i.rarity === rarity);
+    return all.filter((i) => i.affixes.length === n).length / all.length;
+  };
+  expect(of('magic', 1)).toBeGreaterThan(0.46); expect(of('magic', 1)).toBeLessThan(0.54);
+  expect(of('rare', 4)).toBeGreaterThan(0.44); expect(of('rare', 4)).toBeLessThan(0.56);
+  expect(of('rare', 6)).toBeGreaterThan(0.11); expect(of('rare', 6)).toBeLessThan(0.19);
 });
 
 it('legendaries come from the hand-written list', () => {
@@ -103,6 +164,7 @@ it('legendaries come from the hand-written list', () => {
   expect(dd).toMatchObject({ slot: 'pickaxe', rarity: 'legendary', uniqueId: 'deepdelver' });
   expect(dd?.affixes.map((a) => a.stat)).toEqual(['digPower', 'ticksPerClick', 'chestFind']);
   expect(dd?.affixes.slice(1).map((a) => a.value)).toEqual([1, -10]);
+  expect(dd?.affixes.map((a) => a.tier)).toEqual([0, 0, 0]);
   expect(dd?.affixes[0]?.value).toBeGreaterThanOrEqual(17);
   expect(dd?.affixes[0]?.value).toBeLessThanOrEqual(33);
 });

@@ -198,11 +198,13 @@ Migrating to the new schema:
 - **World generation.** Unchanged: old worlds gain material veins only on empty metres (§3.3).
 
 ## 8. The plan sequence (decided)
-- **Plan 6, Economy and inventory:** veins-only income, materials and material veins, the speed counter, hazards, one bag, stash pages and the Materials tab, maps as items, the minimap history, and the migration.
-- **Plan 7, Crafting:** the prefix/suffix and tier rework of items, orb-style crafting, map enchanting, Soul upgrades, and the merchant (Gold sinks and stash page purchases). The prefix/suffix rework goes here because crafting depends on it (my call).
-- **Plan 8:** the passive web, including nodes that add stash pages and raise bag stack sizes.
-- **Plan 9:** auto-mapping and ascension.
-- **Plan 10:** balance and launch.
+- **Plan 6, Economy and inventory:** veins-only income, materials and material veins, the speed counter, hazards, one bag, stash pages and the Materials tab, maps as items, the minimap history, and the migration. Built and merged (PR #6).
+- **Plan 7, Items and crafting** (decided 2026-10-24: Plan 7 was split in two): the prefix/suffix and tier rework of items with the bigger modifier pool (§5.1), the migration of existing items (§7), and orb-style crafting with every material, including Diamonds' exalt and Void crystal's temper (§5.2).
+- **Plan 8, Maps, Souls and the merchant:** map enchanting (§6), battle-gear upgrades with Souls (§5.2), and the merchant.
+  - **The merchant offers gambling only** (decided 2026-10-24): pay Gold for a random item of a chosen slot, rolled at the deepest tier reached. It never sells Diamonds or Souls. Stash pages are already bought from the stash itself (Plan 6). Selling items stays where it is today.
+- **Plan 9:** the passive web, including nodes that add stash pages and raise bag stack sizes.
+- **Plan 10:** auto-mapping and ascension.
+- **Plan 11:** balance and launch.
 
 ## 9. Left to the builder
 - Vein amounts and frequencies, and the material vein chances per depth.

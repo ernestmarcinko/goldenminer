@@ -10,6 +10,9 @@ export interface BattleStats {
   maxLife: number; damageMin: number; damageMax: number; attacksPerSecond: number;
   critChance: number; critMultiplier: number; armor: number; resistAll: number;
   soulMultiplier: number; magicFindMultiplier: number;
+  elementalDamage: number;                 // added to every hit after the physical roll; Armored doesn't soften it
+  lifeRegen: number; lifeOnKill: number;   // life per second in maps, and life on each kill
+  xpMultiplier: number;
 }
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
@@ -20,16 +23,20 @@ export function deriveBattleStats(state: GameState): BattleStats {
   const base = baseDamage(state.level);
   const damageMin = clamp(Math.round((base.min + g.damage) * pct(g.damagePct)), 1, MAX_DAMAGE);
   return {
-    maxLife: clamp(BASE_LIFE + LIFE_PER_LEVEL * state.level + g.life, 1, MAX_LIFE),
+    maxLife: clamp(Math.round((BASE_LIFE + LIFE_PER_LEVEL * state.level + g.life) * pct(g.lifePct)), 1, MAX_LIFE),
     damageMin,
     damageMax: Math.max(damageMin, clamp(Math.round((base.max + g.damage) * pct(g.damagePct)), 1, MAX_DAMAGE)),
     attacksPerSecond: clamp(BASE_ATTACKS_PER_SECOND * pct(g.attackSpeed), MIN_ATTACKS_PER_SECOND, MAX_ATTACKS_PER_SECOND),
     critChance: clamp(BASE_CRIT_CHANCE + g.critChance, 0, MAX_CRIT_CHANCE) / 100,
-    critMultiplier: CRIT_MULTIPLIER,
-    armor: clamp(g.armor, 0, MAX_DAMAGE),
+    critMultiplier: Math.max(1, CRIT_MULTIPLIER + g.critMultiplier / 100),
+    armor: clamp(Math.round(g.armor * pct(g.armorPct)), 0, MAX_DAMAGE),
     resistAll: clamp(g.resistAll, 0, MAX_RESIST),
     soulMultiplier: pct(g.soulFind),
     magicFindMultiplier: pct(g.magicFind),
+    elementalDamage: clamp(g.elementalDamage, 0, MAX_DAMAGE),
+    lifeRegen: clamp(g.lifeRegen, 0, MAX_LIFE),
+    lifeOnKill: clamp(g.lifeOnKill, 0, MAX_LIFE),
+    xpMultiplier: pct(g.xpFind),
   };
 }
 

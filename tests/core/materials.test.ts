@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { BAG_SIZE, MATERIAL_STASH_STACK } from '../../src/core/balance';
-import { moveItem, salvage, sendItem } from '../../src/core/inventory';
+import { dropItem, moveItem, salvage, sendItem } from '../../src/core/inventory';
 import type { MaterialItem } from '../../src/core/items';
 import { receiveItem, receiveMaterial, salvageYield } from '../../src/core/loot';
 import { newGame } from '../../src/core/newGame';
@@ -70,19 +70,21 @@ it('material stacks move, merge, swap and come out of the tab', () => {
   expect(moveItem(s, bagLoc(5), { where: 'materials', material: 'tin' })).toBe('materialsOnly');
 });
 
-it('a material stack swaps with gear, and drags out of the tab onto an empty cell', () => {
+// Plan 7 Task 4: a material dropped on gear crafts with it (crafting.test.ts has the crafts); it used to swap.
+it('a material stack dropped on gear crafts instead of swapping, and drags out of the tab onto an empty cell', () => {
   const s = newGame(1, 0);
-  const boots = gear(s, 'boots');
+  const boots = gear(s, 'boots', { rarity: 'normal' });
   s.bag[0] = { id: s.nextId++, type: 'material', material: 'iron', count: 7 };
   s.bag[1] = boots;
-  expect(moveItem(s, bagLoc(0), bagLoc(1))).toBe('ok');
-  expect([s.bag[0], s.bag[1]?.type]).toEqual([boots, 'material']);
+  expect(dropItem(s, bagLoc(0), bagLoc(1))).toBe('craftRefused');               // Iron needs a magic or rare item
+  expect([s.bag[0]?.type, s.bag[1]]).toEqual(['material', boots]);
   s.stash.materials.copper = 80;
-  expect(moveItem(s, { where: 'materials', material: 'copper' }, bagLoc(4))).toBe('ok');
+  expect(dropItem(s, { where: 'materials', material: 'copper' }, bagLoc(4))).toBe('ok');
   expect([(s.bag[4] as MaterialItem).count, s.stash.materials.copper]).toEqual([50, 30]);
-  expect(moveItem(s, { where: 'materials', material: 'copper' }, bagLoc(0))).toBe('invalid');  // onto gear
-  expect(sendItem(s, bagLoc(1), 'stash')).toBe('ok');
-  expect([s.bag[1], s.stash.materials.iron]).toEqual([null, 7]);
+  expect(dropItem(s, { where: 'materials', material: 'copper' }, bagLoc(1))).toBe('ok');   // onto gear: Copper crafts
+  expect([s.bag[1], boots.rarity, s.stash.materials.copper]).toEqual([boots, 'magic', 27]);
+  expect(sendItem(s, bagLoc(0), 'stash')).toBe('ok');
+  expect([s.bag[0], s.stash.materials.iron]).toEqual([null, 7]);
 });
 
 it('salvage gives low-tier materials to the Materials tab, never Diamonds', () => {

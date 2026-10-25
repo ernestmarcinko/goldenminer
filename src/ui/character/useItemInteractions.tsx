@@ -4,6 +4,7 @@ import { itemAt, sameLoc } from '../../core/cells';
 import type { GameState } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
 import { effectiveMotion, usePrefersReducedMotion } from '../settings/motion';
+import { craftResultText } from './craftView';
 import { ItemCard } from './ItemCard';
 import type { ItemHandlers } from './ItemGrid';
 import { actionForIntent, itemActions, resultText, runAction } from './itemActions';
@@ -60,6 +61,11 @@ export function useItemInteractions({ store, state, containerRef, fallbackRef, d
   }, [dragging, clear, closeMenu]);
 
   const perform = (target: ItemTarget, action: ActionSpec, fromCard = false): void => {
+    // a craft keeps the card open on the same item, so crafts can chain
+    if (action.id === 'craft' && action.kind !== undefined) {
+      setMessage(craftResultText(store.craft(target, action.kind)));
+      return;
+    }
     setMessage(resultText(runAction(store, target, action)));
     release();
     clear();
@@ -84,7 +90,7 @@ export function useItemInteractions({ store, state, containerRef, fallbackRef, d
     <ItemCard
       key={targetKey(menu.target)}
       state={state} target={menu.target}
-      left={menu.left} top={menu.top} inline={menu.inline === true} smooth={smooth}
+      left={menu.left} top={menu.top} fit={menu.fit} inline={menu.inline === true} smooth={smooth}
       menu={{
         onAction: (a) => perform(menu.target, a, true),
         onClose: () => closeMenu(true, fallbackRef.current),

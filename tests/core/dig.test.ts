@@ -249,3 +249,78 @@ it('a hazard slows the metre it sits on and the carried progress follows', () =>
   expect(faceTicksPerMetre(s, st)).toBeCloseTo(gas);
   expect(s.progress).toBeCloseTo(leftover * clear / gas, 9);
 });
+
+it('vein yield raises every vein: Gold and material', () => {
+  const s = fresh();
+  s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'veinYield', value: 20 }] });
+  const rich = deriveStats(s);
+  s.ahead[1] = { feature: 'goldVein', amount: 640, hardRock: false };
+  while (s.deepest < 1) applyTicks(s, 1, rich);
+  expect(s.gold).toBe(768);
+  expect(s.finds[0]).toMatchObject({ kind: 'goldVein', amount: 768 });
+
+  let m = 1;
+  while (!(rollMetre(11, m, BASE_ROLL_CHANCES).feature === null && metreLayer(11, m).vein?.material === 'copper' && metreLayer(11, m).vein?.amount === 4)) m++;
+  const t = newGame(11, 0);
+  t.equipped.mining.boots = gear(t, 'boots', { affixes: [{ stat: 'veinYield', value: 20 }] });
+  digTo(t, m, deriveStats(t));
+  expect(t.finds.at(-1)).toMatchObject({ kind: 'materialVein', material: 'copper', amount: 5, depth: m });
+  expect(t.bag.find((c) => c?.type === 'material' && c.material === 'copper')).toMatchObject({ count: 5 });
+});
+
+it('vein yield raises a diamond vein too, on top of Diamond yield', () => {
+  const s = fresh();
+  s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'veinYield', value: 50 }] });
+  const st = deriveStats(s);
+  expect(st.veinMultiplier).toBeCloseTo(1.5);
+  s.ahead[1] = { feature: 'diamondVein', amount: 3, hardRock: false };
+  const events: TickEvent[] = [];
+  while (s.deepest < 1) applyTicks(s, 1, { ...st, diamondMultiplier: 2 }, events);
+  expect(s.diamonds).toBe(9);   // 3 × 2 × 1.5
+  expect(events.filter((e) => e.kind === 'diamond')).toEqual([{ kind: 'diamond', amount: 9 }]);
+});
+
+/** Whether the seed left metre `m` empty of everything: no seeded feature and no layer vein. */
+const emptyMetre = (seed: number, m: number) => rollMetre(seed, m, BASE_ROLL_CHANCES).feature === null && metreLayer(seed, m).vein === null;
+
+it('ore find adds bonus material veins on metres the seed left empty, at its chance', () => {
+  const s = newGame(31, 0);
+  s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'oreFind', value: 100 }] });
+  const st = deriveStats(s);
+  expect(st.oreBonusChance).toBeCloseTo(0.3);
+  const fast = { ...st, digPower: 1e6 };
+  let last = 3;   // one past the 2,000th empty metre from metre 3
+  for (let seen = 0; seen < 2000; last++) if (emptyMetre(31, last)) seen++;
+  while (s.deepest < last) applyTicks(s, 1, fast);
+  const bonusAt = new Set(s.finds.filter((f) => f.kind === 'materialVein' && f.bonus === true).map((f) => f.depth));
+  let hit = 0;
+  for (let m = 3; m < last; m++) {
+    if (emptyMetre(31, m)) { if (bonusAt.has(m)) hit++; } else expect(bonusAt.has(m), `metre ${m}`).toBe(false);
+  }
+  expect(Math.abs(hit / 2000 - 0.3)).toBeLessThan(0.03);
+  for (const f of s.finds.filter((x) => x.kind === 'materialVein' && x.bonus === true)) {
+    expect(f.amount).toBeGreaterThan(0);
+    expect(f.material).toBeDefined();
+  }
+});
+
+it('a sure ore find still never touches a metre with a feature or a layer vein', () => {
+  const s = newGame(11, 0);
+  const sure = { ...stats, oreBonusChance: 1, digPower: 1e6 };
+  while (s.deepest < 600) applyTicks(s, 1, sure);
+  for (let m = 3; m <= 600; m++) {
+    const bonus = s.finds.filter((f) => f.depth === m && f.kind === 'materialVein' && f.bonus === true);
+    expect(bonus, `metre ${m}`).toHaveLength(emptyMetre(11, m) ? 1 : 0);
+  }
+});
+
+it('without ore find, digging draws exactly what it drew before ore find existed', () => {
+  // Pinned before ore find was added: seed 21, chest find 50, dug a tick at a time to 400 m.
+  const s = newGame(21, 0);
+  s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'chestFind', value: 50 }] });
+  const st = deriveStats(s);
+  expect(st.oreBonusChance).toBe(0);
+  while (s.deepest < 400) applyTicks(s, 1, st);
+  expect([s.rng, s.deepest, s.finds.length, s.tickCount]).toEqual([3752176977, 400, 201, 38027]);
+  expect(s.finds.some((f) => f.kind === 'materialVein' && f.bonus === true)).toBe(false);
+});

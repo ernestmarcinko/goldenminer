@@ -1,5 +1,5 @@
 import type { GemGrade, Material, Rarity, StatKey } from './items';
-import type { FeatureKind, Hazard, Stats } from './types';
+import type { CraftKind, FeatureKind, Hazard, Stats, TemperOutcome } from './types';
 
 export const BASE_DIG_POWER = 10;
 export const BASE_AUTO_TICKS_PER_SECOND = 1;
@@ -52,7 +52,12 @@ export const MATERIAL_STASH_STACK = 1_000_000;
 export const MAX_LOOT_RULES = 20;
 export const MAX_OVERFLOW = 10;
 export const MAX_SOCKETS = 3;
-export const MAX_AFFIXES = 4;
+// An item holds at most 3 prefixes and 3 suffixes; crafted lines count outside them.
+export const MAX_SIDE_LINES = 3;
+export const MAX_CRAFTED_LINES = 2;
+// A line may sit above an item's tier cap by up to this many tiers: a crafted line rolls there, and a migrated line's
+// old value can fall there.
+export const MAX_TIER_OVER_CAP = 2;
 
 export const LEVEL_CAP = 60;
 export const COMBAT_LOG_LIMIT = 20;
@@ -139,47 +144,59 @@ export function diamondVeinAmount(tier: number): number {
   return 1 + Math.floor(tier / 2);
 }
 
-export const STAT_RANGES: Readonly<Record<StatKey, { base: number; perLevel: number; cap?: number }>> = {
-  digPower: { base: 2, perLevel: 2 },
-  goldYield: { base: 4, perLevel: 2 },
-  diamondYield: { base: 4, perLevel: 2 },
-  chestFind: { base: 5, perLevel: 2 },
-  gemFind: { base: 5, perLevel: 2 },
-  mapFind: { base: 5, perLevel: 2 },
-  lampSight: { base: 1, perLevel: 0.25, cap: 6 },
-  ticksPerClick: { base: 1, perLevel: 0, cap: 1 },
-  autoTickRate: { base: 3, perLevel: 1, cap: 50 },
-  offlineCap: { base: 15, perLevel: 5, cap: 240 },
-  hazardWard: { base: 5, perLevel: 1, cap: 40 },
-  damage: { base: 2, perLevel: 3 },
-  damagePct: { base: 4, perLevel: 1 },
-  attackSpeed: { base: 3, perLevel: 1, cap: 40 },
-  life: { base: 8, perLevel: 6 },
-  armor: { base: 6, perLevel: 5 },
-  critChance: { base: 1, perLevel: 0.5, cap: 15 },
-  resistAll: { base: 3, perLevel: 1, cap: 30 },
-  soulFind: { base: 4, perLevel: 2 },
-  magicFind: { base: 4, perLevel: 2 },
+// A modifier's tier t rolls from round(base + step * (t - 1)) up to just below tier t + 1's start.
+export const STAT_TIERS: Readonly<Record<StatKey, { base: number; step: number }>> = {
+  digPower: { base: 2, step: 2 },
+  digPowerPct: { base: 4, step: 2 },
+  goldYield: { base: 4, step: 2 },
+  diamondYield: { base: 4, step: 2 },
+  veinYield: { base: 3, step: 1.5 },
+  autoTickRate: { base: 3, step: 2 },
+  ticksPerClick: { base: 1, step: 0.2 },
+  sellBonus: { base: 5, step: 2 },
+  chestFind: { base: 5, step: 2 },
+  gemFind: { base: 5, step: 2 },
+  mapFind: { base: 5, step: 2 },
+  oreFind: { base: 5, step: 2 },
+  lampSight: { base: 1, step: 0.25 },
+  offlineCap: { base: 15, step: 5 },
+  hazardWard: { base: 5, step: 2 },
+  salvageYield: { base: 5, step: 2 },
+  damage: { base: 2, step: 3 },
+  damagePct: { base: 4, step: 2 },
+  elementalDamage: { base: 2, step: 3 },
+  attackSpeed: { base: 3, step: 2 },
+  critChance: { base: 1, step: 0.5 },
+  critMultiplier: { base: 5, step: 3 },
+  life: { base: 8, step: 6 },
+  lifePct: { base: 3, step: 2 },
+  armor: { base: 6, step: 5 },
+  armorPct: { base: 4, step: 2 },
+  resistAll: { base: 3, step: 2 },
+  lifeRegen: { base: 1, step: 0.5 },
+  lifeOnKill: { base: 2, step: 2 },
+  soulFind: { base: 4, step: 2 },
+  magicFind: { base: 4, step: 2 },
+  xpFind: { base: 3, step: 2 },
 };
-
-export function statRange(stat: StatKey, ilvl: number): { min: number; max: number } {
-  const r = STAT_RANGES[stat];
-  const max = Math.min(r.cap ?? Infinity, Math.max(1, Math.round(r.base + r.perLevel * ilvl)));
-  return { min: Math.max(1, Math.round(max / 2)), max };
-}
-
-export function rollStat(stat: StatKey, ilvl: number, u: number): number {
-  const { min, max } = statRange(stat, ilvl);
-  return min + Math.floor(u * (max - min + 1));
-}
 
 export const DEFAULT_STAT_WEIGHT = 10;
 export const STAT_WEIGHTS: Readonly<Partial<Record<StatKey, number>>> = { ticksPerClick: 2, lampSight: 4 };
 export const RARITY_WEIGHTS: Readonly<Record<Rarity, number>> = { normal: 60, magic: 30, rare: 9, legendary: 1 };
-export const RARE_FOURTH_AFFIX_CHANCE = 0.5;
+export const MAGIC_LINE_WEIGHTS: readonly [number, number][] = [[1, 50], [2, 50]];
+export const RARE_LINE_WEIGHTS: readonly [number, number][] = [[4, 50], [5, 35], [6, 15]];
 export const SOCKET_WEIGHTS: readonly number[] = [40, 35, 18, 7];
 export const CHEST_SECOND_ITEM_CHANCE = 0.2;
 export const CHEST_BATTLE_CHANCE = 0.2;
+
+// A craft costs base + floor(ilvl / per) of its material, or base alone when per is 0.
+export const CRAFT_COST: Readonly<Record<CraftKind, { base: number; per: number }>> = {
+  copper: { base: 1, per: 2 }, tin: { base: 1, per: 2 }, iron: { base: 1, per: 2 },
+  silver: { base: 1, per: 4 }, mithril: { base: 1, per: 4 }, starsteel: { base: 1, per: 4 },
+  diamond: { base: 1, per: 3 },
+  obsidian: { base: 1, per: 0 }, voidCrystal: { base: 1, per: 0 },
+};
+export const TEMPER_WEIGHTS: readonly [TemperOutcome, number][] = [['craftedLine', 30], ['raiseTiers', 25], ['nothing', 25], ['ruin', 20]];
 
 export const SELL_GOLD: Readonly<Record<Rarity, number>> = { normal: 5, magic: 12, rare: 30, legendary: 80 };
 export const GEM_SELL_GOLD = 20;
@@ -202,6 +219,9 @@ export const MATERIAL_TABLE: Readonly<Record<Material, { from: number; weight: n
   voidCrystal: { from: 1000, weight: 1, amount: 1 },
 };
 export const MATERIAL_VEIN_CHANCE = 0.3;
+// Ore find: each 100 % of it gives ORE_BONUS_BASE chance of a bonus material vein on a metre the seed left empty.
+export const ORE_BONUS_BASE = 0.3;
+export const MAX_ORE_BONUS_CHANCE = 0.6;
 export const MATERIAL_RAMP_METRES = 500;
 export const MATERIAL_RAMP_CAP = 3;
 export const LAYER_SALT = 0x1a7e2;

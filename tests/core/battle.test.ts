@@ -16,6 +16,7 @@ it('a naked level-1 miner', () => {
   expect(deriveBattleStats(newGame(1, 0))).toEqual({
     maxLife: 60, damageMin: 3, damageMax: 6, attacksPerSecond: 1, critChance: 0.05, critMultiplier: 1.5,
     armor: 0, resistAll: 0, soulMultiplier: 1, magicFindMultiplier: 1,
+    elementalDamage: 0, lifeRegen: 0, lifeOnKill: 0, xpMultiplier: 1,
   });
 });
 
@@ -126,4 +127,24 @@ it('magic find raises the better rarities', () => {
   const rares = Array.from({ length: n }, () => rollRarity(s, 3)).filter((r) => r === 'rare').length / n;
   expect(rares).toBeGreaterThan(0.14);
   expect(rares).toBeLessThan(0.16);
+});
+
+it('percent life and percent armor multiply their flat totals, and critical damage raises the crit multiplier', () => {
+  const s = newGame(1, 0);
+  s.level = 5;   // 50 + 10 × 5 = 100 base life
+  s.equipped.battle.helm = gear(s, 'helm', { implicit: { stat: 'lifePct', value: 50 } });
+  s.equipped.battle.armor = gear(s, 'armor', { implicit: { stat: 'armor', value: 30 }, affixes: [{ stat: 'armorPct', value: 20 }] });
+  s.equipped.battle.ring = gear(s, 'ring', { implicit: { stat: 'critMultiplier', value: 30 } });
+  const b = deriveBattleStats(s);
+  expect(b.maxLife).toBe(150);
+  expect(b.armor).toBe(36);
+  expect(b.critMultiplier).toBeCloseTo(1.8);
+});
+
+it('elemental damage, life regeneration, life per kill and XP come from battle gear', () => {
+  const s = newGame(1, 0);
+  s.equipped.battle.weapon = gear(s, 'weapon', { affixes: [{ stat: 'elementalDamage', value: 5 }] });
+  s.equipped.battle.ring = gear(s, 'ring', { affixes: [{ stat: 'lifeRegen', value: 2 }, { stat: 'lifeOnKill', value: 5 }] });
+  s.equipped.battle.amulet = gear(s, 'amulet', { affixes: [{ stat: 'xpFind', value: 50 }] });
+  expect(deriveBattleStats(s)).toMatchObject({ elementalDamage: 5, lifeRegen: 2, lifeOnKill: 5, xpMultiplier: 1.5 });
 });

@@ -3,7 +3,7 @@ import { metreTier } from './bands';
 import { mapTick } from './combat';
 import { rollChest, rollGem } from './itemGen';
 import type { Material } from './items';
-import { hazardFactor, metreLayer } from './layer';
+import { hazardFactor, materialAmount, metreLayer, pickMaterial } from './layer';
 import { receiveItem, receiveMaterial } from './loot';
 import { addMap } from './maps';
 import { fillAhead, metreChances, rollMetre } from './metres';
@@ -24,11 +24,11 @@ export function collect(
   if (roll.feature === null) return;
   let amount = roll.amount;
   if (roll.feature === 'goldVein') {
-    amount = Math.round(roll.amount * stats.goldMultiplier);
+    amount = Math.round(roll.amount * stats.goldMultiplier * stats.veinMultiplier);
     state.gold += amount;
     if (amount > 0) events?.push({ kind: 'gold', amount });
   } else if (roll.feature === 'diamondVein') {
-    amount = Math.round(roll.amount * stats.diamondMultiplier);
+    amount = Math.round(roll.amount * stats.diamondMultiplier * stats.veinMultiplier);
     state.diamonds += amount;
     if (amount > 0) events?.push({ kind: 'diamond', amount });
   }
@@ -46,15 +46,27 @@ export function collect(
   logFind(state, find, events);
 }
 
-/** A material vein from the seeded layer: its material goes to the bag (or the Materials tab) and is logged. */
+/** A material vein, seeded or from ore find: its amount times vein yield goes to the bag (or the Materials tab), and is logged. */
 function collectMaterialVein(
-  state: GameState, vein: { material: Material; amount: number }, depth: number, events?: TickEvent[],
+  state: GameState, vein: { material: Material; amount: number }, depth: number, stats: Stats, events?: TickEvent[],
+  bonus = false,
 ): void {
-  receiveMaterial(state, vein.material, vein.amount);
+  const amount = Math.round(vein.amount * stats.veinMultiplier);
+  receiveMaterial(state, vein.material, amount);
   const find: FindRecord = {
-    id: state.nextId++, depth, kind: 'materialVein', material: vein.material, amount: vein.amount, tick: state.tickCount,
+    id: state.nextId++, depth, kind: 'materialVein', material: vein.material, amount, tick: state.tickCount,
   };
+  if (bonus) find.bonus = true;
   logFind(state, find, events);
+}
+
+// Ore find adds a material vein where the seed left a metre empty of everything. It draws only when the miner has
+// ore find, so without it the loot stream is the same as before ore find existed.
+function collectOreBonus(state: GameState, depth: number, stats: Stats, events?: TickEvent[]): void {
+  if (!(stats.oreBonusChance > 0) || nextRandom(state) >= stats.oreBonusChance) return;
+  const material = pickMaterial(depth, nextRandom(state));
+  const amount = materialAmount(material, depth, nextRandom(state));
+  collectMaterialVein(state, { material, amount }, depth, stats, events, true);
 }
 
 function faceRoll(state: GameState, stats: Stats): MetreRoll {
@@ -117,10 +129,12 @@ function digFace(state: GameState, stats: Stats, events?: TickEvent[]): void {
     const next = state.deepest + 1;
     const done = faceRoll(state, stats);
     collect(state, done, next, metreTier(next), stats, events);
-    // A material vein shows only where the seeded roll left the metre empty, and find gear adds its bonus after it.
+    // A material vein shows only where the seeded roll left the metre empty, ore find only where the layer left it
+    // empty too, and find gear adds its bonus after them.
     if (done.feature === null) {
       const vein = metreLayer(state.seed, next).vein;
-      if (vein !== null) collectMaterialVein(state, vein, next, events);
+      if (vein !== null) collectMaterialVein(state, vein, next, stats, events);
+      else collectOreBonus(state, next, stats, events);
       if (state.worldGen === 2) collectBonus(state, next, stats, events);
     }
     delete state.ahead[next];

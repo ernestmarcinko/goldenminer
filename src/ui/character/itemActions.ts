@@ -3,22 +3,30 @@ import { firstEmpty, itemAt } from '../../core/cells';
 import { MATERIAL_LABELS } from '../../core/itemData';
 import { BATTLE_SLOTS, isGear, MATERIALS, MINING_SLOTS, setOfSlot } from '../../core/items';
 import type { GearItem, GemItem, Item, MaterialItem } from '../../core/items';
-import { salvageYield, sellValue } from '../../core/loot';
-import { gemEffect } from '../../core/stats';
-import type { GameState, InvResult, ItemLoc } from '../../core/types';
+import { salvagePay, sellPay } from '../../core/loot';
+import { deriveStats, gemEffect } from '../../core/stats';
+import type { CraftKind, GameState, InvResult, ItemLoc, Stats } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
 import { formatNumber } from '../format';
+import { craftOptions } from './craftView';
 import type { ClickIntent } from './itemView';
 import { statText } from './itemView';
 
 export type ItemTarget = ItemLoc;
 
 export interface ActionSpec {
-  id: 'equip' | 'unequip' | 'sell' | 'salvage' | 'toStash' | 'toBag' | 'take' | 'socket' | 'run';
+  id: 'equip' | 'unequip' | 'sell' | 'salvage' | 'toStash' | 'toBag' | 'take' | 'socket' | 'run' | 'craft';
   label: string;
   disabled: boolean;
   /** For 'socket': the gear that takes the gem. */
   into?: ItemLoc;
+  /** For 'craft': what it crafts with. */
+  kind?: CraftKind;
+}
+
+/** One action per craft the gear's card offers, after its other actions. */
+function craftActions(state: GameState, target: ItemTarget): ActionSpec[] {
+  return craftOptions(state, target).map((o) => ({ id: 'craft', kind: o.kind, label: o.label, disabled: !o.enabled }));
 }
 
 /** One "Socket into …" action per worn item, then per carried item, that has an open socket. */
@@ -56,8 +64,8 @@ function bagTakesMaterial(state: GameState, item: MaterialItem): boolean {
 }
 
 /** What salvage gives, in material order: "+3 Copper ore, +2 Tin ore". */
-function yieldText(item: Item): string {
-  const y = salvageYield(item);
+function yieldText(item: Item, stats: Stats): string {
+  const y = salvagePay(item, stats);
   return MATERIALS.flatMap((m) => {
     const n = y[m];
     return n === undefined || n <= 0 ? [] : [`+${formatNumber(n)} ${MATERIAL_LABELS[m]}`];
@@ -93,14 +101,16 @@ export function itemActions(state: GameState, target: ItemTarget): ActionSpec[] 
     return [
       { id: 'unequip', label: 'Unequip', disabled: bagFull },
       { id: 'toStash', label: 'To stash', disabled: generalFull },
+      ...craftActions(state, target),
     ];
   }
   const all = target.where === 'gems';
+  const stats = deriveStats(state);   // the labels show what sell bonus and salvage yield will pay
   const sell: ActionSpec = {
-    id: 'sell', label: `Sell${all ? ' all' : ''} (+${formatNumber(sellValue(item))} Gold)`, disabled: false,
+    id: 'sell', label: `Sell${all ? ' all' : ''} (+${formatNumber(sellPay(item, stats))} Gold)`, disabled: false,
   };
   const salvage: ActionSpec = {
-    id: 'salvage', label: `Salvage${all ? ' all' : ''} (${yieldText(item)})`, disabled: false,
+    id: 'salvage', label: `Salvage${all ? ' all' : ''} (${yieldText(item, stats)})`, disabled: false,
   };
   if (item.type === 'gem' && target.where === 'gems') {
     const take: ActionSpec = {
@@ -109,12 +119,16 @@ export function itemActions(state: GameState, target: ItemTarget): ActionSpec[] 
     return [take, ...socketActions(state, item), sell, salvage];
   }
   if (target.where === 'stash') {
-    return [{ id: 'equip', label: 'Equip', disabled: false }, { id: 'toBag', label: 'To bag', disabled: bagFull }, sell, salvage];
+    return [
+      { id: 'equip', label: 'Equip', disabled: false }, { id: 'toBag', label: 'To bag', disabled: bagFull }, sell, salvage,
+      ...craftActions(state, target),
+    ];
   }
   if (isGear(item)) {
     return [
       { id: 'equip', label: 'Equip', disabled: false }, sell, salvage,
       { id: 'toStash', label: 'To stash', disabled: generalFull },
+      ...craftActions(state, target),
     ];
   }
   // a gem stack joins its count on the Gems tab, unless that count is at its cap
@@ -166,6 +180,9 @@ export function runAction(store: GameStore, target: ItemTarget, action: ActionSp
     case 'take': return store.sendItem(target, 'bag');
     case 'socket': return action.into !== undefined ? store.socketGem(target, action.into) : 'invalid';
     case 'run': return item.type === 'map' ? store.startMap(item.id) : 'invalid';
+    case 'craft':
+      if (action.kind === undefined) return 'invalid';
+      return store.craft(target, action.kind).check === 'ok' ? 'ok' : 'craftRefused';
   }
 }
 
@@ -181,6 +198,7 @@ export function resultText(r: InvResult): string | null {
     case 'materialsOnly': return 'Only materials go in the Materials tab.';
     case 'busy': return 'Leave the current map first.';
     case 'stackFull': return 'That stack is full.';
+    case 'craftRefused': return "That craft didn't work.";
     case 'invalid': return "That can't go there.";
     case 'ok': return null;
   }

@@ -172,7 +172,7 @@ it('a socketed gem is taken from its stack and counts toward stats', () => {
   expect(socketGem(s, bag(0), worn)).toBe('ok');
   expect(pick.gems).toEqual([{ gem: 'ruby', grade: 'tiny' }]);
   expect(s.bag[0]).toMatchObject({ gem: 'ruby', count: 1 });
-  expect(deriveStats(s).goldMultiplier).toBeCloseTo(1.08);
+  expect(deriveStats(s).goldMultiplier).toBeCloseTo(1.07);
   expect(socketGem(s, bag(0), worn)).toBe('noSocket');
   expect(socketGem(s, bag(0), { where: 'worn', slot: 'lamp' })).toBe('invalid');
   pick.sockets = 2;

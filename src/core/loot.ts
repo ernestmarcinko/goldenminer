@@ -6,7 +6,8 @@ import { firstEmpty } from './cells';
 import { itemName, MATERIAL_LABELS } from './itemData';
 import { isGear, MATERIALS, setOfSlot } from './items';
 import type { Cell, GearItem, Gem, GemItem, Item, Material, Rarity } from './items';
-import type { GameState, LootAction, LootNote, LootOutcome, LootRule } from './types';
+import { deriveStats } from './stats';
+import type { GameState, LootAction, LootNote, LootOutcome, LootRule, Stats } from './types';
 
 const tierFactor = (level: number): number => 1 + Math.floor(level / 5);
 
@@ -17,7 +18,7 @@ export function gemSellValue(g: Gem): number {
 const gemSalvageTin = (g: Gem): number => GEM_SALVAGE_TIN * tierFactor(GEM_GRADE_LEVEL[g.grade]);
 
 /** What the loot filter, selling and salvaging deal in: gear and gem stacks. */
-type Loot = GearItem | GemItem;
+export type Loot = GearItem | GemItem;
 
 export function sellValue(item: Loot): number {
   if (!isGear(item)) return gemSellValue(item) * item.count;
@@ -45,6 +46,20 @@ export function salvageYield(item: Item): Partial<Record<Material, number>> {
     case 'material':
       return out;
   }
+}
+
+/** The Gold a sale pays: the item's value, raised by sell bonus. Every sale pays this. */
+export function sellPay(item: Loot, stats: Stats): number {
+  return Math.round(sellValue(item) * stats.sellMultiplier);
+}
+
+/** The materials a salvage pays: the item's yield raised by salvage yield, each material rounded. Every salvage pays this. */
+export function salvagePay(item: Item, stats: Stats): Partial<Record<Material, number>> {
+  const out: Partial<Record<Material, number>> = {};
+  for (const [m, n] of Object.entries(salvageYield(item)) as [Material, number][]) {
+    out[m] = Math.round(n * stats.salvageMultiplier);
+  }
+  return out;
 }
 
 /** Adds materials to the Materials tab, each count capped; returns the units that fit. */
@@ -105,7 +120,7 @@ function sellWorst(state: GameState, item: GearItem): LootNote[] {
       if (sold !== null && isGear(sold) && isWorse(sold, worstItem)) { worst = { list, index, sold }; worstItem = sold; }
     }
   }
-  const worstValue = sellValue(worstItem);
+  const worstValue = sellPay(worstItem, deriveStats(state));
   state.gold += worstValue;
   if (worst === null) return [note(item, 'sold', worstValue)];
   const { list, index, sold } = worst;
@@ -157,7 +172,7 @@ function stowGem(state: GameState, gem: GemItem, bag: Cell[]): LootNote[] {
     first ??= 'stash';
   }
   if (left === 0) return [note(gem, first ?? 'bag')];
-  const value = gemSellValue(gem) * left;
+  const value = sellPay({ ...gem, count: left }, deriveStats(state));
   state.gold += value;
   return [note(gem, first ?? 'sold', first === null ? value : 0)];
 }
@@ -195,12 +210,12 @@ export function receiveMaterial(state: GameState, material: Material, count: num
 export function receiveItem(state: GameState, item: Loot): LootNote[] {
   const action = lootAction(state.settings.lootFilter, item);
   if (action === 'sell') {
-    const value = sellValue(item);
+    const value = sellPay(item, deriveStats(state));
     state.gold += value;
     return tally(state, [note(item, 'sold', value)]);
   }
   if (action === 'salvage') {
-    const value = stashMaterials(state, salvageYield(item));
+    const value = stashMaterials(state, salvagePay(item, deriveStats(state)));
     return tally(state, [note(item, 'salvaged', value)]);
   }
   if (!isGear(item)) return tally(state, stowGem(state, item, state.bag));
@@ -219,12 +234,12 @@ export function drainOverflow(state: GameState): void {
     if (first === undefined) return;
     const action = lootAction(state.settings.lootFilter, first);
     if (action === 'sell') {
-      state.gold += sellValue(first);
+      state.gold += sellPay(first, deriveStats(state));
       state.overflow.shift();
       continue;
     }
     if (action === 'salvage') {
-      stashMaterials(state, salvageYield(first));
+      stashMaterials(state, salvagePay(first, deriveStats(state)));
       state.overflow.shift();
       continue;
     }

@@ -58,7 +58,7 @@ export interface RunGains { xp: number; souls: number; gold: number; levels: num
 export interface MapRun {
   map: MapItem; room: number; bossRoom: number;   // rooms 1..bossRoom; bossRoom = regular rooms + 1 (5..8)
   queue: MonsterState[];                           // monsters left in this room, the fighting one first; never empty
-  life: number; hitCarry: number; monsterCarry: number;
+  life: number; hitCarry: number; monsterCarry: number; regenCarry: number;   // regenCarry: the life regenerated short of a whole point
   gained: RunGains; log: CombatLine[]; loot: LootNote[];   // loot keeps the newest RUN_LOOT_LIMIT notes
   items: number;                                   // gear and gems dropped this run, every one counted (material stacks are not items)
 }
@@ -70,7 +70,12 @@ export interface FindRecord {
 }
 export type InvResult =
   | 'ok' | 'bagFull' | 'stashFull' | 'noSocket' | 'invalid' | 'busy'
-  | 'wrongSlot' | 'gemsOnly' | 'gearOnly' | 'mapsOnly' | 'materialsOnly' | 'stackFull';
+  | 'wrongSlot' | 'gemsOnly' | 'gearOnly' | 'mapsOnly' | 'materialsOnly' | 'stackFull' | 'craftRefused';
+/** What a craft spends: a material, or Diamonds for the exalt. */
+export type CraftKind = Material | 'diamond';
+export type CraftCheck = 'ok' | 'notGear' | 'legendary' | 'sealed' | 'wrongRarity' | 'noRoom' | 'nothingToChange' | 'short' | 'gemsFull';
+export type TemperOutcome = 'craftedLine' | 'raiseTiers' | 'nothing' | 'ruin';
+export interface CraftResult { check: CraftCheck; temper?: TemperOutcome }
 export interface GameState {
   seed: number;                            // the world seed: a pure function of worldSeed
   worldSeed: string;                       // the text the player sees and shares
@@ -105,6 +110,9 @@ export interface Stats {
   offlineCapMs: number; featureChances: Record<FeatureKind, number>; hardRockChance: number;
   goldMultiplier: number; diamondMultiplier: number; hazardWard: number;
   bonusChances: { chest: number; gem: number; map: number };   // find gear: extra finds on empty metres, drawn from state.rng
+  veinMultiplier: number;                  // every vein: Gold, Diamonds and material
+  oreBonusChance: number;                  // ore find: a bonus material vein on metres the seed left empty, drawn from state.rng
+  sellMultiplier: number; salvageMultiplier: number;
 }
 export type TickEvent =
   | { kind: 'gold'; amount: number }

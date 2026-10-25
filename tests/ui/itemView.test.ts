@@ -1,9 +1,9 @@
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
 import { deriveStats, gearTotals } from '../../src/core/stats';
 import { itemName } from '../../src/core/itemData';
 import {
-  battleStatLine, cardHead, clickIntent, compareLines, itemKindLine, itemLines, itemSprite, lootNoteText, miningStatLine, placeTooltip, rarityOf,
+  battleStatLine, cardHead, clickIntent, compareLines, itemKindLine, itemLines, itemSprite, lootNoteText, miningStatLine, anchorCraft, craftAnchor, craftSlots, fittedCardTop, keptHeight, placeCardTop, placeTooltip, rarityOf,
   statText,
 } from '../../src/ui/character/itemView';
 import { mapDungeon } from '../../src/ui/maps/mapsView';
@@ -35,13 +35,49 @@ it('item lines list the implicit, affixes, gems and empty sockets', () => {
   });
   expect(itemLines(item)).toEqual([
     { text: '+8 dig power', tone: 'plain' },
-    { text: '−10% chest find', tone: 'down' },
-    { text: 'Small Ruby: +14% Gold yield', tone: 'gem' },
+    { text: 'T1 −10% chest find', tone: 'down' },
+    { text: 'Small Ruby: +13% Gold yield', tone: 'gem' },
     { text: '1 empty socket', tone: 'muted' },
   ]);
   expect(itemLines(gem(s, 'ruby', { grade: 'small' }))).toEqual([
-    { text: 'In mining gear: +14% Gold yield', tone: 'plain' },
-    { text: 'In battle gear: +9% damage', tone: 'plain' },
+    { text: 'In mining gear: +13% Gold yield', tone: 'plain' },
+    { text: 'In battle gear: +13% damage', tone: 'plain' },
+  ]);
+});
+
+it('card lines show each line\'s tier, prefixes first, then suffixes, then crafted lines', () => {
+  const s = newGame(1, 0);
+  const item = gear(s, 'pickaxe', {
+    rarity: 'rare', implicit: { stat: 'digPower', value: 8 },
+    affixes: [
+      { stat: 'chestFind', value: 9, tier: 2 },
+      { stat: 'sellBonus', value: 20, tier: 9, crafted: true },
+      { stat: 'goldYield', value: 12, tier: 3 },
+    ],
+  });
+  expect(itemLines(item)).toEqual([
+    { text: '+8 dig power', tone: 'plain' },
+    { text: 'T3 +12% Gold yield', tone: 'plain' },
+    { text: 'T2 +9% chest find', tone: 'plain' },
+    { text: 'T9 +20% Gold from selling (crafted)', tone: 'plain' },
+  ]);
+  expect(itemLines(gear(s, 'pickaxe', { affixes: [{ stat: 'digPowerPct', value: 12, tier: 3 }] }))[1]?.text).toBe('T3 +12% dig power');
+  expect(itemLines(gear(s, 'gloves', { affixes: [{ stat: 'digPower', value: 12, tier: 3 }] }))[1]?.text).toBe('T3 +12 dig power');
+});
+
+it('a legendary line has no tier, and a sealed item says so', () => {
+  const s = newGame(1, 0);
+  const legend = gear(s, 'pickaxe', { rarity: 'legendary', implicit: { stat: 'digPower', value: 8 }, affixes: [{ stat: 'chestFind', value: -10, tier: 0 }] });
+  expect(itemLines(legend)).toEqual([
+    { text: '+8 dig power', tone: 'plain' },
+    { text: '−10% chest find', tone: 'down' },
+  ]);
+  const sealed = gear(s, 'pickaxe', { implicit: { stat: 'digPower', value: 8 }, affixes: [{ stat: 'goldYield', value: 4, tier: 1 }], sockets: 1, sealed: true });
+  expect(itemLines(sealed)).toEqual([
+    { text: '+8 dig power', tone: 'plain' },
+    { text: 'T1 +4% Gold yield', tone: 'plain' },
+    { text: '1 empty socket', tone: 'muted' },
+    { text: 'Tempered: it can\'t be crafted any more.', tone: 'muted' },
   ]);
 });
 
@@ -73,6 +109,82 @@ it('summarises each set', () => {
 it('keeps the tooltip inside the panel', () => {
   expect(placeTooltip({ left: 0, top: 0, width: 52, height: 52 }, 342)).toEqual({ left: 0, top: 56 });
   expect(placeTooltip({ left: 290, top: 116, width: 52, height: 52 }, 342)).toEqual({ left: 72, top: 172 });
+});
+
+describe('an action card stays inside the rows that show', () => {
+  const view = { top: 100, bottom: 900 };
+  const anchor = { top: 500, bottom: 552 };
+
+  it('below its item when it fits there', () => {
+    expect(placeCardTop(anchor, 344, view)).toBe(556);              // ends at 900, the view's bottom
+    expect(placeCardTop({ top: 120, bottom: 172 }, 700, view)).toBe(176);
+  });
+
+  it('above its item when it does not fit below', () => {
+    expect(placeCardTop(anchor, 345, view)).toBe(151);              // ends at 496, 4 px above the item
+    expect(placeCardTop(anchor, 396, view)).toBe(100);              // starts at the view's top
+  });
+
+  it('pinned to the top of the view when it fits neither way, even when it is taller than the view', () => {
+    expect(placeCardTop(anchor, 397, view)).toBe(100);
+    expect(placeCardTop(anchor, 1024, view)).toBe(100);
+    expect(placeCardTop({ top: 848, bottom: 900 }, 1024, { top: -40, bottom: 860 })).toBe(-40);
+  });
+
+  it('fits only when it opens on an item, so a craft that changes its height leaves it where it is', () => {
+    const fit = { anchor, view };
+    expect(fittedCardTop(undefined, fit, 344)).toBe(556);           // opens below its item
+    expect(fittedCardTop(fit, fit, 345)).toBeUndefined();           // a craft grew it: it stays, and runs down
+    expect(fittedCardTop(fit, fit, 200)).toBeUndefined();           // or shrank it
+    const other = { anchor: { top: 500, bottom: 552 }, view };      // the same spot, but opened anew
+    expect(fittedCardTop(fit, other, 345)).toBe(151);
+    expect(fittedCardTop(fit, undefined, 345)).toBeUndefined();     // a hover or tap card is never fitted
+  });
+
+  // a grid of craft buttons, two to a row, 48 px apart, starting 300 px down the card
+  const grid = (kinds: string[], top = 300) => ({ top, kinds, tops: kinds.map((_, i) => top + 48 * Math.floor(i / 2)) });
+
+  it('after a craft, keeps the clicked craft button where it was, found again by its kind', () => {
+    const was = craftAnchor(grid(['copper', 'tin', 'iron', 'obsidian']), 'iron');
+    expect(was).toEqual({ kind: 'iron', slot: 2, top: 348, inGrid: 48 });
+    // lines unchanged: the card stays, grown or not
+    expect(anchorCraft(224, was, grid(['copper', 'tin', 'iron', 'obsidian'])).top).toBe(224);
+    // a modifier line added above the buttons: up by as much, with no limit, even above the rows that show
+    expect(anchorCraft(8, was, grid(['copper', 'tin', 'iron', 'obsidian'], 362)).top).toBe(-54);
+    // and taken away again
+    expect(anchorCraft(-54, { ...was, top: 410 }, grid(['copper', 'tin', 'iron', 'obsidian'])).top).toBe(8);
+    // other crafts came and went, and the clicked one moved to another slot: the card follows it
+    const moved = anchorCraft(224, was, grid(['silver', 'obsidian', 'starsteel', 'iron', 'mithril']));
+    expect(moved).toEqual({ top: 224 + 348 - 348, anchor: { kind: 'iron', slot: 3, top: 348, inGrid: 48 } });
+    expect(anchorCraft(224, was, grid(['iron', 'silver'])).top).toBe(224 + 348 - 300);
+  });
+
+  it('when the clicked craft is gone, keeps the button now in its slot, or the slot itself, where it was', () => {
+    const was = craftAnchor(grid(['copper', 'tin', 'iron']), 'copper');
+    expect(anchorCraft(224, was, grid(['tin', 'iron', 'silver'], 433)))
+      .toEqual({ top: 91, anchor: { kind: 'tin', slot: 0, top: 433, inGrid: 0 } });
+    const last = craftAnchor(grid(['copper', 'tin', 'iron', 'obsidian']), 'obsidian');
+    expect(anchorCraft(224, last, grid(['tin', 'iron'], 250)))       // the grid got shorter: its slot is empty
+      .toEqual({ top: 224 + 348 - 298, anchor: { kind: 'obsidian', slot: 3, top: 298, inGrid: 48 } });
+  });
+
+  it('keeps its craft slots in the order they first showed, and leaves a gone craft\'s slot empty', () => {
+    expect(craftSlots([], ['tin', 'iron', 'mithril'])).toEqual(['tin', 'iron', 'mithril']);
+    // Iron made it rare: Tin went, Silver came; Iron keeps its slot and Silver goes at the end
+    expect(craftSlots(['tin', 'iron', 'mithril'], ['iron', 'silver', 'mithril'])).toEqual(['tin', 'iron', 'mithril', 'silver']);
+    const was = craftAnchor(grid(['tin', 'iron', 'mithril']), 'iron');
+    // Tin's slot is empty (''), so nothing moves and the card stays
+    expect(anchorCraft(224, was, grid(['', 'iron', 'mithril', 'silver'])).top).toBe(224);
+    // and a craft that went away is anchored on its empty slot, keeping its kind for when it comes back
+    expect(anchorCraft(224, craftAnchor(grid(['tin', 'iron']), 'tin'), grid(['', 'iron'], 262)))
+      .toEqual({ top: 262, anchor: { kind: 'tin', slot: 0, top: 262, inGrid: 0 } });
+  });
+
+  it('never gets shorter while it is open, so the pointer cannot fall off its bottom', () => {
+    expect(keptHeight(0, 545)).toBe(545);                            // opens at its own height
+    expect(keptHeight(545, 773)).toBe(773);                          // grows with a craft
+    expect(keptHeight(773, 711)).toBe(773);                          // and keeps that height when a craft shrinks it
+  });
 });
 
 it('reads what a click means', () => {
@@ -115,6 +227,7 @@ it('a material item reads as a crafting material and where it is first found', (
   expect(itemLines(tin)).toEqual([
     { text: 'Found at every depth', tone: 'plain' },
     { text: 'Kept for crafting.', tone: 'muted' },
+    { text: "Drag it onto gear to craft, or pick a craft in the gear's card.", tone: 'muted' },
   ]);
   expect(itemLines(iron)[0]).toEqual({ text: 'First found below 50 m', tone: 'plain' });
   expect(itemSprite({ id: 4, type: 'material', material: 'voidCrystal', count: 1 })).toBe('voidCrystal');

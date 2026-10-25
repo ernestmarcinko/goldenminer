@@ -5,17 +5,22 @@ import fixture2 from '../fixtures/save-schema-2.txt?raw';
 import fixture3 from '../fixtures/save-schema-3.txt?raw';
 import fixture4 from '../fixtures/save-schema-4.txt?raw';
 import fixture5 from '../fixtures/save-schema-5.txt?raw';
+import fixture6 from '../fixtures/save-schema-6.txt?raw';
 import { applyTicks } from '../../src/core/dig';
 import {
-  BAG_SIZE, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_LOOT_RULES, MAX_OVERFLOW, START_GENERAL_PAGES, START_MAP_PAGES, STASH_PAGE_SIZE,
+  BAG_SIZE, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_LOOT_RULES, MAX_OVERFLOW, MAX_TIER_OVER_CAP, START_GENERAL_PAGES, START_MAP_PAGES,
+  STASH_PAGE_SIZE,
 } from '../../src/core/balance';
 import { emptyInventory, firstEmpty } from '../../src/core/cells';
+import { sideCount } from '../../src/core/itemGen';
 import { addMap, startMap } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
 import { decodeSave, encodeSave, migrate, MIGRATIONS, SCHEMA_VERSION, validateState } from '../../src/core/save';
 import { deriveStats } from '../../src/core/stats';
-import type { Cell, GemGrade, GemType, MapItem } from '../../src/core/items';
-import type { BagFullMode, ChampionMod, FindRecord, GameState, LootAction, RunOutcome } from '../../src/core/types';
+import { tierFor, tierRange } from '../../src/core/tiers';
+import { MOD_SIDE } from '../../src/core/items';
+import type { Cell, GemGrade, GemType, MapItem, ModLine } from '../../src/core/items';
+import type { BagFullMode, ChampionMod, FindRecord, GameState, LootAction, MapRun, RunOutcome } from '../../src/core/types';
 import { gear, gem } from '../helpers/items';
 
 const raw = (env: unknown) => compressToBase64(JSON.stringify(env));
@@ -111,7 +116,7 @@ it('rejects impossible inventories', () => {
     ['more gems than sockets', (s) => { s.equipped.mining.pickaxe!.gems.push({ gem: 'ruby', grade: 'tiny' }); }],
     ['a socketed gem with an unknown grade', (s) => { s.equipped.mining.pickaxe!.gems[0] = { gem: 'ruby', grade: 'huge' as GemGrade }; }],
     ['a socketed gem with a bad type', (s) => { s.equipped.mining.pickaxe!.gems[0] = { gem: 'opal' as GemType, grade: 'tiny' }; }],
-    ['a battle stat on mining gear', (s) => { s.equipped.mining.pickaxe!.affixes.push({ stat: 'damage', value: 3 }); }],
+    ['a battle stat on mining gear', (s) => { s.equipped.mining.pickaxe!.affixes.push({ stat: 'damage', value: 3, tier: 1 }); }],
     ['a fractional stat', (s) => { s.equipped.mining.pickaxe!.implicit.value = 2.5; }],
     ['an unknown gem', (s) => { s.bag[1] = { ...gem(s), gem: 'opal' as GemType }; }],
     ['an unknown grade on a stack', (s) => { s.bag[1] = { ...gem(s), grade: 'huge' as GemGrade }; }],
@@ -338,7 +343,7 @@ function running(): GameState {
   const s = newGame(1, 0);
   const map = looseMap(s, 2, 2);
   s.activity = { kind: 'map', run: {
-    map, room: 1, bossRoom: 6, life: 40, hitCarry: 0, monsterCarry: 0, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [], items: 0,
+    map, room: 1, bossRoom: 6, life: 40, hitCarry: 0, monsterCarry: 0, regenCarry: 0, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [], items: 0,
     queue: [{ name: 'Mud Slime', species: 1, rank: 'normal', mods: [], extra: 7, element: 'elemental', life: 30, maxLife: 37, damage: 4, intervalS: 2, xp: 28 }],
   } };
   return s;
@@ -374,6 +379,8 @@ it('rejects impossible maps, runs and levels', () => {
     ['a negative item count', (s) => { const r = run(s); if (r) r.items = -1; }],
     ['no item count', (s) => { const r = run(s); if (r) delete (r as Partial<typeof r>).items; }],
     ['a whole hit carried', (s) => { const r = run(s); if (r) r.hitCarry = 1; }],
+    ['a whole life regenerated and carried', (s) => { const r = run(s); if (r) r.regenCarry = 1; }],
+    ['no regeneration carry', (s) => { const r = run(s); if (r) delete (r as Partial<typeof r>).regenCarry; }],
     ['a map id reused in the stash', (s) => { const r = run(s); if (r) s.stash.maps[3] = { ...r.map }; }],
     ['an unknown outcome', (s) => { const m = looseMap(s, 1, 2); s.lastRun = { map: m, outcome: 'won' as RunOutcome, room: 6, bossRoom: 6, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, items: 0, seen: false }; }],
     ['a Maps tab of 61 cells', (s) => { s.stash.maps.push(null); }],
@@ -442,6 +449,10 @@ it('a schema-4 map find at an absurd depth decodes without crashing', () => {
   }
 });
 
+/** Cells with schema 7's tiers and crafted marks taken off their lines, to compare with an older save. */
+const untiered = (cells: Cell[]): unknown[] => cells.map((c) =>
+  (c?.type === 'gear' ? { ...c, affixes: c.affixes.map(({ stat, value }) => ({ stat, value })) } : c));
+
 it('the schema-5 fixture migrates to one bag, stash pages and map cells', () => {
   const raw = JSON.parse(decompressFromBase64(fixture5.trim())).state;
   const r = decodeSave(fixture5.trim());
@@ -449,15 +460,15 @@ it('the schema-5 fixture migrates to one bag, stash pages and map cells', () => 
   const s = r.state;
   const carried = [...raw.bags.mining, ...raw.bags.battle].filter((c: unknown) => c !== null);
   expect(s.bag).toHaveLength(BAG_SIZE);
-  expect(s.bag.slice(0, carried.length)).toEqual(carried);                  // mining bag first, then battle, in order
+  expect(untiered(s.bag.slice(0, carried.length))).toEqual(carried);       // mining bag first, then battle, in order
   expect(s.bag.slice(carried.length).every((c) => c === null)).toBe(true);
   expect(s.stash.general).toHaveLength(START_GENERAL_PAGES * STASH_PAGE_SIZE);
-  expect(s.stash.general.slice(0, 60)).toEqual(raw.stash.general);
+  expect(untiered(s.stash.general.slice(0, 60))).toEqual(raw.stash.general);
   expect(s.stash.maps).toHaveLength(2 * STASH_PAGE_SIZE);                   // 73 maps fill two pages
   expect(s.stash.maps.filter((m) => m !== null)).toEqual(raw.stash.maps);
   expect(Object.values(s.stash.materials).every((n) => n === 0)).toBe(true);
   expect(s.stash.bought).toEqual({ general: 0, maps: 0 });
-  expect(s.overflow).toEqual(raw.overflow.map((h: { item: unknown }) => h.item));
+  expect(untiered(s.overflow)).toEqual(raw.overflow.map((h: { item: unknown }) => h.item));
   expect(s.activity.kind).toBe('map');                                       // the run carries on
   for (const gone of ['depth', 'galleryProgress', 'goldCarry', 'bags']) expect(gone in s).toBe(false);
   expect(s.deepest).toBe(raw.deepest);
@@ -473,7 +484,7 @@ it('a schema-5 save with no maps still gets the starting Maps pages', () => {
 });
 
 it('every older fixture still loads', () => {
-  for (const f of [fixture, fixture2, fixture3, fixture4]) expect(decodeSave(f.trim()).ok).toBe(true);
+  for (const f of [fixture, fixture2, fixture3, fixture4, fixture5, fixture6]) expect(decodeSave(f.trim()).ok).toBe(true);
 });
 
 it('a schema-5 save carrying more than one bag holds is rejected, not cut short', () => {
@@ -511,4 +522,118 @@ it('a material vein find names its material, and only that kind of find does', (
 it('a new game starts with one bag of 60, two General pages and one Maps page', () => {
   const s = newGame(1, 0);
   expect([s.bag.length, s.stash.general.length, s.stash.maps.length]).toEqual([60, 120, 60]);
+});
+
+it('the schema-6 fixture migrates every line to a tiered prefix or suffix', () => {
+  const raw = JSON.parse(decompressFromBase64(fixture6.trim())).state;
+  const r = decodeSave(fixture6.trim());
+  if (!r.ok) throw new Error(`fixture rejected: ${r.reason}`);
+  const gearOf = (s: any): any[] => [...s.bag, ...s.stash.general, ...Object.values(s.equipped.mining), ...Object.values(s.equipped.battle), ...s.overflow]
+    .filter((c: any) => c?.type === 'gear');
+  const before = gearOf(raw); const after = gearOf(r.state);
+  expect(after.map((g) => g.id)).toEqual(before.map((g) => g.id));
+  for (const [i, g] of after.entries()) {
+    const old = before[i];
+    expect({ ...g, affixes: undefined }).toEqual({ ...old, affixes: undefined });          // nothing else changes
+    expect(g.affixes.map((a: ModLine) => [a.stat, a.value])).toEqual(old.affixes.map((a: any) => [a.stat, a.value]));
+    for (const a of g.affixes) expect(a.tier).toBe(g.rarity === 'legendary' ? 0 : Math.min(tierFor(a.stat, a.value), g.ilvl + MAX_TIER_OVER_CAP));
+    for (const side of ['prefix', 'suffix'] as const) expect(sideCount(g.affixes, side)).toBeLessThanOrEqual(3);
+    const sides = g.affixes.map((a: ModLine) => MOD_SIDE[a.stat]);
+    // a line is crafted exactly when it is the 4th or later on its side, or the 2nd on a magic item's side
+    g.affixes.forEach((a: ModLine, j: number) => {
+      const before = sides.slice(0, j).filter((x: string) => x === sides[j]).length;
+      expect(a.crafted === true).toBe(before >= (g.rarity === 'magic' ? 1 : 3));
+    });
+  }
+  expect(after.some((g) => g.affixes.some((a: ModLine) => a.crafted))).toBe(true);    // the fixture has such items
+});
+
+it('the validator holds the schema-7 lines', () => {
+  const ok = stocked();
+  const bad = (change: (s: GameState) => void) => { const s = structuredClone(ok); change(s); return decodes(s); };
+  const pick = (s: GameState) => s.equipped.mining.pickaxe!;
+  const rare = (s: GameState, affixes: ModLine[]) => { Object.assign(pick(s), { rarity: 'rare', affixes }); };
+  const line = (stat: ModLine['stat'], tier = 1, crafted = false): ModLine => ({ stat, value: 3, tier, ...(crafted ? { crafted: true } : {}) });
+  expect(decodes(ok)).toBe(true);
+  // a rare holds 3 prefixes, 3 suffixes and 2 crafted lines
+  const full = [line('goldYield'), line('diamondYield'), line('veinYield'), line('chestFind'), line('gemFind'), line('mapFind'),
+    line('sellBonus', 1, true), line('oreFind', 1, true)];
+  expect(bad((s) => rare(s, full))).toBe(true);
+  expect(bad((s) => rare(s, [...full.slice(0, 3), line('sellBonus')]))).toBe(false);                    // a 4th prefix
+  expect(bad((s) => rare(s, [...full, line('salvageYield', 1, true)]))).toBe(false);                    // a 3rd crafted line
+  expect(bad((s) => rare(s, [line('goldYield', 4 + MAX_TIER_OVER_CAP)]))).toBe(true);                    // ilvl 4: T6 at most
+  expect(bad((s) => rare(s, [line('goldYield', 5 + MAX_TIER_OVER_CAP)]))).toBe(false);
+  expect(bad((s) => rare(s, [line('goldYield', 0)]))).toBe(false);                                       // tier 0 is a legendary's
+  expect(bad((s) => rare(s, [line('goldYield', 1.5)]))).toBe(false);
+  expect(bad((s) => rare(s, [{ ...line('goldYield'), crafted: false as never }]))).toBe(false);
+  expect(bad((s) => rare(s, [{ ...line('goldYield'), note: 'x' } as ModLine]))).toBe(false);                // a key a line doesn't have
+  expect(bad((s) => { pick(s).affixes = [line('goldYield'), line('diamondYield')]; })).toBe(false);      // two prefixes on a magic item
+  expect(bad((s) => { pick(s).affixes = [line('goldYield'), line('chestFind')]; })).toBe(true);
+  expect(bad((s) => { pick(s).affixes = [line('goldYield'), line('diamondYield', 1, true)]; })).toBe(true);
+  expect(bad((s) => { Object.assign(pick(s), { rarity: 'legendary', affixes: [line('goldYield', 0)] }); })).toBe(true);
+  expect(bad((s) => { Object.assign(pick(s), { rarity: 'legendary', affixes: [line('goldYield', 1)] }); })).toBe(false);
+  expect(bad((s) => { pick(s).sealed = true; })).toBe(true);
+  expect(bad((s) => { (pick(s) as { sealed?: unknown }).sealed = false; })).toBe(false);
+  expect(bad((s) => { (pick(s) as { sealed?: unknown }).sealed = 'yes'; })).toBe(false);
+});
+
+it('tierFor answers at once, even for absurd values', () => {
+  const t0 = performance.now();
+  expect(tierFor('digPower', 1_000_000)).toBe(500_000);
+  expect(tierFor('ticksPerClick', 1_000_000)).toBeGreaterThan(1);
+  expect(tierFor('digPower', 1e300)).toBeGreaterThan(1);
+  expect(performance.now() - t0).toBeLessThan(50);
+  // the closed form agrees with walking the tiers one by one
+  for (const stat of Object.keys(MOD_SIDE) as ModLine['stat'][]) {
+    for (let v = -3; v <= 400; v++) {
+      let t = 1;
+      while (tierRange(stat, t).hi < v) t++;
+      expect(tierFor(stat, v), `${stat} ${v}`).toBe(t);
+    }
+  }
+});
+
+it('a schema-6 line with an absurd value is rejected, not hung on', () => {
+  for (const value of [1e999, -1e999, 1e300, 2.5, 'VALUE_TEXT']) {
+    const env = JSON.parse(decompressFromBase64(fixture6.trim()));
+    const item = [...env.state.bag, ...env.state.stash.general].find((c) => c?.type === 'gear' && c.rarity !== 'legendary' && c.affixes.length > 0);
+    item.affixes[0].value = 'VALUE';
+    const literal = value === 1e999 ? '1e999' : value === -1e999 ? '-1e999' : typeof value === 'string' ? '"x"' : String(value);
+    const text = JSON.stringify(env).replace('"VALUE"', literal);   // JSON.stringify would turn Infinity into null
+    expect(decodeSave(compressToBase64(text)), String(value)).toEqual({ ok: false, reason: 'invalid' });
+  }
+});
+
+it('a schema-6 line whose value is far above its item level keeps the value, at the highest tier the item allows', () => {
+  const env = JSON.parse(decompressFromBase64(fixture6.trim()));
+  const item = [...env.state.bag, ...env.state.stash.general].find((c) => c?.type === 'gear' && c.rarity === 'rare');
+  const line = item.affixes[0];
+  line.value = tierRange(line.stat, item.ilvl + 5).lo;
+  expect(tierFor(line.stat, line.value)).toBe(item.ilvl + 5);
+  const r = decodeSave(compressToBase64(JSON.stringify(env)));
+  if (!r.ok) throw new Error(`rejected: ${r.reason}`);
+  const after = [...r.state.bag, ...r.state.stash.general].find((c) => c?.id === item.id);
+  expect(after?.type === 'gear' && after.affixes[0]).toEqual({ stat: line.stat, value: line.value, tier: item.ilvl + MAX_TIER_OVER_CAP });
+});
+
+it('a schema-6 line keeps only its stat and value, with the tier and crafted mark the migration gives it', () => {
+  const env = JSON.parse(decompressFromBase64(fixture6.trim()));
+  const item = [...env.state.bag, ...env.state.stash.general].find((c) => c?.type === 'gear' && c.rarity === 'rare' && c.affixes.length > 0);
+  item.affixes[0].note = 'stray';
+  item.affixes[0].crafted = 'yes';
+  const r = decodeSave(compressToBase64(JSON.stringify(env)));
+  if (!r.ok) throw new Error(`rejected: ${r.reason}`);
+  const after = [...r.state.bag, ...r.state.stash.general].find((c) => c?.id === item.id);
+  if (after?.type !== 'gear') throw new Error('item lost');
+  for (const a of after.affixes) expect(Object.keys(a).sort()).toEqual(a.crafted ? ['crafted', 'stat', 'tier', 'value'] : ['stat', 'tier', 'value']);
+  expect(after.affixes[0]?.crafted).toBeUndefined();
+});
+
+it('a schema-6 run in progress loads with an empty life-regeneration carry', () => {
+  const s = running();
+  if (s.activity.kind !== 'map') throw new Error('no run');
+  delete (s.activity.run as Partial<MapRun>).regenCarry;
+  const r = decodeSave(raw({ schema: 6, savedAt: 0, state: s }));
+  if (!r.ok) throw new Error(`rejected: ${r.reason}`);
+  expect(r.state.activity.kind === 'map' && r.state.activity.run.regenCarry).toBe(0);
 });
