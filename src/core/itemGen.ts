@@ -86,15 +86,21 @@ export function rareName(state: Gen, slot: Slot): string {
   return `${pickUniform(state, RARE_FIRST)} ${pickUniform(state, RARE_SECOND[slot])}`;
 }
 
-export function rollGear(state: Gen, ilvl: number, set: GearSet, rarity: Rarity = rollRarity(state)): GearItem {
+/**
+ * Gear of `set` at `ilvl`. A given `forSlot` (in `set`) skips the slot draw; a legendary rolled for a slot that has none
+ * becomes rare. Without a slot the draws are exactly those drops have always made.
+ */
+export function rollGear(state: Gen, ilvl: number, set: GearSet, rarity: Rarity = rollRarity(state), forSlot?: Slot): GearItem {
   let slot: Slot;
   let name: string;
   let affixes: ModLine[];
   let uniqueId: string | undefined;
   let implicit: StatLine;
   const cap = tierCap(ilvl);
+  const legendaries = LEGENDARIES.filter((d) => (forSlot === undefined ? setOfSlot(d.slot) === set : d.slot === forSlot));
+  if (rarity === 'legendary' && legendaries.length === 0) rarity = 'rare';
   if (rarity === 'legendary') {
-    const def = pickUniform(state, LEGENDARIES.filter((d) => setOfSlot(d.slot) === set));
+    const def = pickUniform(state, legendaries);
     slot = def.slot;
     implicit = { stat: SLOT_IMPLICIT[slot], value: rollValue(state, SLOT_IMPLICIT[slot], cap) };
     // A legendary's lines are hand-written, so they carry no tier.
@@ -105,7 +111,7 @@ export function rollGear(state: Gen, ilvl: number, set: GearSet, rarity: Rarity 
     name = def.name;
     uniqueId = def.id;
   } else {
-    slot = pickUniform(state, slotsOf(set));
+    slot = forSlot ?? pickUniform(state, slotsOf(set));
     const implicitStat = SLOT_IMPLICIT[slot];
     implicit = { stat: implicitStat, value: rollValue(state, implicitStat, cap) };
     const count = rarity === 'magic' ? pickWeighted(state, MAGIC_LINE_WEIGHTS)

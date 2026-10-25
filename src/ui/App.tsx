@@ -5,6 +5,7 @@ import { startGame, type GameLoop } from './gameLoop';
 import { CharacterPanel } from './character/CharacterPanel';
 import { Header } from './Header';
 import { MapsView } from './maps/MapsView';
+import { MerchantView } from './merchant/MerchantView';
 import { MineView } from './mine/MineView';
 import { Nav, type View } from './Nav';
 import { Notices } from './Notices';
@@ -70,6 +71,8 @@ function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: ()
         <div className="gm-app__play">
           {view === 'mine' ? (
             <MineView store={store} onBackToMap={() => setView('maps')} />
+          ) : view === 'merchant' ? (
+            <MerchantView store={store} />
           ) : running ? (
             <RunView store={store} />
           ) : (
