@@ -38,7 +38,7 @@ export interface LootNote {
 /** Where a logged find came from: a dug metre, a room of a map, or the merchant. */
 export type DropOrigin = { kind: 'metre'; metre: number } | { kind: 'map'; tier: number; room: number } | { kind: 'merchant' };
 export const TRAIL_EVENTS = [
-  'bag', 'held', 'filterSold', 'filterSalvaged', 'stashed', 'toBag', 'equipped', 'sold', 'salvaged', 'crafted', 'run', 'lost',
+  'bag', 'held', 'filterSold', 'filterSalvaged', 'stashed', 'toBag', 'equipped', 'sold', 'salvaged', 'crafted', 'upgraded', 'run', 'lost',
 ] as const;
 export type TrailEvent = (typeof TRAIL_EVENTS)[number];
 export interface TrailStep { event: TrailEvent; gold?: number; materials?: Partial<Record<Material, number>> }

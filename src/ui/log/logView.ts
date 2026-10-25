@@ -31,6 +31,7 @@ export function stepText(e: DropEntry, s: TrailStep): string {
     case 'sold': return `sold${paid(s)}`;
     case 'salvaged': return `salvaged${paid(s)}`;
     case 'crafted': return e.kind === 'map' ? 'enchanted' : 'crafted';
+    case 'upgraded': return 'upgraded with Souls';
     case 'run': return 'run';
     case 'lost': return 'lost';
   }
@@ -50,21 +51,18 @@ export function trailText(e: DropEntry): string {
   return e.trail.map((s) => stepText(e, s)).join(' → ');
 }
 
-/** Gear's rarity and slot, or a map's tier ("rare gloves", "tier 5 map"); a stack has none. */
+/** Gear's rarity and slot ("rare gloves"); a map's name already says its tier, and a stack has no kind. */
 function kindText(e: DropEntry): string {
   switch (e.kind) {
     case 'gear': return `${e.rarity} ${SLOT_LABELS[e.base as Slot].toLowerCase()}`;   // a gear entry's base is its slot
-    case 'map': {
-      // the entry keeps the map's name, which ends in its tier
-      const tier = /(\d+) map$/.exec(e.name)?.[1];
-      return tier === undefined ? 'map' : `tier ${tier} map`;
-    }
+    case 'map':
     case 'gem':
     case 'material': return '';
   }
 }
 
-export interface DropRow { id: number; origin: string; name: string; kind: string; tone: string; trail: string }
+/** `stack` rows (gems and materials) read inline; the others put their trail under the name. */
+export interface DropRow { id: number; origin: string; name: string; kind: string; tone: string; trail: string; stack: boolean }
 
 /** The drop log, newest first. A stack's row has its count in the name and its one step after an arrow. */
 export function dropRows(state: GameState): DropRow[] {
@@ -73,7 +71,7 @@ export function dropRows(state: GameState): DropRow[] {
     return {
       id: e.id, origin: originText(e.origin), name: stack ? stackName(e) : e.name, kind: kindText(e),
       tone: e.kind === 'map' && e.rarity === 'normal' ? 'map' : e.rarity,
-      trail: stack ? `→ ${stackSteps(e)}` : trailText(e),
+      trail: stack ? `→ ${stackSteps(e)}` : trailText(e), stack,
     };
   }).reverse();
 }

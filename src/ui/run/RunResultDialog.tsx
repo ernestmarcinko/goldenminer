@@ -2,7 +2,7 @@ import { useRef, type RefObject } from 'react';
 import type { GameStore } from '../../store/gameStore';
 import { useDialog } from '../useDialog';
 import { useGame } from '../useGame';
-import { gainsLine, runMapLine, runTitle } from './runView';
+import { deathOfLastRun, gainsLine, runMapLine, runTitle } from './runView';
 
 /**
  * The result of a run that has ended, until the player dismisses it. It shows on any view, since a run ends anywhere;
@@ -14,7 +14,7 @@ export function RunResultDialog({ store, fallbackFocus, onDismiss, onShowDeath }
   const { state } = useGame(store);
   const last = state.lastRun;
   if (last === null || last.seen) return null;
-  const death = last.outcome === 'died' ? state.deaths[state.deaths.length - 1] : undefined;
+  const death = deathOfLastRun(state);
   return (
     <ResultBody
       title={runTitle(last)}

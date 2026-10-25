@@ -34,6 +34,7 @@ it('words every step', () => {
   expect(stepText(gearEntry, { event: 'salvaged', materials: { copper: 2, tin: 1 } })).toBe('salvaged (+2 Copper ore, +1 Tin ore)');
   expect(stepText(gearEntry, { event: 'crafted' })).toBe('crafted');
   expect(stepText(map, { event: 'crafted' })).toBe('enchanted');
+  expect(stepText(gearEntry, { event: 'upgraded' })).toBe('upgraded with Souls');
   expect(stepText(map, { event: 'run' })).toBe('run');
   expect(stepText(map, { event: 'lost' })).toBe('lost');
 });
@@ -67,10 +68,10 @@ it('lists the drops newest first, each with its kind and tone', () => {
   ];
   s.nextId = 10;
   expect(dropRows(s)).toEqual([
-    { id: 4, origin: '412 m', name: 'Ember Grasp', kind: 'rare gloves', tone: 'rare', trail: 'to bag → stashed' },
-    { id: 3, origin: '405 m', name: '+3 Iron ore', kind: '', tone: 'material', trail: '→ bag' },
-    { id: 2, origin: '408 m', name: 'Tier 5 map', kind: 'tier 5 map', tone: 'map', trail: 'to bag' },
-    { id: 1, origin: 'Tier 4 map, room 3', name: 'Cruel Iron Mace', kind: 'magic weapon', tone: 'magic', trail: 'to bag' },
+    { id: 4, origin: '412 m', name: 'Ember Grasp', kind: 'rare gloves', tone: 'rare', trail: 'to bag → stashed', stack: false },
+    { id: 3, origin: '405 m', name: '+3 Iron ore', kind: '', tone: 'material', trail: '→ bag', stack: true },
+    { id: 2, origin: '408 m', name: 'Tier 5 map', kind: '', tone: 'map', trail: 'to bag', stack: false },
+    { id: 1, origin: 'Tier 4 map, room 3', name: 'Cruel Iron Mace', kind: 'magic weapon', tone: 'magic', trail: 'to bag', stack: false },
   ]);
 });
 
@@ -90,5 +91,17 @@ it('lists the deaths newest first, each with its map, room, killer and loss', ()
       id: 5, when: new Date(1_700_000_000_000).toLocaleString(), map: runMapLine(s.seed, map), mods: mapModLines(map),
       line: 'Fell in room 3 to Bog Lurker.', lost: 'Lost: the map.',
     },
+  ]);
+});
+
+it('a map row is no stack: its name says its tier, with no kind beside it, and its trail goes under the name', () => {
+  const s = newGame(1, 0);
+  s.drops = [entry({
+    id: 2, kind: 'map', name: 'Tier 5 map', rarity: 'normal', base: 'map', origin: { kind: 'metre', metre: 408 },
+    trail: steps({ event: 'bag' }, { event: 'crafted' }, { event: 'run' }, { event: 'lost' }),
+  })];
+  s.nextId = 3;
+  expect(dropRows(s)).toEqual([
+    { id: 2, origin: '408 m', name: 'Tier 5 map', kind: '', tone: 'map', trail: 'to bag → enchanted → run → lost', stack: false },
   ]);
 });

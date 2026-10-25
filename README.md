@@ -51,7 +51,7 @@ The Merchant tab, beside Mine, Inventory and Log, gambles: pick a slot, pay Gold
 
 ## Log
 
-The Log tab keeps a record of what you found and where you fell. The Last run card at the top shows how your most recent map went. Under it, the Drops tab lists every find, newest first: where it came from (a metre, a room of a map, or the Merchant) and what became of it, such as `to bag → stashed → sold (+72 Gold)`; held, sold by the loot filter, equipped, crafted, run and lost all show up along the way. Gems and ore merge into stacks, so each of their finds is one line, like `+3 Iron ore → bag`. The Deaths tab lists each death with its time, the map and its modifiers, the room, the monster that struck last and the map you lost. The Log keeps the newest 300 drops and 50 deaths, and both are saved.
+The Log tab keeps a record of what you found and where you fell. The Last run card at the top shows how your most recent map went. Under it, the Drops tab lists every find, newest first: where it came from (a metre, a room of a map, or the Merchant) and what became of it, such as `to bag → stashed → sold (+72 Gold)`; held, sold by the loot filter, equipped, crafted, upgraded with Souls, run and lost all show up along the way. Gems and ore merge into stacks, so each of their finds is one line, like `+3 Iron ore → bag`. The Deaths tab lists each death with its time, the map and its modifiers, the room, the monster that struck last and the map you lost. The Log keeps the newest 300 drops and 50 deaths, and both are saved.
 
 ## Saves
 

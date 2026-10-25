@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import {
-  combatLineText, fightTiles, gainsLine, hurtParticle, mapDungeon, mapModLines, mapRewardsText, monsterCaption, monsterTags,
+  combatLineText, deathOfLastRun, fightTiles, gainsLine, hurtParticle, mapDungeon, mapModLines, mapRewardsText, monsterCaption, monsterTags,
   roomTrack, runMapLine, runTitle, strikeParticle, xpBar,
 } from '../../src/ui/run/runView';
 import { dungeonIndexAt, dungeonType } from '../../src/core/dungeons';
@@ -160,4 +160,14 @@ it('a map opens into the dungeon at its metre, the same for every map of that ti
     expect(mapDungeon(seed, { tier, metre })).toEqual({ key: `${tier}:${index}`, type: dungeonType(seed, tier, index) });
     expect(mapDungeon(seed, plainMap(99, tier, metre))).toEqual(mapDungeon(seed, { tier, metre }));
   }
+});
+
+it('the run result links only to its own death', () => {
+  const map: MapItem = { id: 7, type: 'map', tier: 4, metre: 305, rarity: 'normal', mods: [] };
+  const death = { id: 9, tick: 1, at: 0, map, room: 2, bossRoom: 6, killer: 'Bog Leech' };
+  const lastRun = { map, outcome: 'died' as RunOutcome, room: 2, bossRoom: 6, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, items: 0, seen: false };
+  expect(deathOfLastRun({ lastRun, deaths: [death] })).toBe(death);
+  expect(deathOfLastRun({ lastRun, deaths: [] })).toBeUndefined();                                     // an old save's death
+  expect(deathOfLastRun({ lastRun, deaths: [{ ...death, map: { ...map, id: 3 } }] })).toBeUndefined();  // another run's
+  expect(deathOfLastRun({ lastRun: { ...lastRun, outcome: 'left' }, deaths: [death] })).toBeUndefined();
 });

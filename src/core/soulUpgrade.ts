@@ -1,5 +1,6 @@
 import { MAX_ITEM_LEVEL, SOUL_UPGRADE_BASE } from './balance';
 import { itemAt } from './cells';
+import { trail } from './dropLog';
 import { isGear, setOfSlot } from './items';
 import type { GearItem } from './items';
 import type { GameState, ItemLoc } from './types';
@@ -38,5 +39,6 @@ export function soulUpgrade(state: GameState, target: ItemLoc): SoulUpgradeCheck
   const item = upgradable(state, target) as GearItem;
   state.souls -= soulUpgradeCost(item.ilvl);
   item.ilvl++;
+  trail(state, item.id, { event: 'upgraded' });
   return check;
 }

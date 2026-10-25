@@ -16,6 +16,7 @@ import { addMap, leaveMap, startMap } from '../../src/core/maps';
 import { gamble } from '../../src/core/merchant';
 import { newGame } from '../../src/core/newGame';
 import { decodeSave, validateState } from '../../src/core/save';
+import { soulUpgrade } from '../../src/core/soulUpgrade';
 import { deriveStats } from '../../src/core/stats';
 import type { DropEntry, DropOrigin, GameState, MapRun, MonsterState } from '../../src/core/types';
 import { gear, gem, stashMap } from '../helpers/items';
@@ -75,6 +76,19 @@ it('a gambled item comes from the Merchant', () => {
   expect(result).toBe('ok');
   if (item === undefined) throw new Error('nothing gambled');
   expect(entryOf(s, item.id)).toMatchObject({ kind: 'gear', origin: { kind: 'merchant' }, trail: [{ event: 'bag' }] });
+  expect(validateState(s)).toBe(true);
+});
+
+it('a Soul upgrade adds a step to the item\'s trail; a refused one adds nothing', () => {
+  const s = newGame(1, 0);
+  s.souls = 1_000;
+  const ring = gear(s, 'ring', { rarity: 'rare', ilvl: 6 });
+  receiveItem(s, ring, HERE);
+  expect(soulUpgrade(s, { where: 'bag', index: bagIndex(s, ring.id) })).toBe('ok');
+  s.souls = 0;
+  expect(soulUpgrade(s, { where: 'bag', index: bagIndex(s, ring.id) })).toBe('noSouls');
+  expect(entryOf(s, ring.id)?.trail).toEqual([{ event: 'bag' }, { event: 'upgraded' }]);
+  expect(validateState(s)).toBe(true);
 });
 
 it('the loot filter\'s sale or salvage is the whole trail', () => {

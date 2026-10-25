@@ -2,7 +2,7 @@ import { dungeonIndexAt, dungeonType, type DungeonType } from '../../core/dungeo
 import type { MapItem } from '../../core/items';
 import { xpToNext } from '../../core/levels';
 import { MAP_MOD_TEXT, mapEffects } from '../../core/mapMods';
-import type { ChampionMod, CombatLine, MapRun, MonsterState, RunGains, RunResult } from '../../core/types';
+import type { ChampionMod, CombatLine, DeathEntry, GameState, MapRun, MonsterState, RunGains, RunResult } from '../../core/types';
 import { itemKindLine, lootNoteText } from '../character/itemView';
 import type { ViewLine } from '../character/itemView';
 import { formatNumber, plural } from '../format';
@@ -25,6 +25,12 @@ export function runTitle(r: RunResult): string {
     case 'died': return `You fell in ${roomWords(r.room, r.bossRoom)}`;
     case 'left': return `You left the map in ${roomWords(r.room, r.bossRoom)}`;
   }
+}
+
+/** The death log's entry for the last run, when it died: the newest death, if it lost that run's map (an old save's may have none). */
+export function deathOfLastRun(state: Pick<GameState, 'lastRun' | 'deaths'>): DeathEntry | undefined {
+  const newest = state.deaths[state.deaths.length - 1];
+  return state.lastRun?.outcome === 'died' && newest?.map.id === state.lastRun.map.id ? newest : undefined;
 }
 
 export function gainsLine(g: RunGains, items: number): string {

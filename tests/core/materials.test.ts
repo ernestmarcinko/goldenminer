@@ -37,7 +37,7 @@ it('a full bag holds found materials; past the held cap they join the tab, and p
   expect(notes).toEqual([expect.objectContaining({ rarity: 'material', base: 'iron', outcome: 'stash', value: 3 })]);   // only the units kept
 });
 
-it('the note says where the first unit went and how many were found', () => {
+it('the note says where the first unit went and counts the units kept', () => {
   const s = newGame(1, 0);
   expect(receiveMaterial(s, 'silver', 3, HERE)).toEqual([
     { name: 'Silver ore', rarity: 'material', base: 'silver', outcome: 'bag', value: 3 },

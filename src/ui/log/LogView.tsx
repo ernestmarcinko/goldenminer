@@ -102,7 +102,7 @@ function DropList({ state }: { state: GameState }) {
       {rows.map((r) => (
         <li key={r.id} className="gm-log__row">
           <span className="gm-log__origin">{r.origin}</span>
-          {r.kind === '' ? (
+          {r.stack ? (
             <span className="gm-log__what">
               <span className="gm-log__name" data-tone={r.tone}>{r.name}</span> <span className="gm-log__trail">{r.trail}</span>
             </span>
