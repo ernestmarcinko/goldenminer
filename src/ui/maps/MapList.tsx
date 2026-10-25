@@ -9,6 +9,15 @@ const BUSY = 'Leave the current map first';
 
 const whereText = (r: MapRow): string => (r.where === 'bag' ? 'in your bag' : `Maps tab, page ${formatNumber(r.page)}`);
 
+/** An enchanted map names its rarity; a normal map's row reads as it always has. */
+function rarityText(r: MapRow): string {
+  switch (r.rarity) {
+    case 'normal': return '';
+    case 'magic': return 'Magic';
+    case 'rare': return 'Rare';
+  }
+}
+
 /** One row per map. `rows` come from `mapRows`, which the parent memoises on the store's version. */
 export function MapList({ store, rows }: { store: GameStore; rows: readonly MapRow[] }) {
   const { state } = useGame(store);
@@ -25,10 +34,13 @@ export function MapList({ store, rows }: { store: GameStore; rows: readonly MapR
           <li key={r.id} className="gm-maps__row">
             <span className="gm-badge">T{formatNumber(r.tier)}</span>
             <span className="gm-maps__info">
-              <span className="gm-maps__name">{r.name}</span>
+              <span className="gm-maps__name" data-rarity={r.rarity}>{r.name}</span>
               <span className="gm-maps__found">
+                {r.rarity !== 'normal' && <span className="gm-maps__rarity" data-rarity={r.rarity}>{rarityText(r)} · </span>}
                 found at {formatNumber(r.metre)} m · {plural(r.rooms, 'room', 'rooms')} · {whereText(r)}
               </span>
+              {r.mods.length > 0 && <span className="gm-maps__mods">{r.mods.join(' · ')}</span>}
+              {r.rewards !== '' && <span className="gm-maps__mods">{r.rewards}</span>}
             </span>
             <button
               type="button"
@@ -36,7 +48,7 @@ export function MapList({ store, rows }: { store: GameStore; rows: readonly MapR
               disabled={running}
               title={running ? BUSY : undefined}
               aria-describedby={running ? busyId : undefined}
-              aria-label={`Run ${r.name}, found at ${formatNumber(r.metre)} m`}
+              aria-label={`Run ${r.name}${r.rarity === 'normal' ? '' : `, ${r.rarity} map`}, found at ${formatNumber(r.metre)} m`}
               onClick={() => { store.startMap(r.id); }}
             >
               Run

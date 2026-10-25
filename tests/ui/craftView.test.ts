@@ -89,7 +89,7 @@ it('every craft result text', () => {
   expect(craftResultText({ check: 'nothingToChange' }, 'gear')).toBe('It has no modifiers to change.');
   expect(craftResultText({ check: 'short' }, 'gear')).toBe('Not enough of that material.');
   expect(craftResultText({ check: 'gemsFull' }, 'gear')).toBe('Make room in the Gems tab first.');
-  expect(craftResultText({ check: 'notGear' }, 'gear')).toBe('Only gear can be crafted.');
+  expect(craftResultText({ check: 'notGear' }, 'gear')).toBe('Only gear and maps can be crafted.');
 });
 
 const map = (s: GameState, rarity: MapItem['rarity'], mods: MapMod[] = [], sealed?: true): MapItem => (

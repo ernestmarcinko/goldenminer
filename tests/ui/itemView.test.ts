@@ -261,6 +261,13 @@ it('an enchanted map card shows its rarity, its modifiers with their tiers and w
   expect(itemLines({ ...four, sealed: true }).at(-1)).toEqual({ text: "Tempered: it can't be enchanted any more.", tone: 'muted' });
 });
 
+it('a map\'s name, the label of its grid cell, leads with its rarity when it is enchanted', () => {
+  const map: MapItem = { id: 1, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
+  expect(itemName(map)).toBe('Tier 4 map');
+  expect(itemName({ ...map, rarity: 'magic', mods: [{ kind: 'monsterLife', tier: 4, value: 27 }] })).toBe('Magic tier 4 map');
+  expect(itemName({ ...map, rarity: 'rare', mods: [{ kind: 'monsterLife', tier: 4, value: 27 }] })).toBe('Rare tier 4 map');
+});
+
 it('a material item reads as a crafting material and where it is first found', () => {
   const tin = { id: 2, type: 'material', material: 'tin', count: 3 } as const;
   const iron = { id: 3, type: 'material', material: 'iron', count: 1 } as const;

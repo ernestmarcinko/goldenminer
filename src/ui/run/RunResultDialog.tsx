@@ -1,9 +1,9 @@
 import { useRef, type RefObject } from 'react';
 import type { GameStore } from '../../store/gameStore';
-import { formatNumber } from '../format';
-import { gainsLine, mapDungeon, runTitle } from '../maps/mapsView';
+import { gainsLine, runTitle } from '../maps/mapsView';
 import { useDialog } from '../useDialog';
 import { useGame } from '../useGame';
+import { runMapLine } from './runView';
 
 /** The result of a run that has ended, until the player dismisses it. It shows on any view, since a run ends anywhere. */
 export function RunResultDialog({ store, fallbackFocus }: { store: GameStore; fallbackFocus: RefObject<HTMLElement | null> }) {
@@ -13,7 +13,7 @@ export function RunResultDialog({ store, fallbackFocus }: { store: GameStore; fa
   return (
     <ResultBody
       title={runTitle(last)}
-      dungeon={`${mapDungeon(state.seed, last.map).type.name} · tier ${formatNumber(last.map.tier)}`}
+      dungeon={runMapLine(state.seed, last.map)}
       gains={gainsLine(last.gained, last.items)}
       outcome={last.outcome}
       fallbackFocus={fallbackFocus}

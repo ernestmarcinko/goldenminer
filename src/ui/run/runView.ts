@@ -1,7 +1,9 @@
 import type { DungeonType } from '../../core/dungeons';
+import type { MapItem } from '../../core/items';
 import type { ChampionMod, CombatLine, MapRun, MonsterState } from '../../core/types';
-import { lootNoteText } from '../character/itemView';
+import { itemKindLine, lootNoteText } from '../character/itemView';
 import { formatNumber } from '../format';
+import { mapDungeon } from '../maps/mapsView';
 
 export const FIGHT_COLS = 14;
 export const FIGHT_ROWS = 9;
@@ -26,6 +28,11 @@ export function fightTiles(
     for (let c = 0; c < cols; c++) tiles.push({ bg: floor.shades[shadeIndex(floor.pattern, r, c)] ?? floor.shades[0], edge: TILE_EDGE });
   }
   return tiles;
+}
+
+/** The map a run was on, in the card's words, e.g. "Flooded Adit · Rare tier 4 map". */
+export function runMapLine(seed: number, map: MapItem): string {
+  return `${mapDungeon(seed, map).type.name} · ${itemKindLine(map)}`;
 }
 
 export interface RoomRow { label: string; note: string; state: 'done' | 'now' | 'next' }

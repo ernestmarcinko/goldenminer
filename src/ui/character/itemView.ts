@@ -2,12 +2,11 @@ import { hardness, MATERIAL_TABLE, TICKS_PER_METRE_AT_PARITY } from '../../core/
 import { GEM_GRADE_LABELS, gemName, itemName } from '../../core/itemData';
 import { BATTLE_STATS, MOD_SIDE, isGear, setOfSlot } from '../../core/items';
 import type { GearItem, GemType, Item, MapItem, Material, ModLine, Slot, StatKey } from '../../core/items';
-import { MAP_MOD_TEXT, mapEffects } from '../../core/mapMods';
 import { gemEffect, itemTotals } from '../../core/stats';
 import type { GameState, LootNote, Stats } from '../../core/types';
 import type { SpriteName } from '../../sprites/atlas';
 import { formatDuration, formatNumber, formatRate, plural } from '../format';
-import { mapDungeon } from '../maps/mapsView';
+import { mapDungeon, mapModLines } from '../maps/mapsView';
 
 export const SLOT_LABELS: Readonly<Record<Slot, string>> = {
   pickaxe: 'Pickaxe', lamp: 'Lamp helm', gloves: 'Gloves', boots: 'Boots', weapon: 'Weapon', armor: 'Armor',
@@ -109,12 +108,7 @@ export function cardHead(seed: number, item: Item): { name: string; kind: string
 
 /** A map's modifiers with their tiers, in their rolled order, and what they pay; then where it was found. */
 function mapLines(map: MapItem): ViewLine[] {
-  const lines: ViewLine[] = map.mods.map((m) => ({ text: `T${formatNumber(m.tier)} ${MAP_MOD_TEXT[m.kind](m.value)}`, tone: 'plain' }));
-  if (map.mods.length > 0) {
-    const e = mapEffects(map);
-    const text = `Rewards: +${formatNumber(e.quantity)}% items · +${formatNumber(e.rarity)}% rarity · +${formatNumber(e.souls)}% Souls`;
-    lines.push({ text, tone: 'plain' });
-  }
+  const lines: ViewLine[] = mapModLines(map).map((text) => ({ text, tone: 'plain' }));
   lines.push({ text: `Found at ${formatNumber(map.metre)} m`, tone: 'plain' });
   if (map.sealed) lines.push({ text: 'Tempered: it can\'t be enchanted any more.', tone: 'muted' });
   return lines;

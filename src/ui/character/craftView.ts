@@ -93,7 +93,7 @@ export function craftResultText(result: Pick<CraftResult, 'check' | 'temper'>, t
     case 'nothingToChange': return 'It has no modifiers to change.';
     case 'short': return 'Not enough of that material.';
     case 'gemsFull': return 'Make room in the Gems tab first.';
-    case 'notGear': return 'Only gear can be crafted.';
+    case 'notGear': return 'Only gear and maps can be crafted.';
     case 'notForMaps': return "That material doesn't work on maps.";
     case 'noSouls': return 'Not enough Souls.';
   }

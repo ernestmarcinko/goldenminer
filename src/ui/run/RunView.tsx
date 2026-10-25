@@ -3,6 +3,7 @@ import { dungeonLayout } from '../../core/dungeons';
 import type { GameStore } from '../../store/gameStore';
 import { lootNoteText } from '../character/itemView';
 import { formatNumber } from '../format';
+import { mapModLines } from '../maps/mapsView';
 import { useGame } from '../useGame';
 import { CombatLog } from './CombatLog';
 import { FightScene } from './FightScene';
@@ -27,6 +28,7 @@ export function RunView({ store }: { store: GameStore }) {
   const roomSize = layout.rooms[run.room - 1]?.length ?? 0;
   const g = run.gained;
   const loot = run.loot.slice(-LOOT_SHOWN).reverse();
+  const mods = mapModLines(run.map);
   return (
     <div className="gm-run">
       <div className="gm-run__top">
@@ -38,6 +40,11 @@ export function RunView({ store }: { store: GameStore }) {
               <div className="gm-muted gm-small">found at {formatNumber(run.map.metre)} m</div>
             </div>
           </div>
+          {mods.length > 0 && (
+            <ul className="gm-run__mods">
+              {mods.map((text, i) => <li key={i}>{text}</li>)}
+            </ul>
+          )}
           <RoomTrack run={run} bossName={type.bossName} />
           <button type="button" className="gm-btn" onClick={() => store.leaveMap()}>Leave map</button>
           <div className="gm-muted gm-small">Leaving or dying loses the map. XP and drops are kept.</div>
