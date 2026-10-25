@@ -5,7 +5,7 @@ import type { ItemLoc } from '../../src/core/types';
 import { addMap, startMap } from '../../src/core/maps';
 import { GameStore } from '../../src/store/gameStore';
 import { MemoryStorage } from '../../src/store/storage';
-import { actionForIntent, hoverNote, itemActions, resultText, runAction } from '../../src/ui/character/itemActions';
+import { actionForIntent, hoverLines, hoverNote, itemActions, resultText, runAction } from '../../src/ui/character/itemActions';
 import { gear, gem } from '../helpers/items';
 import { lootNoteText } from '../../src/ui/character/itemView';
 import { MATERIAL_STASH_STACK } from '../../src/core/balance';
@@ -145,11 +145,11 @@ it('a bag map runs or goes to the Maps tab; a Maps-tab map runs or comes back to
   s.bag[0] = carried;
   s.stash.maps[2] = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] };
   const tab: ItemLoc = { where: 'maps', index: 2 };
-  expect(itemActions(s, bag(0))).toEqual([
+  expect(noCrafts(itemActions(s, bag(0)))).toEqual([
     { id: 'run', label: 'Run this map', disabled: false },
     { id: 'toStash', label: 'To Maps tab', disabled: false },
   ]);
-  expect(itemActions(s, tab)).toEqual([
+  expect(noCrafts(itemActions(s, tab))).toEqual([
     { id: 'run', label: 'Run this map', disabled: false },
     { id: 'toBag', label: 'To bag', disabled: false },
   ]);
@@ -286,4 +286,55 @@ it('a craft action crafts through the store', () => {
   expect(s.bag[0]).toMatchObject({ rarity: 'magic' });
   expect(s.stash.materials.copper).toBe(2);
   expect(store.lastCraft).toMatchObject({ kind: 'copper', check: 'ok' });
+});
+
+it('a map card lists its enchants after Run this map and the move', () => {
+  const s = newGame(1, 0);
+  s.bag[0] = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
+  s.stash.maps[2] = {
+    id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'magic', mods: [{ kind: 'monsterLife', tier: 2, value: 15 }],
+  };
+  s.stash.materials.copper = 37;
+  s.stash.materials.iron = 37;
+  s.souls = 50;
+  expect(itemActions(s, bag(0))).toEqual([
+    { id: 'run', label: 'Run this map', disabled: false },
+    { id: 'toStash', label: 'To Maps tab', disabled: false },
+    { id: 'craft', kind: 'copper', label: 'Copper ore ×3 + 20 Souls: enchant it', disabled: false },
+  ]);
+  const tab = itemActions(s, { where: 'maps', index: 2 });
+  expect(tab.slice(0, 2).map((a) => a.id)).toEqual(['run', 'toBag']);
+  expect(tab.slice(2).map((a) => [a.id, a.kind, a.disabled])).toEqual([
+    ['craft', 'iron', false], ['craft', 'obsidian', true], ['craft', 'voidCrystal', true],
+  ]);
+  s.souls = 19;
+  expect(itemActions(s, bag(0))[2]).toMatchObject({ kind: 'copper', disabled: true });
+});
+
+it('an enchant action enchants a map through the store, and spends its Souls', () => {
+  const store = new GameStore({ storage: new MemoryStorage(), storageAvailable: true, now: () => 0, newSeed: () => 7 });
+  store.load();
+  const s = store.state;
+  s.stash.maps[5] = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
+  s.stash.materials.copper = 5;
+  s.souls = 50;
+  const t: ItemLoc = { where: 'maps', index: 5 };
+  const copper = itemActions(s, t).find((a) => a.id === 'craft' && a.kind === 'copper');
+  if (copper === undefined) throw new Error('no copper enchant');
+  expect(runAction(store, t, copper)).toBe('ok');
+  expect(s.stash.maps[5]).toMatchObject({ rarity: 'magic' });
+  expect(s.stash.materials.copper).toBe(2);
+  expect(s.souls).toBe(30);
+});
+
+it("a map's hover card says once what enchanting does; other items add nothing", () => {
+  const s = newGame(1, 0);
+  const note = {
+    text: 'Enchanting never changes the dungeon itself; it scales the monsters and the rewards. Dying still loses the map.',
+    tone: 'muted',
+  };
+  expect(hoverLines({ id: 1, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] })).toEqual([note]);
+  expect(hoverLines({ id: 2, type: 'map', tier: 4, metre: 327, rarity: 'rare', mods: [], sealed: true })).toEqual([note]);
+  expect(hoverLines(gear(s, 'pickaxe'))).toEqual([]);
+  expect(hoverLines(gem(s))).toEqual([]);
 });

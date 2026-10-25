@@ -5,7 +5,7 @@ import { isGear } from '../../core/items';
 import type { GearItem } from '../../core/items';
 import { itemName } from '../../core/itemData';
 import type { GameState } from '../../core/types';
-import { hoverNote, itemActions } from './itemActions';
+import { hoverLines, hoverNote, itemActions } from './itemActions';
 import type { ActionSpec, ItemTarget } from './itemActions';
 import {
   anchorCraft, cardHead, compareLines, craftAnchor, craftSlots, fittedCardTop, itemKindLine, itemLines, keptHeight, rarityOf,
@@ -133,6 +133,7 @@ export function ItemCard({ state, target, left, top, fit, menu, inline = false, 
   const compare = isGear(item) && target.where !== 'worn' ? compareLines(item, worn) : null;
   const beside = pair && !isMenu && worn !== undefined;
   const others = actions.filter((a) => a.id !== 'craft');
+  const lines = isMenu ? itemLines(item) : [...itemLines(item), ...hoverLines(item)];
   const wornBlock = worn !== undefined && !beside && (
     <div className="gm-card__equipped" data-rarity={rarityOf(worn)}><EquippedContent worn={worn} /></div>
   );
@@ -160,7 +161,7 @@ export function ItemCard({ state, target, left, top, fit, menu, inline = false, 
     >
       <div className="gm-card__name">{name}</div>
       <div className="gm-card__kind">{kind}</div>
-      <div className="gm-card__lines"><Lines lines={itemLines(item)} /></div>
+      <div className="gm-card__lines"><Lines lines={lines} /></div>
       {compare !== null && compare.lines.length > 0 && (
         <div className="gm-card__compare">
           <div className="gm-card__kind">{compare.title}</div>
@@ -184,9 +185,10 @@ export function ItemCard({ state, target, left, top, fit, menu, inline = false, 
               {a.label}
             </button>
           ))}
-          {crafts.length > 0 && (
+          {/* kept while the card is open, even when a temper seals the item and every slot is empty */}
+          {slots.length > 0 && (
             <>
-              <div className="gm-card__label gm-card__craft">Craft</div>
+              <div className="gm-card__label gm-card__craft">{item.type === 'map' ? 'Enchant' : 'Craft'}</div>
               <div className="gm-card__crafts">
                 {slots.map((k) => {
                   const a = crafts.find((c) => c.kind === k);

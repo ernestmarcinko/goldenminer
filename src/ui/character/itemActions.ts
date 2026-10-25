@@ -9,7 +9,7 @@ import type { CraftKind, GameState, InvResult, ItemLoc, Stats } from '../../core
 import type { GameStore } from '../../store/gameStore';
 import { formatNumber } from '../format';
 import { craftOptions } from './craftView';
-import type { ClickIntent } from './itemView';
+import type { ClickIntent, ViewLine } from './itemView';
 import { statText } from './itemView';
 
 export type ItemTarget = ItemLoc;
@@ -24,7 +24,7 @@ export interface ActionSpec {
   kind?: CraftKind;
 }
 
-/** One action per craft the gear's card offers, after its other actions. */
+/** One action per craft the gear's or map's card offers, after its other actions. */
 function craftActions(state: GameState, target: ItemTarget): ActionSpec[] {
   return craftOptions(state, target).map((o) => ({ id: 'craft', kind: o.kind, label: o.label, disabled: !o.enabled }));
 }
@@ -83,11 +83,16 @@ function materialActions(state: GameState, target: ItemTarget, item: MaterialIte
   return [{ id: 'toStash', label: 'To Materials tab', disabled: full }];
 }
 
-/** A map runs from its card (not while another run is going) and moves between the bag and the Maps tab. */
+/**
+ * A map runs from its card (not while another run is going), moves between the bag and the Maps tab, and is enchanted
+ * from it.
+ */
 function mapActions(state: GameState, target: ItemTarget): ActionSpec[] {
   const run: ActionSpec = { id: 'run', label: 'Run this map', disabled: state.activity.kind === 'map' };
-  if (target.where === 'maps') return [run, { id: 'toBag', label: 'To bag', disabled: firstEmpty(state.bag) < 0 }];
-  return [run, { id: 'toStash', label: 'To Maps tab', disabled: firstEmpty(state.stash.maps) < 0 }];
+  const move: ActionSpec = target.where === 'maps'
+    ? { id: 'toBag', label: 'To bag', disabled: firstEmpty(state.bag) < 0 }
+    : { id: 'toStash', label: 'To Maps tab', disabled: firstEmpty(state.stash.maps) < 0 };
+  return [run, move, ...craftActions(state, target)];
 }
 
 export function itemActions(state: GameState, target: ItemTarget): ActionSpec[] {
@@ -165,6 +170,15 @@ export function hoverNote(target: ItemTarget, item: Item): string {
   return isGear(item)
     ? 'Click to equip · Alt+click to sell · Shift+click to stash'
     : 'Click for actions · Alt+click to sell · Shift+click to the Gems tab';
+}
+
+/** Lines a hover card adds under the item's own, which its action card leaves out. */
+export function hoverLines(item: Item): ViewLine[] {
+  if (item.type !== 'map') return [];
+  return [{
+    text: 'Enchanting never changes the dungeon itself; it scales the monsters and the rewards. Dying still loses the map.',
+    tone: 'muted',
+  }];
 }
 
 export function runAction(store: GameStore, target: ItemTarget, action: ActionSpec): InvResult {
