@@ -69,9 +69,14 @@ export function materialsText(counts: Partial<Record<Material, number>>): string
   return countsText(counts, '');
 }
 
-/** What salvage gives, for an action's label: "+3 Copper ore, +2 Tin ore". */
+/** Materials gained, in material order: "+3 Copper ore, +2 Tin ore". */
+export function gainedText(counts: Partial<Record<Material, number>>): string {
+  return countsText(counts, '+');
+}
+
+/** What salvage gives, for an action's label. */
 function yieldText(item: Item, stats: Stats): string {
-  return countsText(salvagePay(item, stats), '+');
+  return gainedText(salvagePay(item, stats));
 }
 
 /** A bag stack joins its Materials count, unless that count is at its cap; a tab stack comes back to the bag. */

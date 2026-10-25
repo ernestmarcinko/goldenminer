@@ -65,11 +65,11 @@ it('a cleared tier-1 map pays Souls, 40 Gold and at least the boss and champion 
 it('a full bag holds map drops but the fight goes on', () => {
   const s = newGame(1, 0);
   s.bag = s.bag.map((_, i) => gear(s, i % 2 ? 'weapon' : 'pickaxe'));
-  s.stash.general = s.stash.general.map(() => gear(s, 'weapon'));
   startMap(s, stashMap(s, 1, 2).id);
   fight(s);
   expect(s.lastRun?.outcome).toBe('cleared');
   expect(s.overflow.length).toBeGreaterThanOrEqual(3);
+  expect(s.stash.general.every((c) => c === null)).toBe(true);   // held, not stashed
   const gold = s.gold;
   applyTicks(s, 10, deriveStats(s));
   expect(s.gold).toBe(gold);
@@ -218,7 +218,6 @@ it('a material drop is noted on the run but not counted as an item', () => {
 it('with MAX_HELD items already held, a further drop is sold and nothing more is held', () => {
   const { s, run } = kill(1, 'boss', (g) => {
     g.bag = g.bag.map((_, i) => gear(g, i % 2 ? 'weapon' : 'pickaxe'));
-    g.stash.general = g.stash.general.map(() => gear(g, 'weapon'));
     for (let i = 0; i < MAX_HELD; i++) g.overflow.push(gear(g, 'weapon'));
   });
   expect(s.overflow).toHaveLength(MAX_HELD);
@@ -255,10 +254,10 @@ it('the offline summary notices the bag holding map drops', () => {
   const before = newGame(1, 0);
   const after = structuredClone(before);
   after.bag = after.bag.map((_, i) => gear(after, i % 2 ? 'weapon' : 'pickaxe'));
-  after.stash.general = after.stash.general.map(() => gear(after, 'weapon'));
   startMap(after, stashMap(after, 1, 2).id);
   fight(after);
   expect(after.overflow.length).toBeGreaterThan(0);
+  expect(after.stash.general.every((c) => c === null)).toBe(true);
   expect(summarize(before, after, 600_000, 600, 28_800_000).bagStopped).toBe(true);
 });
 

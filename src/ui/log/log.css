@@ -1,2 +1,38 @@
 .gm-logview { display: flex; flex-direction: column; gap: 16px; min-width: 0; max-width: 760px; }
 .gm-logview__title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 22px; }
+
+/* the Drops and Deaths tabs */
+.gm-log__tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.gm-log__tab {
+  min-height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--gm-line); background: var(--gm-header);
+  color: var(--gm-normal); font: inherit; font-size: 14px; cursor: pointer;
+}
+.gm-log__tab[aria-selected='true'] { background: var(--gm-panel-raised); border-color: var(--gm-gold); color: var(--gm-gold-bright); }
+.gm-log__tab:focus-visible, .gm-log__death:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
+.gm-log__panel { min-width: 0; }
+.gm-log__empty { margin: 0; }
+
+/* one row per entry: where or when on the left, what on the right */
+.gm-log__list { list-style: none; margin: 0; padding: 0; }
+.gm-log__row, .gm-log__death {
+  display: grid; grid-template-columns: 9.5em minmax(0, 1fr); gap: 4px 10px; padding: 8px 0;
+  border-bottom: 1px solid var(--gm-line); font-size: 14px; overflow-wrap: anywhere;
+}
+.gm-log__death { border-radius: 4px; }
+.gm-log__origin { font-family: var(--gm-font-mono); font-size: 12px; color: var(--gm-muted); padding-top: 2px; }
+.gm-log__what { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; min-width: 0; }
+.gm-log__name { font-weight: 700; color: var(--gm-text); }
+.gm-log__name[data-tone='normal'] { color: var(--gm-normal); }
+.gm-log__name[data-tone='magic'] { color: var(--gm-magic); }
+.gm-log__name[data-tone='rare'] { color: var(--gm-rare); }
+.gm-log__name[data-tone='legendary'] { color: var(--gm-legendary); }
+.gm-log__name[data-tone='gem'] { color: var(--gm-gem); font-weight: 400; }
+.gm-log__name[data-tone='material'] { color: var(--gm-material); font-weight: 400; }
+.gm-log__name[data-outcome='died'] { color: var(--gm-down); }
+.gm-log__kind, .gm-log__trail, .gm-log__map { font-size: 12px; color: var(--gm-muted); }
+.gm-log__trail--below, .gm-log__map, .gm-log__death .gm-log__trail { flex-basis: 100%; }
+.gm-log__mods { flex-basis: 100%; margin: 2px 0; font-size: 12px; }
+
+@media (max-width: 600px) {
+  .gm-log__row, .gm-log__death { grid-template-columns: 7.5em minmax(0, 1fr); }
+}

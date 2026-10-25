@@ -16,7 +16,8 @@ export function xpBar(level: number, xp: number): XpBar {
   return { label, text: `${formatNumber(xp)} / ${formatNumber(need)} XP`, pct: Math.min(1, Math.max(0, xp / need)) };
 }
 
-const roomWords = (room: number, bossRoom: number): string => (room >= bossRoom ? 'the boss room' : `room ${formatNumber(room)}`);
+/** A room as the run's words put it: "room 3", or "the boss room". */
+export const roomWords = (room: number, bossRoom: number): string => (room >= bossRoom ? 'the boss room' : `room ${formatNumber(room)}`);
 
 export function runTitle(r: RunResult): string {
   switch (r.outcome) {

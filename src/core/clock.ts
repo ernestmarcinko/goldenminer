@@ -16,7 +16,11 @@ export function advance(state: GameState, nowMs: number, stats: Stats, events?: 
   const interval = 1000 / stats.autoTicksPerSecond;
   const capped = elapsed > stats.offlineCapMs;
   const due = Math.floor(Math.min(elapsed, stats.offlineCapMs) / interval);
+  const from = state.lastTickAt;
+  const tick0 = state.tickCount;
   applyTicks(state, due, stats, events, digPaused);
+  // a death is stamped with the batch's start; it happened at the end of its own tick
+  for (const d of state.deaths) if (d.tick >= tick0) d.at = from + (d.tick - tick0 + 1) * interval;
   state.lastTickAt = capped ? nowMs : state.lastTickAt + due * interval;
   return due;
 }

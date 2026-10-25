@@ -35,12 +35,13 @@ export function collect(
   const find: FindRecord = { id: state.nextId++, depth, kind: roll.feature, amount, tick: state.tickCount };
   if (bonus) find.bonus = true;
   const loot: LootNote[] = [];
+  const origin = { kind: 'metre', metre: depth } as const;
   if (roll.feature === 'map') {
     loot.push(...addMap(state, tier, depth));
   } else if (roll.feature === 'chest') {
-    for (const item of rollChest(state, tier)) loot.push(...receiveItem(state, item));
+    for (const item of rollChest(state, tier)) loot.push(...receiveItem(state, item, origin));
   } else if (roll.feature === 'gem') {
-    loot.push(...receiveItem(state, rollGem(state, tier)));
+    loot.push(...receiveItem(state, rollGem(state, tier), origin));
   }
   if (loot.length > 0) find.loot = loot;
   logFind(state, find, events);
@@ -52,7 +53,7 @@ function collectMaterialVein(
   bonus = false,
 ): void {
   const amount = Math.round(vein.amount * stats.veinMultiplier);
-  receiveMaterial(state, vein.material, amount);
+  receiveMaterial(state, vein.material, amount, { kind: 'metre', metre: depth });
   const find: FindRecord = {
     id: state.nextId++, depth, kind: 'materialVein', material: vein.material, amount, tick: state.tickCount,
   };

@@ -2,6 +2,7 @@ import { MAP_TIER_CAP } from './balance';
 import { deriveBattleStats } from './battle';
 import { endRun } from './combat';
 import { dungeonLayout } from './dungeons';
+import { trail } from './dropLog';
 import type { MapItem } from './items';
 import { receiveItem } from './loot';
 import { mapEffects } from './mapMods';
@@ -32,7 +33,7 @@ export function takeMapAt(state: GameState, loc: { tier: number; index: number }
 
 /** A found map is a normal one, and goes where every find goes: to the bag, else held, else sold. */
 export function addMap(state: GameState, tier: number, metre: number): LootNote[] {
-  return receiveItem(state, { id: state.nextId++, type: 'map', tier, metre, rarity: 'normal', mods: [] });
+  return receiveItem(state, { id: state.nextId++, type: 'map', tier, metre, rarity: 'normal', mods: [] }, { kind: 'metre', metre });
 }
 
 /** Takes a map out of its bag cell or its tier list. */
@@ -55,6 +56,7 @@ export function startMap(state: GameState, mapId: number): 'ok' | 'busy' | 'inva
   if (state.activity.kind === 'map') return 'busy';
   const map = takeMap(state, mapId);
   if (map === undefined) return 'invalid';
+  trail(state, map.id, { event: 'run' });
   const layout = dungeonLayout(state.seed, map);
   const fx = mapEffects(map);
   const queue = (layout.rooms[0] ?? []).map((m) => monsterState(map.tier, m, fx));

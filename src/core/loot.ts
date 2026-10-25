@@ -3,11 +3,12 @@ import {
   MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_HELD, SALVAGE_MATERIALS, SELL_GOLD,
 } from './balance';
 import { firstEmpty } from './cells';
+import { logDrop, trail } from './dropLog';
 import { itemName, MATERIAL_LABELS } from './itemData';
 import { isGear, MATERIALS, setOfSlot } from './items';
 import type { Cell, GearItem, Gem, GemItem, Item, MapItem, Material, MaterialItem, Stack } from './items';
 import { deriveStats } from './stats';
-import type { GameState, LootAction, LootNote, LootOutcome, LootRule, Stats } from './types';
+import type { DropOrigin, GameState, LootAction, LootNote, LootOutcome, LootRule, Stats, TrailStep } from './types';
 
 const tierFactor = (level: number): number => 1 + Math.floor(level / 5);
 
@@ -73,17 +74,19 @@ export function salvagePay(item: Item, stats: Stats): Partial<Record<Material, n
   return out;
 }
 
-/** Adds materials to the Materials tab, each count capped; returns the units that fit. */
-export function stashMaterials(state: GameState, counts: Partial<Record<Material, number>>): number {
-  let gained = 0;
+/** Adds materials to the Materials tab, each count capped; returns what fit, material by material. */
+export function stashMaterials(state: GameState, counts: Partial<Record<Material, number>>): Partial<Record<Material, number>> {
+  const stored: Partial<Record<Material, number>> = {};
   for (const m of MATERIALS) {
     const n = Math.min(counts[m] ?? 0, MATERIAL_STASH_STACK - state.stash.materials[m]);
     if (n <= 0) continue;
     state.stash.materials[m] += n;
-    gained += n;
+    stored[m] = n;
   }
-  return gained;
+  return stored;
 }
+
+const units = (counts: Partial<Record<Material, number>>): number => Object.values(counts).reduce((sum, n) => sum + n, 0);
 
 export function lootAction(rules: LootRule[], item: Loot): LootAction {
   // no rule names maps yet, so 'any' must not catch one
@@ -106,6 +109,19 @@ function note(item: Loot, outcome: LootOutcome, value = 0): LootNote {
     case 'map': return { name: itemName(item), rarity: item.rarity, base: 'map', outcome, value };
   }
 }
+
+/** Sells a find, or part of a gem stack, for its sell pay: the Gold is paid and the note says how much. */
+export function sellFind(state: GameState, item: Loot): LootNote {
+  const value = sellPay(item, deriveStats(state));
+  state.gold += value;
+  return note(item, 'sold', value);
+}
+
+/** What became of a find, or of part of a gem stack: its note, its first logged step and the units it covers. */
+interface Fate { note: LootNote; step: TrailStep; count: number }
+
+const fate = (note: LootNote, step: TrailStep, count = 1): Fate => ({ note, step, count });
+const unitsOf = (item: Loot): number => (item.type === 'gem' ? item.count : 1);
 
 function tally(state: GameState, notes: LootNote[]): LootNote[] {
   for (const n of notes) {
@@ -174,30 +190,36 @@ function holdStack(state: GameState, kind: StackKind, count: number, open: (coun
   return left;
 }
 
-/** The loot filter acting on a find: the note of what it sold or salvaged, paid out; null when it keeps the find. */
-function applyFilter(state: GameState, item: Loot): LootNote | null {
+/** The loot filter acting on a find: what it sold or salvaged, paid out; null when it keeps the find. */
+function applyFilter(state: GameState, item: Loot): Fate | null {
   const action = lootAction(state.settings.lootFilter, item);
   switch (action) {
     case 'keep': return null;
     case 'sell': {
-      const value = sellPay(item, deriveStats(state));
-      state.gold += value;
-      return note(item, 'sold', value);
+      const sold = sellFind(state, item);
+      return fate(sold, { event: 'filterSold', gold: sold.value }, unitsOf(item));
     }
-    case 'salvage': return note(item, 'salvaged', stashMaterials(state, salvagePay(item, deriveStats(state))));
+    case 'salvage': {
+      const stored = stashMaterials(state, salvagePay(item, deriveStats(state)));
+      return fate(note(item, 'salvaged', units(stored)), { event: 'filterSalvaged', materials: stored }, unitsOf(item));
+    }
   }
 }
 
-// A found stack tops up the bag's stacks, then opens one cell; the rest is held, and past MAX_HELD it is sold. One
-// note, for where the first gem went (a sold remainder still pays out).
-function stowGem(state: GameState, gem: GemItem): LootNote {
+// A found stack tops up the bag's stacks, then opens one cell; the rest is held, and past MAX_HELD it is sold. Each
+// part that went somewhere else has its own fate, so a sold remainder is noted and logged with its Gold.
+function stowGem(state: GameState, gem: GemItem): Fate[] {
   const open = stacksOf(state, gem);
   const unplaced = stackIntoBag(state, gem, gem.count, 1, open);
   const unheld = holdStack(state, gem, unplaced, open);
-  const value = unheld > 0 ? sellPay({ ...gem, count: unheld }, deriveStats(state)) : 0;
-  state.gold += value;
-  if (unplaced < gem.count) return note(gem, 'bag');
-  return unheld < unplaced ? note(gem, 'held') : note(gem, 'sold', value);
+  const fates: Fate[] = [];
+  if (unplaced < gem.count) fates.push(fate(note(gem, 'bag'), { event: 'bag' }, gem.count - unplaced));
+  if (unheld < unplaced) fates.push(fate(note(gem, 'held'), { event: 'held' }, unplaced - unheld));
+  if (unheld > 0) {
+    const sold = sellFind(state, { ...gem, count: unheld });
+    fates.push(fate(sold, { event: 'sold', gold: sold.value }, unheld));
+  }
+  return fates;
 }
 
 /** Puts gear or a map in the bag's first empty cell; false when there is none. */
@@ -212,35 +234,51 @@ function intoEmptyCell(state: GameState, item: GearItem | MapItem): boolean {
  * Where a kept find goes: gear and maps to the bag's first empty cell, a gem stack as `stowGem` says. With no room it
  * is held, and digging waits on it; past MAX_HELD it is sold. Nothing carried is sold to make room.
  */
-function stow(state: GameState, item: Loot): LootNote {
+function stow(state: GameState, item: Loot): Fate[] {
   if (item.type === 'gem') return stowGem(state, item);
-  if (intoEmptyCell(state, item)) return note(item, 'bag');
+  if (intoEmptyCell(state, item)) return [fate(note(item, 'bag'), { event: 'bag' })];
   if (state.overflow.length < MAX_HELD) {
     state.overflow.push(item);
-    return note(item, 'held');
+    return [fate(note(item, 'held'), { event: 'held' })];
   }
-  const value = sellPay(item, deriveStats(state));
-  state.gold += value;
-  return note(item, 'sold', value);
+  const sold = sellFind(state, item);
+  return [fate(sold, { event: 'sold', gold: sold.value })];
 }
 
-/** Every find goes through here: the loot filter first, then the bag, then the held list, then a sale. */
-export function receiveItem(state: GameState, item: Loot): LootNote[] {
-  return tally(state, [applyFilter(state, item) ?? stow(state, item)]);
+/**
+ * Every find goes through here: the loot filter first, then the bag, then the held list, then a sale. Each fate is
+ * logged from `origin`; a gem stack's later parts take fresh ids, as the first keeps the find's.
+ */
+export function receiveItem(state: GameState, item: Loot, origin: DropOrigin): LootNote[] {
+  const filtered = applyFilter(state, item);
+  const fates = filtered !== null ? [filtered] : stow(state, item);
+  fates.forEach((f, i) => {
+    const id = i === 0 ? item.id : state.nextId++;
+    logDrop(state, item.type === 'gem' ? { ...item, id, count: f.count } : item, origin, f.step);
+  });
+  return tally(state, fates.map((f) => f.note));
 }
 
 // A found material tops up the bag's stacks of its kind, then opens as many cells as it needs; the rest is held as a
-// stack (split at a bag stack, as a held stack is never bigger), and past MAX_HELD it joins the Materials tab (past that
-// tab's cap it is lost). One note, for where the first unit went, counting every unit found.
-export function receiveMaterial(state: GameState, material: Material, count: number): LootNote[] {
+// stack (split at a bag stack, as a held stack is never bigger), and past MAX_HELD it joins the Materials tab. One note
+// and one entry for where the first unit went, counting every unit kept; what the tab's cap turned away is logged lost.
+export function receiveMaterial(state: GameState, material: Material, count: number, origin: DropOrigin): LootNote[] {
   if (count <= 0) return [];
   const kind = { type: 'material', material } as const;
   const open = (n: number): MaterialItem => ({ id: state.nextId++, type: 'material', material, count: n });
   const unplaced = stackIntoBag(state, kind, count, Infinity, open);
   const unheld = holdStack(state, kind, unplaced, open);
-  stashMaterials(state, { [material]: unheld });
-  const first: LootOutcome = unplaced < count ? 'bag' : unheld < unplaced ? 'held' : 'stash';
-  return [{ name: MATERIAL_LABELS[material], rarity: 'material', base: material, outcome: first, value: count }];
+  const lost = unheld - units(stashMaterials(state, { [material]: unheld }));
+  const kept = count - lost;
+  const log = (n: number, step: TrailStep) => logDrop(state, open(n), origin, step);   // a fresh id: the entry is no stack's
+  const notes: LootNote[] = [];
+  if (kept > 0) {
+    const first: LootOutcome = unplaced < count ? 'bag' : unheld < unplaced ? 'held' : 'stash';
+    notes.push({ name: MATERIAL_LABELS[material], rarity: 'material', base: material, outcome: first, value: kept });
+    log(kept, { event: first === 'stash' ? 'stashed' : first });
+  }
+  if (lost > 0) log(lost, { event: 'lost' });
+  return notes;
 }
 
 // A held stack is never above a bag stack, so once the top-ups are done one empty cell takes the rest, under its id.
@@ -261,8 +299,10 @@ export function drainOverflow(state: GameState): void {
     const first = state.overflow[0];
     if (first === undefined) return;
     // materials are crafting currency: the filter never sells or salvages them
-    const settled = first.type !== 'material' && applyFilter(state, first) !== null;
-    if (!settled && !unhold(state, first)) return;
+    const settled = first.type !== 'material' ? applyFilter(state, first) : null;
+    if (settled !== null) trail(state, first.id, settled.step);
+    else if (unhold(state, first)) trail(state, first.id, { event: 'bag' });
+    else return;
     state.overflow.shift();
   }
 }

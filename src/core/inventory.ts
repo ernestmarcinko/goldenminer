@@ -1,10 +1,11 @@
 import { GEM_BAG_STACK, GEM_STASH_STACK, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK } from './balance';
 import { firstEmpty, itemAt, mapTierCount, sameLoc } from './cells';
 import { craft } from './crafting';
+import { trail } from './dropLog';
 import { isGear, isMap, isStack, setOfSlot } from './items';
 import type { Cell, GearItem, Item, MaterialItem, Slot, Stack } from './items';
 import { fillAhead } from './metres';
-import { salvagePay, sellPay, stackIntoBag, stashMaterials } from './loot';
+import { salvagePay, sellFind, stackIntoBag, stashMaterials } from './loot';
 import type { Loot } from './loot';
 import { putMap, takeMapAt } from './maps';
 import { deriveStats } from './stats';
@@ -42,6 +43,12 @@ function writeCell(state: GameState, loc: CellLoc, value: Cell): void {
       if (value !== null && !isGear(value)) throw new Error('the General tab holds gear only');
       state.stash.general[loc.index] = value;
   }
+}
+
+/** Logs an item crossing into the stash from the bag or a worn slot (stashed), or into the bag from elsewhere (back). */
+function noteMove(state: GameState, item: Item, from: ItemLoc['where'], to: ItemLoc['where']): void {
+  if (to === 'bag' && from !== 'bag') trail(state, item.id, { event: 'toBag' });
+  else if ((to === 'stash' || to === 'maps') && (from === 'bag' || from === 'worn')) trail(state, item.id, { event: 'stashed' });
 }
 
 /** Whether an item may live at a location: anything in the bag, gear in General, maps in Maps, stacks in their own tab. */
@@ -130,7 +137,10 @@ function moveMap(state: GameState, from: ItemLoc, item: Item, to: CellLoc | Extr
     if (from.where === 'maps') return 'ok';   // within the stash, nothing moves
     if (from.where !== 'bag') return 'invalid';
     const put = putMap(state, item);
-    if (put === 'ok') writeCell(state, from, null);
+    if (put === 'ok') {
+      writeCell(state, from, null);
+      noteMove(state, item, from.where, 'maps');
+    }
     return put;
   }
   if (from.where !== 'maps' || !isMap(item)) return 'invalid';
@@ -151,6 +161,8 @@ function moveMap(state: GameState, from: ItemLoc, item: Item, to: CellLoc | Extr
     takeMapAt(state, from);
   }
   writeCell(state, to, item);
+  noteMove(state, item, 'maps', to.where);
+  if (target !== undefined) noteMove(state, target, to.where, 'maps');
   return 'ok';
 }
 
@@ -183,6 +195,7 @@ export function moveItem(state: GameState, from: ItemLoc, to: ItemLoc): InvResul
   if (target === undefined) {
     writeCell(state, to, item);
     writeCell(state, from, null);
+    noteMove(state, item, from.where, to.where);
     return 'ok';
   }
   if (isStack(item) && isStack(target) && sameStack(item, target)) return mergeStacks(state, from, item, target);
@@ -190,6 +203,8 @@ export function moveItem(state: GameState, from: ItemLoc, to: ItemLoc): InvResul
   if (back !== 'ok') return back;
   writeCell(state, to, item);
   writeCell(state, from, target);
+  noteMove(state, item, from.where, to.where);
+  noteMove(state, target, to.where, from.where);
   return 'ok';
 }
 
@@ -202,6 +217,8 @@ export function equip(state: GameState, from: ItemLoc): InvResult {
   const worn = state.equipped[set][item.slot];
   state.equipped[set][item.slot] = item;
   writeCell(state, from, worn ?? null);
+  trail(state, item.id, { event: 'equipped' });
+  if (worn !== undefined) noteMove(state, worn, 'worn', from.where);
   refillAhead(state);
   return 'ok';
 }
@@ -228,8 +245,11 @@ export function unequip(state: GameState, slot: Slot, to?: ItemLoc): InvResult {
   }
   const there = itemAt(state, dest);
   writeCell(state, dest, worn);
-  if (there !== undefined && isGear(there)) state.equipped[set][slot] = there;
-  else delete state.equipped[set][slot];
+  noteMove(state, worn, 'worn', dest.where);
+  if (there !== undefined && isGear(there)) {
+    state.equipped[set][slot] = there;
+    trail(state, there.id, { event: 'equipped' });
+  } else delete state.equipped[set][slot];
   refillAhead(state);
   return 'ok';
 }
@@ -264,14 +284,14 @@ function discard(state: GameState, from: ItemLoc): Loot | undefined {
 export function sell(state: GameState, from: ItemLoc): InvResult {
   const item = discard(state, from);
   if (item === undefined) return 'invalid';
-  state.gold += sellPay(item, deriveStats(state));
+  trail(state, item.id, { event: 'sold', gold: sellFind(state, item).value });
   return 'ok';
 }
 
 export function salvage(state: GameState, from: ItemLoc): InvResult {
   const item = discard(state, from);
   if (item === undefined) return 'invalid';
-  stashMaterials(state, salvagePay(item, deriveStats(state)));
+  trail(state, item.id, { event: 'salvaged', materials: stashMaterials(state, salvagePay(item, deriveStats(state))) });
   return 'ok';
 }
 

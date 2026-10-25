@@ -4,7 +4,7 @@ import type { TabLock } from '../store/tabLock';
 import { startGame, type GameLoop } from './gameLoop';
 import { Header } from './Header';
 import { InventoryView } from './inventory/InventoryView';
-import { LogView } from './log/LogView';
+import { LogView, type LogShow } from './log/LogView';
 import { MerchantView } from './merchant/MerchantView';
 import { MineView } from './mine/MineView';
 import { Nav, type View } from './Nav';
@@ -57,6 +57,12 @@ function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: ()
   const { offlineSummary, state } = useGame(store);
   const running = state.activity.kind === 'map';
   const [view, setView] = useState<View>(running ? 'run' : 'mine');
+  // the death the run result's link opens the Log on; any other change of view forgets it
+  const [logShow, setLogShow] = useState<LogShow | undefined>(undefined);
+  const openView = (next: View): void => {
+    setLogShow(undefined);
+    setView(next);
+  };
   // starting a run, from a map's card, brings the player to the fight; its ending leaves the fight for the Mine. The
   // card's Run button goes with the view it was in, so focus moves to the Run tab rather than drop to the page.
   const wasRunning = useRef(running);
@@ -75,23 +81,31 @@ function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: ()
   return (
     <div className="gm-app">
       <Header store={store} onOpenSettings={() => setSettingsOpen(true)} />
-      <Nav store={store} view={shown} onView={setView} mineRef={mineTab} runRef={runTab} />
+      <Nav store={store} view={shown} onView={openView} mineRef={mineTab} runRef={runTab} />
       <Notices store={store} />
       <main className="gm-app__main">
         {shown === 'mine' ? (
-          <MineView store={store} onBackToMap={() => setView('run')} />
+          <MineView store={store} onBackToMap={() => openView('run')} />
         ) : shown === 'inventory' ? (
           <InventoryView store={store} />
         ) : shown === 'merchant' ? (
           <MerchantView store={store} />
         ) : shown === 'log' ? (
-          <LogView store={store} />
+          <LogView store={store} show={logShow} />
         ) : (
           <RunView store={store} />
         )}
       </main>
       <Toast store={store} />
-      <RunResultDialog store={store} fallbackFocus={mineTab} onDismiss={() => setView('mine')} />
+      <RunResultDialog
+        store={store}
+        fallbackFocus={mineTab}
+        onDismiss={() => openView('mine')}
+        onShowDeath={(id) => {
+          setLogShow({ tab: 'deaths', id });
+          setView('log');
+        }}
+      />
       {settingsOpen && <SettingsDialog store={store} runAsOwner={runAsOwner} onClose={() => setSettingsOpen(false)} />}
       {offlineSummary && <OfflineSummary summary={offlineSummary} onClose={() => store.dismissSummary()} />}
     </div>

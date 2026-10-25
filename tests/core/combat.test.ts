@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import fixture7 from '../fixtures/save-schema-7.txt?raw';
-import { ARMORED_TAKEN, RUN_LOOT_LIMIT, VAMPIRIC_HEAL } from '../../src/core/balance';
+import { ARMORED_TAKEN, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, RUN_LOOT_LIMIT, VAMPIRIC_HEAL } from '../../src/core/balance';
 import { deriveBattleStats } from '../../src/core/battle';
 import { advance } from '../../src/core/clock';
 import { clickHit } from '../../src/core/combat';
@@ -14,8 +14,12 @@ import { newGame } from '../../src/core/newGame';
 import { mulberry32 } from '../../src/core/rng';
 import { decodeSave, validateState } from '../../src/core/save';
 import { deriveStats } from '../../src/core/stats';
-import type { GameState, MapRun, MonsterState, Stats, TickEvent } from '../../src/core/types';
+import type { DropEntry, GameState, MapRun, MonsterState, Stats, TickEvent } from '../../src/core/types';
 import { gear, stashMap } from '../helpers/items';
+
+const DROP: DropEntry = {
+  id: 0, kind: 'gear', name: 'Test ring', rarity: 'magic', base: 'ring', count: 1, origin: { kind: 'metre', metre: 1 }, trail: [{ event: 'bag' }],
+};
 
 function runMap(tier: number, clicksPerTick: number, seed: number): GameState {
   const s = newGame(seed, 0);
@@ -518,6 +522,29 @@ it('a saved run in progress plays out exactly as before modifiers existed', () =
   const played = replay();
   expect(replay((run) => { run.map.mods = []; })).toEqual(played);
   // Pinned before map modifiers touched combat.
+  expect(played).toMatchObject({
+    rng: 1231303081, gained: { xp: 1040, souls: 15, gold: 120, levels: 1 }, outcome: 'cleared',
+  });
+});
+
+it('logging the run\'s drops and its end makes no draws: the saved run plays out as pinned', () => {
+  const replay = (logsFull: boolean) => {
+    const r = decodeSave(fixture7.trim());
+    if (!r.ok) throw new Error(`fixture rejected: ${r.reason}`);
+    const s = r.state;
+    const run = runOf(s);
+    if (logsFull) {
+      // full logs trim on every entry
+      for (let i = 0; i < DROP_LOG_LIMIT; i++) s.drops.push({ ...DROP, id: s.nextId++ });
+      for (let i = 0; i < DEATH_LOG_LIMIT; i++) s.deaths.push({ id: s.nextId++, tick: 0, at: 0, map: structuredClone(run.map), room: 1, bossRoom: run.bossRoom, killer: 'Bog Leech' });
+    }
+    const stats = deriveStats(s);
+    while (s.activity.kind === 'map') applyTicks(s, 1, stats);
+    return { rng: s.rng, log: run.log, gained: s.lastRun?.gained, outcome: s.lastRun?.outcome, logged: s.drops.filter((e) => e.origin.kind === 'map').length };
+  };
+  const played = replay(false);
+  expect(played.logged).toBeGreaterThan(0);
+  expect(replay(true)).toEqual(played);
   expect(played).toMatchObject({
     rng: 1231303081, gained: { xp: 1040, souls: 15, gold: 120, levels: 1 }, outcome: 'cleared',
   });
