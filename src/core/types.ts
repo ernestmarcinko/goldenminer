@@ -73,7 +73,9 @@ export type InvResult =
   | 'wrongSlot' | 'gemsOnly' | 'gearOnly' | 'mapsOnly' | 'materialsOnly' | 'stackFull' | 'craftRefused';
 /** What a craft spends: a material, or Diamonds for the exalt. */
 export type CraftKind = Material | 'diamond';
-export type CraftCheck = 'ok' | 'notGear' | 'legendary' | 'sealed' | 'wrongRarity' | 'noRoom' | 'nothingToChange' | 'short' | 'gemsFull';
+export type CraftCheck =
+  | 'ok' | 'notGear' | 'legendary' | 'sealed' | 'wrongRarity' | 'noRoom' | 'nothingToChange' | 'short' | 'gemsFull'
+  | 'notForMaps' | 'noSouls';
 export type TemperOutcome = 'craftedLine' | 'raiseTiers' | 'nothing' | 'ruin';
 export interface CraftResult { check: CraftCheck; temper?: TemperOutcome }
 export interface GameState {

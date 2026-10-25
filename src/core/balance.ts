@@ -205,7 +205,8 @@ export const SOCKET_WEIGHTS: readonly number[] = [40, 35, 18, 7];
 export const CHEST_SECOND_ITEM_CHANCE = 0.2;
 export const CHEST_BATTLE_CHANCE = 0.2;
 
-// A craft costs base + floor(ilvl / per) of its material, or base alone when per is 0.
+// A craft costs base + floor(level / per) of its material, or base alone when per is 0. Gear's level is its ilvl, a
+// map's its tier.
 export const CRAFT_COST: Readonly<Record<CraftKind, { base: number; per: number }>> = {
   copper: { base: 1, per: 2 }, tin: { base: 1, per: 2 }, iron: { base: 1, per: 2 },
   silver: { base: 1, per: 4 }, mithril: { base: 1, per: 4 }, starsteel: { base: 1, per: 4 },
@@ -213,6 +214,8 @@ export const CRAFT_COST: Readonly<Record<CraftKind, { base: number; per: number 
   obsidian: { base: 1, per: 0 }, voidCrystal: { base: 1, per: 0 },
 };
 export const TEMPER_WEIGHTS: readonly [TemperOutcome, number][] = [['craftedLine', 30], ['raiseTiers', 25], ['nothing', 25], ['ruin', 20]];
+// Enchanting a map also spends Souls, this many for each of its tiers.
+export const MAP_CRAFT_SOULS_PER_TIER = 5;
 
 export const SELL_GOLD: Readonly<Record<Rarity, number>> = { normal: 5, magic: 12, rare: 30, legendary: 80 };
 export const GEM_SELL_GOLD = 20;

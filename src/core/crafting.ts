@@ -1,25 +1,32 @@
 import {
-  CRAFT_COST, DEFAULT_STAT_WEIGHT, GEM_STASH_STACK, MAGIC_LINE_WEIGHTS, MAX_CRAFTED_LINES, MAX_SIDE_LINES, MAX_TIER_OVER_CAP,
-  RARE_LINE_WEIGHTS, STAT_WEIGHTS, TEMPER_WEIGHTS,
+  CRAFT_COST, DEFAULT_STAT_WEIGHT, GEM_STASH_STACK, MAGIC_LINE_WEIGHTS, MAP_CRAFT_SOULS_PER_TIER, MAX_CRAFTED_LINES, MAX_MAP_MODS,
+  MAX_SIDE_LINES, MAX_TIER_OVER_CAP, RARE_LINE_WEIGHTS, STAT_WEIGHTS, TEMPER_WEIGHTS,
 } from './balance';
 import { itemAt, sameLoc } from './cells';
 import { baseName } from './itemData';
 import { magicName, rareName, rollLines, rollSockets, rollValue, sideCount } from './itemGen';
-import { MOD_SIDE, SLOT_IMPLICIT, isGear, setOfSlot, statsOf } from './items';
-import type { GearItem, Gem, Material, ModLine } from './items';
+import { MAP_MOD_KINDS, MOD_SIDE, SLOT_IMPLICIT, isGear, isMap, setOfSlot, statsOf } from './items';
+import type { GearItem, Gem, MapItem, MapMod, MapModKind, Material, ModLine } from './items';
+import { mapModRange } from './mapMods';
 import { fillAhead } from './metres';
 import { nextRandom, pickWeighted } from './rng';
 import { deriveStats } from './stats';
-import { tierCap } from './tiers';
+import { tierCap, tierWeights } from './tiers';
 import type { CraftCheck, CraftKind, CraftResult, GameState, ItemLoc, TemperOutcome } from './types';
 
 export type { CraftCheck, CraftKind, CraftResult, TemperOutcome };
 
 type MaterialLoc = Extract<ItemLoc, { where: 'bag' | 'materials' }>;
 
-export function craftCost(kind: CraftKind, item: GearItem): number {
+/** A craft's material cost at a level: gear's ilvl, or a map's tier. */
+export function craftCost(kind: CraftKind, level: number): number {
   const { base, per } = CRAFT_COST[kind];
-  return per === 0 ? base : base + Math.floor(item.ilvl / per);
+  return per === 0 ? base : base + Math.floor(level / per);
+}
+
+/** The Souls enchanting a map spends, on top of its material. */
+export function mapCraftSouls(map: MapItem): number {
+  return MAP_CRAFT_SOULS_PER_TIER * map.tier;
 }
 
 const rolled = (item: GearItem): ModLine[] => item.affixes.filter((l) => l.crafted !== true);
@@ -100,13 +107,39 @@ function ruleCheck(state: GameState, item: GearItem, kind: CraftKind): CraftChec
   }
 }
 
-/** Whether a craft would go through: the rules first, then whether the player holds enough to pay. */
+/** A map's rules alone, in order: sealed, a material that does nothing to maps, then the material's own. */
+function mapRuleCheck(map: MapItem, kind: CraftKind): CraftCheck {
+  if (map.sealed === true) return 'sealed';
+  switch (kind) {
+    case 'tin':
+    case 'mithril':
+    case 'starsteel':
+    case 'diamond':
+      return 'notForMaps';
+    case 'copper': return map.rarity === 'normal' ? 'ok' : 'wrongRarity';
+    case 'iron':
+      if (map.rarity === 'normal') return 'wrongRarity';
+      // A magic map holds 2 at most and turns rare on the third, so it always has room.
+      return map.rarity === 'magic' || map.mods.length < MAX_MAP_MODS ? 'ok' : 'noRoom';
+    case 'silver': return map.rarity === 'rare' ? 'ok' : 'wrongRarity';
+    case 'obsidian': return map.mods.length > 0 ? 'ok' : 'nothingToChange';
+    case 'voidCrystal': return map.rarity === 'magic' || map.rarity === 'rare' ? 'ok' : 'wrongRarity';
+  }
+}
+
+/** Whether a craft would go through: the rules first, then whether the player holds enough to pay, then the Souls. */
 export function canCraft(state: GameState, target: ItemLoc, kind: CraftKind): CraftCheck {
   const item = itemAt(state, target);
+  if (item !== undefined && isMap(item)) {
+    const rule = mapRuleCheck(item, kind);
+    if (rule !== 'ok') return rule;
+    if (held(state, kind) < craftCost(kind, item.tier)) return 'short';
+    return state.souls >= mapCraftSouls(item) ? 'ok' : 'noSouls';
+  }
   if (item === undefined || !isGear(item)) return 'notGear';
   const rule = ruleCheck(state, item, kind);
   if (rule !== 'ok') return rule;
-  return held(state, kind) >= craftCost(kind, item) ? 'ok' : 'short';
+  return held(state, kind) >= craftCost(kind, item.ilvl) ? 'ok' : 'short';
 }
 
 /** New lines in place of the rolled ones; crafted lines were earned by tempering, so they stay. */
@@ -198,16 +231,110 @@ function apply(state: GameState, item: GearItem, kind: CraftKind): TemperOutcome
   }
 }
 
+const pickIndex = (state: GameState, length: number): number => Math.floor(nextRandom(state) * length);
+const missingKinds = (map: MapItem): MapModKind[] => MAP_MOD_KINDS.filter((k) => !map.mods.some((m) => m.kind === k));
+
+function rollMapValue(state: GameState, kind: MapModKind, tier: number): number {
+  const { lo, hi } = mapModRange(kind, tier);
+  return lo + pickIndex(state, hi - lo + 1);
+}
+
+function rerollMapMod(state: GameState, m: MapMod, tier: number): void {
+  m.tier = tier;
+  m.value = rollMapValue(state, m.kind, tier);
+}
+
+/** Rolls `count` new modifiers of kinds the map lacks, and returns only the new ones; lower tiers are likelier. */
+export function rollMapMods(state: GameState, map: MapItem, count: number): MapMod[] {
+  const pool = missingKinds(map);
+  if (count > pool.length) throw new Error('rollMapMods has no room for another modifier');
+  const added: MapMod[] = [];
+  for (let i = 0; i < count; i++) {
+    const kind = pool.splice(pickIndex(state, pool.length), 1)[0] as MapModKind;
+    const tier = pickWeighted(state, tierWeights(map.tier));
+    added.push({ kind, tier, value: rollMapValue(state, kind, tier) });
+  }
+  return added;
+}
+
+/** Adds one modifier; a magic map's third makes it rare, as Iron does for gear. */
+function addMapMod(map: MapItem, m: MapMod): void {
+  if (map.rarity === 'magic' && map.mods.length >= 2) map.rarity = 'rare';
+  map.mods.push(m);
+}
+
+function temperMap(state: GameState, map: MapItem): TemperOutcome {
+  let outcome = pickWeighted(state, TEMPER_WEIGHTS);
+  const missing = missingKinds(map);
+  if (outcome === 'craftedLine' && missing.length === 0) outcome = 'nothing';
+  switch (outcome) {
+    case 'craftedLine': {
+      const kind = missing[pickIndex(state, missing.length)] as MapModKind;
+      const tier = map.tier + 1;
+      addMapMod(map, { kind, tier, value: rollMapValue(state, kind, tier) });
+      break;
+    }
+    case 'raiseTiers':
+      for (const m of map.mods) rerollMapMod(state, m, Math.min(m.tier + 1, map.tier + MAX_TIER_OVER_CAP));
+      break;
+    case 'ruin':
+      for (const m of map.mods) rerollMapMod(state, m, 1);
+      break;
+    case 'nothing':
+      break;
+  }
+  map.sealed = true;
+  return outcome;
+}
+
+/** The enchant's effect on a map that passed its rules; returns the temper outcome for Void crystal. */
+function applyToMap(state: GameState, map: MapItem, kind: CraftKind): TemperOutcome | undefined {
+  switch (kind) {
+    case 'copper':
+      map.rarity = 'magic';
+      map.mods = rollMapMods(state, map, pickWeighted(state, MAGIC_LINE_WEIGHTS));
+      return undefined;
+    case 'iron':
+      for (const m of rollMapMods(state, map, 1)) addMapMod(map, m);
+      return undefined;
+    case 'silver':
+      map.mods = rollMapMods(state, { ...map, mods: [] }, pickWeighted(state, RARE_LINE_WEIGHTS));
+      return undefined;
+    case 'obsidian':
+      map.mods.splice(pickIndex(state, map.mods.length), 1);
+      // A magic map with no modifiers is a normal one again, so Copper works on it; a rare stays rare, as gear does.
+      if (map.rarity === 'magic' && map.mods.length === 0) map.rarity = 'normal';
+      return undefined;
+    case 'voidCrystal':
+      return temperMap(state, map);
+    case 'tin':
+    case 'mithril':
+    case 'starsteel':
+    case 'diamond':
+      throw new Error(`${kind} does nothing to a map`);
+  }
+}
+
 /**
- * Crafts on the gear at `target`. Only an 'ok' pays: from `from` first (a bag stack or the tab slot of the material),
- * then the other bag stacks, then the Materials tab; Diamonds from `state.diamonds`. A refusal changes nothing.
+ * Crafts on the gear or map at `target`. Only an 'ok' pays: from `from` first (a bag stack or the tab slot of the
+ * material), then the other bag stacks, then the Materials tab; Diamonds from `state.diamonds`. A map also spends Souls,
+ * paid with the material. A refusal changes nothing.
  */
 export function craft(state: GameState, target: ItemLoc, kind: CraftKind, from?: ItemLoc): CraftResult {
   const check = canCraft(state, target, kind);
   if (check !== 'ok') return { check };
-  const item = itemAt(state, target) as GearItem;
+  const found = itemAt(state, target);
+  if (found !== undefined && isMap(found)) {
+    const cost = craftCost(kind, found.tier);
+    const souls = mapCraftSouls(found);
+    const outcome = applyToMap(state, found, kind);
+    pay(state, kind, cost, from);
+    state.souls -= souls;
+    return outcome === undefined ? { check } : { check, temper: outcome };
+  }
+  const item = found as GearItem;
   // The cost is known beforehand, and paying last means a craft that failed part-way could never spend material.
-  const cost = craftCost(kind, item);
+  const cost = craftCost(kind, item.ilvl);
   const outcome = apply(state, item, kind);
   pay(state, kind, cost, from);
   // Worn mining gear may change lamp sight, as equipping does.

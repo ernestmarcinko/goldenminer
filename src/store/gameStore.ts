@@ -258,7 +258,7 @@ export class GameStore {
     return this.act(() => inv.dropItem(this._state, from, to, (target, item, result) => this.noteCraft(target, item.material, result)));
   }
 
-  /** Crafts on gear; only an 'ok' changes anything, but either way it is the last craft. */
+  /** Crafts on gear or a map; only an 'ok' changes anything, but either way it is the last craft. */
   craft(target: ItemLoc, kind: CraftKind, from?: ItemLoc): CraftResult {
     let result: CraftResult = { check: 'notGear' };
     this.act(() => {

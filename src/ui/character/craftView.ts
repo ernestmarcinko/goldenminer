@@ -32,7 +32,7 @@ export function craftOptions(state: GameState, target: ItemLoc): CraftOption[] {
   return CRAFT_KINDS.flatMap((kind) => {
     const check = canCraft(state, target, kind);
     if (RULE_REFUSALS.has(check)) return [];
-    const cost = craftCost(kind, item);
+    const cost = craftCost(kind, item.ilvl);
     return [{ kind, label: craftLabel(kind, cost), cost, have: held(state, kind), enabled: check === 'ok' }];
   });
 }
@@ -56,5 +56,7 @@ export function craftResultText(result: Pick<CraftResult, 'check' | 'temper'>): 
     case 'short': return 'Not enough of that material.';
     case 'gemsFull': return 'Make room in the Gems tab first.';
     case 'notGear': return 'Only gear can be crafted.';
+    case 'notForMaps': return "That doesn't work on maps.";
+    case 'noSouls': return 'Not enough Souls.';
   }
 }

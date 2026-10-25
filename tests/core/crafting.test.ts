@@ -49,7 +49,7 @@ describe('craft costs', () => {
     const s = newGame(1, 0);
     const item = gear(s, 'pickaxe', { ilvl: 9 });
     const costs = Object.fromEntries((['copper', 'tin', 'iron', 'silver', 'mithril', 'starsteel', 'obsidian', 'voidCrystal', 'diamond'] as CraftKind[])
-      .map((k) => [k, craftCost(k, item)]));
+      .map((k) => [k, craftCost(k, item.ilvl)]));
     expect(costs).toEqual({ copper: 5, tin: 5, iron: 5, silver: 3, mithril: 3, starsteel: 3, obsidian: 1, voidCrystal: 1, diamond: 4 });
   });
 });
