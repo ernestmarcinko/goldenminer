@@ -761,6 +761,12 @@ it('a migrated tier past 200 spills into the bag, then the held list, then is so
   expect(s.overflow.slice(4).map((m) => m.id)).toEqual(Array.from({ length: 56 }, (_, i) => first + 200 + i));
   // the four bought pages are refunded, and the last 5 maps are sold at 25 × 3² each
   expect(s.gold).toBe(old.gold + 5000 * (1 + 4 + 9 + 16) + 5 * 225);
+  // each sold map is logged under its own id, as found at its metre, so none goes silently
+  expect(s.drops).toEqual(Array.from({ length: 5 }, (_, i): DropEntry => ({
+    id: first + 256 + i, kind: 'map', name: 'Tier 3 map', rarity: 'normal', base: 'map', count: 1,
+    origin: { kind: 'metre', metre: 214 }, trail: [{ event: 'sold', gold: 225 }],
+  })));
+  expect(validateState(s)).toBe(true);
 });
 
 it('a migrated tier past 200 fills the bag\'s empty cells first', () => {

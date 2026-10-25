@@ -1,4 +1,4 @@
-import { MAP_TIER_CAP, stashPagePrice, STASH_PAGE_SIZE } from '../../core/balance';
+import { BAG_SIZE, MAP_TIER_CAP, stashPagePrice, STASH_PAGE_SIZE } from '../../core/balance';
 import { filledCount, mapStashCount, mapTierCount, mapTiers as stashTiers, pageCount } from '../../core/cells';
 import { GEM_GRADES, GEM_TYPES, MATERIALS } from '../../core/items';
 import type { GemGrade, GemType, MapItem, Material } from '../../core/items';
@@ -18,6 +18,15 @@ export function tabLabel(state: GameState, tab: StashTab): string {
     case 'maps': return `Maps ${formatNumber(mapStashCount(state))}`;
     case 'materials': return 'Materials';
   }
+}
+
+/** The bag's heading: how full it is, then how many finds are held for want of room, when any are. */
+export function bagHeading(state: GameState): { filled: string; held: string | null } {
+  const held = state.overflow.length;
+  return {
+    filled: `${formatNumber(filledCount(state.bag))} / ${formatNumber(BAG_SIZE)}`,
+    held: held > 0 ? `· ${formatNumber(held)} held` : null,
+  };
 }
 
 /** The cells of one page of the General tab, page 0 first. */

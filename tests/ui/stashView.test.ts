@@ -8,7 +8,7 @@ import { putMap } from '../../src/core/maps';
 import { itemAt } from '../../src/core/cells';
 import { newGame } from '../../src/core/newGame';
 import {
-  buyLabel, GRADE_HEADERS, gemTabRows, gridCapacity, mapTierCaption, mapTierCells, mapTiers, materialTabCells, pageCells,
+  bagHeading, buyLabel, GRADE_HEADERS, gemTabRows, gridCapacity, mapTierCaption, mapTierCells, mapTiers, materialTabCells, pageCells,
   pickTier, STASH_TABS, tabLabel,
 } from '../../src/ui/character/stashView';
 
@@ -137,4 +137,13 @@ it('a grid shows its items in whole rows of ten, never under one row', () => {
   expect(gridCapacity(10)).toBe(10);
   expect(gridCapacity(11)).toBe(20);
   expect(gridCapacity(200)).toBe(200);
+});
+
+it('the bag heading names the held finds only when there are any', () => {
+  const s = schema8();
+  expect(s.overflow).toHaveLength(4);
+  expect(bagHeading(s)).toEqual({ filled: '60 / 60', held: '· 4 held' });
+  s.overflow = [];
+  s.bag[3] = null;
+  expect(bagHeading(s)).toEqual({ filled: '59 / 60', held: null });
 });

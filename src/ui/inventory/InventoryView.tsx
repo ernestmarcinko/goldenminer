@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { BAG_SIZE, MAX_STASH_PAGES, STASH_PAGE_SIZE } from '../../core/balance';
-import { filledCount, pageCount } from '../../core/cells';
+import { pageCount } from '../../core/cells';
 import { setOfSlot, type Cell, type GearSet } from '../../core/items';
 import { gearTotals } from '../../core/stats';
 import type { GameState } from '../../core/types';
@@ -15,7 +15,7 @@ import { LootFilterDialog } from '../character/LootFilterDialog';
 import { MaterialTab } from '../character/MaterialTab';
 import { PaperDoll } from '../character/PaperDoll';
 import {
-  buyLabel, gridCapacity, mapTierCaption, mapTierCells, mapTiers, pageCells, pickTier, STASH_TABS, tabLabel,
+  bagHeading, buyLabel, gridCapacity, mapTierCaption, mapTierCells, mapTiers, pageCells, pickTier, STASH_TABS, tabLabel,
 } from '../character/stashView';
 import type { StashTab } from '../character/stashView';
 import { useItemDrag } from '../character/useItemDrag';
@@ -123,7 +123,7 @@ export function InventoryView({ store }: { store: GameStore }) {
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const tabRefs = useRef<Partial<Record<StashTab, HTMLButtonElement | null>>>({});
   const drag = useItemDrag({ store, onResult: (text) => say(text) });
-  const { handlers, message, say, cards, tapCard, reset } = useItemInteractions({
+  const { handlers, message, say, cards, tapCard, tapWhere, reset } = useItemInteractions({
     store, state, fallbackRef: bagHeadingRef, drag,
   });
 
@@ -190,6 +190,9 @@ export function InventoryView({ store }: { store: GameStore }) {
 
   const offset = shownPage * STASH_PAGE_SIZE;
   const bag = state.bag;
+  const heading = bagHeading(state);
+  // a tap card sits under the grid its item is in, so the page never scrolls away from that item
+  const tapSpot = tapWhere === 'worn' ? 'doll' : tapWhere === 'bag' ? 'bag' : tapWhere === null ? null : 'stash';
   return (
     <div className="gm-inv">
       <h2 className="gm-visually-hidden">Inventory</h2>
@@ -208,6 +211,7 @@ export function InventoryView({ store }: { store: GameStore }) {
           ))}
         </div>
         <PaperDoll state={state} set={set} handlers={handlers} flashSlot={flashSlot} />
+        {tapSpot === 'doll' && tapCard}
         <div className="gm-char__stats">
           {set === 'mining' ? miningStatLine(stats, state.deepest) : battleStatLine(gearTotals(state, 'battle'))}
         </div>
@@ -216,7 +220,8 @@ export function InventoryView({ store }: { store: GameStore }) {
       <section aria-label="Bag" className="gm-inv__col">
         <div className="gm-char__baghead">
           <h3 ref={bagHeadingRef} tabIndex={-1} className="gm-char__bag">
-            Bag <span className="gm-muted">{formatNumber(filledCount(bag))} / {formatNumber(BAG_SIZE)}</span>
+            Bag <span className="gm-muted">{heading.filled}</span>
+            {heading.held !== null && <>{' '}<span className="gm-muted">{heading.held}</span></>}
           </h3>
           <button type="button" ref={filterButtonRef} className="gm-btn" onClick={() => setFilterOpen(true)}>
             Loot filter
@@ -228,7 +233,7 @@ export function InventoryView({ store }: { store: GameStore }) {
           targetOf={(index) => ({ where: 'bag', index })}
           handlers={handlers}
         />
-        {tapCard}
+        {tapSpot === 'bag' && tapCard}
         <div className="gm-char__status gm-small" role="status">{message}</div>
         <p className="gm-char__hint gm-muted gm-small">
           Hover an item to inspect it, click for its card, right-click for actions. Ctrl+click sells, Alt+click salvages,
@@ -273,6 +278,7 @@ export function InventoryView({ store }: { store: GameStore }) {
           {tab === 'gems' && <GemTab state={state} handlers={handlers} />}
           {tab === 'maps' && <MapsTab state={state} handlers={handlers} tier={shownTier} onTier={showTier} />}
           {tab === 'materials' && <MaterialTab state={state} handlers={handlers} />}
+          {tapSpot === 'stash' && tapCard}
         </div>
       </section>
 

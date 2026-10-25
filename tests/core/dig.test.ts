@@ -333,9 +333,28 @@ it('a paused dig tick digs nothing and still counts, and held loot does the same
   applyTicks(paused, 10, stats, [], true);
   expect([paused.deepest, paused.progress, paused.tickCount]).toEqual([0, 0, 10]);
   const held = fresh();
+  held.bag = held.bag.map(() => gear(held, 'boots'));
   held.overflow.push(gear(held, 'boots'));
   applyTicks(held, 10, stats, [], false);
   expect([held.deepest, held.progress, held.tickCount]).toEqual([0, 0, 10]);
+});
+
+it('a dig tick first lets held loot into a freed cell, whatever freed it, and digs once none is held', () => {
+  const s = fresh();
+  s.bag = s.bag.map(() => gear(s, 'boots'));
+  const first = gear(s, 'gloves');
+  const second = gear(s, 'helm');
+  s.overflow.push(first, second);
+  const idAt = (i: number) => s.bag[i]?.id;
+  // freed behind the store's back, with no drain: the tick itself drains, oldest first, and draws nothing
+  s.bag[5] = null;
+  const rng = s.rng;
+  applyTicks(s, 1, stats, [], false);
+  expect([idAt(5), s.overflow.map((i) => i.id), s.progress, s.rng]).toEqual([first.id, [second.id], 0, rng]);
+  s.bag[9] = null;
+  applyTicks(s, 1, stats, [], false);
+  expect([idAt(9), s.overflow]).toEqual([second.id, []]);
+  expect(s.progress).toBeGreaterThan(0);
 });
 
 it('digging stops while finds are held and resumes when the bag has room', () => {

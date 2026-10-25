@@ -13,6 +13,7 @@ import { deriveStats } from '../../src/core/stats';
 import { xpToNext } from '../../src/core/levels';
 import { seedFromText } from '../../src/core/seed';
 import { MAX_LOOT_RULES } from '../../src/core/balance';
+import type { MapItem } from '../../src/core/items';
 import type { LootRule, TickEvent } from '../../src/core/types';
 import { gear, gem, stashMap } from '../helpers/items';
 
@@ -347,6 +348,42 @@ describe('stash pages', () => {
   });
 });
 
+describe('held loot and maps', () => {
+  /** A full bag with a map in cell 17, and `n` held finds. */
+  const fullWithMap = (n: number) => {
+    const { store, now } = make();
+    store.load();
+    const s = store.state;
+    s.bag = s.bag.map(() => gear(s, 'ring'));
+    const map: MapItem = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] };
+    s.bag[17] = map;
+    const held = Array.from({ length: n }, () => gear(s, 'boots'));
+    s.overflow.push(...held);
+    return { store, now, s, map, held };
+  };
+
+  it('starting a map from the bag lets the oldest held find into its cell at once', () => {
+    const { store, s, map, held } = fullWithMap(2);
+    expect(store.startMap(map.id)).toBe('ok');
+    expect([s.bag[17]?.id, s.overflow.map((i) => i.id)]).toEqual([held[0]?.id, [held[1]?.id]]);
+  });
+
+  it('a cell freed with no drain still lets held loot in, and digging resumes after the run', () => {
+    const { store, now, s, map, held } = fullWithMap(1);
+    // started past the store, so nothing drained: the dig gate heals itself
+    expect(startMap(s, map.id)).toBe('ok');
+    expect([s.bag[17], s.overflow]).toEqual([null, held]);
+    expect(store.leaveMap()).toBe(true);
+    const deepest = s.deepest;
+    now.t += 600_000;
+    store.pump();
+    // it digs until the next find is held, as the bag is full again
+    expect(s.bag[17]?.id).toBe(held[0]?.id);
+    expect(s.deepest).toBeGreaterThan(deepest);
+    expect(s.overflow.map((i) => i.id)).not.toContain(held[0]?.id);
+  });
+});
+
 describe('a migrated save with held loot', () => {
   // Schema 6 frees room (one bag of 60, two General pages), so the loot the old bags held can go in at once.
   const decoded = () => { const r = decodeSave(fixture5.trim()); if (!r.ok) throw new Error(r.reason); return r.state; };
@@ -579,6 +616,27 @@ describe('pausing', () => {
     expect(store.state.paused).toBe(true);
     store.setPaused(false);
     expect(store.state.paused).toBe(false);
+  });
+
+  it('an imported save digs its time away even from a paused view, unless the save itself is paused', () => {
+    const hour = 3_600_000;
+    const { store, now } = make({ t: hour });
+    store.load();
+    store.setViewPaused(true);
+    expect(store.importSave(encodeSave(newGame(1, 0), 0)).ok).toBe(true);
+    expect(store.state.lastTickAt).toBe(hour);
+    expect(store.state.deepest).toBeGreaterThan(0);
+    expect(store.offlineSummary?.paused).toBe(false);
+    // the next live tick is the view's to pause
+    const dugThen = dug(store.state);
+    now.t += 10_000; store.pump();
+    expect(dug(store.state)).toEqual(dugThen);
+
+    const paused = newGame(1, 0);
+    paused.paused = true;
+    expect(store.importSave(encodeSave(paused, now.t - hour)).ok).toBe(true);
+    expect(dug(store.state)).toEqual([0, 0]);
+    expect(store.state.lastTickAt).toBe(now.t);
   });
 
   it('the player\'s Pause survives a save and a load', () => {

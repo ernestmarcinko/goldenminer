@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { sameLoc } from '../../core/cells';
 import { isGear, isStack } from '../../core/items';
 import type { Cell, Item } from '../../core/items';
@@ -50,9 +50,21 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
   item: Item; target: ItemTarget; handlers: ItemHandlers; scale: number; className: string; label: string;
 }) {
   const pointerType = useRef('mouse');
+  const ref = useRef<HTMLButtonElement>(null);
+  const shown = useRef(item.id);
   const { drag } = handlers;
+  // Another item came into this cell under a still pointer: a shortcut's sale let a held find in, or a map tier moved
+  // up. No mouseenter fires for it, so its card is shown here, or the next shortcut would act on an item unseen.
+  // By id, since a stash tab's stack is a new object each render (id 0, as its cell never changes item).
+  useEffect(() => {
+    if (shown.current === item.id) return;
+    shown.current = item.id;
+    const el = ref.current;
+    if (el !== null && pointerType.current !== 'touch' && el.matches(':hover')) handlers.onInspect(target, el);
+  });
   return (
     <button
+      ref={ref}
       type="button"
       className={className}
       data-rarity={rarityOf(item)}

@@ -4,7 +4,7 @@ import { mapTick } from './combat';
 import { rollChest, rollGem } from './itemGen';
 import type { Material } from './items';
 import { hazardFactor, materialAmount, metreLayer, pickMaterial } from './layer';
-import { receiveItem, receiveMaterial } from './loot';
+import { drainOverflow, receiveItem, receiveMaterial } from './loot';
 import { addMap } from './maps';
 import { fillAhead, metreChances, rollMetre } from './metres';
 import { nextRandom } from './rng';
@@ -160,6 +160,8 @@ export function applyTicks(state: GameState, count: number, stats: Stats, events
       state.tickCount += 1;
       continue;
     }
+    // Held loot stops digging only while it has no room, whatever freed a cell: the gate heals itself. A drain draws nothing.
+    if (state.overflow.length > 0) drainOverflow(state);
     if (digPaused || state.overflow.length > 0) {
       state.tickCount += 1;
       continue;

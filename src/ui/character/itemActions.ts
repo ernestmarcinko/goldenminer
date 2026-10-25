@@ -173,6 +173,13 @@ export function actionForIntent(
   }
 }
 
+/** Why a sell or salvage shortcut did nothing, or null when it has nothing to say (a move with no action stays quiet). */
+export function noShortcutText(state: GameState, target: ItemTarget, intent: ClickIntent): string | null {
+  if (intent !== 'sell' && intent !== 'salvage') return null;
+  if (target.where === 'worn') return 'Unequip it first to sell or salvage it.';
+  return itemAt(state, target)?.type === 'material' ? 'Materials can\'t be sold or salvaged.' : null;
+}
+
 /** The shortcuts a hover card names; stacks in the stash's Gems and Materials tabs only come back to the bag. */
 function shortcutLine(target: ItemTarget, item: Item, mac: boolean): string {
   switch (target.where) {

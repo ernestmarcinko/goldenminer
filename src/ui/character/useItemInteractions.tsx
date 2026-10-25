@@ -8,7 +8,9 @@ import { effectiveMotion, usePrefersReducedMotion } from '../settings/motion';
 import { craftResultText, craftTargetAt } from './craftView';
 import { ItemCard } from './ItemCard';
 import type { ItemHandlers } from './ItemGrid';
-import { actionForIntent, itemActions, refusedMap, resultText, runAction, soulUpgradeResultText } from './itemActions';
+import {
+  actionForIntent, itemActions, noShortcutText, refusedMap, resultText, runAction, soulUpgradeResultText,
+} from './itemActions';
 import type { ActionSpec, ItemTarget } from './itemActions';
 import { wornToCompare } from './itemView';
 import type { ItemDrag } from './useItemDrag';
@@ -28,8 +30,8 @@ const targetKey = (t: ItemTarget): string => {
 /**
  * Everything a container of items needs besides its grid: click and menu handlers, the refusal message, and the
  * hover, pinned and action cards (`cards`, rendered into the page's body, so no scrolling container clips them).
- * A card opened by a touch tap comes back as `tapCard` instead, to render in the flow below the grid, so it never
- * covers the cells, slots and tabs the lifted item can be placed on.
+ * A card opened by a touch tap comes back as `tapCard` instead, to render in the flow below the grid its item is in
+ * (`tapWhere`), so it never covers the cells, slots and tabs the lifted item can be placed on.
  * `fallbackRef` takes focus when the item that opened a card has left the container. `drag` is shared by every
  * container; `say` shows a message on this container's status line. `reset` is for a change of view: it clears the
  * message and the popovers, and puts back a held item.
@@ -41,7 +43,7 @@ export function useItemInteractions({ store, state, fallbackRef, drag }: {
   drag: ItemDrag;
 }): {
   handlers: ItemHandlers; message: string | null; say: (text: string | null) => void; cards: ReactNode;
-  tapCard: ReactNode; reset: () => void;
+  tapCard: ReactNode; tapWhere: ItemTarget['where'] | null; reset: () => void;
 } {
   const [message, setMessage] = useState<string | null>(null);
   const popover = useItemPopover((target) => {
@@ -90,6 +92,10 @@ export function useItemInteractions({ store, state, fallbackRef, drag }: {
       if (chosen === 'card') pin(target, el);
       else if (chosen === 'menu') openMenu(target, el);
       else if (chosen !== undefined) perform(target, chosen);
+      else {
+        const why = noShortcutText(state, target, intent);
+        if (why !== null) setMessage(why);
+      }
     },
   };
 
@@ -132,7 +138,7 @@ export function useItemInteractions({ store, state, fallbackRef, drag }: {
   const tapCard = menu?.inline === true ? menuCard : null;
 
   return {
-    handlers, message, say: setMessage, cards, tapCard,
+    handlers, message, say: setMessage, cards, tapCard, tapWhere: menu?.inline === true ? menu.target.where : null,
     reset: () => { setMessage(null); clear(); unpin(); closeMenu(); release(); },
   };
 }

@@ -227,7 +227,11 @@ export class GameStore {
 
   startMap(mapId: number): 'ok' | 'busy' | 'invalid' {
     const result = coreStartMap(this._state, mapId);
-    if (result === 'ok') this.changed();
+    if (result === 'ok') {
+      // a map from the bag frees its cell: the oldest held find takes it, before any of the run's drops
+      drainOverflow(this._state);
+      this.changed();
+    }
     return result;
   }
 
@@ -355,6 +359,8 @@ export class GameStore {
       this.clearLoadFailed();
       this._summary = null;
       this.feedback = emptyFeedback();
+      // the save's time away is dug now, as on load: the next live tick may be paused by the view it was imported from
+      this.catchUp();
       this.changed();
     }
     return result;

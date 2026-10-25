@@ -6,8 +6,8 @@ import { startMap } from '../../src/core/maps';
 import { GameStore } from '../../src/store/gameStore';
 import { MemoryStorage } from '../../src/store/storage';
 import {
-  actionForIntent, hoverLines, hoverNotes, itemActions, materialsText, menuNote, refusedMap, resultText, runAction,
-  soulUpgradeResultText,
+  actionForIntent, hoverLines, hoverNotes, itemActions, materialsText, menuNote, noShortcutText, refusedMap, resultText,
+  runAction, soulUpgradeResultText,
 } from '../../src/ui/character/itemActions';
 import { gear, gem, stashMap } from '../helpers/items';
 import { lootNoteText } from '../../src/ui/character/itemView';
@@ -140,6 +140,27 @@ it('a worn item offers unequip and to stash', () => {
   ]);
   s.stash.general = s.stash.general.map((c) => c ?? gear(s, 'ring'));
   expect(itemActions(s, t)[1]).toMatchObject({ id: 'toStash', disabled: true });
+});
+
+it('a sell or salvage shortcut with no action says why; a move with none, or an item that has one, says nothing', () => {
+  const s = newGame(1, 0);
+  s.equipped.mining.pickaxe = gear(s, 'pickaxe');
+  s.bag[0] = { id: s.nextId++, type: 'material', material: 'copper', count: 3 };
+  s.bag[1] = gear(s, 'gloves');
+  s.stash.materials.tin = 4;
+  const worn: ItemLoc = { where: 'worn', slot: 'pickaxe' };
+  const mats: ItemLoc = { where: 'materials', material: 'tin' };
+  for (const intent of ['sell', 'salvage'] as const) {
+    expect(actionForIntent(itemActions(s, worn), worn, intent)).toBeUndefined();
+    expect(noShortcutText(s, worn, intent)).toBe('Unequip it first to sell or salvage it.');
+    for (const t of [bag(0), mats]) {
+      expect(actionForIntent(itemActions(s, t), t, intent)).toBeUndefined();
+      expect(noShortcutText(s, t, intent)).toBe('Materials can\'t be sold or salvaged.');
+    }
+    expect(noShortcutText(s, bag(1), intent)).toBeNull();
+  }
+  expect(noShortcutText(s, worn, 'move')).toBeNull();
+  expect(noShortcutText(s, bag(0), 'card')).toBeNull();
 });
 
 it('actionForIntent routes the shortcuts', () => {

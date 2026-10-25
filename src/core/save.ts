@@ -8,7 +8,7 @@ import {
 import { metreTier } from './bands';
 import { emptyGemCounts, emptyMaterialCounts, pageCount } from './cells';
 import { dungeonIndexAt, dungeonType } from './dungeons';
-import { gemGradeFor } from './itemData';
+import { gemGradeFor, itemName } from './itemData';
 import { sideCount } from './itemGen';
 import { sellValue } from './loot';
 import {
@@ -222,11 +222,20 @@ export const MIGRATIONS: Record<number, Migration> = {
     const overflow = [...state.overflow];
     let gold = state.gold;
     for (let n = 1; n <= bought.maps; n++) gold += stashPagePrice(n);   // the Gold spent on Maps pages comes back
+    // a sold map is logged under its own id, as found where it was dug, so the drop log says where it went
+    const drops: DropEntry[] = [];
     for (const map of spill) {
       const empty = bag.indexOf(null);
       if (empty >= 0) bag[empty] = map;
       else if (overflow.length < MAX_HELD) overflow.push(map);
-      else gold += sellValue(map);
+      else {
+        const value = sellValue(map);
+        gold += value;
+        drops.push({
+          id: map.id, kind: 'map', name: itemName(map), rarity: map.rarity, base: 'map', count: 1,
+          origin: { kind: 'metre', metre: map.metre }, trail: [{ event: 'sold', gold: value }],
+        });
+      }
     }
     // 'sellWorst' is gone: a full bag always holds
     const { bagFull: _bagFull, ...settings } = state.settings;
@@ -234,7 +243,7 @@ export const MIGRATIONS: Record<number, Migration> = {
       ...state,
       gold, bag, overflow, settings,
       stash: { ...state.stash, maps, bought: { general: bought.general } },
-      paused: false, drops: [], deaths: [],
+      paused: false, drops: drops.slice(-DROP_LOG_LIMIT), deaths: [],
     };
   },
 };
