@@ -120,7 +120,8 @@ function mergeStacks(state: GameState, from: ItemLoc, item: Stack, target: Stack
 
 /**
  * Into or out of the Map stash. A map dropped anywhere on it joins its own tier (the cell is ignored); one taken out
- * goes to an empty bag cell, or swaps with a bag map, which must have room in its own tier first.
+ * goes to an empty bag cell, or swaps with a bag map, which must have room in its own tier (a map of the same tier
+ * takes the place this one leaves).
  */
 function moveMap(state: GameState, from: ItemLoc, item: Item, to: CellLoc | Extract<ItemLoc, { where: 'maps' }>): InvResult {
   if (to.where === 'maps') {
@@ -137,12 +138,17 @@ function moveMap(state: GameState, from: ItemLoc, item: Item, to: CellLoc | Extr
   if (!inGrid(state, to)) return 'invalid';
   const target = itemAt(state, to);
   if (target !== undefined && !isMap(target)) return 'invalid';
-  if (target !== undefined) {
-    const put = putMap(state, target);
-    if (put !== 'ok') return put;
+  if (target !== undefined && target.tier === item.tier) {
+    // within one tier this map leaves first, so even a full tier swaps
+    takeMapAt(state, from);
+    putMap(state, target);
+  } else {
+    if (target !== undefined) {
+      const put = putMap(state, target);
+      if (put !== 'ok') return put;
+    }
+    takeMapAt(state, from);
   }
-  // a swap within one tier appended the bag map after this one, so `from` still points at it
-  takeMapAt(state, from);
   writeCell(state, to, item);
   return 'ok';
 }

@@ -468,6 +468,18 @@ it('a Maps-tab map dropped on a bag map swaps with it, and a full tier refuses',
   expect(dropItem(full, bag(4), { where: 'stashTab', tab: 'maps' })).toBe('mapTierFull');
   expect(sendItem(full, bag(4), 'stash')).toBe('mapTierFull');
   expect([full.bag, full.stash.maps]).toEqual(before);
+  // the same tier: the Maps-tab map leaves its place for the bag map, so a full tier still swaps
+  const same = newGame(1, 0);
+  same.stash.maps[3] = Array.from({ length: MAP_TIER_CAP }, () => mapAt(same, 3));
+  const out = same.stash.maps[3][7] as MapItem;
+  const back = mapAt(same, 3);
+  same.bag[4] = back;
+  expect(moveItem(same, mapsLoc(3, 7), bag(4))).toBe('ok');
+  expect(same.bag[4]).toBe(out);
+  expect(same.stash.maps[3]).toHaveLength(MAP_TIER_CAP);
+  expect(same.stash.maps[3]?.includes(back)).toBe(true);
+  expect(same.stash.maps[3]?.includes(out)).toBe(false);
+  expect(validateState(same)).toBe(true);
 });
 
 it('the stash shortcut sends a map to its tier, and back to the bag\'s first empty cell', () => {

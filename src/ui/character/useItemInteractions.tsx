@@ -7,7 +7,7 @@ import { effectiveMotion, usePrefersReducedMotion } from '../settings/motion';
 import { craftResultText, craftTargetAt } from './craftView';
 import { ItemCard } from './ItemCard';
 import type { ItemHandlers } from './ItemGrid';
-import { actionForIntent, itemActions, resultText, runAction, soulUpgradeResultText } from './itemActions';
+import { actionForIntent, itemActions, refusedMap, resultText, runAction, soulUpgradeResultText } from './itemActions';
 import type { ActionSpec, ItemTarget } from './itemActions';
 import { wornToCompare } from './itemView';
 import type { ItemDrag } from './useItemDrag';
@@ -70,8 +70,8 @@ export function useItemInteractions({ store, state, containerRef, fallbackRef, d
       setMessage(soulUpgradeResultText(store.soulUpgrade(target)));
       return;
     }
-    const item = itemAt(store.state, target);
-    setMessage(resultText(runAction(store, target, action), item));
+    const refused = refusedMap(store.state, target);
+    setMessage(resultText(runAction(store, target, action), refused));
     release();
     clear();
     closeMenu(fromCard, fallbackRef.current);

@@ -6,7 +6,7 @@ import { addMap, startMap } from '../../src/core/maps';
 import { GameStore } from '../../src/store/gameStore';
 import { MemoryStorage } from '../../src/store/storage';
 import {
-  actionForIntent, hoverLines, hoverNote, itemActions, resultText, runAction, soulUpgradeResultText,
+  actionForIntent, hoverLines, hoverNote, itemActions, refusedMap, resultText, runAction, soulUpgradeResultText,
 } from '../../src/ui/character/itemActions';
 import { gear, gem } from '../helpers/items';
 import { lootNoteText } from '../../src/ui/character/itemView';
@@ -141,6 +141,24 @@ it('every refusal has a message, and success has none', () => {
   expect(resultText('ok')).toBeNull();
   const map: MapItem = { id: 1, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
   expect(resultText('mapTierFull', map)).toBe('The tier 4 maps are full.');
+  expect(() => resultText('mapTierFull')).toThrow();   // never a guess at which tier
+});
+
+it('a full tier is named by the map it refused: the moved map, or the bag map a Maps-tab map swaps with', () => {
+  const s = newGame(1, 0);
+  const carried: MapItem = { id: s.nextId++, type: 'map', tier: 5, metre: 327, rarity: 'normal', mods: [] };
+  const stashed: MapItem = { id: s.nextId++, type: 'map', tier: 3, metre: 214, rarity: 'normal', mods: [] };
+  s.bag[0] = carried;
+  s.bag[1] = gear(s, 'ring');
+  s.stash.maps[3] = [stashed];
+  const tab: ItemLoc = { where: 'maps', tier: 3, index: 0 };
+  expect(refusedMap(s, bag(0))).toBe(carried);                                          // the card's To Maps tab
+  expect(refusedMap(s, bag(0), { where: 'stashTab', tab: 'maps' })).toBe(carried);
+  expect(refusedMap(s, bag(0), tab)).toBe(carried);                                     // a bag map onto the Maps tab
+  expect(refusedMap(s, tab, bag(0))).toBe(carried);                                     // a swap: the bag map's tier
+  expect(refusedMap(s, tab, bag(5))).toBe(stashed);                                     // out to an empty cell
+  expect(refusedMap(s, bag(1), tab)).toBeUndefined();                                   // not a map
+  expect(refusedMap(s, bag(9))).toBeUndefined();
 });
 
 it('a bag map runs or goes to the Maps tab; a Maps-tab map runs or comes back to the bag', () => {

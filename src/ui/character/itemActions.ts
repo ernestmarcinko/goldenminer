@@ -7,7 +7,7 @@ import { salvagePay, sellPay } from '../../core/loot';
 import { canUpgrade, soulUpgradeCost } from '../../core/soulUpgrade';
 import type { SoulUpgradeCheck } from '../../core/soulUpgrade';
 import { deriveStats, gemEffect } from '../../core/stats';
-import type { CraftKind, GameState, InvResult, ItemLoc, Stats } from '../../core/types';
+import type { CraftKind, DropTarget, GameState, InvResult, ItemLoc, Stats } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
 import { formatNumber } from '../format';
 import { craftOptions } from './craftView';
@@ -228,12 +228,26 @@ export function soulUpgradeResultText(r: SoulUpgradeCheck): string | null {
   }
 }
 
-/** The status line after a move; `item` is the map whose tier refused it, for 'mapTierFull'. */
-export function resultText(r: InvResult, item?: Item): string | null {
+/**
+ * The map whose tier a move from `from` (to `to`, for a drop) puts a map in: the bag map a Maps-tab map swaps with,
+ * else the moved map. Read it before the move, for the status line if the tier refuses.
+ */
+export function refusedMap(state: GameState, from: ItemLoc, to?: DropTarget): MapItem | undefined {
+  const there = to === undefined || to.where === 'stashTab' ? undefined : itemAt(state, to);
+  if (from.where === 'maps' && there?.type === 'map') return there;
+  const moved = itemAt(state, from);
+  return moved?.type === 'map' ? moved : undefined;
+}
+
+/** The status line after a move; a full map tier is named by `map`, the map it refused (see `refusedMap`). */
+export function resultText(r: InvResult, map?: MapItem): string | null {
   switch (r) {
     case 'bagFull': return 'The bag is full.';
     case 'stashFull': return 'The stash is full.';
-    case 'mapTierFull': return item?.type === 'map' ? `The tier ${formatNumber(item.tier)} maps are full.` : 'The stash is full.';
+    case 'mapTierFull':
+      // only a map is ever refused for a full tier, so a caller always has one to name
+      if (map === undefined) throw new Error('a full map tier needs the refused map to name it');
+      return `The tier ${formatNumber(map.tier)} maps are full.`;
     case 'noSocket': return 'That item has no open socket.';
     case 'wrongSlot': return "That doesn't fit that slot.";
     case 'gemsOnly': return 'Only gems go in the Gems tab.';
