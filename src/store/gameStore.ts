@@ -18,7 +18,7 @@ import { freshWorld, isValidSeedText, seedFromText } from '../core/seed';
 import { deriveStats } from '../core/stats';
 import { summarize } from '../core/summary';
 import type {
-  BagFullMode, CraftCheck, CraftKind, CraftResult, DropTarget, FindRecord, GameState, InvResult, ItemLoc, LootRule, MotionSettings,
+  CraftCheck, CraftKind, CraftResult, DropTarget, FindRecord, GameState, InvResult, ItemLoc, LootRule, MotionSettings,
   OfflineSummary, Stats, TemperOutcome, TickEvent,
 } from '../core/types';
 import { BACKUP_PREFIX, SAVE_KEY, type StorageLike } from './storage';
@@ -73,6 +73,9 @@ export class GameStore {
   private feedback: Feedback = emptyFeedback();
   private readonly listeners = new Set<() => void>();
   private limiter = new ClickLimiter();
+  // UI state, never saved: another view pauses live digging, and a hidden tab lifts that, since away counts as idle.
+  private viewPaused = false;
+  private hidden = false;
 
   constructor(private readonly deps: Deps) {
     this._state = freshWorld(deps.newSeed, deps.now());
@@ -91,6 +94,8 @@ export class GameStore {
   get lastCraft(): CraftNotice | null { return this._lastCraft; }
   /** The newest item bought from the merchant, for its "You got" panel. */
   get lastGamble(): GearItem | null { return this._lastGamble; }
+  /** Whether live ticks dig: the player's Pause always holds, the view pause only while the tab is on screen. */
+  get digPaused(): boolean { return this._state.paused || (this.viewPaused && !this.hidden); }
 
   subscribe(fn: () => void): () => void {
     this.listeners.add(fn);
@@ -114,8 +119,11 @@ export class GameStore {
     this._battle = deriveBattleStats(state);
   }
 
-  /** Advances to now; returns the ticks applied. Clones a "before" snapshot only when a summary is possible. */
-  private catchUp(events?: TickEvent[]): number {
+  /**
+   * Advances to now; returns the ticks applied. Clones a "before" snapshot only when a summary is possible.
+   * Offline catch-up gates digging on the player's Pause alone: the view the game was left on doesn't matter.
+   */
+  private catchUp(events?: TickEvent[], live = false): number {
     const now = this.deps.now();
     const state = this._state;
     const stats = this._stats;
@@ -123,7 +131,7 @@ export class GameStore {
       now - state.lastTickAt >= (OFFLINE_SUMMARY_MIN_TICKS * 1000) / stats.autoTicksPerSecond;
     const before = summaryPossible ? structuredClone(state) : null;
     const elapsed = now - state.lastTickAt;
-    const ticks = advance(state, now, stats, events);
+    const ticks = advance(state, now, stats, events, live ? this.digPaused : state.paused);
     if (before && ticks >= OFFLINE_SUMMARY_MIN_TICKS) {
       this._summary = summarize(before, state, elapsed, ticks, stats.offlineCapMs);
     }
@@ -188,7 +196,7 @@ export class GameStore {
 
   pump(): void {
     const events: TickEvent[] = [];
-    const ticks = this.catchUp(events);
+    const ticks = this.catchUp(events, true);
     if (ticks === 0) return;
     this.fold(events);
     this.changed();
@@ -219,7 +227,11 @@ export class GameStore {
 
   startMap(mapId: number): 'ok' | 'busy' | 'invalid' {
     const result = coreStartMap(this._state, mapId);
-    if (result === 'ok') this.changed();
+    if (result === 'ok') {
+      // a map from the bag frees its cell: the oldest held find takes it, before any of the run's drops
+      drainOverflow(this._state);
+      this.changed();
+    }
     return result;
   }
 
@@ -297,9 +309,9 @@ export class GameStore {
     this._lastCraft = { id: ++this.craftCount, target: { ...target }, kind, ...result };
   }
 
-  /** A bought page is new room, so held loot may come in. */
-  buyStashPage(tab: 'general' | 'maps'): 'ok' | 'noGold' | 'full' {
-    const result = coreBuyStashPage(this._state, tab);
+  /** A bought General page is new room, so held loot may come in. */
+  buyStashPage(): 'ok' | 'noGold' | 'full' {
+    const result = coreBuyStashPage(this._state);
     if (result === 'ok') {
       drainOverflow(this._state);
       this.changed();
@@ -309,12 +321,6 @@ export class GameStore {
 
   setLootFilter(rules: LootRule[]): void {
     this._state.settings.lootFilter = rules.slice(0, MAX_LOOT_RULES).map((r) => ({ ...r }));
-    drainOverflow(this._state);
-    this.changed();
-  }
-
-  setBagFull(mode: BagFullMode): void {
-    this._state.settings.bagFull = mode;
     drainOverflow(this._state);
     this.changed();
   }
@@ -353,6 +359,8 @@ export class GameStore {
       this.clearLoadFailed();
       this._summary = null;
       this.feedback = emptyFeedback();
+      // the save's time away is dug now, as on load: the next live tick may be paused by the view it was imported from
+      this.catchUp();
       this.changed();
     }
     return result;
@@ -379,6 +387,15 @@ export class GameStore {
     this.save();
     return true;
   }
+
+  /** The player's Pause; it is saved, so a paused game stays paused after a reload. */
+  setPaused(paused: boolean): void {
+    this._state.paused = paused;
+    this.changed();
+  }
+
+  setViewPaused(paused: boolean): void { this.viewPaused = paused; }
+  setHidden(hidden: boolean): void { this.hidden = hidden; }
 
   setMotion(patch: Partial<MotionSettings>): void {
     // An explicit undefined must not overwrite a setting: it would make the next save invalid.

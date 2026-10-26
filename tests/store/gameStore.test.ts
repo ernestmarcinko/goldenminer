@@ -5,7 +5,7 @@ import { decodeSave, encodeSave } from '../../src/core/save';
 import { compressToBase64 } from 'lz-string';
 import fixture5 from '../fixtures/save-schema-5.txt?raw';
 import { newGame } from '../../src/core/newGame';
-import { addMap, startMap } from '../../src/core/maps';
+import { startMap } from '../../src/core/maps';
 import { advance } from '../../src/core/clock';
 import { freshWorld } from '../../src/core/seed';
 import { deriveBattleStats } from '../../src/core/battle';
@@ -13,8 +13,9 @@ import { deriveStats } from '../../src/core/stats';
 import { xpToNext } from '../../src/core/levels';
 import { seedFromText } from '../../src/core/seed';
 import { MAX_LOOT_RULES } from '../../src/core/balance';
+import type { MapItem } from '../../src/core/items';
 import type { LootRule, TickEvent } from '../../src/core/types';
-import { gear, gem } from '../helpers/items';
+import { gear, gem, stashMap } from '../helpers/items';
 
 function make(now = { t: 0 }, storage = new MemoryStorage(), available = true) {
   const store = new GameStore({ storage, storageAvailable: available, now: () => now.t, newSeed: () => 7 });
@@ -157,7 +158,6 @@ describe('inventory intents', () => {
     const { store } = make();
     store.load();
     const s = store.state;
-    s.settings.bagFull = 'stop';
     s.bag = s.bag.map(() => gem(s));
     s.stash.general = s.stash.general.map(() => gear(s, 'ring'));
     const held = gear(s, 'pickaxe');
@@ -239,19 +239,18 @@ describe('inventory intents', () => {
     expect(store.version).toBe(v + 4);
   });
 
-  it('settings keep at most 20 rules, and switching to sellWorst drains held loot', () => {
+  it('settings keep at most 20 rules, and a new filter drains the held loot it sells', () => {
     const { store } = make();
     store.load();
     const rule: LootRule = { rarity: 'normal', target: 'any', action: 'sell' };
-    store.setLootFilter(Array.from({ length: 25 }, () => rule));
-    expect(store.state.settings.lootFilter).toHaveLength(MAX_LOOT_RULES);
     const s = store.state;
-    s.settings.bagFull = 'stop';
     s.bag = s.bag.map(() => gem(s));
     s.stash.general = s.stash.general.map(() => gear(s, 'ring'));
-    s.overflow.push(gear(s, 'pickaxe'));
-    store.setBagFull('sellWorst');
+    s.overflow.push(gear(s, 'pickaxe', { rarity: 'normal' }));
+    store.setLootFilter(Array.from({ length: 25 }, () => rule));
+    expect(store.state.settings.lootFilter).toHaveLength(MAX_LOOT_RULES);
     expect(s.overflow).toEqual([]);
+    expect('setBagFull' in store).toBe(false);
   });
 
   it('a new world from typed text, or refused when empty', () => {
@@ -313,14 +312,15 @@ describe('crafting', () => {
 });
 
 describe('stash pages', () => {
-  it('buying a Maps page with enough Gold bumps the version and adds the cells', () => {
+  it('buying a General page with enough Gold bumps the version and adds the cells', () => {
     const { store } = make();
     store.load();
     store.state.gold = 5000;
     const v = store.version;
-    expect(store.buyStashPage('maps')).toBe('ok');
+    expect(store.buyStashPage()).toBe('ok');
     expect(store.version).toBe(v + 1);
-    expect(store.state.stash.maps).toHaveLength(120);
+    expect(store.state.stash.general).toHaveLength(180);
+    expect(store.state.stash.bought).toEqual({ general: 1 });
     expect(store.state.gold).toBe(0);
   });
 
@@ -329,24 +329,58 @@ describe('stash pages', () => {
     store.load();
     store.state.gold = 4999;
     const v = store.version;
-    expect(store.buyStashPage('general')).toBe('noGold');
+    expect(store.buyStashPage()).toBe('noGold');
     expect(store.version).toBe(v);
     expect(store.state.stash.general).toHaveLength(120);
   });
 
-  it('a bought page lets held loot into it', () => {
+  it('a bought page leaves held loot held: only the bag takes it', () => {
     const { store } = make();
     store.load();
     const s = store.state;
-    s.settings.bagFull = 'stop';
     s.bag = s.bag.map(() => gem(s));
     s.stash.general = s.stash.general.map(() => gear(s, 'ring'));
     const held = gear(s, 'pickaxe');
     s.overflow.push(held);
     s.gold = 5000;
-    expect(store.buyStashPage('general')).toBe('ok');
-    expect(s.overflow).toEqual([]);
-    expect(s.stash.general[120]).toBe(held);
+    expect(store.buyStashPage()).toBe('ok');
+    expect([s.overflow, s.stash.general[120]]).toEqual([[held], null]);
+  });
+});
+
+describe('held loot and maps', () => {
+  /** A full bag with a map in cell 17, and `n` held finds. */
+  const fullWithMap = (n: number) => {
+    const { store, now } = make();
+    store.load();
+    const s = store.state;
+    s.bag = s.bag.map(() => gear(s, 'ring'));
+    const map: MapItem = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] };
+    s.bag[17] = map;
+    const held = Array.from({ length: n }, () => gear(s, 'boots'));
+    s.overflow.push(...held);
+    return { store, now, s, map, held };
+  };
+
+  it('starting a map from the bag lets the oldest held find into its cell at once', () => {
+    const { store, s, map, held } = fullWithMap(2);
+    expect(store.startMap(map.id)).toBe('ok');
+    expect([s.bag[17]?.id, s.overflow.map((i) => i.id)]).toEqual([held[0]?.id, [held[1]?.id]]);
+  });
+
+  it('a cell freed with no drain still lets held loot in, and digging resumes after the run', () => {
+    const { store, now, s, map, held } = fullWithMap(1);
+    // started past the store, so nothing drained: the dig gate heals itself
+    expect(startMap(s, map.id)).toBe('ok');
+    expect([s.bag[17], s.overflow]).toEqual([null, held]);
+    expect(store.leaveMap()).toBe(true);
+    const deepest = s.deepest;
+    now.t += 600_000;
+    store.pump();
+    // it digs until the next find is held, as the bag is full again
+    expect(s.bag[17]?.id).toBe(held[0]?.id);
+    expect(s.deepest).toBeGreaterThan(deepest);
+    expect(s.overflow.map((i) => i.id)).not.toContain(held[0]?.id);
   });
 });
 
@@ -382,7 +416,7 @@ describe('a migrated save with held loot', () => {
 describe('maps', () => {
   it('a click in a map is a hit, never a dig, and still capped', () => {
     const { store } = make(); store.load();
-    const map = addMap(store.state, 1, 2);
+    const map = stashMap(store.state, 1, 2);
     expect(store.startMap(map.id)).toBe('ok');
     const ticks = store.state.tickCount;
     const events = store.click();
@@ -395,7 +429,7 @@ describe('maps', () => {
 
   it('leaving and dismissing', () => {
     const { store } = make(); store.load();
-    store.startMap(addMap(store.state, 1, 2).id);
+    store.startMap(stashMap(store.state, 1, 2).id);
     expect(store.leaveMap()).toBe(true);
     expect(store.state.lastRun).toMatchObject({ outcome: 'left', seen: false });
     store.dismissRun();
@@ -404,7 +438,7 @@ describe('maps', () => {
 
   it('auto strikes reach the feedback', () => {
     const { store, now } = make(); store.load();
-    store.startMap(addMap(store.state, 1, 2).id);
+    store.startMap(stashMap(store.state, 1, 2).id);
     now.t = 3000; store.pump();
     const fb = store.drainFeedback();
     expect(fb.strikes.length).toBeGreaterThan(0);
@@ -413,7 +447,7 @@ describe('maps', () => {
   /** The same run on a plain core game, pumped at the same moments, with every event it produced. */
   function runEvents(seconds: number): TickEvent[] {
     const reference = freshWorld(() => 7, 0);
-    startMap(reference, addMap(reference, 1, 2).id);
+    startMap(reference, stashMap(reference, 1, 2).id);
     const events: TickEvent[] = [];
     for (let t = 250; t <= seconds * 1000; t += 250) advance(reference, t, deriveStats(reference), events);
     expect(reference.activity.kind).toBe('map');
@@ -422,7 +456,7 @@ describe('maps', () => {
 
   function pumpedRun(seconds: number) {
     const { store, now } = make(); store.load();
-    store.startMap(addMap(store.state, 1, 2).id);
+    store.startMap(stashMap(store.state, 1, 2).id);
     for (now.t = 250; now.t <= seconds * 1000; now.t += 250) store.pump();
     expect(store.state.activity.kind).toBe('map');
     return store;
@@ -436,7 +470,7 @@ describe('maps', () => {
 
   it('click strikes stay out of the feedback', () => {
     const { store } = make(); store.load();
-    store.startMap(addMap(store.state, 1, 2).id);
+    store.startMap(stashMap(store.state, 1, 2).id);
     expect(store.click().some((e) => e.kind === 'strike' && e.click)).toBe(true);
     expect(store.drainFeedback().strikes).toEqual([]);
   });
@@ -451,7 +485,7 @@ describe('maps', () => {
 
   it('a click after the run has ended digs again', () => {
     const { store } = make(); store.load();
-    store.startMap(addMap(store.state, 1, 2).id);
+    store.startMap(stashMap(store.state, 1, 2).id);
     store.leaveMap();
     expect(store.state.activity.kind).toBe('dig');
     const ticks = store.state.tickCount;
@@ -465,7 +499,7 @@ describe('maps', () => {
     store.dismissRun();
     expect(store.state.lastRun).toBeNull();
     expect(store.version).toBe(v);
-    store.startMap(addMap(store.state, 1, 2).id);
+    store.startMap(stashMap(store.state, 1, 2).id);
     store.leaveMap();
     store.dismissRun();
     v = store.version;
@@ -475,7 +509,7 @@ describe('maps', () => {
 
   it('a dismissed run stays dismissed across a save and load', () => {
     const { store, storage, now } = make(); store.load();
-    store.startMap(addMap(store.state, 1, 2).id);
+    store.startMap(stashMap(store.state, 1, 2).id);
     store.leaveMap();
     store.dismissRun();
     store.save();
@@ -499,7 +533,7 @@ describe('battle stats', () => {
     const { store, now } = make(); store.load();
     const before = store.battle.maxLife;
     store.state.xp = xpToNext(store.state.level) - 1;
-    store.startMap(addMap(store.state, 1, 2).id);
+    store.startMap(stashMap(store.state, 1, 2).id);
     for (now.t = 250; store.state.level === 1 && now.t <= 60_000; now.t += 250) store.pump();
     expect(store.state.level).toBeGreaterThan(1);
     expect(store.battle.maxLife).toBeGreaterThan(before);
@@ -516,5 +550,102 @@ describe('battle stats', () => {
     expect(store.newWorld(null)).toBe(true);
     expect(store.battle).toEqual(deriveBattleStats(store.state));
     expect(store.battle.maxLife).toBe(deriveBattleStats(newGame(2, 0)).maxLife);
+  });
+});
+
+describe('pausing', () => {
+  const dug = (s: { deepest: number; progress: number }) => [s.deepest, s.progress];
+
+  it('offline catch-up digs unless the player pressed Pause', () => {
+    const storage = new MemoryStorage();
+    const paused = newGame(1, 0);
+    paused.paused = true;
+    storage.setItem(SAVE_KEY, encodeSave(paused, 0));
+    const away = make({ t: 600_000 }, storage).store;
+    // the view the game was left on doesn't matter offline
+    away.setViewPaused(true);
+    away.load();
+    expect(dug(away.state)).toEqual([0, 0]);
+    expect(away.state.tickCount).toBe(600);
+    expect(away.offlineSummary?.paused).toBe(true);
+    expect(away.offlineSummary?.metres).toBe(0);
+
+    storage.setItem(SAVE_KEY, encodeSave(newGame(1, 0), 0));
+    const digging = make({ t: 600_000 }, storage).store;
+    digging.setViewPaused(true);
+    digging.load();
+    expect(digging.state.deepest).toBeGreaterThan(0);
+    expect(digging.offlineSummary?.paused).toBe(false);
+  });
+
+  it('the view pause gates live ticks only, and a hidden tab digs', () => {
+    const { store, now } = make(); store.load();
+    store.setViewPaused(true);
+    expect(store.digPaused).toBe(true);
+    now.t = 10_000; store.pump();
+    expect(dug(store.state)).toEqual([0, 0]);
+    expect(store.state.tickCount).toBe(10);
+
+    store.setHidden(true);
+    expect(store.digPaused).toBe(false);
+    now.t = 20_000; store.pump();
+    const hidden = dug(store.state);
+    expect(hidden).not.toEqual([0, 0]);
+
+    store.setHidden(false);
+    store.setViewPaused(false);
+    expect(store.digPaused).toBe(false);
+    now.t = 30_000; store.pump();
+    expect(dug(store.state)).not.toEqual(hidden);
+
+    // the player's Pause holds even while hidden
+    store.setPaused(true);
+    store.setHidden(true);
+    expect(store.digPaused).toBe(true);
+  });
+
+  it('setPaused writes the save flag and bumps the version; the view pause and hidden do not', () => {
+    const { store } = make(); store.load();
+    const v = store.version;
+    store.setPaused(true);
+    expect(store.state.paused).toBe(true);
+    expect(store.version).toBe(v + 1);
+    store.setViewPaused(true);
+    store.setHidden(true);
+    expect(store.version).toBe(v + 1);
+    expect(store.state.paused).toBe(true);
+    store.setPaused(false);
+    expect(store.state.paused).toBe(false);
+  });
+
+  it('an imported save digs its time away even from a paused view, unless the save itself is paused', () => {
+    const hour = 3_600_000;
+    const { store, now } = make({ t: hour });
+    store.load();
+    store.setViewPaused(true);
+    expect(store.importSave(encodeSave(newGame(1, 0), 0)).ok).toBe(true);
+    expect(store.state.lastTickAt).toBe(hour);
+    expect(store.state.deepest).toBeGreaterThan(0);
+    expect(store.offlineSummary?.paused).toBe(false);
+    // the next live tick is the view's to pause
+    const dugThen = dug(store.state);
+    now.t += 10_000; store.pump();
+    expect(dug(store.state)).toEqual(dugThen);
+
+    const paused = newGame(1, 0);
+    paused.paused = true;
+    expect(store.importSave(encodeSave(paused, now.t - hour)).ok).toBe(true);
+    expect(dug(store.state)).toEqual([0, 0]);
+    expect(store.state.lastTickAt).toBe(now.t);
+  });
+
+  it('the player\'s Pause survives a save and a load', () => {
+    const { store, storage, now } = make(); store.load();
+    store.setPaused(true);
+    store.save();
+    now.t = 600_000;
+    const again = make(now, storage).store; again.load();
+    expect(again.state.paused).toBe(true);
+    expect(dug(again.state)).toEqual(dug(store.state));
   });
 });

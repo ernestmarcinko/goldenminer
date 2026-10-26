@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import fixture7 from '../fixtures/save-schema-7.txt?raw';
-import { ARMORED_TAKEN, RUN_LOOT_LIMIT, VAMPIRIC_HEAL } from '../../src/core/balance';
+import { ARMORED_TAKEN, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, RUN_LOOT_LIMIT, VAMPIRIC_HEAL } from '../../src/core/balance';
 import { deriveBattleStats } from '../../src/core/battle';
 import { advance } from '../../src/core/clock';
 import { clickHit } from '../../src/core/combat';
@@ -8,18 +8,22 @@ import { applyTicks } from '../../src/core/dig';
 import { dungeonLayout } from '../../src/core/dungeons';
 import type { MapMod } from '../../src/core/items';
 import { xpToNext } from '../../src/core/levels';
-import { addMap, leaveMap, startMap } from '../../src/core/maps';
+import { leaveMap, startMap } from '../../src/core/maps';
 import { monsterState } from '../../src/core/monsters';
 import { newGame } from '../../src/core/newGame';
 import { mulberry32 } from '../../src/core/rng';
 import { decodeSave, validateState } from '../../src/core/save';
 import { deriveStats } from '../../src/core/stats';
-import type { GameState, MapRun, MonsterState, Stats, TickEvent } from '../../src/core/types';
-import { gear } from '../helpers/items';
+import type { DropEntry, GameState, MapRun, MonsterState, Stats, TickEvent } from '../../src/core/types';
+import { gear, stashMap } from '../helpers/items';
+
+const DROP: DropEntry = {
+  id: 0, kind: 'gear', name: 'Test ring', rarity: 'magic', base: 'ring', count: 1, origin: { kind: 'metre', metre: 1 }, trail: [{ event: 'bag' }],
+};
 
 function runMap(tier: number, clicksPerTick: number, seed: number): GameState {
   const s = newGame(seed, 0);
-  const map = addMap(s, tier, 10 + seed);
+  const map = stashMap(s, tier, 10 + seed);
   expect(startMap(s, map.id)).toBe('ok');
   const stats = deriveStats(s);
   for (let t = 0; t < 5000 && s.activity.kind === 'map'; t++) {
@@ -53,7 +57,7 @@ it('a tier-4 map kills a level-1 miner in the first room', () => {
 it('a cleared run levels up, consumes the map and keeps the tally', () => {
   const s = runMap(1, 0, 1);
   expect(s.level).toBeGreaterThanOrEqual(2);
-  expect(s.stash.maps.every((m) => m === null)).toBe(true);
+  expect(s.stash.maps).toEqual({});
   expect(s.mapTally).toEqual({ cleared: 1, lost: 0 });
   expect(s.lastRun).toMatchObject({ room: s.lastRun?.bossRoom, seen: false, gained: { xp: 200 } });   // 12 normals + 1 champion ×3 + boss ×5 = 20 × 10 XP
   expect(s.activity).toEqual({ kind: 'dig' });
@@ -62,7 +66,7 @@ it('a cleared run levels up, consumes the map and keeps the tally', () => {
 // A run started on a tier-1 map, its first room replaced by one hand-built monster.
 function started(p: Partial<MonsterState> = {}): { s: GameState; run: MapRun; m: MonsterState } {
   const s = newGame(1, 0);
-  expect(startMap(s, addMap(s, 1, 2).id)).toBe('ok');
+  expect(startMap(s, stashMap(s, 1, 2).id)).toBe('ok');
   const run = runOf(s);
   const m = monster(p);
   run.queue = [m];
@@ -185,7 +189,7 @@ it('the tick rate never changes how long a fight lasts', () => {
     const times: number[] = [];
     for (let seed = 1; seed <= 20; seed++) {
       const s = newGame(seed, 0);
-      expect(startMap(s, addMap(s, 2, 10 + seed).id)).toBe('ok');
+      expect(startMap(s, stashMap(s, 2, 10 + seed).id)).toBe('ok');
       const stats = at(s, rate);
       while (s.activity.kind === 'map') applyTicks(s, 1, stats);
       expect(s.lastRun?.outcome, `seed ${seed} rate ${rate}`).toBe('died');
@@ -238,7 +242,7 @@ it('every map heals the same total: a room clear heals 1.5 × max life over the 
   ];
   for (const [tier, metre, bossRoom, healed] of cases) {
     const s = newGame(1, 0);
-    expect(startMap(s, addMap(s, tier, metre).id)).toBe('ok');
+    expect(startMap(s, stashMap(s, tier, metre).id)).toBe('ok');
     const run = runOf(s);
     expect(run.bossRoom, `metre ${metre}`).toBe(bossRoom);
     run.queue = [monster({ life: 1 })];
@@ -261,7 +265,7 @@ it('a boss room past the layout still fights the boss: the queue is never empty 
   // seed 1's tier-1 dungeon at metre 11 has 6 rooms; a hand-edited boss room of 8 leaves room 7 without a layout room
   for (const bossRoom of [5, 6, 7, 8]) {
     const s = newGame(1, 0);
-    expect(startMap(s, addMap(s, 1, 11).id)).toBe('ok');
+    expect(startMap(s, stashMap(s, 1, 11).id)).toBe('ok');
     const run = runOf(s);
     run.bossRoom = bossRoom;
     run.life = 1_000_000;
@@ -320,7 +324,7 @@ it('every state of a run, tick by tick and click by click, is a valid save', () 
       for (const rate of [0.1, 1, 10]) {
         for (const clicks of [0, 2]) {
           const s = newGame(seed, 0);
-          expect(startMap(s, addMap(s, tier, 10 + seed).id)).toBe('ok');
+          expect(startMap(s, stashMap(s, tier, 10 + seed).id)).toBe('ok');
           const stats = at(s, rate);
           for (let t = 0; t < 20_000 && s.activity.kind === 'map'; t++) {
             for (let c = 0; c < clicks && s.activity.kind === 'map'; c++) {
@@ -339,7 +343,7 @@ it('every state of a run, tick by tick and click by click, is a valid save', () 
 
 it('digging pauses during a run and resumes after it', () => {
   const s = newGame(1, 0);
-  const map = addMap(s, 1, 2);
+  const map = stashMap(s, 1, 2);
   startMap(s, map.id);
   const before = { gold: s.gold, deepest: s.deepest, progress: s.progress };
   applyTicks(s, 1, deriveStats(s)); // one hit can't kill a tier-1 monster, so no kill Gold either
@@ -355,16 +359,16 @@ it('digging pauses during a run and resumes after it', () => {
 
 it('only one run at a time, and only maps that are held', () => {
   const s = newGame(1, 0);
-  const a = addMap(s, 1, 2);
-  const b = addMap(s, 1, 3);
+  const a = stashMap(s, 1, 2);
+  const b = stashMap(s, 1, 3);
   expect(startMap(s, 999)).toBe('invalid');
   expect(startMap(s, a.id)).toBe('ok');
   expect(startMap(s, b.id)).toBe('busy');
-  expect(s.stash.maps.filter((m) => m !== null).map((m) => m.id)).toEqual([b.id]);
+  expect(Object.values(s.stash.maps).flat().map((m) => m.id)).toEqual([b.id]);
 });
 
 it('pumped play and one long catch-up give the same run', () => {
-  const mk = () => { const s = newGame(3, 0); startMap(s, addMap(s, 1, 2).id); return s; };
+  const mk = () => { const s = newGame(3, 0); startMap(s, stashMap(s, 1, 2).id); return s; };
   const pumped = mk();
   const once = mk();
   const stats = deriveStats(pumped);
@@ -378,7 +382,7 @@ it('pumped play and one long catch-up give the same run', () => {
 
 it('pumped play and one long catch-up give the same run at a fractional tick rate', () => {
   // 0.8 ticks a second: 1.25 s ticks, so the hit carry keeps a fraction between ticks (and 1250 ms is exact).
-  const mk = () => { const s = newGame(3, 0); startMap(s, addMap(s, 1, 2).id); return s; };
+  const mk = () => { const s = newGame(3, 0); startMap(s, stashMap(s, 1, 2).id); return s; };
   const pumped = mk();
   const once = mk();
   const stats = at(pumped, 0.8);
@@ -494,7 +498,7 @@ it('a hardened map\'s monsters take less from every strike, never below 1, with 
 
 it('a map with weak healing heals less on each room clear', () => {
   const s = newGame(1, 0);
-  expect(startMap(s, addMap(s, 2, 2).id)).toBe('ok');   // 6 rooms: a plain clear heals 60 × 1.5 / 5 = 18
+  expect(startMap(s, stashMap(s, 2, 2).id)).toBe('ok');   // 6 rooms: a plain clear heals 60 × 1.5 / 5 = 18
   const run = runOf(s);
   enchant(run, [{ kind: 'weakHealing', tier: 10, value: 50 }]);
   run.queue = [monster({ life: 1 })];
@@ -518,6 +522,29 @@ it('a saved run in progress plays out exactly as before modifiers existed', () =
   const played = replay();
   expect(replay((run) => { run.map.mods = []; })).toEqual(played);
   // Pinned before map modifiers touched combat.
+  expect(played).toMatchObject({
+    rng: 1231303081, gained: { xp: 1040, souls: 15, gold: 120, levels: 1 }, outcome: 'cleared',
+  });
+});
+
+it('logging the run\'s drops and its end makes no draws: the saved run plays out as pinned', () => {
+  const replay = (logsFull: boolean) => {
+    const r = decodeSave(fixture7.trim());
+    if (!r.ok) throw new Error(`fixture rejected: ${r.reason}`);
+    const s = r.state;
+    const run = runOf(s);
+    if (logsFull) {
+      // full logs trim on every entry
+      for (let i = 0; i < DROP_LOG_LIMIT; i++) s.drops.push({ ...DROP, id: s.nextId++ });
+      for (let i = 0; i < DEATH_LOG_LIMIT; i++) s.deaths.push({ id: s.nextId++, tick: 0, at: 0, map: structuredClone(run.map), room: 1, bossRoom: run.bossRoom, killer: 'Bog Leech' });
+    }
+    const stats = deriveStats(s);
+    while (s.activity.kind === 'map') applyTicks(s, 1, stats);
+    return { rng: s.rng, log: run.log, gained: s.lastRun?.gained, outcome: s.lastRun?.outcome, logged: s.drops.filter((e) => e.origin.kind === 'map').length };
+  };
+  const played = replay(false);
+  expect(played.logged).toBeGreaterThan(0);
+  expect(replay(true)).toEqual(played);
   expect(played).toMatchObject({
     rng: 1231303081, gained: { xp: 1040, souls: 15, gold: 120, levels: 1 }, outcome: 'cleared',
   });

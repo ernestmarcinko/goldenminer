@@ -1,9 +1,11 @@
 import { expect, it } from 'vitest';
 import {
-  combatLineText, fightTiles, hurtParticle, monsterCaption, monsterTags, roomTrack, runMapLine, strikeParticle,
+  combatLineText, deathOfLastRun, fightTiles, gainsLine, hurtParticle, mapDungeon, mapModLines, mapRewardsText, monsterCaption, monsterTags,
+  roomTrack, runMapLine, runTitle, strikeParticle, xpBar,
 } from '../../src/ui/run/runView';
-import type { MapRun, MonsterState } from '../../src/core/types';
-import { mapDungeon, mapModLines } from '../../src/ui/maps/mapsView';
+import { dungeonIndexAt, dungeonType } from '../../src/core/dungeons';
+import type { MapItem } from '../../src/core/items';
+import type { MapRun, MonsterState, RunOutcome } from '../../src/core/types';
 
 const shades: [string, string, string] = ['#111111', '#222222', '#333333'];
 
@@ -112,10 +114,11 @@ it('the run\'s head lists an enchanted map\'s modifiers and what they pay, and n
     { kind: 'hardened' as const, tier: 1, value: 6 },
   ] };
   expect(mapModLines(enchanted)).toEqual([
-    'T4 Monsters attack 15% faster',
-    'T1 Monsters take 6% less damage',
-    'Rewards: +11% items · +6% rarity · +11% Souls',
+    { text: 'Monsters attack 15% faster', tone: 'plain', tier: 4 },
+    { text: 'Monsters take 6% less damage', tone: 'plain', tier: 1 },
   ]);
+  expect(mapRewardsText(enchanted)).toBe('Rewards: +11% items · +6% rarity · +11% Souls');
+  expect(mapRewardsText(plain.map)).toBe('');
 });
 
 it('the last run names its map\'s rarity when it was enchanted', () => {
@@ -124,4 +127,47 @@ it('the last run names its map\'s rarity when it was enchanted', () => {
   expect(runMapLine(77, m)).toBe(`${name} · Tier 4 map`);
   expect(runMapLine(77, { ...m, rarity: 'magic', mods: [{ kind: 'monsterLife', tier: 4, value: 27 }] })).toBe(`${name} · Magic tier 4 map`);
   expect(runMapLine(77, { ...m, rarity: 'rare', mods: [{ kind: 'monsterLife', tier: 4, value: 27 }] })).toBe(`${name} · Rare tier 4 map`);
+});
+
+const plainMap = (id: number, tier: number, metre = 1): MapItem => ({ id, type: 'map', tier, metre, rarity: 'normal', mods: [] });
+
+it('xp bar', () => {
+  expect(xpBar(1, 50)).toEqual({ label: 'Level 1', text: '50 / 100 XP', pct: 0.5 });
+  expect(xpBar(60, 0)).toEqual({ label: 'Level 60', text: 'Max level', pct: 1 });
+  expect(xpBar(30, 1234).text).toBe('1,234 / 16,432 XP');
+  expect(xpBar(1, 0)).toEqual({ label: 'Level 1', text: '0 / 100 XP', pct: 0 });
+  // the last xp below a level stays short of a full bar
+  expect(xpBar(1, 99).text).toBe('99 / 100 XP');
+  expect(xpBar(1, 99).pct).toBeCloseTo(0.99);
+});
+
+it('run results in words', () => {
+  const g = { xp: 200, souls: 5, gold: 40, levels: 1 };
+  const r = (outcome: RunOutcome, room: number) => ({ map: plainMap(1, 1), outcome, room, bossRoom: 6, gained: g, items: 2, seen: false });
+  expect(runTitle(r('cleared', 6))).toBe('Map cleared!');
+  expect(runTitle(r('died', 3))).toBe('You fell in room 3');
+  expect(runTitle(r('died', 6))).toBe('You fell in the boss room');
+  expect(runTitle(r('left', 2))).toBe('You left the map in room 2');
+  expect(runTitle(r('left', 6))).toBe('You left the map in the boss room');
+  expect(gainsLine(g, 2)).toBe('+200 XP · +5 Souls · +40 Gold · 2 items · +1 level');
+  expect(gainsLine({ ...g, levels: 0 }, 1)).toBe('+200 XP · +5 Souls · +40 Gold · 1 item');
+});
+
+it('a map opens into the dungeon at its metre, the same for every map of that tier and place', () => {
+  const seed = 9090;
+  for (const [tier, metre] of [[1, 1], [4, 305], [5, 40]] as const) {
+    const index = dungeonIndexAt(seed, metre);
+    expect(mapDungeon(seed, { tier, metre })).toEqual({ key: `${tier}:${index}`, type: dungeonType(seed, tier, index) });
+    expect(mapDungeon(seed, plainMap(99, tier, metre))).toEqual(mapDungeon(seed, { tier, metre }));
+  }
+});
+
+it('the run result links only to its own death', () => {
+  const map: MapItem = { id: 7, type: 'map', tier: 4, metre: 305, rarity: 'normal', mods: [] };
+  const death = { id: 9, tick: 1, at: 0, map, room: 2, bossRoom: 6, killer: 'Bog Leech' };
+  const lastRun = { map, outcome: 'died' as RunOutcome, room: 2, bossRoom: 6, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, items: 0, seen: false };
+  expect(deathOfLastRun({ lastRun, deaths: [death] })).toBe(death);
+  expect(deathOfLastRun({ lastRun, deaths: [] })).toBeUndefined();                                     // an old save's death
+  expect(deathOfLastRun({ lastRun, deaths: [{ ...death, map: { ...map, id: 3 } }] })).toBeUndefined();  // another run's
+  expect(deathOfLastRun({ lastRun: { ...lastRun, outcome: 'left' }, deaths: [death] })).toBeUndefined();
 });

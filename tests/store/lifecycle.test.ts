@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { advance } from '../../src/core/clock';
-import { addMap, startMap } from '../../src/core/maps';
+import { startMap } from '../../src/core/maps';
+import { stashMap } from '../helpers/items';
 import { freshWorld } from '../../src/core/seed';
 import { deriveStats } from '../../src/core/stats';
 import { GameStore } from '../../src/store/gameStore';
@@ -31,7 +32,7 @@ it('a run left going while away finishes offline and digging resumes, the same a
   const mk = () => new GameStore({ storage, storageAvailable: true, now: () => now.t, newSeed: () => 7 });
   const first = mk();
   first.load();
-  first.startMap(addMap(first.state, 1, 2).id);
+  first.startMap(stashMap(first.state, 1, 2).id);
   for (now.t = 250; now.t <= 10_000; now.t += 250) first.pump(); // the run is still going when the tab closes
   expect(first.state.activity.kind).toBe('map');
   first.save();
@@ -40,7 +41,7 @@ it('a run left going while away finishes offline and digging resumes, the same a
   second.load();
 
   const reference = freshWorld(() => 7, 0);
-  startMap(reference, addMap(reference, 1, 2).id);
+  startMap(reference, stashMap(reference, 1, 2).id);
   advance(reference, now.t, deriveStats(reference));
   expect(second.state).toEqual(reference);
   expect(second.state.activity.kind).toBe('dig');

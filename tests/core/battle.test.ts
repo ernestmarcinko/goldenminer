@@ -5,12 +5,12 @@ import { gainXp, xpToNext } from '../../src/core/levels';
 import { monsterState } from '../../src/core/monsters';
 import { MAX_DAMAGE, MAX_LIFE, monsterXp } from '../../src/core/balance';
 import { dungeonLayout } from '../../src/core/dungeons';
-import { addMap, startMap } from '../../src/core/maps';
+import { startMap } from '../../src/core/maps';
 import { validateState } from '../../src/core/save';
 import { newGame } from '../../src/core/newGame';
 import type { Slot, StatKey } from '../../src/core/items';
 import type { ChampionMod } from '../../src/core/types';
-import { gear } from '../helpers/items';
+import { gear, stashMap } from '../helpers/items';
 
 it('a naked level-1 miner', () => {
   expect(deriveBattleStats(newGame(1, 0))).toEqual({
@@ -111,7 +111,7 @@ it('monster numbers stop at the save limits, however deep the tier', () => {
   // and a run started that deep is a valid save, its boss included
   for (const tier of [2_000, 100_000]) {
     const s = newGame(1, 0);
-    expect(startMap(s, addMap(s, tier, 5).id)).toBe('ok');
+    expect(startMap(s, stashMap(s, tier, 5).id)).toBe('ok');
     expect(validateState(s), `tier ${tier}`).toBe(true);
     if (s.activity.kind !== 'map') throw new Error('no run');
     const run = s.activity.run;

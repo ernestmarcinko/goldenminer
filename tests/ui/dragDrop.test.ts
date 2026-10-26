@@ -15,7 +15,7 @@ function migrated() {
 const KINDS: DropTarget[] = [
   { where: 'bag', index: 59 },
   { where: 'stash', index: 119 },
-  { where: 'maps', index: 61 },
+  { where: 'maps', tier: 4, index: 2 },
   { where: 'gems', gem: 'starstone', grade: 'perfect' },
   { where: 'materials', material: 'voidCrystal' },
   { where: 'worn', slot: 'amulet' },
@@ -32,6 +32,7 @@ it('a drag starts after 5 px', () => {
 
 it('dropAttr and parseDrop round-trip every kind of drop target', () => {
   for (const t of KINDS) expect(parseDrop(dropAttr(t))).toEqual(t);
+  expect(parseDrop('{"where":"maps","tier":4,"index":2}')).toEqual({ where: 'maps', tier: 4, index: 2 });
 });
 
 it('parseDrop refuses anything that is not exactly a drop target', () => {
@@ -47,7 +48,10 @@ it('parseDrop checks every value against the game lists and grid sizes', () => {
   expect(parseDrop('{"where":"bag","index":1.5}')).toBeNull();
   expect(parseDrop('{"where":"bag","index":"1"}')).toBeNull();
   expect(parseDrop('{"where":"stash","index":0.5}')).toBeNull();
-  expect(parseDrop('{"where":"maps","index":"3"}')).toBeNull();
+  expect(parseDrop('{"where":"maps","index":3}')).toBeNull();
+  expect(parseDrop('{"where":"maps","tier":4,"index":"3"}')).toBeNull();
+  expect(parseDrop('{"where":"maps","tier":0,"index":3}')).toBeNull();
+  expect(parseDrop('{"where":"maps","tier":2.5,"index":3}')).toBeNull();
   expect(parseDrop('{"where":"materials","material":"gold"}')).toBeNull();
   expect(parseDrop('{"where":"gems","gem":"opal","grade":"tiny"}')).toBeNull();
   expect(parseDrop('{"where":"gems","gem":"ruby","grade":"huge"}')).toBeNull();
@@ -77,28 +81,37 @@ it('tapAction follows the tap table', () => {
 });
 
 it('a single touch tap never equips, sells or moves: it lifts, or places what is held', () => {
-  for (const mods of [{ altKey: false, shiftKey: false }, { altKey: true, shiftKey: false }, { altKey: false, shiftKey: true }]) {
-    expect(clickRoute({ ...mods, detail: 1, pointerType: 'touch' }, false)).toEqual({ kind: 'lift' });
-    expect(clickRoute({ ...mods, detail: 1, pointerType: 'touch' }, true)).toEqual({ kind: 'tap' });
+  const none = { altKey: false, shiftKey: false, ctrlKey: false, metaKey: false };
+  for (const mods of [none, { ...none, altKey: true }, { ...none, shiftKey: true }, { ...none, ctrlKey: true }, { ...none, metaKey: true }]) {
+    for (const mac of [false, true]) {
+      expect(clickRoute({ ...mods, detail: 1, pointerType: 'touch' }, false, mac)).toEqual({ kind: 'lift' });
+      expect(clickRoute({ ...mods, detail: 1, pointerType: 'touch' }, true, mac)).toEqual({ kind: 'tap' });
+    }
   }
 });
 
 it('a keyboard click opens the card and never lifts, even on a touch screen or with an item held', () => {
   for (const pointerType of ['touch', 'mouse']) {
     for (const holding of [false, true]) {
-      expect(clickRoute({ altKey: false, shiftKey: false, detail: 0, pointerType }, holding))
+      expect(clickRoute({ altKey: false, shiftKey: false, ctrlKey: false, metaKey: false, detail: 0, pointerType }, holding, false))
         .toEqual({ kind: 'pick', intent: 'menu' });
     }
   }
 });
 
 it('mouse clicks keep their shortcuts, held item or not', () => {
-  expect(clickRoute({ altKey: false, shiftKey: false, detail: 1, pointerType: 'mouse' }, true))
-    .toEqual({ kind: 'pick', intent: 'primary' });
-  expect(clickRoute({ altKey: true, shiftKey: false, detail: 1, pointerType: 'pen' }, false))
-    .toEqual({ kind: 'pick', intent: 'sell' });
-  expect(clickRoute({ altKey: false, shiftKey: true, detail: 1, pointerType: 'mouse' }, false))
-    .toEqual({ kind: 'pick', intent: 'move' });
+  const click = { altKey: false, shiftKey: false, ctrlKey: false, metaKey: false, detail: 1, pointerType: 'mouse' };
+  expect(clickRoute(click, true, false)).toEqual({ kind: 'pick', intent: 'card' });
+  expect(clickRoute({ ...click, altKey: true, pointerType: 'pen' }, false, false)).toEqual({ kind: 'pick', intent: 'salvage' });
+  expect(clickRoute({ ...click, shiftKey: true }, false, false)).toEqual({ kind: 'pick', intent: 'move' });
+});
+
+it('clickRoute passes Ctrl and Cmd through: Ctrl+click sells, and Cmd+click on a Mac', () => {
+  const click = { altKey: false, shiftKey: false, ctrlKey: false, metaKey: false, detail: 1, pointerType: 'mouse' };
+  expect(clickRoute({ ...click, ctrlKey: true }, false, false)).toEqual({ kind: 'pick', intent: 'sell' });
+  expect(clickRoute({ ...click, metaKey: true }, false, false)).toEqual({ kind: 'pick', intent: 'card' });
+  expect(clickRoute({ ...click, metaKey: true }, true, true)).toEqual({ kind: 'pick', intent: 'sell' });
+  expect(clickRoute({ ...click, ctrlKey: true }, false, true)).toEqual({ kind: 'pick', intent: 'card' });
 });
 
 it('a hold lasts only while the lifted item is still where it was', () => {

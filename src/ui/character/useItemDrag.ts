@@ -6,7 +6,7 @@ import type { GameStore } from '../../store/gameStore';
 import { craftResultText, craftTargetAt } from './craftView';
 import { DRAG_THRESHOLD_PX, heldLoc, parseDrop, tapAction } from './dragDrop';
 import type { Hold } from './dragDrop';
-import { resultText } from './itemActions';
+import { refusedMap, resultText } from './itemActions';
 
 export interface ItemDrag {
   /** A mouse or pen press on an item; past the threshold it becomes a drag. */
@@ -69,12 +69,13 @@ export function useItemDrag({ store, onResult }: {
 
   const drop = useCallback((from: ItemLoc, to: DropTarget): void => {
     const before = store.lastCraft?.id;
+    const refused = refusedMap(store.state, from, to);
     const r: InvResult = store.drop(from, to);
     // a material dropped on gear or a map crafts: its message is the craft's, refused or tempered
     const crafted = store.lastCraft;
     resultRef.current(crafted !== null && crafted.id !== before
       ? craftResultText(crafted, craftTargetAt(store.state, crafted.target)) ?? resultText(r)
-      : resultText(r));
+      : resultText(r, refused));
     if (r === 'ok') setHold(null);
   }, [store, setHold]);
 

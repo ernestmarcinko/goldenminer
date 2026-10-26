@@ -1,15 +1,16 @@
 import { compressToBase64, decompressFromBase64 } from 'lz-string';
 import {
-  BAG_SIZE, COMBAT_LOG_LIMIT, FINDS_LOG_LIMIT, GEM_BAG_STACK, GEM_STASH_STACK, LEVEL_CAP, MATERIAL_BAG_STACK,
-  MATERIAL_STASH_STACK, MAX_CRAFTED_LINES, MAX_DAMAGE, MAX_ITEM_LEVEL, MAX_LIFE, MAX_LOOT_RULES, MAX_MAP_MODS, MAX_OVERFLOW,
-  MAX_SIDE_LINES, MAX_SOCKETS, MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MONSTER_BUDGET, RUN_LOOT_LIMIT, START_GENERAL_PAGES, START_MAP_PAGES,
-  STASH_PAGE_SIZE,
+  BAG_SIZE, COMBAT_LOG_LIMIT, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, FINDS_LOG_LIMIT, GEM_BAG_STACK, GEM_STASH_STACK, LEVEL_CAP,
+  MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_CRAFTED_LINES, MAX_DAMAGE, MAX_HELD, MAX_ITEM_LEVEL, MAX_LIFE,
+  MAX_LOOT_RULES, MAX_MAP_MODS, MAX_ROOMS, MAX_SIDE_LINES, MAX_SOCKETS, MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MAX_TRAIL_STEPS,
+  MONSTER_BUDGET, RUN_LOOT_LIMIT, START_GENERAL_PAGES, STASH_PAGE_SIZE, stashPagePrice,
 } from './balance';
 import { metreTier } from './bands';
 import { emptyGemCounts, emptyMaterialCounts, pageCount } from './cells';
 import { dungeonIndexAt, dungeonType } from './dungeons';
-import { gemGradeFor } from './itemData';
+import { gemGradeFor, itemName } from './itemData';
 import { sideCount } from './itemGen';
+import { sellValue } from './loot';
 import {
   BATTLE_STATS, GEAR_SETS, GEM_GRADES, GEM_TYPES, MAP_MOD_KINDS, MATERIALS, MINING_STATS, MOD_SIDE, RARITIES, setOfSlot, slotsOf,
   statsOf,
@@ -20,11 +21,11 @@ import { isValidSeedText, seedFromText } from './seed';
 import { speciesOf } from './species';
 import { tierFor } from './tiers';
 import {
-  BAG_FULL_MODES, CHAMPION_MODS, DEFAULT_MOTION, ELEMENTS, FEATURE_KINDS, FIND_KINDS, LOOT_ACTIONS, LOOT_OUTCOMES, RANKS,
-  RUN_OUTCOMES, SHAFT_MOTIONS, type GameState,
+  CHAMPION_MODS, DEFAULT_MOTION, ELEMENTS, FEATURE_KINDS, FIND_KINDS, LOOT_ACTIONS, LOOT_OUTCOMES, RANKS, RUN_OUTCOMES,
+  SHAFT_MOTIONS, TRAIL_EVENTS, type DropEntry, type GameState,
 } from './types';
 
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
@@ -37,6 +38,7 @@ const MAX_MIGRATED_METRE = 30_000_000;
 const OLD_BAG_SIZE = 24;
 const OLD_GENERAL_SIZE = 60;
 const OLD_MAPS_KEPT = 200;
+const OLD_MAP_PAGES = 1;
 
 export const MIGRATIONS: Record<number, Migration> = {
   1: (state) => {
@@ -135,7 +137,7 @@ export const MIGRATIONS: Record<number, Migration> = {
     // The two bags become one, the mining bag's items first; a valid schema-5 save carries at most 48.
     const carried = [...state.bags.mining, ...state.bags.battle].filter((c) => c !== null);
     if (carried.length > BAG_SIZE) return state;
-    const mapPages = Math.max(START_MAP_PAGES, Math.ceil(state.stash.maps.length / STASH_PAGE_SIZE));
+    const mapPages = Math.max(OLD_MAP_PAGES, Math.ceil(state.stash.maps.length / STASH_PAGE_SIZE));
     const next: Record<string, unknown> = {
       ...state,
       bag: padCells(carried, BAG_SIZE),
@@ -196,6 +198,53 @@ export const MIGRATIONS: Record<number, Migration> = {
     }
     if (isObject(lastRun)) next.lastRun = { ...lastRun, map: normal(lastRun.map) };
     return next;
+  },
+  8: (state) => {
+    if (
+      !isObject(state) || !Array.isArray(state.bag) || !isObject(state.stash) || !Array.isArray(state.stash.maps) ||
+      !isObject(state.stash.bought) || !Array.isArray(state.overflow) || !isObject(state.settings) || !isNonNegFinite(state.gold)
+    ) return state;
+    const { maps: cells, bought } = state.stash;
+    // an absurd page count is left for the validator, so the refund below never loops on it
+    if (!isNonNegInt(bought.maps) || bought.maps > MAX_STASH_PAGES) return state;
+    // The Maps tab's pages become a list per tier, each in the tab's order. What a tier can't hold goes to the bag's
+    // empty cells, then the held list, and past that is sold, so no map is lost silently.
+    const maps: Record<number, unknown[]> = {};
+    const spill: MapItem[] = [];
+    for (const cell of cells) {
+      if (cell === null) continue;
+      if (!isObject(cell) || cell.type !== 'map' || !isItemLevel(cell.tier) || !isIn(MAP_RARITIES, cell.rarity)) return state;
+      const list = (maps[cell.tier as number] ??= []);
+      if (list.length < MAP_TIER_CAP) list.push(cell);
+      else spill.push(cell as unknown as MapItem);
+    }
+    const bag = [...state.bag];
+    const overflow = [...state.overflow];
+    let gold = state.gold;
+    for (let n = 1; n <= bought.maps; n++) gold += stashPagePrice(n);   // the Gold spent on Maps pages comes back
+    // a sold map is logged under its own id, as found where it was dug, so the drop log says where it went
+    const drops: DropEntry[] = [];
+    for (const map of spill) {
+      const empty = bag.indexOf(null);
+      if (empty >= 0) bag[empty] = map;
+      else if (overflow.length < MAX_HELD) overflow.push(map);
+      else {
+        const value = sellValue(map);
+        gold += value;
+        drops.push({
+          id: map.id, kind: 'map', name: itemName(map), rarity: map.rarity, base: 'map', count: 1,
+          origin: { kind: 'metre', metre: map.metre }, trail: [{ event: 'sold', gold: value }],
+        });
+      }
+    }
+    // 'sellWorst' is gone: a full bag always holds
+    const { bagFull: _bagFull, ...settings } = state.settings;
+    return {
+      ...state,
+      gold, bag, overflow, settings,
+      stash: { ...state.stash, maps, bought: { general: bought.general } },
+      paused: false, drops: drops.slice(-DROP_LOG_LIMIT), deaths: [],
+    };
   },
 };
 
@@ -290,16 +339,18 @@ function isFindRecord(x: unknown, nextId: number): boolean {
   return Array.isArray(x.loot) && x.loot.length <= 4 && x.loot.every(isLootNote);
 }
 
+const isName = (x: unknown): x is string => typeof x === 'string' && x.length >= 1 && x.length <= 80;
+
+// A material note names its material and no other note does; a map's note is base 'map' with a map rarity.
+function isLootPair(rarity: unknown, base: unknown): boolean {
+  if (rarity === 'material') return isMaterial(base);
+  if (base === 'map') return isIn(MAP_RARITIES, rarity);
+  return isIn(ITEM_RARITIES, rarity) && (isIn(ALL_SLOTS, base) || isIn(GEM_TYPES, base));
+}
+
 function isLootNote(x: unknown): boolean {
   return (
-    isObject(x) &&
-    typeof x.name === 'string' && x.name.length >= 1 && x.name.length <= 80 &&
-    // a material note names its material, and no other note does
-    (x.rarity === 'material'
-      ? isMaterial(x.base)
-      : isIn(ITEM_RARITIES, x.rarity) && (isIn(ALL_SLOTS, x.base) || isIn(GEM_TYPES, x.base))) &&
-    isIn(LOOT_OUTCOMES, x.outcome) &&
-    isNonNegFinite(x.value)
+    isObject(x) && isName(x.name) && isLootPair(x.rarity, x.base) && isIn(LOOT_OUTCOMES, x.outcome) && isNonNegFinite(x.value)
   );
 }
 
@@ -392,7 +443,7 @@ function isBag(x: unknown, nextId: number, seen: Set<number>): x is Cell[] {
   return Array.isArray(x) && x.length === BAG_SIZE && x.every((c) => c === null || isBagItem(c, nextId, seen));
 }
 
-// A General or Maps tab: whole pages, at least the free ones and at most MAX_STASH_PAGES, each cell empty or `holds`.
+// The General tab: whole pages, at least the free ones and at most MAX_STASH_PAGES, each cell empty or `holds`.
 function isPagedTab(x: unknown, startPages: number, holds: (c: unknown) => boolean): x is unknown[] {
   if (!Array.isArray(x) || x.length % STASH_PAGE_SIZE !== 0) return false;
   const pages = pageCount(x);
@@ -435,7 +486,7 @@ function isMotion(x: unknown): boolean {
 }
 
 function isSettings(x: unknown): boolean {
-  if (!isObject(x) || !isIn(BAG_FULL_MODES, x.bagFull) || !isMotion(x.motion)) return false;
+  if (!isObject(x) || !isMotion(x.motion)) return false;
   return (
     Array.isArray(x.lootFilter) &&
     x.lootFilter.length <= MAX_LOOT_RULES &&
@@ -468,6 +519,18 @@ function isMapItem(x: unknown, nextId: number, seen: Set<number>): x is MapItem 
   if (!x.mods.every((m) => isMapMod(m, tier)) || new Set(x.mods.map((m: MapMod) => m.kind)).size !== x.mods.length) return false;
   if (x.sealed !== undefined && x.sealed !== true) return false;
   return isItemBase(x, nextId, seen, false);
+}
+
+// The Map stash: a list per tier, keyed by the tier's own decimal text, each at most MAP_TIER_CAP maps of that tier.
+function isMapStash(x: unknown, nextId: number, seen: Set<number>): boolean {
+  if (!isObject(x)) return false;
+  return Object.entries(x).every(([key, list]) => {
+    const tier = Number(key);
+    return (
+      String(tier) === key && isItemLevel(tier) && Array.isArray(list) && list.length <= MAP_TIER_CAP &&
+      list.every((m) => isMapItem(m, nextId, seen) && m.tier === tier)
+    );
+  });
 }
 
 function isMonster(x: unknown, tier: number): boolean {
@@ -540,15 +603,60 @@ function isInventory(x: Record<string, unknown>, nextId: number, seen: Set<numbe
   const { equipped, bag, stash, overflow, lootTally } = x;
   if (!isObject(equipped) || !isEquipped(equipped.mining, 'mining', nextId, seen) || !isEquipped(equipped.battle, 'battle', nextId, seen)) return false;
   if (!isBag(bag, nextId, seen) || !isObject(stash)) return false;
-  const { general, maps, bought } = stash;
+  const { general, bought } = stash;
   if (!isPagedTab(general, START_GENERAL_PAGES, (c) => isGearItem(c, nextId, seen))) return false;
-  if (!isPagedTab(maps, START_MAP_PAGES, (c) => isMapItem(c, nextId, seen))) return false;
+  if (!isMapStash(stash.maps, nextId, seen)) return false;
   if (!isGemTab(stash.gems) || !isMaterialTab(stash.materials)) return false;
-  if (!isObject(bought) || !isBoughtOf(bought.general, general) || !isBoughtOf(bought.maps, maps)) return false;
-  if (!Array.isArray(overflow) || overflow.length > MAX_OVERFLOW || !overflow.every((o) => isGearItem(o, nextId, seen))) return false;
+  if (!isObject(bought) || Object.keys(bought).length !== 1 || !isBoughtOf(bought.general, general)) return false;
+  // held finds are any kind of item, each as a bag cell would hold it
+  if (!Array.isArray(overflow) || overflow.length > MAX_HELD || !overflow.every((o) => isBagItem(o, nextId, seen))) return false;
   return (
     isObject(lootTally) && isNonNegInt(lootTally.kept) && isNonNegInt(lootTally.sold) && isNonNegInt(lootTally.salvaged)
   );
+}
+
+// A find's origin: a dug metre, a room of a map of some tier, or the merchant.
+function isDropOrigin(x: unknown): boolean {
+  if (!isObject(x)) return false;
+  switch (x.kind) {
+    case 'metre': return isNonNegInt(x.metre);
+    case 'map': return isItemLevel(x.tier) && isRoomIn(x.room, MAX_ROOMS + 1);
+    case 'merchant': return true;
+    default: return false;
+  }
+}
+
+function isTrailStep(x: unknown): boolean {
+  if (!isObject(x) || !isIn(TRAIL_EVENTS, x.event)) return false;
+  if (x.gold !== undefined && !isNonNegFinite(x.gold)) return false;
+  const { materials } = x;
+  return materials === undefined || (isObject(materials) && Object.entries(materials).every(([m, n]) => isMaterial(m) && isNonNegFinite(n)));
+}
+
+const ITEM_TYPES: readonly string[] = ['gear', 'gem', 'material', 'map'];
+
+function isDropEntry(x: unknown, nextId: number): x is DropEntry {
+  if (!isObject(x) || !isIdBelow(x.id, nextId) || !isIn(ITEM_TYPES, x.kind) || !isName(x.name)) return false;
+  if (!isLootPair(x.rarity, x.base) || !isNonNegInt(x.count) || x.count < 1 || !isDropOrigin(x.origin)) return false;
+  const { trail } = x;
+  return Array.isArray(trail) && trail.length >= 1 && trail.length <= MAX_TRAIL_STEPS && trail.every(isTrailStep);
+}
+
+// The drop log: each entry under its own id, apart from the item ids (an entry takes its item's).
+function isDropLog(x: unknown, nextId: number): boolean {
+  if (!Array.isArray(x) || x.length > DROP_LOG_LIMIT) return false;
+  const ids = new Set<number>();
+  return x.every((e) => {
+    if (!isDropEntry(e, nextId) || ids.has(e.id)) return false;
+    ids.add(e.id);
+    return true;
+  });
+}
+
+function isDeathEntry(x: unknown, seed: number, nextId: number): boolean {
+  if (!isObject(x) || !isIdBelow(x.id, nextId) || !isNonNegInt(x.tick) || !isNonNegFinite(x.at) || !isName(x.killer)) return false;
+  // the lost map is a snapshot, which may share its id with the last run's map, so it is checked on its own
+  return isMapItem(x.map, nextId, new Set()) && isBossRoom(x.bossRoom, seed, x.map) && isRoomIn(x.room, x.bossRoom);
 }
 
 export function validateState(x: unknown): x is GameState {
@@ -574,8 +682,10 @@ export function validateState(x: unknown): x is GameState {
   if (!isNonNegInt(x.souls) || !isActivity(x.activity, x.seed, nextId, seen)) return false;
   if (x.lastRun !== null && !isRunResult(x.lastRun, x.seed, nextId, seen)) return false;
   if (!isObject(x.mapTally) || !isNonNegInt(x.mapTally.cleared) || !isNonNegInt(x.mapTally.lost)) return false;
-  if (!Array.isArray(x.finds) || x.finds.length > FINDS_LOG_LIMIT) return false;
-  return x.finds.every((f) => isFindRecord(f, nextId));
+  if (!Array.isArray(x.finds) || x.finds.length > FINDS_LOG_LIMIT || !x.finds.every((f) => isFindRecord(f, nextId))) return false;
+  if (typeof x.paused !== 'boolean' || !isDropLog(x.drops, nextId)) return false;
+  const { seed } = x;
+  return Array.isArray(x.deaths) && x.deaths.length <= DEATH_LOG_LIMIT && x.deaths.every((d) => isDeathEntry(d, seed, nextId));
 }
 
 export function decodeSave(text: string): DecodeResult {

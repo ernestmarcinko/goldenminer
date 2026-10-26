@@ -4,7 +4,7 @@ import { mapTick } from './combat';
 import { rollChest, rollGem } from './itemGen';
 import type { Material } from './items';
 import { hazardFactor, materialAmount, metreLayer, pickMaterial } from './layer';
-import { receiveItem, receiveMaterial } from './loot';
+import { drainOverflow, receiveItem, receiveMaterial } from './loot';
 import { addMap } from './maps';
 import { fillAhead, metreChances, rollMetre } from './metres';
 import { nextRandom } from './rng';
@@ -35,24 +35,25 @@ export function collect(
   const find: FindRecord = { id: state.nextId++, depth, kind: roll.feature, amount, tick: state.tickCount };
   if (bonus) find.bonus = true;
   const loot: LootNote[] = [];
+  const origin = { kind: 'metre', metre: depth } as const;
   if (roll.feature === 'map') {
-    addMap(state, tier, depth);
+    loot.push(...addMap(state, tier, depth));
   } else if (roll.feature === 'chest') {
-    for (const item of rollChest(state, tier)) loot.push(...receiveItem(state, item));
+    for (const item of rollChest(state, tier)) loot.push(...receiveItem(state, item, origin));
   } else if (roll.feature === 'gem') {
-    loot.push(...receiveItem(state, rollGem(state, tier)));
+    loot.push(...receiveItem(state, rollGem(state, tier), origin));
   }
   if (loot.length > 0) find.loot = loot;
   logFind(state, find, events);
 }
 
-/** A material vein, seeded or from ore find: its amount times vein yield goes to the bag (or the Materials tab), and is logged. */
+/** A material vein, seeded or from ore find: its amount times vein yield goes to the bag (or is held), and is logged. */
 function collectMaterialVein(
   state: GameState, vein: { material: Material; amount: number }, depth: number, stats: Stats, events?: TickEvent[],
   bonus = false,
 ): void {
   const amount = Math.round(vein.amount * stats.veinMultiplier);
-  receiveMaterial(state, vein.material, amount);
+  receiveMaterial(state, vein.material, amount, { kind: 'metre', metre: depth });
   const find: FindRecord = {
     id: state.nextId++, depth, kind: 'materialVein', material: vein.material, amount, tick: state.tickCount,
   };
@@ -150,15 +151,18 @@ function digFace(state: GameState, stats: Stats, events?: TickEvent[]): void {
   }
 }
 
-export function applyTicks(state: GameState, count: number, stats: Stats, events?: TickEvent[]): void {
+/** Runs `count` ticks. A paused dig tick is dropped, not banked: it still counts, and nothing digs it later. */
+export function applyTicks(state: GameState, count: number, stats: Stats, events?: TickEvent[], digPaused = false): void {
   for (let i = 0; i < count; i++) {
-    // A running map takes the whole tick, with no digging; held loot doesn't pause it.
+    // A running map takes the whole tick, with no digging; neither a pause nor held loot stops it.
     if (state.activity.kind === 'map') {
       mapTick(state, stats, events);
       state.tickCount += 1;
       continue;
     }
-    if (state.overflow.length > 0) {
+    // Held loot stops digging only while it has no room, whatever freed a cell: the gate heals itself. A drain draws nothing.
+    if (state.overflow.length > 0) drainOverflow(state);
+    if (digPaused || state.overflow.length > 0) {
       state.tickCount += 1;
       continue;
     }

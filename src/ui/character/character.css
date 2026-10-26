@@ -1,10 +1,4 @@
-.gm-char {
-  position: relative; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; padding: 16px;
-  border-radius: 12px; background: var(--gm-panel); border: 1px solid var(--gm-line);
-}
-.gm-char__head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
-.gm-char__title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 18px; }
-.gm-char__toggle { display: flex; gap: 4px; padding: 3px; border-radius: 10px; background: var(--gm-ground); }
+.gm-char__toggle { display: flex; align-self: flex-start; gap: 4px; padding: 3px; border-radius: 10px; background: var(--gm-ground); }
 .gm-char__tab {
   min-height: 44px; padding: 0 14px; border-radius: 8px; border: 1px solid transparent; background: transparent;
   color: var(--gm-normal); font: inherit; font-weight: 600; cursor: pointer;
@@ -13,7 +7,6 @@
 .gm-char__tab:focus-visible, .gm-item:focus-visible, .gm-card__btn:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
 .gm-char__stats { padding: 8px 10px; border-radius: 8px; background: var(--gm-panel-raised); font-size: 12px; color: var(--gm-normal); }
 .gm-char__baghead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
-.gm-char__bagbtns { display: flex; flex-wrap: wrap; gap: 8px; }
 .gm-char__bag { margin: 0; font-size: 14px; }
 .gm-char__bag .gm-muted { font-weight: 400; }
 .gm-char__status { min-height: 1.45em; color: var(--gm-down); }
@@ -66,7 +59,6 @@ button.gm-item:hover { background: #3a2f20; }
    the target's outline shows */
 .gm-item[data-drag-source] { opacity: 0.4; }
 [data-drop-over] { outline: 2px dashed var(--gm-up); outline-offset: -3px; }
-.gm-stash__tab[data-drop-over] { outline-offset: -4px; }
 .gm-ghost {
   position: fixed; z-index: 100; pointer-events: none; opacity: 0.85; border-color: var(--gm-tone);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.7); transform: translate(12px, 12px) rotate(-4deg);
@@ -92,13 +84,18 @@ button.gm-item:hover { background: #3a2f20; }
 @container (width < 385px) { .gm-grid > .gm-item > :first-child { transform: scale(0.6667); } }
 .gm-cell--empty { box-sizing: border-box; border-radius: 6px; background: #1a1613; border: 1px solid #2e2722; }
 
+/* above the page, below the dialogs (.gm-overlay, z-index 10 and up), which must cover an open card */
 .gm-card {
-  position: absolute; z-index: 2; width: 270px; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px;
+  position: fixed; z-index: 9; width: 270px; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px;
   padding: 12px; border-radius: 8px; background: #0f0d0b; border: 1px solid var(--gm-tone, var(--gm-normal));
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6); pointer-events: none;
 }
 .gm-card[role='dialog'] { pointer-events: auto; }
-/* the card moves itself after a craft; a scrolling dialog must not also scroll to follow it (scroll anchoring) */
+/* a pinned card takes its own clicks, which close it, so none reaches (and sells, with Ctrl) an item hidden under it */
+.gm-card[data-pinned], .gm-cardpair[data-pinned], .gm-cardpair[data-pinned] > .gm-card { pointer-events: auto; }
+/* a placed action card taller than the screen (given a max-height) scrolls inside, and never the page */
+.gm-card[role='dialog']:not(.gm-card--inline) { overflow-y: auto; overscroll-behavior: contain; }
+/* the card moves itself after a craft; nothing that scrolls may also move to follow it (scroll anchoring) */
 .gm-card { overflow-anchor: none; }
 /* the card a touch tap opens: in the flow below the grid, so the targets above stay uncovered */
 .gm-card.gm-card--inline { position: static; width: 100%; box-shadow: none; }
@@ -106,13 +103,19 @@ button.gm-item:hover { background: #3a2f20; }
 /* the label over a gear or map card's craft buttons, set apart from the actions above it */
 .gm-card__craft { padding-top: 6px; }
 /* a hover card and the worn item's card, side by side as one placed pair */
-.gm-cardpair { position: absolute; z-index: 2; display: flex; align-items: flex-start; gap: 8px; pointer-events: none; }
+.gm-cardpair { position: fixed; z-index: 9; display: flex; align-items: flex-start; gap: 8px; pointer-events: none; }
 .gm-cardpair > .gm-card { position: static; }
 .gm-card--equipped { opacity: 0.92; border-color: var(--gm-line); }
 .gm-card__equipped { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px solid var(--gm-line); }
 .gm-card__name { font-family: var(--gm-font-display); font-weight: 400; font-size: 15px; color: var(--gm-tone, var(--gm-normal)); }
 .gm-card__kind { font-size: 12px; color: var(--gm-muted); }
 .gm-card__lines { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+/* a modifier's text on the left, its tier on the right in grey */
+.gm-card__line { display: flex; justify-content: space-between; gap: 12px; }
+.gm-card__text { min-width: 0; overflow-wrap: anywhere; }
+.gm-card__tier { flex: none; color: var(--gm-muted); font-family: var(--gm-font-mono); font-size: 12px; }
+/* what the item sells and salvages for, and its shortcuts, closing a hover or pinned card */
+.gm-card__notes { display: flex; flex-direction: column; gap: 2px; padding-top: 4px; font-size: 12px; }
 .gm-card__line[data-tone='plain'] { color: var(--gm-normal); }
 .gm-card__line[data-tone='up'] { color: var(--gm-up); }
 .gm-card__line[data-tone='down'] { color: var(--gm-down); }
@@ -136,38 +139,6 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-card__crafts > .gm-card__btn { padding: 4px 8px; font-size: 12px; line-height: 1.3; }
 /* where a craft that went away was, while the card stays open: the other crafts keep their places */
 .gm-card__slot { min-height: 44px; }
-
-.gm-stash { position: relative; display: flex; flex-direction: column; gap: 12px; }
-.gm-overlay.gm-overlay--top { align-items: flex-start; padding-top: max(16px, 6vh); }
-/* the dialog is a size container: the stash page and the bag sit side by side only while both fit at 40 px cells */
-.gm-dialog.gm-stash { max-width: 980px; container: gm-stash / inline-size; }
-.gm-stash .gm-char__status:empty { min-height: 0; margin-top: -12px; }
-.gm-stash__body { display: flex; align-items: flex-start; gap: 24px; }
-.gm-stash__main { display: flex; flex-direction: column; min-width: 0; }
-.gm-stash__tabs { display: flex; gap: 4px; }
-.gm-stash__tab {
-  min-height: 44px; padding: 0 14px; border-radius: 8px 8px 0 0; border: 1px solid var(--gm-line); border-bottom: 0;
-  background: var(--gm-header); color: var(--gm-normal); font: inherit; font-weight: 700; cursor: pointer;
-}
-.gm-stash__tab[aria-selected='true'] { background: var(--gm-panel-raised); border-color: var(--gm-gold); color: var(--gm-gold-bright); }
-.gm-stash__tab:focus-visible, .gm-stash__panel:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: -2px; }
-.gm-stash__panel {
-  box-sizing: border-box; padding: 10px; border-radius: 0 8px 8px 8px; background: var(--gm-panel-raised);
-  border: 1px solid var(--gm-gold);
-}
-.gm-stash__paged { display: flex; flex-direction: column; gap: 10px; }
-.gm-stash__pages { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.gm-stash__page {
-  min-height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--gm-line); background: var(--gm-panel);
-  color: var(--gm-normal); font: inherit; font-size: 13px; cursor: pointer;
-}
-.gm-stash__page:hover { border-color: var(--gm-gold); }
-.gm-stash__page[aria-pressed='true'] { border-color: var(--gm-gold); color: var(--gm-gold-bright); }
-.gm-stash__page--buy { border-style: dashed; border-color: var(--gm-gold); color: var(--gm-gold); }
-.gm-stash__page--buy[aria-disabled='true'] { opacity: 0.5; }
-.gm-stash__page:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
-.gm-stash__bag { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.gm-stash__bag .gm-char__toggle { align-self: flex-start; }
 
 .gm-gemtab { display: grid; grid-template-columns: 72px repeat(5, minmax(44px, 52px)); gap: 6px; align-items: center; }
 .gm-gemtab__cell { display: grid; aspect-ratio: 1; min-width: 44px; }
@@ -197,22 +168,11 @@ button.gm-item:hover { background: #3a2f20; }
 }
 .gm-rule__btn[data-danger] { color: var(--gm-down); }
 .gm-rule__btn:disabled, .gm-dialog .gm-btn:disabled { opacity: 0.4; cursor: default; }
-.gm-rule__select:focus-visible, .gm-rule__btn:focus-visible, .gm-fullmode__opt input:focus-visible {
+.gm-rule__select:focus-visible, .gm-rule__btn:focus-visible {
   outline: 2px solid var(--gm-gold-bright); outline-offset: 2px;
 }
-.gm-fullmode { margin: 16px 0 0; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--gm-line); display: flex; flex-direction: column; gap: 4px; }
-.gm-fullmode legend { padding: 0 6px; font-size: 13px; color: var(--gm-muted); }
-.gm-fullmode__opt { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
-.gm-fullmode__opt input { width: 18px; height: 18px; margin: 0; accent-color: var(--gm-gold); }
 
-/* a 467 px stash panel, the 24 px gap and the 445 px bag */
-@container gm-stash (width < 936px) {
-  .gm-stash__body { flex-direction: column; align-items: stretch; gap: 16px; }
-}
 @media (max-width: 600px) {
-  .gm-char { padding: 12px; }
-  .gm-stash__panel { padding: 8px; }
-  .gm-stash__tab { padding: 0 10px; }
   .gm-gemtab { grid-template-columns: 56px repeat(5, minmax(44px, 52px)); gap: 4px; }
   .gm-gemtab__name { font-size: 12px; }
   .gm-mattab { grid-template-columns: repeat(4, minmax(44px, 60px)); gap: 4px 6px; }

@@ -14,13 +14,13 @@ it('gems come in five grades by tier', () => {
   expect(salvageYield({ id: 1, type: 'gem', gem: 'ruby', grade: 'perfect', count: 2 })).toEqual({ tin: 8 });
 });
 
-it('an empty inventory is one bag and the free stash pages', () => {
+it('an empty inventory is one bag, the free General pages and an empty Map stash', () => {
   const inv = emptyInventory();
-  expect([inv.bag.length, inv.stash.general.length, inv.stash.maps.length]).toEqual([60, 120, 60]);
-  expect([pageCount(inv.stash.general), pageCount(inv.stash.maps)]).toEqual([2, 1]);
+  expect([inv.bag.length, inv.stash.general.length, inv.stash.maps]).toEqual([60, 120, {}]);
+  expect(pageCount(inv.stash.general)).toBe(2);
   expect(inv.stash.gems.ruby).toEqual({ tiny: 0, small: 0, big: 0, giant: 0, perfect: 0 });
   expect(Object.values(inv.stash.materials)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
-  expect(inv.stash.bought).toEqual({ general: 0, maps: 0 });
+  expect(inv.stash.bought).toEqual({ general: 0 });
   expect([firstEmpty(inv.bag), filledCount(inv.bag), firstEmpty([{ id: 1, type: 'gem', gem: 'ruby', grade: 'tiny', count: 1 }])])
     .toEqual([0, 0, -1]);
 });

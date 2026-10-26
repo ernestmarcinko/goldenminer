@@ -6,15 +6,15 @@ import type { TabLock } from '../../src/store/tabLock';
 beforeEach(() => { vi.useFakeTimers(); });
 afterEach(() => { vi.useRealTimers(); });
 
-function setup() {
-  const store = { load: vi.fn(), pump: vi.fn(), save: vi.fn() };
+function setup(visibilityState = 'visible') {
+  const store = { load: vi.fn(), pump: vi.fn(), save: vi.fn(), setHidden: vi.fn() };
   let held = true;
   const lock = {
     heartbeat: vi.fn(() => held),
     release: vi.fn(() => { held = false; }),
     tryAcquire: vi.fn(() => true),
   };
-  const doc = Object.assign(new EventTarget(), { visibilityState: 'visible' });
+  const doc = Object.assign(new EventTarget(), { visibilityState });
   const win = new EventTarget();
   const onBlocked = vi.fn();
   const loop = startGame(store as unknown as GameStore, lock as unknown as TabLock, onBlocked, { doc, win });
@@ -56,4 +56,29 @@ it('starting the loop does not load: the app loads before it starts', () => {
   const { store, loop } = setup();
   expect(store.load).not.toHaveBeenCalled();
   loop.stop();
+});
+
+it('a hidden tab lifts the view pause, and the hidden stretch is dug before it comes back', () => {
+  const { store, doc, loop } = setup();
+  const calls: string[] = [];
+  store.pump.mockImplementation(() => { calls.push('pump'); });
+  store.save.mockImplementation(() => { calls.push('save'); });
+  store.setHidden.mockImplementation((hidden: boolean) => { calls.push(`setHidden(${hidden})`); });
+  doc.visibilityState = 'hidden';
+  doc.dispatchEvent(new Event('visibilitychange'));
+  expect(calls).toEqual(['setHidden(true)', 'save']);
+  calls.length = 0;
+  doc.visibilityState = 'visible';
+  doc.dispatchEvent(new Event('visibilitychange'));
+  expect(calls).toEqual(['pump', 'setHidden(false)']);
+  loop.stop();
+});
+
+it('a game started in a background tab counts as hidden from the start', () => {
+  const hidden = setup('hidden');
+  expect(hidden.store.setHidden).toHaveBeenCalledWith(true);
+  hidden.loop.stop();
+  const shown = setup();
+  expect(shown.store.setHidden).toHaveBeenCalledWith(false);
+  shown.loop.stop();
 });

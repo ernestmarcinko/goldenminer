@@ -1,4 +1,4 @@
-import { BAG_SIZE, START_GENERAL_PAGES, START_MAP_PAGES, STASH_PAGE_SIZE } from './balance';
+import { BAG_SIZE, START_GENERAL_PAGES, STASH_PAGE_SIZE } from './balance';
 import { GEM_GRADES, GEM_TYPES, MATERIALS, setOfSlot } from './items';
 import type { Cell, GemGrade, GemType, Item, Material } from './items';
 import type { GameState, ItemLoc } from './types';
@@ -28,15 +28,15 @@ export function emptyInventory(): Pick<GameState, 'equipped' | 'bag' | 'stash' |
     stash: {
       general: emptyGrid(START_GENERAL_PAGES * STASH_PAGE_SIZE),
       gems: emptyGemCounts(),
-      maps: emptyGrid(START_MAP_PAGES * STASH_PAGE_SIZE),
+      maps: {},
       materials: emptyMaterialCounts(),
-      bought: { general: 0, maps: 0 },
+      bought: { general: 0 },
     },
     overflow: [],
   };
 }
 
-/** The number of pages a General or Maps tab holds. */
+/** The number of pages the General tab holds. */
 export function pageCount(cells: readonly unknown[]): number {
   return cells.length / STASH_PAGE_SIZE;
 }
@@ -50,12 +50,27 @@ export function filledCount(cells: readonly Cell[]): number {
   return cells.reduce((n, c) => n + (c === null ? 0 : 1), 0);
 }
 
+/** The tiers the Map stash holds maps of, lowest first. */
+export function mapTiers(state: GameState): number[] {
+  return Object.keys(state.stash.maps).map(Number).sort((a, b) => a - b);
+}
+
+/** How many maps the Map stash holds in all. */
+export function mapStashCount(state: GameState): number {
+  return Object.values(state.stash.maps).reduce((n, list) => n + list.length, 0);
+}
+
+/** How many maps the Map stash holds of one tier. */
+export function mapTierCount(state: GameState, tier: number): number {
+  return state.stash.maps[tier]?.length ?? 0;
+}
+
 /** The item at a location. A Gems or Materials stack is a virtual stack (id 0) while its count is above 0. */
 export function itemAt(state: GameState, loc: ItemLoc): Item | undefined {
   switch (loc.where) {
     case 'bag': return state.bag[loc.index] ?? undefined;
     case 'stash': return state.stash.general[loc.index] ?? undefined;
-    case 'maps': return state.stash.maps[loc.index] ?? undefined;
+    case 'maps': return state.stash.maps[loc.tier]?.[loc.index];
     case 'worn': return state.equipped[setOfSlot(loc.slot)][loc.slot];
     case 'gems': {
       const count = state.stash.gems[loc.gem][loc.grade];
@@ -72,7 +87,7 @@ export function sameLoc(a: ItemLoc, b: ItemLoc): boolean {
   switch (a.where) {
     case 'bag': return b.where === 'bag' && a.index === b.index;
     case 'stash': return b.where === 'stash' && a.index === b.index;
-    case 'maps': return b.where === 'maps' && a.index === b.index;
+    case 'maps': return b.where === 'maps' && a.tier === b.tier && a.index === b.index;
     case 'gems': return b.where === 'gems' && a.gem === b.gem && a.grade === b.grade;
     case 'materials': return b.where === 'materials' && a.material === b.material;
     case 'worn': return b.where === 'worn' && a.slot === b.slot;

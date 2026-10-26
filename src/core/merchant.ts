@@ -1,6 +1,7 @@
 import { GAMBLE_GOLD } from './balance';
 import { metreTier } from './bands';
 import { firstEmpty } from './cells';
+import { logDrop } from './dropLog';
 import { rollGear, rollRarity } from './itemGen';
 import { setOfSlot, type GearItem, type Slot } from './items';
 import type { GameState } from './types';
@@ -29,5 +30,6 @@ export function gamble(state: GameState, slot: Slot): { result: GambleResult; it
   const item = rollGear(state, gambleTier(state), setOfSlot(slot), rollRarity(state), slot);
   state.bag[cell] = item;
   state.gold -= price;
+  logDrop(state, item, { kind: 'merchant' }, { event: 'bag' });
   return { result: 'ok', item };
 }

@@ -2,15 +2,16 @@ import { expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
 import type { MapItem } from '../../src/core/items';
 import type { ItemLoc } from '../../src/core/types';
-import { addMap, startMap } from '../../src/core/maps';
+import { startMap } from '../../src/core/maps';
 import { GameStore } from '../../src/store/gameStore';
 import { MemoryStorage } from '../../src/store/storage';
 import {
-  actionForIntent, hoverLines, hoverNote, itemActions, resultText, runAction, soulUpgradeResultText,
+  actionForIntent, hoverLines, hoverNotes, itemActions, materialsText, menuNote, noShortcutText, refusedMap, resultText,
+  runAction, soulUpgradeResultText,
 } from '../../src/ui/character/itemActions';
-import { gear, gem } from '../helpers/items';
+import { gear, gem, stashMap } from '../helpers/items';
 import { lootNoteText } from '../../src/ui/character/itemView';
-import { MATERIAL_STASH_STACK, MAX_ITEM_LEVEL } from '../../src/core/balance';
+import { MAP_TIER_CAP, MATERIAL_STASH_STACK, MAX_ITEM_LEVEL } from '../../src/core/balance';
 
 const bag = (index: number): ItemLoc => ({ where: 'bag', index });
 const labels = (specs: ReturnType<typeof itemActions>) => specs.map((a) => [a.id, a.label]);
@@ -27,10 +28,56 @@ it('bag gear offers equip, sell, salvage and stash', () => {
     { id: 'salvage', label: 'Salvage (+2 Copper ore, +1 Tin ore)', disabled: false },
     { id: 'toStash', label: 'To stash', disabled: false },
   ]);
-  expect(hoverNote(bag(0), pick)).toBe('Click to equip · Alt+click to sell · Shift+click to stash');
 });
 
-it('a bag gem stack offers sockets in worn then carried gear, then sell, salvage and the Gems tab', () => {
+it('a hover card shows what an item sells and salvages for, and the shortcuts', () => {
+  const s = newGame(1, 0);
+  const pick = gear(s, 'pickaxe', { rarity: 'magic', ilvl: 4 });
+  s.bag[0] = pick;
+  expect(hoverNotes(s, bag(0), pick, false)).toEqual([
+    'Sells for 48 Gold · Salvages into 2 Copper ore, 1 Tin ore',
+    'Ctrl+click sell · Alt+click salvage · Shift+click move',
+  ]);
+  expect(hoverNotes(s, bag(0), pick, true)[1]).toBe('⌘+click sell · Alt+click salvage · Shift+click move');
+  // a normal tier-4 map: 25 × 4² Gold; Copper ore, and Tin ore from tier 3
+  const map: MapItem = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
+  s.bag[1] = map;
+  expect(hoverNotes(s, bag(1), map, false)[0]).toBe('Sells for 400 Gold · Salvages into 2 Copper ore, 1 Tin ore');
+  s.stash.maps[4] = [{ ...map, id: s.nextId++ }];
+  const tab: ItemLoc = { where: 'maps', tier: 4, index: 0 };
+  expect(hoverNotes(s, tab, map, false)[1]).toBe('Ctrl+click sell · Alt+click salvage · Shift+click move');
+  s.stash.general[0] = gear(s, 'boots', { rarity: 'normal', ilvl: 2 });
+  const general: ItemLoc = { where: 'stash', index: 0 };
+  expect(hoverNotes(s, general, s.stash.general[0], false)).toEqual([
+    'Sells for 10 Gold · Salvages into 1 Copper ore',
+    'Ctrl+click sell · Alt+click salvage · Shift+click move',
+  ]);
+  // a material has no values, and its own shortcut line
+  const copper = { id: s.nextId++, type: 'material', material: 'copper', count: 3 } as const;
+  s.bag[2] = copper;
+  expect(hoverNotes(s, bag(2), copper, false)).toEqual(['Shift+click move · right-click for actions']);
+  s.stash.materials.tin = 4;
+  const mats: ItemLoc = { where: 'materials', material: 'tin' };
+  expect(hoverNotes(s, mats, { ...copper, material: 'tin', count: 4 }, false))
+    .toEqual(['Shift+click take to bag · right-click for actions']);
+  // worn gear stashes; a Gems-tab stack shows the whole stack's values
+  s.equipped.mining.pickaxe = gear(s, 'pickaxe', { rarity: 'magic', ilvl: 4 });
+  const worn: ItemLoc = { where: 'worn', slot: 'pickaxe' };
+  expect(hoverNotes(s, worn, s.equipped.mining.pickaxe, false)).toEqual([
+    'Sells for 48 Gold · Salvages into 2 Copper ore, 1 Tin ore',
+    'Shift+click stash · right-click for actions',
+  ]);
+  s.stash.gems.sapphire.big = 100;
+  const gems: ItemLoc = { where: 'gems', gem: 'sapphire', grade: 'big' };
+  expect(hoverNotes(s, gems, gem(s, 'sapphire', { grade: 'big', count: 100 }), false)).toEqual([
+    'Sells for 16,000 Gold · Salvages into 200 Tin ore',
+    'Shift+click take to bag · right-click for actions',
+  ]);
+  expect(materialsText({ tin: 1, copper: 2 })).toBe('2 Copper ore, 1 Tin ore');
+  expect(materialsText({ copper: 1_234, iron: 0 })).toBe('1,234 Copper ore');
+});
+
+it('a gem\'s action card lists no sockets and says to drag it', () => {
   const s = newGame(1, 0);
   s.equipped.mining.pickaxe = gear(s, 'pickaxe', { name: 'Stonebiter', sockets: 1 });
   s.equipped.battle.helm = gear(s, 'helm', { name: 'Grim Visor', sockets: 2, gems: [gem(s), gem(s)] });
@@ -40,17 +87,14 @@ it('a bag gem stack offers sockets in worn then carried gear, then sell, salvage
   s.bag[0] = gem(s, 'ruby', { count: 3 });
   const specs = itemActions(s, bag(0));
   expect(labels(specs)).toEqual([
-    ['socket', 'Socket into Stonebiter (+7% Gold yield)'],
-    ['socket', 'Socket into Brass Loop (+7% damage)'],
-    ['socket', 'Socket into Tin Charm (+7% damage) (bag)'],
-    ['socket', 'Socket into Old Boots (+7% Gold yield) (stash)'],
     ['sell', 'Sell (+120 Gold)'],
     ['salvage', 'Salvage (+3 Tin ore)'],
     ['toStash', 'To Gems tab'],
   ]);
-  expect(specs.filter((a) => a.id === 'socket').map((a) => a.into)).toEqual([
-    { where: 'worn', slot: 'pickaxe' }, { where: 'worn', slot: 'ring' }, bag(3), { where: 'stash', index: 8 },
-  ]);
+  expect(specs.map((a) => a.id)).not.toContain('socket');
+  expect(menuNote(gem(s))).toBe('Drag it onto an item with a free socket to socket it.');
+  expect(menuNote(gear(s, 'ring'))).toBeNull();
+  expect(menuNote({ id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] })).toBeNull();
 });
 
 it('General gear offers equip, to bag, sell and salvage', () => {
@@ -65,11 +109,10 @@ it('General gear offers equip, to bag, sell and salvage', () => {
   ]);
   s.bag = s.bag.map((c) => c ?? gem(s));
   expect(itemActions(s, t).find((a) => a.id === 'toBag')?.disabled).toBe(true);
-  expect(actionForIntent(itemActions(s, t), t, 'primary')).toMatchObject({ id: 'toBag' });
-  expect(hoverNote(t, gear(s, 'boots'))).toBe('Click to move to your bag · Alt+click to sell');
+  expect(actionForIntent(itemActions(s, t), t, 'move')).toMatchObject({ id: 'toBag' });
 });
 
-it('a Gems-tab stack takes, sockets, and sells or salvages all of it', () => {
+it('a Gems-tab stack takes, and sells or salvages all of it', () => {
   const s = newGame(1, 0);
   s.stash.gems.sapphire.big = 100;
   s.equipped.battle.ring = gear(s, 'ring', { name: 'Brass Loop', sockets: 1 });
@@ -77,7 +120,6 @@ it('a Gems-tab stack takes, sockets, and sells or salvages all of it', () => {
   const specs = itemActions(s, t);
   expect(labels(specs)).toEqual([
     ['take', 'Take to bag (up to 25)'],
-    ['socket', 'Socket into Brass Loop (+18% all resistances)'],
     ['sell', 'Sell all (+16,000 Gold)'],
     ['salvage', 'Salvage all (+200 Tin ore)'],
   ]);
@@ -100,7 +142,28 @@ it('a worn item offers unequip and to stash', () => {
   expect(itemActions(s, t)[1]).toMatchObject({ id: 'toStash', disabled: true });
 });
 
-it('what clicks do', () => {
+it('a sell or salvage shortcut with no action says why; a move with none, or an item that has one, says nothing', () => {
+  const s = newGame(1, 0);
+  s.equipped.mining.pickaxe = gear(s, 'pickaxe');
+  s.bag[0] = { id: s.nextId++, type: 'material', material: 'copper', count: 3 };
+  s.bag[1] = gear(s, 'gloves');
+  s.stash.materials.tin = 4;
+  const worn: ItemLoc = { where: 'worn', slot: 'pickaxe' };
+  const mats: ItemLoc = { where: 'materials', material: 'tin' };
+  for (const intent of ['sell', 'salvage'] as const) {
+    expect(actionForIntent(itemActions(s, worn), worn, intent)).toBeUndefined();
+    expect(noShortcutText(s, worn, intent)).toBe('Unequip it first to sell or salvage it.');
+    for (const t of [bag(0), mats]) {
+      expect(actionForIntent(itemActions(s, t), t, intent)).toBeUndefined();
+      expect(noShortcutText(s, t, intent)).toBe('Materials can\'t be sold or salvaged.');
+    }
+    expect(noShortcutText(s, bag(1), intent)).toBeNull();
+  }
+  expect(noShortcutText(s, worn, 'move')).toBeNull();
+  expect(noShortcutText(s, bag(0), 'card')).toBeNull();
+});
+
+it('actionForIntent routes the shortcuts', () => {
   const s = newGame(1, 0);
   s.stash.general[0] = gear(s, 'boots');
   s.stash.gems.ruby.tiny = 7;
@@ -111,20 +174,27 @@ it('what clicks do', () => {
   const gems: ItemLoc = { where: 'gems', gem: 'ruby', grade: 'tiny' };
   const general: ItemLoc = { where: 'stash', index: 0 };
   const act = (t: ItemLoc, intent: Parameters<typeof actionForIntent>[2]) => actionForIntent(itemActions(s, t), t, intent);
-  expect(act(bag(0), 'primary')).toMatchObject({ id: 'equip' });
-  expect(act(bag(0), 'move')).toMatchObject({ id: 'toStash' });
+  s.stash.materials.tin = 4;
+  const mats: ItemLoc = { where: 'materials', material: 'tin' };
+  for (const t of [bag(0), bag(1), general, gems, worn, mats]) {
+    expect(act(t, 'card')).toBe('card');
+    expect(act(t, 'menu')).toBe('menu');
+  }
   expect(act(bag(0), 'sell')).toMatchObject({ id: 'sell' });
-  expect(act(bag(1), 'primary')).toBe('menu');
+  expect(act(bag(0), 'salvage')).toMatchObject({ id: 'salvage' });
+  expect(act(bag(0), 'move')).toMatchObject({ id: 'toStash' });
+  expect(act(bag(1), 'sell')).toMatchObject({ id: 'sell' });
   expect(act(bag(1), 'move')).toMatchObject({ id: 'toStash', label: 'To Gems tab' });
-  expect(act(general, 'primary')).toMatchObject({ id: 'toBag' });
-  expect(act(gems, 'primary')).toMatchObject({ id: 'take' });
-  expect(act(gems, 'move')).toMatchObject({ id: 'take' });
+  expect(act(general, 'salvage')).toMatchObject({ id: 'salvage' });
+  expect(act(general, 'move')).toMatchObject({ id: 'toBag' });
+  // a Gems-tab stack can be huge, so selling or salvaging it goes through its card
   expect(act(gems, 'sell')).toBe('menu');
-  expect(act(gems, 'menu')).toBe('menu');
-  expect(act(worn, 'primary')).toMatchObject({ id: 'unequip' });
+  expect(act(gems, 'salvage')).toBe('menu');
+  expect(act(gems, 'move')).toMatchObject({ id: 'take' });
   expect(act(worn, 'move')).toMatchObject({ id: 'toStash' });
-  expect(hoverNote(gems, gem(s))).toBe('Click to take up to 25 · right-click for more');
-  expect(hoverNote(bag(1), gem(s))).toBe('Click for actions · Alt+click to sell · Shift+click to the Gems tab');
+  expect(act(worn, 'sell')).toBeUndefined();
+  expect(act(mats, 'move')).toMatchObject({ id: 'take' });
+  expect(act(mats, 'sell')).toBeUndefined();
 });
 
 it('every refusal has a message, and success has none', () => {
@@ -139,40 +209,67 @@ it('every refusal has a message, and success has none', () => {
   expect(resultText('stackFull')).toBe('That stack is full.');
   expect(resultText('invalid')).toBe("That can't go there.");
   expect(resultText('ok')).toBeNull();
+  const map: MapItem = { id: 1, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
+  expect(resultText('mapTierFull', map)).toBe('The tier 4 maps are full.');
+  expect(() => resultText('mapTierFull')).toThrow();   // never a guess at which tier
+});
+
+it('a full tier is named by the map it refused: the moved map, or the bag map a Maps-tab map swaps with', () => {
+  const s = newGame(1, 0);
+  const carried: MapItem = { id: s.nextId++, type: 'map', tier: 5, metre: 327, rarity: 'normal', mods: [] };
+  const stashed: MapItem = { id: s.nextId++, type: 'map', tier: 3, metre: 214, rarity: 'normal', mods: [] };
+  s.bag[0] = carried;
+  s.bag[1] = gear(s, 'ring');
+  s.stash.maps[3] = [stashed];
+  const tab: ItemLoc = { where: 'maps', tier: 3, index: 0 };
+  expect(refusedMap(s, bag(0))).toBe(carried);                                          // the card's To Maps tab
+  expect(refusedMap(s, bag(0), { where: 'stashTab', tab: 'maps' })).toBe(carried);
+  expect(refusedMap(s, bag(0), tab)).toBe(carried);                                     // a bag map onto the Maps tab
+  expect(refusedMap(s, tab, bag(0))).toBe(carried);                                     // a swap: the bag map's tier
+  expect(refusedMap(s, tab, bag(5))).toBe(stashed);                                     // out to an empty cell
+  expect(refusedMap(s, bag(1), tab)).toBeUndefined();                                   // not a map
+  expect(refusedMap(s, bag(9))).toBeUndefined();
 });
 
 it('a bag map runs or goes to the Maps tab; a Maps-tab map runs or comes back to the bag', () => {
   const s = newGame(1, 0);
   const carried: MapItem = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
   s.bag[0] = carried;
-  s.stash.maps[2] = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] };
-  const tab: ItemLoc = { where: 'maps', index: 2 };
+  s.stash.maps[1] = [{ id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] }];
+  const tab: ItemLoc = { where: 'maps', tier: 1, index: 0 };
   expect(noCrafts(itemActions(s, bag(0)))).toEqual([
     { id: 'run', label: 'Run this map', disabled: false },
     { id: 'toStash', label: 'To Maps tab', disabled: false },
+    { id: 'sell', label: 'Sell (+400 Gold)', disabled: false },
+    { id: 'salvage', label: 'Salvage (+2 Copper ore, +1 Tin ore)', disabled: false },
   ]);
   expect(noCrafts(itemActions(s, tab))).toEqual([
     { id: 'run', label: 'Run this map', disabled: false },
     { id: 'toBag', label: 'To bag', disabled: false },
+    { id: 'sell', label: 'Sell (+25 Gold)', disabled: false },
+    { id: 'salvage', label: 'Salvage (+2 Copper ore)', disabled: false },
   ]);
   const act = (t: ItemLoc, intent: Parameters<typeof actionForIntent>[2]) => actionForIntent(itemActions(s, t), t, intent);
-  expect(act(bag(0), 'primary')).toBe('menu');
-  expect(act(tab, 'primary')).toBe('menu');
+  expect(act(bag(0), 'card')).toBe('card');
+  expect(act(tab, 'card')).toBe('card');
   expect(act(bag(0), 'move')).toMatchObject({ id: 'toStash' });
   expect(act(tab, 'move')).toMatchObject({ id: 'toBag' });
-  expect(hoverNote(bag(0), carried)).toBe('Click for actions · Shift+click to the Maps tab');
-  expect(hoverNote(tab, carried)).toBe('Click for actions · Shift+click to your bag');
+  expect(act(tab, 'sell')).toMatchObject({ id: 'sell' });
+  expect(act(bag(0), 'salvage')).toMatchObject({ id: 'salvage' });
 });
 
 it('a map cannot run while another run is going, and moves need room', () => {
   const s = newGame(1, 0);
   s.bag[0] = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
-  s.stash.maps[2] = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] };
-  startMap(s, addMap(s, 1, 2).id);
-  const tab: ItemLoc = { where: 'maps', index: 2 };
+  s.stash.maps[1] = [{ id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] }];
+  startMap(s, stashMap(s, 1, 2).id);
+  const tab: ItemLoc = { where: 'maps', tier: 1, index: 0 };
   expect(itemActions(s, bag(0))[0]).toMatchObject({ id: 'run', disabled: true });
   expect(itemActions(s, tab)[0]).toMatchObject({ id: 'run', disabled: true });
-  s.stash.maps = s.stash.maps.map((c) => c ?? { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] });
+  // the bag map is tier 4: a full tier 1 leaves its move open, a full tier 4 shuts it
+  s.stash.maps[1] = Array.from({ length: MAP_TIER_CAP }, () => ({ id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] }));
+  expect(itemActions(s, bag(0))[1]).toMatchObject({ id: 'toStash', disabled: false });
+  s.stash.maps[4] = Array.from({ length: MAP_TIER_CAP }, () => ({ id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] }));
   expect(itemActions(s, bag(0))[1]).toMatchObject({ id: 'toStash', disabled: true });
   s.bag = s.bag.map((c) => c ?? gear(s, 'ring'));
   expect(itemActions(s, tab)[1]).toMatchObject({ id: 'toBag', disabled: true });
@@ -183,14 +280,14 @@ it('Run this map starts that map', () => {
   store.load();
   const s = store.state;
   const map: MapItem = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] };
-  s.stash.maps[5] = map;
-  const t: ItemLoc = { where: 'maps', index: 5 };
+  s.stash.maps[1] = [map];
+  const t: ItemLoc = { where: 'maps', tier: 1, index: 0 };
   const run = itemActions(s, t).find((a) => a.id === 'run');
   if (run === undefined) throw new Error('no run action');
   expect(runAction(store, t, run)).toBe('ok');
   expect(store.state.activity.kind).toBe('map');
   expect(store.state.activity.kind === 'map' && store.state.activity.run.map.id).toBe(map.id);
-  expect(s.stash.maps[5]).toBeNull();
+  expect(s.stash.maps).toEqual({});
 });
 
 it('Run this map during a run is refused as busy', () => {
@@ -198,7 +295,7 @@ it('Run this map during a run is refused as busy', () => {
   store.load();
   const s = store.state;
   s.bag[0] = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] };
-  store.startMap(addMap(s, 1, 2).id);
+  store.startMap(stashMap(s, 1, 2).id);
   expect(runAction(store, bag(0), { id: 'run', label: 'Run this map', disabled: true })).toBe('busy');
   expect(s.bag[0]).not.toBeNull();
 });
@@ -214,12 +311,11 @@ it('a bag material stack goes to the Materials tab; a tab stack comes back to th
   expect(itemActions(s, bag(1))[0]).toMatchObject({ id: 'toStash', disabled: false });
   expect(itemActions(s, tab)[0]).toMatchObject({ id: 'take', disabled: false });
   const act = (t: ItemLoc, intent: Parameters<typeof actionForIntent>[2]) => actionForIntent(itemActions(s, t), t, intent);
-  expect(act(bag(1), 'primary')).toBe('menu');
+  expect(act(bag(1), 'card')).toBe('card');
   expect(act(bag(1), 'move')).toMatchObject({ id: 'toStash' });
-  expect(act(tab, 'primary')).toMatchObject({ id: 'take' });
+  expect(act(bag(1), 'sell')).toBeUndefined();
+  expect(act(tab, 'card')).toBe('card');
   expect(act(tab, 'move')).toMatchObject({ id: 'take' });
-  expect(hoverNote(bag(1), copper)).toBe('Click for actions · Shift+click to the Materials tab');
-  expect(hoverNote(tab, copper)).toBe('Click to take up to 50 · right-click for more');
   s.stash.materials.copper = MATERIAL_STASH_STACK;
   expect(itemActions(s, bag(1))[0]).toMatchObject({ disabled: true });
   s.bag = s.bag.map((c) => c ?? gear(s, 'ring'));
@@ -290,41 +386,45 @@ it('a craft action crafts through the store', () => {
   expect(store.lastCraft).toMatchObject({ kind: 'copper', check: 'ok' });
 });
 
-it('a map card lists its enchants after Run this map and the move', () => {
+it('a map card lists Run this map, the move, Sell and Salvage, then its enchants', () => {
   const s = newGame(1, 0);
   s.bag[0] = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
-  s.stash.maps[2] = {
+  s.stash.maps[4] = [{
     id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'magic', mods: [{ kind: 'monsterLife', tier: 2, value: 15 }],
-  };
+  }];
   s.stash.materials.copper = 37;
   s.stash.materials.iron = 37;
   s.souls = 50;
   expect(itemActions(s, bag(0))).toEqual([
     { id: 'run', label: 'Run this map', disabled: false },
     { id: 'toStash', label: 'To Maps tab', disabled: false },
+    { id: 'sell', label: 'Sell (+400 Gold)', disabled: false },
+    { id: 'salvage', label: 'Salvage (+2 Copper ore, +1 Tin ore)', disabled: false },
     { id: 'craft', kind: 'copper', label: 'Copper ore ×3 + 20 Souls: enchant it', disabled: false },
   ]);
-  const tab = itemActions(s, { where: 'maps', index: 2 });
-  expect(tab.slice(0, 2).map((a) => a.id)).toEqual(['run', 'toBag']);
-  expect(tab.slice(2).map((a) => [a.id, a.kind, a.disabled])).toEqual([
+  const tab = itemActions(s, { where: 'maps', tier: 4, index: 0 });
+  expect(labels(tab.slice(0, 4))).toEqual([
+    ['run', 'Run this map'], ['toBag', 'To bag'], ['sell', 'Sell (+600 Gold)'], ['salvage', 'Salvage (+2 Copper ore, +1 Tin ore)'],
+  ]);
+  expect(tab.slice(4).map((a) => [a.id, a.kind, a.disabled])).toEqual([
     ['craft', 'iron', false], ['craft', 'obsidian', true], ['craft', 'voidCrystal', true],
   ]);
   s.souls = 19;
-  expect(itemActions(s, bag(0))[2]).toMatchObject({ kind: 'copper', disabled: true });
+  expect(itemActions(s, bag(0))[4]).toMatchObject({ kind: 'copper', disabled: true });
 });
 
 it('an enchant action enchants a map through the store, and spends its Souls', () => {
   const store = new GameStore({ storage: new MemoryStorage(), storageAvailable: true, now: () => 0, newSeed: () => 7 });
   store.load();
   const s = store.state;
-  s.stash.maps[5] = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
+  s.stash.maps[4] = [{ id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] }];
   s.stash.materials.copper = 5;
   s.souls = 50;
-  const t: ItemLoc = { where: 'maps', index: 5 };
+  const t: ItemLoc = { where: 'maps', tier: 4, index: 0 };
   const copper = itemActions(s, t).find((a) => a.id === 'craft' && a.kind === 'copper');
   if (copper === undefined) throw new Error('no copper enchant');
   expect(runAction(store, t, copper)).toBe('ok');
-  expect(s.stash.maps[5]).toMatchObject({ rarity: 'magic' });
+  expect(s.stash.maps[4]?.[0]).toMatchObject({ rarity: 'magic' });
   expect(s.stash.materials.copper).toBe(2);
   expect(s.souls).toBe(30);
 });
@@ -406,4 +506,26 @@ it('a Soul upgrade action upgrades through the store, and says why it was refuse
   expect(soulUpgradeResultText('noSouls')).toBe('Not enough Souls.');
   expect(soulUpgradeResultText('maxLevel')).toBe("It can't go any higher.");
   for (const r of ['notBattle', 'sealed', 'invalid'] as const) expect(soulUpgradeResultText(r)).toEqual(expect.any(String));
+});
+
+it("a map's Sell and Salvage run through the store, and a held note of any kind waits for space", () => {
+  const store = new GameStore({ storage: new MemoryStorage(), storageAvailable: true, now: () => 0, newSeed: () => 7 });
+  store.load();
+  const s = store.state;
+  s.bag[0] = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
+  s.stash.maps[3] = [{ id: s.nextId++, type: 'map', tier: 3, metre: 200, rarity: 'normal', mods: [] }];
+  const sell = itemActions(s, bag(0)).find((a) => a.id === 'sell');
+  const t: ItemLoc = { where: 'maps', tier: 3, index: 0 };
+  const salvage = itemActions(s, t).find((a) => a.id === 'salvage');
+  if (sell === undefined || salvage === undefined) throw new Error('no sell or salvage action');
+  const gold = s.gold;
+  expect(runAction(store, bag(0), sell)).toBe('ok');
+  expect(runAction(store, t, salvage)).toBe('ok');
+  expect([store.state.gold - gold, store.state.bag[0], store.state.stash.maps]).toEqual([400, null, {}]);
+  expect([store.state.stash.materials.copper, store.state.stash.materials.tin]).toEqual([2, 1]);
+  for (const n of [
+    { name: 'Tier 4 map', rarity: 'normal', base: 'map', outcome: 'held', value: 0 },
+    { name: 'Copper ore', rarity: 'material', base: 'copper', outcome: 'held', value: 30 },
+    { name: 'Test ring', rarity: 'magic', base: 'ring', outcome: 'held', value: 0 },
+  ] as const) expect(lootNoteText(n)).toBe('waiting for space');
 });

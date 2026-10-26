@@ -10,6 +10,10 @@
   list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px;
   font-size: 13px; color: var(--gm-normal); overflow-wrap: anywhere;
 }
+/* each modifier's tier sits at the right edge, in grey, as on the item card */
+.gm-run__mods > li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.gm-run__modtier { flex: none; color: var(--gm-muted); font-family: var(--gm-font-mono); font-size: 12px; }
+.gm-run__rewards { color: var(--gm-normal); overflow-wrap: anywhere; }
 
 .gm-rooms { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .gm-rooms__row {
@@ -107,3 +111,17 @@
 .gm-dialog__title[data-outcome='cleared'] { color: var(--gm-soul-bright); }
 .gm-dialog__title[data-outcome='died'] { color: var(--gm-down); }
 .gm-runresult__gains { margin: 0; font-family: var(--gm-font-mono); font-size: 13px; color: var(--gm-badge-bg); }
+
+/* the Last run card, at the top of the Log view */
+.gm-lastrun {
+  display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: 12px;
+  background: var(--gm-soul-panel); border: 1px solid var(--gm-soul);
+}
+.gm-lastrun__label { margin: 0; font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gm-badge-bg); }
+.gm-lastrun__title { font-family: var(--gm-font-display); font-size: 18px; color: var(--gm-soul-bright); }
+.gm-lastrun__title[data-outcome='died'] { color: var(--gm-down); }
+.gm-lastrun__gains { font-family: var(--gm-font-mono); font-size: 13px; color: var(--gm-badge-bg); }
+.gm-badge {
+  flex: none; min-width: 32px; padding: 3px 6px; box-sizing: border-box; border-radius: 6px; text-align: center;
+  background: var(--gm-badge-bg); color: var(--gm-badge-fg); font-family: var(--gm-font-mono); font-size: 13px;
+}

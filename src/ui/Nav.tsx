@@ -1,28 +1,30 @@
+import type { RefObject } from 'react';
 import type { GameStore } from '../store/gameStore';
-import { formatNumber } from './format';
-import { mapCount } from './maps/mapsView';
+import { navTabs, type View } from './navView';
 import { useGame } from './useGame';
 
-export type View = 'mine' | 'maps' | 'merchant';
+export type { View } from './navView';
 
-export function Nav({ store, view, onView }: { store: GameStore; view: View; onView: (view: View) => void }) {
+/** `mineRef` is the Mine tab, where focus lands when the run result is dismissed; `runRef` the Run tab, while a run goes on. */
+export function Nav({ store, view, onView, mineRef, runRef }: {
+  store: GameStore; view: View; onView: (view: View) => void;
+  mineRef?: RefObject<HTMLButtonElement | null>; runRef?: RefObject<HTMLButtonElement | null>;
+}) {
   const { state } = useGame(store);
   return (
     <nav aria-label="Game sections" className="gm-nav">
-      <button type="button" className="gm-nav__tab" aria-pressed={view === 'mine'} onClick={() => onView('mine')}>
-        Mine
-      </button>
-      <button
-        type="button"
-        className="gm-nav__tab gm-nav__tab--maps"
-        aria-pressed={view === 'maps'}
-        onClick={() => onView('maps')}
-      >
-        Maps ({formatNumber(mapCount(state))})
-      </button>
-      <button type="button" className="gm-nav__tab" aria-pressed={view === 'merchant'} onClick={() => onView('merchant')}>
-        Merchant
-      </button>
+      {navTabs(state.activity.kind === 'map').map((tab) => (
+        <button
+          key={tab.view}
+          type="button"
+          ref={tab.view === 'mine' ? mineRef : tab.view === 'run' ? runRef : undefined}
+          className={tab.view === 'run' ? 'gm-nav__tab gm-nav__tab--run' : 'gm-nav__tab'}
+          aria-pressed={view === tab.view}
+          onClick={() => onView(tab.view)}
+        >
+          {tab.label}
+        </button>
+      ))}
     </nav>
   );
 }

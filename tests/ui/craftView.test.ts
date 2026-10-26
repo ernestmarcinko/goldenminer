@@ -113,8 +113,9 @@ it('a normal tier-4 map offers only Copper, for its material and its Souls', () 
 
 it('a map craft is off with too little material or too few Souls', () => {
   const s = newGame(1, 0);
-  s.stash.maps[3] = map(s, 'normal');
-  const tab: ItemLoc = { where: 'maps', index: 3 };
+  const inTab = map(s, 'normal');
+  s.stash.maps[inTab.tier] = [inTab];
+  const tab: ItemLoc = { where: 'maps', tier: inTab.tier, index: 0 };
   s.stash.materials.copper = 3;
   s.souls = 19;
   expect(craftOptions(s, tab)).toMatchObject([{ kind: 'copper', souls: 20, enabled: false }]);

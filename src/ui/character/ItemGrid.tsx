@@ -1,10 +1,12 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { sameLoc } from '../../core/cells';
 import { isGear, isStack } from '../../core/items';
 import type { Cell, Item } from '../../core/items';
+import type { DropTarget } from '../../core/types';
 import { itemName } from '../../core/itemData';
 import { Sprite } from '../../sprites/Sprite';
 import { formatCompact, formatNumber } from '../format';
+import { IS_MAC } from '../platform';
 import { clickRoute, dropAttr } from './dragDrop';
 import type { ItemTarget } from './itemActions';
 import { itemSprite, rarityOf } from './itemView';
@@ -48,9 +50,21 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
   item: Item; target: ItemTarget; handlers: ItemHandlers; scale: number; className: string; label: string;
 }) {
   const pointerType = useRef('mouse');
+  const ref = useRef<HTMLButtonElement>(null);
+  const shown = useRef(item.id);
   const { drag } = handlers;
+  // Another item came into this cell under a still pointer: a shortcut's sale let a held find in, or a map tier moved
+  // up. No mouseenter fires for it, so its card is shown here, or the next shortcut would act on an item unseen.
+  // By id, since a stash tab's stack is a new object each render (id 0, as its cell never changes item).
+  useEffect(() => {
+    if (shown.current === item.id) return;
+    shown.current = item.id;
+    const el = ref.current;
+    if (el !== null && pointerType.current !== 'touch' && el.matches(':hover')) handlers.onInspect(target, el);
+  });
   return (
     <button
+      ref={ref}
       type="button"
       className={className}
       data-rarity={rarityOf(item)}
@@ -61,8 +75,9 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
       onClick={(e) => {
         if (drag.consumeClick()) return;
         const route = clickRoute({
-          altKey: e.altKey, shiftKey: e.shiftKey, detail: e.detail, pointerType: pointerType.current,
-        }, drag.held !== null);
+          altKey: e.altKey, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey, detail: e.detail,
+          pointerType: pointerType.current,
+        }, drag.held !== null, IS_MAC);
         if (route.kind === 'pick') handlers.onPick(target, route.intent, e.currentTarget);
         else if (drag.onTap(target, true) && route.kind === 'lift') handlers.onLift(target, e.currentTarget);
       }}
@@ -83,7 +98,7 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
 
 /** An empty cell or slot: a drop target that a touch tap can place the lifted item on. Not in the tab order. */
 export function EmptyTarget({ target, drag, className, label }: {
-  target: ItemTarget; drag: ItemDrag; className: string; label?: string;
+  target: DropTarget; drag: ItemDrag; className: string; label?: string;
 }) {
   return (
     <div
@@ -97,17 +112,19 @@ export function EmptyTarget({ target, drag, className, label }: {
 }
 
 /**
- * A fixed-size grid of item cells, ten to a row; `targetOf` says where cell `i` lives so any container can use it. Its
- * box shrinks the cells to fit a narrow screen, then scrolls sideways on its own.
+ * A fixed-size grid of item cells, ten to a row; `targetOf` says where cell `i` lives so any container can use it, and
+ * `emptyTarget`, when given, is where a drop on any empty cell goes instead. Its box shrinks the cells to fit a narrow
+ * screen, then scrolls sideways on its own.
  */
-export function ItemGrid({ items, capacity, targetOf, handlers }: {
+export function ItemGrid({ items, capacity, targetOf, handlers, emptyTarget }: {
   items: readonly Cell[]; capacity: number; targetOf: (index: number) => ItemTarget; handlers: ItemHandlers;
+  emptyTarget?: DropTarget;
 }) {
   const cells = [];
   for (let i = 0; i < capacity; i++) {
     const item = items[i];
     cells.push(item === undefined || item === null ? (
-      <EmptyTarget key={i} target={targetOf(i)} drag={handlers.drag} className="gm-cell gm-cell--empty" />
+      <EmptyTarget key={i} target={emptyTarget ?? targetOf(i)} drag={handlers.drag} className="gm-cell gm-cell--empty" />
     ) : (
       <ItemButton
         key={i}

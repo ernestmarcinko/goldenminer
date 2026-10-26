@@ -1,9 +1,9 @@
-import { stashPagePrice, STASH_PAGE_SIZE } from '../../core/balance';
-import { filledCount, pageCount } from '../../core/cells';
+import { BAG_SIZE, MAP_TIER_CAP, stashPagePrice, STASH_PAGE_SIZE } from '../../core/balance';
+import { filledCount, mapStashCount, mapTierCount, mapTiers as stashTiers, pageCount } from '../../core/cells';
 import { GEM_GRADES, GEM_TYPES, MATERIALS } from '../../core/items';
-import type { GemGrade, GemType, Material } from '../../core/items';
+import type { GemGrade, GemType, MapItem, Material } from '../../core/items';
 import { GEM_GRADE_LABELS, GEM_LABELS, MATERIAL_LABELS } from '../../core/itemData';
-import type { GameState } from '../../core/types';
+import type { GameState, ItemLoc } from '../../core/types';
 import { formatCompact, formatNumber } from '../format';
 
 export const STASH_TABS = ['general', 'gems', 'maps', 'materials'] as const;
@@ -15,23 +15,65 @@ export function tabLabel(state: GameState, tab: StashTab): string {
   switch (tab) {
     case 'general': return `General ${formatNumber(filledCount(state.stash.general))} / ${formatNumber(state.stash.general.length)}`;
     case 'gems': return 'Gems';
-    case 'maps': return `Maps ${formatNumber(filledCount(state.stash.maps))} / ${formatNumber(state.stash.maps.length)}`;
+    case 'maps': return `Maps ${formatNumber(mapStashCount(state))}`;
     case 'materials': return 'Materials';
   }
 }
 
-/** The cells of one page of a General or Maps tab, page 0 first. */
+/** The bag's heading: how full it is, then how many finds are held for want of room, when any are. */
+export function bagHeading(state: GameState): { filled: string; held: string | null } {
+  const held = state.overflow.length;
+  return {
+    filled: `${formatNumber(filledCount(state.bag))} / ${formatNumber(BAG_SIZE)}`,
+    held: held > 0 ? `· ${formatNumber(held)} held` : null,
+  };
+}
+
+/** The cells of one page of the General tab, page 0 first. */
 export function pageCells<T>(cells: readonly T[], page: number): T[] {
   return cells.slice(page * STASH_PAGE_SIZE, (page + 1) * STASH_PAGE_SIZE);
 }
 
-/** The buy button: the number of the page it would add, its price, and whether the Gold is there. */
-export function buyLabel(state: GameState, tab: 'general' | 'maps'): { text: string; affordable: boolean } {
-  const price = stashPagePrice(state.stash.bought[tab] + 1);
+/** The General tab's buy button: the number of the page it would add, its price, and whether the Gold is there. */
+export function buyLabel(state: GameState): { text: string; affordable: boolean } {
+  const price = stashPagePrice(state.stash.bought.general + 1);
   return {
-    text: `+ Page ${formatNumber(pageCount(state.stash[tab]) + 1)} · ${formatNumber(price)} Gold`,
+    text: `+ Page ${formatNumber(pageCount(state.stash.general) + 1)} · ${formatNumber(price)} Gold`,
     affordable: state.gold >= price,
   };
+}
+
+/** A grid shows its items in whole rows of ten, and never fewer than one row. */
+export function gridCapacity(count: number): number {
+  return Math.max(10, Math.ceil(count / 10) * 10);
+}
+
+/** The Maps tab's tier chips: one per tier it holds, lowest first. */
+export function mapTiers(state: GameState): { tier: number; count: number; label: string }[] {
+  return stashTiers(state).map((tier) => {
+    const count = mapTierCount(state, tier);
+    return { tier, count, label: `T${formatNumber(tier)} · ${formatNumber(count)}` };
+  });
+}
+
+const RARITY_ORDER: Readonly<Record<MapItem['rarity'], number>> = { rare: 0, magic: 1, normal: 2 };
+
+/** One tier's maps as the grid shows them, rare first, then magic, then normal, each newest first; the list keeps its order. */
+export function mapTierCells(state: GameState, tier: number): { item: MapItem; loc: ItemLoc }[] {
+  const list = state.stash.maps[tier] ?? [];
+  return list
+    .map((item, index): { item: MapItem; loc: ItemLoc } => ({ item, loc: { where: 'maps', tier, index } }))
+    .sort((a, b) => RARITY_ORDER[a.item.rarity] - RARITY_ORDER[b.item.rarity] || b.item.id - a.item.id);
+}
+
+export function mapTierCaption(tier: number, count: number): string {
+  return `Tier ${formatNumber(tier)} maps · ${formatNumber(count)} / ${formatNumber(MAP_TIER_CAP)}`;
+}
+
+/** The tier to show: the one asked for while it holds maps, else the highest, else none. */
+export function pickTier(tiers: readonly number[], wanted: number | null): number | null {
+  if (wanted !== null && tiers.includes(wanted)) return wanted;
+  return tiers.length === 0 ? null : Math.max(...tiers);
 }
 
 export interface GemCell { grade: GemGrade; count: number; text: string }

@@ -5,6 +5,7 @@ import {
 } from './balance';
 import { deriveBattleStats, mitigate, type BattleStats } from './battle';
 import { dungeonLayout } from './dungeons';
+import { logDeath, trail } from './dropLog';
 import { gainXp } from './levels';
 import { rollGear, rollGem, rollRarity } from './itemGen';
 import { materialAmount, pickMaterial } from './layer';
@@ -43,15 +44,22 @@ function roomQueue(state: GameState, run: MapRun, room: number): MonsterState[] 
   return monsters.map((m) => monsterState(run.map.tier, m, fx));
 }
 
-/** The run is over: it becomes the last run, the tally counts it and the miner goes back to digging. */
-export function endRun(state: GameState, run: MapRun, outcome: RunOutcome, events?: TickEvent[]): void {
+/**
+ * The run is over: it becomes the last run, the tally counts it and the miner goes back to digging. A map not cleared
+ * is lost, and a death is logged with `killer`, the monster that struck last (by default the one fighting).
+ */
+export function endRun(state: GameState, run: MapRun, outcome: RunOutcome, events?: TickEvent[], killer?: string): void {
   const result: RunResult = {
     map: run.map, outcome, room: run.room, bossRoom: run.bossRoom, gained: { ...run.gained },
     items: run.items, seen: false,
   };
   state.lastRun = result;
   if (outcome === 'cleared') state.mapTally.cleared += 1;
-  else state.mapTally.lost += 1;
+  else {
+    state.mapTally.lost += 1;
+    trail(state, run.map.id, { event: 'lost' });
+  }
+  if (outcome === 'died') logDeath(state, run, killer ?? run.queue[0]?.name ?? 'a monster');
   state.activity = { kind: 'dig' };
   events?.push({ kind: 'runEnd', result });
 }
@@ -106,19 +114,20 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
   const guaranteed = monster.rank === 'boss' ? BOSS_DROPS : monster.rank === 'champion' ? CHAMPION_DROPS : 0;
   const count = guaranteed + (nextRandom(state) < more(DROP_CHANCE) ? 1 : 0);
   const magicFind = b.magicFindMultiplier * (1 + fx.rarity / 100);
+  const origin = { kind: 'map', tier, room: run.room } as const;
   for (let i = 0; i < count; i++) {
     const set = nextRandom(state) < MAP_DROP_BATTLE_CHANCE ? 'battle' : 'mining';
     const raised = monster.rank === 'champion' && i < guaranteed;
     const item = rollGear(state, tier, set, rollRarity(state, magicFind * (raised ? CHAMPION_MAGIC_FIND : 1)));
-    takeDrop(run, receiveItem(state, item));
+    takeDrop(run, receiveItem(state, item, origin));
   }
-  if (nextRandom(state) < more(MAP_GEM_CHANCE)) takeDrop(run, receiveItem(state, rollGem(state, tier)));
+  if (nextRandom(state) < more(MAP_GEM_CHANCE)) takeDrop(run, receiveItem(state, rollGem(state, tier), origin));
   // Materials of the map's depth: rankReward chances, each pass drawing its material and then its amount.
   const metre = run.map.metre;
   for (let i = 0; i < rankReward(monster.rank); i++) {
     if (nextRandom(state) >= more(MAP_MATERIAL_CHANCE)) continue;
     const material = pickMaterial(metre, nextRandom(state));
-    takeDrop(run, receiveMaterial(state, material, materialAmount(material, metre, nextRandom(state))), false);
+    takeDrop(run, receiveMaterial(state, material, materialAmount(material, metre, nextRandom(state)), origin), false);
   }
 }
 
@@ -197,7 +206,7 @@ function combatStep(state: GameState, run: MapRun, b: BattleStats, dt: number, e
       if (healed > 0) logLine(run, { kind: 'heal', monster: m.name, amount: healed });
     }
     if (run.life <= 0) {
-      endRun(state, run, 'died', events);
+      endRun(state, run, 'died', events, m.name);
       return b;
     }
   }

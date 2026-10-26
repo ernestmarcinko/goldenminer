@@ -3,6 +3,7 @@ import {
   MAX_SIDE_LINES, MAX_TIER_OVER_CAP, RARE_LINE_WEIGHTS, STAT_WEIGHTS, TEMPER_WEIGHTS,
 } from './balance';
 import { itemAt, sameLoc } from './cells';
+import { trail } from './dropLog';
 import { baseName } from './itemData';
 import { magicName, rareName, rollLines, rollSockets, rollValue, sideCount } from './itemGen';
 import { MAP_MOD_KINDS, MOD_SIDE, SLOT_IMPLICIT, isGear, isMap, setOfSlot, statsOf } from './items';
@@ -330,6 +331,7 @@ export function craft(state: GameState, target: ItemLoc, kind: CraftKind, from?:
     const outcome = applyToMap(state, found, kind);
     pay(state, kind, cost, from);
     state.souls -= souls;
+    trail(state, found.id, { event: 'crafted' });
     return outcome === undefined ? { check } : { check, temper: outcome };
   }
   const item = found as GearItem;
@@ -337,6 +339,7 @@ export function craft(state: GameState, target: ItemLoc, kind: CraftKind, from?:
   const cost = craftCost(kind, item.ilvl);
   const outcome = apply(state, item, kind);
   pay(state, kind, cost, from);
+  trail(state, item.id, { event: 'crafted' });
   // Worn mining gear may change lamp sight, as equipping does.
   if (target.where === 'worn' && setOfSlot(target.slot) === 'mining') fillAhead(state, deriveStats(state));
   return outcome === undefined ? { check } : { check, temper: outcome };

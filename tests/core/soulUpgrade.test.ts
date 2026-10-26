@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MAX_ITEM_LEVEL } from '../../src/core/balance';
 import { deriveBattleStats } from '../../src/core/battle';
 import { mapTick } from '../../src/core/combat';
-import { addMap, startMap } from '../../src/core/maps';
+import { startMap } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
 import { validateState } from '../../src/core/save';
 import { canUpgrade, soulUpgrade, soulUpgradeCost } from '../../src/core/soulUpgrade';
@@ -10,7 +10,7 @@ import { deriveStats } from '../../src/core/stats';
 import type { GameState, ItemLoc } from '../../src/core/types';
 import { GameStore } from '../../src/store/gameStore';
 import { MemoryStorage } from '../../src/store/storage';
-import { gear, gem } from '../helpers/items';
+import { gear, gem, stashMap } from '../helpers/items';
 
 const bag = (index: number): ItemLoc => ({ where: 'bag', index });
 
@@ -111,7 +111,7 @@ describe('a refused upgrade', () => {
     s.bag[1] = gem(s);
     s.bag[2] = { id: s.nextId++, type: 'material', material: 'copper', count: 5 };
     s.bag[3] = { id: s.nextId++, type: 'map', tier: 3, metre: 40, rarity: 'normal', mods: [] };
-    const inTab = addMap(s, 3, 41);
+    const inTab = stashMap(s, 3, 41);
     s.stash.gems.ruby.tiny = 3;
     s.stash.materials.copper = 3;
     refused(s, bag(1), 'invalid');
@@ -121,7 +121,7 @@ describe('a refused upgrade', () => {
     refused(s, { where: 'worn', slot: 'armor' }, 'invalid');
     refused(s, { where: 'gems', gem: 'ruby', grade: 'tiny' }, 'invalid');
     refused(s, { where: 'materials', material: 'copper' }, 'invalid');
-    refused(s, { where: 'maps', index: s.stash.maps.indexOf(inTab) }, 'invalid');
+    refused(s, { where: 'maps', tier: inTab.tier, index: s.stash.maps[inTab.tier]?.indexOf(inTab) ?? -1 }, 'invalid');
   });
 });
 
@@ -130,7 +130,7 @@ describe('an upgrade during a run', () => {
     const s = newGame(3, 0);
     s.equipped.battle.weapon = gear(s, 'weapon', { ilvl: 4, affixes: [{ stat: 'damage', value: 8, tier: 2 }] });
     s.souls = 500;
-    expect(startMap(s, addMap(s, 2, 30).id)).toBe('ok');
+    expect(startMap(s, stashMap(s, 2, 30).id)).toBe('ok');
     // what the state should be: the same, with the upgrade written by hand
     const expected = structuredClone(s);
     expected.souls -= 80;
@@ -152,7 +152,7 @@ describe('an upgrade during a run', () => {
     const s = store.state;
     s.equipped.battle.weapon = gear(s, 'weapon', { ilvl: 4 });
     s.souls = 500;
-    expect(store.startMap(addMap(s, 2, 30).id)).toBe('ok');
+    expect(store.startMap(stashMap(s, 2, 30).id)).toBe('ok');
     const version = store.version;
     expect(store.soulUpgrade({ where: 'worn', slot: 'weapon' })).toBe('ok');
     expect(store.version).toBe(version + 1);
