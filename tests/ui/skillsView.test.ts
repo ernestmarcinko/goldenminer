@@ -188,3 +188,27 @@ it('the ascendancy VM carries each node\'s cost and frames the kinds', () => {
   expect(deepVeins?.icon.id).toBe('deepVeins');
   expect(deepVeins?.kind).toBe('notable');
 });
+
+it('every passive and ascendancy VM carries a non-empty hover tip', () => {
+  const s = newGame(1, 0);
+  s.level = 3;
+  for (const vm of nodeVMs(s)) {
+    expect(vm.tip.length, vm.id).toBeGreaterThan(0);
+    expect(vm.tip, vm.id).toContain(vm.name);
+  }
+  for (const vm of ascendancyVMs(s)) {
+    expect(vm.tip.length, vm.id).toBeGreaterThan(0);
+    expect(vm.tip, vm.id).toContain(vm.name);
+  }
+});
+
+it('a mid and big node\'s tip names its effect, and the start still tips', () => {
+  const s = newGame(1, 0);
+  const vms = ascendancyVMs(s);
+  const mid = vms.find((n) => n.id === 'midasTouch');
+  const big = vms.find((n) => n.id === 'goldRush');
+  const start = vms.find((n) => n.id === 'minerReborn');
+  expect(mid?.tip, 'mid').toContain('Midas Touch');
+  expect(big?.tip, 'big').toContain('Gold Rush');
+  expect(start?.tip, 'start').toBe('Miner Reborn — Start');
+});

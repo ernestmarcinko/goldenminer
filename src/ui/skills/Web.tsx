@@ -241,7 +241,7 @@ export function Web({
                 height={48}
                 preserveAspectRatio="none"
               />
-              <title>{n.name}</title>
+              <title>{n.tip}</title>
             </g>
           ))}
         </g>

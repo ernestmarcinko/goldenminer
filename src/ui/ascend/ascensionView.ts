@@ -7,7 +7,7 @@ import { composeIcon, iconForAscendancy } from '../../core/skillIcons';
 import type { GameState } from '../../core/types';
 import { statText } from '../character/itemView';
 import { formatNumber, plural } from '../format';
-import type { SkillNodeVM } from '../skills/skillsView';
+import { nodeTip, type SkillNodeVM } from '../skills/skillsView';
 
 /** One ascendancy effect in words: a stat's line, or the tree's structural bonuses. */
 function effectLine(e: AscendancyEffect): string {
@@ -47,6 +47,7 @@ export function ascendancyVMs(state: GameState): SkillNodeVM[] {
       links: n.links,
       desc: n.desc,
       line: nodeLine(n.effects),
+      tip: nodeTip(n.name, nodeLine(n.effects), n.desc),
       allocated: start || state.ascendancy.allocated.includes(n.id),
       // A node only looks takeable when there are enough points for its cost and it sits next to an allocated node.
       allocatable: canAllocateAscendancy(state, n.id),

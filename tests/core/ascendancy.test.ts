@@ -24,6 +24,21 @@ it('the tree is 81 nodes: one start, 64 smalls, eight mids and eight bigs', () =
   expect(MAX_ASCENDANCY_PASSIVE_POINTS).toBe(12);
 });
 
+it('every node carries its cluster group, and every small a variation 1–8', () => {
+  const start = node(ASCENDANCY_START_ID);
+  expect(start.group).toBeUndefined();
+  expect(start.variation).toBeUndefined();
+  const groups = ['wealth', 'depth', 'insight', 'cartography', 'endurance', 'fortuna', 'might', 'greed'];
+  for (const group of groups) {
+    const smalls = ASCENDANCY_NODES.filter((n) => n.kind === 'small' && n.group === group);
+    expect(smalls, group).toHaveLength(8);
+    expect(smalls.map((n) => n.variation).sort((a, b) => (a ?? 0) - (b ?? 0)), group).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    const named = ASCENDANCY_NODES.filter((n) => (n.kind === 'mid' || n.kind === 'big') && n.group === group);
+    expect(named, group).toHaveLength(2);
+    expect(named.every((n) => n.variation === undefined), group).toBe(true);
+  }
+});
+
 it('every node\'s cost follows its kind and every big carries a large bonus', () => {
   for (const n of ASCENDANCY_NODES) {
     const cost = n.kind === 'start' ? 0 : n.kind === 'small' ? 1 : n.kind === 'mid' ? 6 : 12;

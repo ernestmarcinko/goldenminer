@@ -13,6 +13,15 @@ export type AscendancyEffect =
   | { kind: 'passivePoints'; value: number }
   | { kind: 'autoMapTier'; value: number };
 
+/** The eight ascendancy clusters; each small node's icon is its group's base glyph at a slot tier. */
+export type AscendancyGroupId =
+  | 'wealth' | 'depth' | 'insight' | 'cartography' | 'endurance' | 'fortuna' | 'might' | 'greed';
+
+/** The eight clusters in radial order; used to register every group glyph variation. */
+export const ASCENDANCY_GROUPS: readonly AscendancyGroupId[] = [
+  'wealth', 'depth', 'insight', 'cartography', 'endurance', 'fortuna', 'might', 'greed',
+];
+
 export interface AscendancyNode {
   id: string;
   name: string;
@@ -24,6 +33,10 @@ export interface AscendancyNode {
   links: string[];
   effects: AscendancyEffect[];
   desc: string;
+  /** The cluster this node belongs to; unset for the start. A small's icon is the group glyph at its `variation`. */
+  group?: AscendancyGroupId;
+  /** For a small node, its 1-based slot count within the cluster (1–8). Unset for the start, mids and bigs. */
+  variation?: number;
 }
 
 export const ASCENDANCY_START_ID = 'minerReborn';
@@ -44,7 +57,7 @@ interface SmallSpec { name: string; effects: AscendancyEffect[] }
 const s = (name: string, effects: AscendancyEffect[]): SmallSpec => ({ name, effects });
 
 interface ClusterDef {
-  prefix: string;
+  prefix: AscendancyGroupId;
   angle: number;
   smalls: SmallSpec[];
   mid: NamedSpec;
@@ -202,6 +215,8 @@ interface Placed {
   y: number;
   links: string[];
   ring: number;
+  group: AscendancyGroupId;
+  variation?: number;
 }
 
 function pointX(angleDeg: number, ring: number): number {
@@ -225,6 +240,7 @@ function buildTree(): AscendancyNode[] {
       placed.push({
         id, name: small.name, kind: 'small', cost: ASCENDANCY_SMALL_COST, effects: small.effects, desc: '',
         x: pointX(cluster.angle, ring), y: pointY(cluster.angle, ring), links: [previous], ring,
+        group: cluster.prefix, variation: i + 1,
       });
       previous = id;
       if (i === midAfter - 1) {
@@ -236,6 +252,7 @@ function buildTree(): AscendancyNode[] {
           effects: cluster.mid.effects, desc: cluster.mid.desc,
           x: pointX(cluster.angle, midAfter + 1), y: pointY(cluster.angle, midAfter + 1),
           links: midLinks, ring: midAfter + 1,
+          group: cluster.prefix,
         });
         previous = cluster.mid.id;
       }
@@ -245,6 +262,7 @@ function buildTree(): AscendancyNode[] {
       effects: cluster.big.effects, desc: cluster.big.desc,
       x: pointX(cluster.angle, cluster.smalls.length + 2), y: pointY(cluster.angle, cluster.smalls.length + 2),
       links: [previous], ring: cluster.smalls.length + 2,
+      group: cluster.prefix,
     });
   }
   // symmetric links: every link a -> b is also b -> a
@@ -260,8 +278,8 @@ function buildTree(): AscendancyNode[] {
     id: ASCENDANCY_START_ID, name: 'Miner Reborn', kind: 'start', cost: 0, x: START_X, y: START_Y,
     links: placed.filter((p) => p.ring === 1).map((p) => p.id), effects: [], desc: 'Start',
   };
-  return [start, ...placed.map(({ id, name, kind, cost, effects, desc, x, y, links }) =>
-    ({ id, name, kind, cost, x, y, links, effects, desc }))];
+  return [start, ...placed.map(({ id, name, kind, cost, effects, desc, x, y, links, group, variation }) =>
+    ({ id, name, kind, cost, x, y, links, effects, desc, group, variation }))];
 }
 
 export const ASCENDANCY_NODES: readonly AscendancyNode[] = buildTree();

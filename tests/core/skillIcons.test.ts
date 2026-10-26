@@ -61,20 +61,13 @@ it('all named nodes keep their own glyph and the starts use the miner faces', ()
   if (ascendancyStart !== undefined) expect(iconForAscendancy(ascendancyStart)).toBe('minerReborn');
 });
 
-it('smalls use their first effect, including stats and structural bonuses', () => {
+it('passive smalls use their first effect, including stats and structural bonuses', () => {
   for (const node of PASSIVE_NODES.filter((n) => n.kind === 'small')) {
     const effect = node.effects[0];
     expect(effect, node.id).toBeDefined();
     if (effect === undefined) continue;
     const expected = effect.kind === 'stat' ? effect.stat : effect.kind;
     expect(iconForPassive(node), node.id).toBe(expected);
-  }
-  for (const node of ASCENDANCY_NODES.filter((n) => n.kind === 'small')) {
-    const effect = node.effects[0];
-    expect(effect, node.id).toBeDefined();
-    if (effect === undefined) continue;
-    const expected = effect.kind === 'stat' ? effect.stat : effect.kind;
-    expect(iconForAscendancy(node), node.id).toBe(expected);
   }
 
   const digPower = PASSIVE_NODES.find((node) => node.kind === 'small'
@@ -93,24 +86,40 @@ it('smalls use their first effect, including stats and structural bonuses', () =
   const earthshaker = PASSIVE_NODES.find((node) => node.id === 'earthshaker');
   expect(earthshaker).toBeDefined();
   if (earthshaker !== undefined) expect(iconForPassive(earthshaker)).toBe('earthshaker');
-
-  const startingDepth = ASCENDANCY_NODES.find((node) => node.kind === 'small'
-    && node.effects[0]?.kind === 'startingDepth');
-  expect(startingDepth).toBeDefined();
-  if (startingDepth !== undefined) expect(iconForAscendancy(startingDepth)).toBe('startingDepth');
-
-  const passivePoints = ASCENDANCY_NODES.find((node) => node.id === 'secondSight');
-  expect(passivePoints).toBeDefined();
-  if (passivePoints !== undefined) expect(iconForAscendancy(passivePoints)).toBe('secondSight');
-
-  const autoMapTier = ASCENDANCY_NODES.find((node) => node.kind === 'small'
-    && node.effects[0]?.kind === 'autoMapTier');
-  expect(autoMapTier).toBeDefined();
-  if (autoMapTier !== undefined) expect(iconForAscendancy(autoMapTier)).toBe('autoMapTier');
 });
 
+it('every ascendancy small resolves to its cluster group glyph at its slot tier', () => {
+  const groups = ['wealth', 'depth', 'insight', 'cartography', 'endurance', 'fortuna', 'might', 'greed'] as const;
+  for (const group of groups) {
+    const smalls = ASCENDANCY_NODES.filter((node) => node.kind === 'small' && node.group === group);
+    expect(smalls, group).toHaveLength(8);
+    // Each cluster reads as one family: eight distinct variations, none falling back to a stat glyph.
+    const seen = new Set(smalls.map((node) => iconForAscendancy(node)));
+    expect(seen.size, group).toBe(8);
+    for (const node of smalls) {
+      const variation = node.variation;
+      expect(variation, node.id).toBeGreaterThanOrEqual(1);
+      expect(variation, node.id).toBeLessThanOrEqual(8);
+      const prefix = group.charAt(0).toUpperCase() + group.slice(1);
+      expect(iconForAscendancy(node), node.id).toBe(`group${prefix}${variation}`);
+    }
+  }
+  // The mapping table (8 × 8) is pinned.
+  expect(iconForAscendancy(ascendancyNode('wealthSmall1'))).toBe('groupWealth1');
+  expect(iconForAscendancy(ascendancyNode('wealthSmall8'))).toBe('groupWealth8');
+  expect(iconForAscendancy(ascendancyNode('depthSmall1'))).toBe('groupDepth1');
+  expect(iconForAscendancy(ascendancyNode('greedSmall8'))).toBe('groupGreed8');
+  expect(iconForAscendancy(ascendancyNode('mightSmall5'))).toBe('groupMight5');
+});
+
+const ascendancyNode = (id: string) => {
+  const node = ASCENDANCY_NODES.find((n) => n.id === id);
+  if (node === undefined) throw new Error(`missing ascendancy node ${id}`);
+  return node;
+};
+
 it('every glyph is 16 × 16 with only glyph-palette letters', () => {
-  expect(GLYPH_IDS).toHaveLength(93);
+  expect(GLYPH_IDS).toHaveLength(157);
   for (const id of GLYPH_IDS) {
     const glyph = ICON_GLYPHS[id];
     expect(glyph.grid, id).toHaveLength(16);
@@ -124,6 +133,57 @@ it('every glyph is 16 × 16 with only glyph-palette letters', () => {
       }
     }
   }
+});
+
+/** The filled positions of a glyph grid, as `x,y` keys. */
+const filledPositions = (grid: readonly string[]): Set<string> => {
+  const out = new Set<string>();
+  grid.forEach((row, y) => {
+    [...row].forEach((c, x) => { if (c !== '.') out.add(`${x},${y}`); });
+  });
+  return out;
+};
+
+it('the eight group glyphs are distinct and each variation fills one more slot', () => {
+  const groups = ['wealth', 'depth', 'insight', 'cartography', 'endurance', 'fortuna', 'might', 'greed'] as const;
+  const bases = groups.map((group) => ICON_GLYPHS[`group${group.charAt(0).toUpperCase()}${group.slice(1)}8` as IconGlyphId]);
+  // The eight families are genuinely distinct from one another.
+  for (let a = 0; a < bases.length; a++) {
+    for (let b = a + 1; b < bases.length; b++) {
+      expect(bases[a]?.grid, groups[a]).not.toEqual(bases[b]?.grid);
+    }
+  }
+  for (const group of groups) {
+    const prefix = group.charAt(0).toUpperCase() + group.slice(1);
+    for (let n = 1; n <= 8; n++) {
+      const id = `group${prefix}${n}` as IconGlyphId;
+      expect(ICON_GLYPHS[id], id).toBeDefined();
+      if (n > 1) {
+        const prevId = `group${prefix}${n - 1}` as IconGlyphId;
+        const prev = filledPositions(ICON_GLYPHS[prevId].grid);
+        const curr = filledPositions(ICON_GLYPHS[id].grid);
+        // Monotonic: a slot only adds (or repaints) pixels, never removes them.
+        for (const px of prev) expect(curr.has(px), `${id} keeps ${px}`).toBe(true);
+        // Each tier lights one more slot, so it differs from the one before.
+        expect(ICON_GLYPHS[id].grid, id).not.toEqual(ICON_GLYPHS[prevId].grid);
+      }
+    }
+    // Eight escalating tiers within one family: none equals another.
+    for (let n = 1; n <= 8; n++) {
+      for (let m = n + 1; m <= 8; m++) {
+        expect(ICON_GLYPHS[`group${prefix}${n}` as IconGlyphId].grid, `${prefix}${n}`)
+          .not.toEqual(ICON_GLYPHS[`group${prefix}${m}` as IconGlyphId].grid);
+      }
+    }
+  }
+});
+
+it('composeIcon frames a group glyph and never throws', () => {
+  const icon = composeIcon('small', 'groupWealth3', 'ascendancy');
+  expect(icon.id).toBe('groupWealth3');
+  expect(icon.grid).toHaveLength(ICON_SIZE);
+  for (const row of icon.grid) expect(row).toHaveLength(ICON_SIZE);
+  expect(composeIcon('small', 'groupGreed8', 'ascendancy').id).toBe('groupGreed8');
 });
 
 it('every frame is 24 × 24 with the glyph socket at (4, 4)', () => {

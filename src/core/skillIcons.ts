@@ -1,5 +1,5 @@
 import { GRIDS, type SpriteName } from '../sprites/grids';
-import type { AscendancyNode } from './ascendancy';
+import { ASCENDANCY_GROUPS, type AscendancyGroupId, type AscendancyNode } from './ascendancy';
 import type { StatKey } from './items';
 import type { PassiveNode } from './passives';
 
@@ -38,11 +38,16 @@ export type StructuralGlyphId =
   | 'gemStack' | 'materialStack' | 'stashPages' | 'autoMap'
   | 'startingDepth' | 'passivePoints' | 'autoMapTier';
 
+/** The 64 composed group-glyph ids: each cluster's base at slot tiers 1–8 (`groupWealth1` … `groupGreed8`). */
+type GroupVariation = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+export type AscendancyGroupGlyphId = `group${Capitalize<AscendancyGroupId>}${GroupVariation}`;
+
 export type IconGlyphId =
   | 'miner' | 'minerReborn'
   | KeystoneGlyphId
   | PassiveNotableGlyphId
   | AscendancyNamedGlyphId
+  | AscendancyGroupGlyphId
   | StatKey
   | StructuralGlyphId;
 
@@ -951,6 +956,310 @@ const EL_DORADO = glyph12([
   '............',
 ]);
 
+// ---- The eight ascendancy group glyphs (Plan 29) ----
+// Each cluster is one hand-drawn 16 × 16 base with eight built-in "slots". A tiny painter fills the first `n` slots for
+// variation `n`, so the eight smalls of a cluster read as one family escalating outward toward its mid/big.
+
+interface GroupGlyphSpec {
+  /** The always-present skeleton: a 16 × 16 grid where `.` is empty. */
+  skeleton: string[];
+  /** Eight slots in fill order; each is the pixels it lights up. */
+  slots: readonly (readonly Pixel[])[];
+}
+
+/** Composes a group glyph with the first `n` of eight slots filled, into a 16 × 16 glyph centred at its anchor. */
+function groupGlyph(spec: GroupGlyphSpec, n: number): IconGlyph {
+  if (spec.skeleton.length !== GLYPH_SIZE) {
+    throw new Error(`group skeleton has ${spec.skeleton.length} rows, expected ${GLYPH_SIZE}`);
+  }
+  for (const row of spec.skeleton) {
+    if (row.length !== GLYPH_SIZE) throw new Error(`group skeleton row '${row}' is ${row.length} wide, expected ${GLYPH_SIZE}`);
+  }
+  if (spec.slots.length !== 8) throw new Error(`group glyph has ${spec.slots.length} slots, expected 8`);
+  if (n < 1 || n > 8) throw new Error(`group variation ${n} is outside 1–8`);
+  const grid = spec.skeleton.map((row) => [...row]);
+  for (let i = 0; i < n; i++) {
+    const slot = spec.slots[i];
+    if (slot === undefined) throw new Error(`group glyph slot ${i} is missing`);
+    for (const [x, y, colour] of slot) {
+      const row = grid[y];
+      if (row === undefined || x < 0 || x >= GLYPH_SIZE) {
+        throw new Error(`group slot pixel (${x}, ${y}) falls outside the ${GLYPH_SIZE}×${GLYPH_SIZE} grid`);
+      }
+      row[x] = colour;
+    }
+  }
+  return { grid: grid.map((row) => row.join('')), anchor: [8, 8] };
+}
+
+/** A 2 × 2 gold coin — wealth's slot. */
+const coin = (x: number, y: number): Pixel[] => [
+  [x, y, 'G'], [x + 1, y, 'g'], [x, y + 1, 'g'], [x + 1, y + 1, 'G'],
+];
+/** A 2 × 2 cyan gem — greed's slot. */
+const gem = (x: number, y: number): Pixel[] => [
+  [x, y, 'C'], [x + 1, y, 'c'], [x, y + 1, 'c'], [x + 1, y + 1, 'C'],
+];
+/** A horizontal run of one colour from x0 to x1 (inclusive) on a single row. */
+const hline = (x0: number, x1: number, y: number, colour: string): Pixel[] => {
+  const out: Pixel[] = [];
+  for (let x = x0; x <= x1; x++) out.push([x, y, colour]);
+  return out;
+};
+/** A map pin: a red head over a darker stem. */
+const pin = (x: number, y: number): Pixel[] => [[x, y, 'R'], [x, y + 1, 'r']];
+
+// Wealth: a gold-rimmed hoard whose eight coin slots pile from the base up to the crown.
+const WEALTH: GroupGlyphSpec = {
+  skeleton: [
+    '................',
+    '....kkkkkkkk....',
+    '...kGGGGGGGGk...',
+    '..kG........Gk..',
+    '..kG........Gk..',
+    '..kG........Gk..',
+    '..kG........Gk..',
+    '..kG........Gk..',
+    '..kG........Gk..',
+    '..kG........Gk..',
+    '..kGG......GGk..',
+    '.kGGG......GGGk.',
+    '.kGGGGGGGGGGGGk.',
+    '.kGGGGGGGGGGGGk.',
+    '.kkkkkkkkkkkkkk.',
+    '................',
+  ],
+  slots: [
+    coin(4, 8), coin(6, 8), coin(8, 8), coin(10, 8),
+    coin(5, 6), coin(7, 6), coin(9, 6),
+    coin(7, 4),
+  ],
+};
+
+// Depth: a downward shaft/drill whose eight notches deepen the shaft toward the tip.
+const DEPTH: GroupGlyphSpec = {
+  skeleton: [
+    '................',
+    '....kkkkkkkk....',
+    '...kSSSSSSSk....',
+    '...kS.....Sk....',
+    '...kS.....Sk....',
+    '...kS.....Sk....',
+    '...kS.....Sk....',
+    '...kS.....Sk....',
+    '...kS.....Sk....',
+    '...kS.....Sk....',
+    '...kS.....Sk....',
+    '...kS.....Sk....',
+    '...kS.....Sk....',
+    '.kkkSSSSSSSkkk..',
+    '.kkSSSSSSSSkk...',
+    '..kkkkkkkkkk....',
+  ],
+  slots: [
+    hline(6, 8, 3, 's'), hline(6, 8, 4, 's'), hline(6, 8, 5, 's'), hline(6, 8, 6, 's'),
+    hline(6, 8, 7, 's'), hline(6, 8, 8, 's'), hline(6, 8, 9, 's'), hline(6, 8, 10, 's'),
+  ],
+};
+
+// Insight: an eye whose eight rays open one by one into a sunburst of vision.
+const INSIGHT: GroupGlyphSpec = {
+  skeleton: [
+    '................',
+    '................',
+    '................',
+    '.....kkkkkk.....',
+    '....kkeeeeekk...',
+    '..keeeeeeeeeek..',
+    '..keeeCCCCeeek..',
+    '..keeCCppCCeek..',
+    '..keeCCppCCeek..',
+    '..keeeCCCCeeek..',
+    '..keeeeeeeeeek..',
+    '....kkeeeeekk...',
+    '.....kkkkkk.....',
+    '................',
+    '................',
+    '................',
+  ],
+  slots: [
+    [[7, 1, 'G'], [8, 1, 'G']],
+    [[12, 1, 'G'], [13, 2, 'G']],
+    [[14, 7, 'G'], [15, 7, 'G']],
+    [[14, 13, 'G'], [15, 13, 'G']],
+    [[7, 14, 'G'], [8, 14, 'G']],
+    [[2, 13, 'G'], [1, 13, 'G']],
+    [[1, 7, 'G'], [0, 7, 'G']],
+    [[2, 1, 'G'], [3, 1, 'G']],
+  ],
+};
+
+// Cartography: a parchment map whose eight pins chart more and more ground.
+const CARTOGRAPHY: GroupGlyphSpec = {
+  skeleton: [
+    '................',
+    '..kkkkkkkkkkkk..',
+    '..kttttttttttk..',
+    '..kttttttttttk..',
+    '..kttttttttttk..',
+    '..kttttttttttk..',
+    '..kttttttttttk..',
+    '..kttttttttttk..',
+    '..kttttttttttk..',
+    '..kttttttttttk..',
+    '..kttttttttttk..',
+    '..kttttttttttk..',
+    '..kttttttttttk..',
+    '..kkkkkkkkkkkk..',
+    '................',
+    '................',
+  ],
+  slots: [
+    pin(4, 3), pin(7, 3), pin(10, 3),
+    pin(5, 6), pin(9, 6),
+    pin(4, 9), pin(7, 9), pin(10, 9),
+  ],
+};
+
+// Endurance: an hourglass whose eight sand levels rise in the lower bulb as time passes.
+const ENDURANCE: GroupGlyphSpec = {
+  skeleton: [
+    '................',
+    '....kkkkkkkk....',
+    '...kSSSSSSSSk...',
+    '...kS......Sk...',
+    '....kS....Sk....',
+    '.....kS..Sk.....',
+    '......kSSk......',
+    '.....kS..Sk.....',
+    '.....kS..Sk.....',
+    '....kS....Sk....',
+    '...kS......Sk...',
+    '...kS......Sk...',
+    '...kS......Sk...',
+    '...kS......Sk...',
+    '...kS......Sk...',
+    '...kkkkkkkkkk...',
+  ],
+  slots: [
+    hline(5, 10, 14, 'o'), hline(5, 10, 13, 'o'), hline(5, 10, 12, 'o'), hline(5, 10, 11, 'o'),
+    hline(5, 10, 10, 'o'), hline(6, 9, 9, 'o'), hline(7, 8, 8, 'o'), hline(7, 8, 7, 'o'),
+  ],
+};
+
+// Fortuna: a clover whose eight leaves unfurl around its golden heart.
+const FORTUNA: GroupGlyphSpec = {
+  skeleton: [
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '.......G........',
+    '................',
+    '................',
+    '................',
+    '.......c........',
+    '.......c........',
+    '.......c........',
+    '.......c........',
+    '................',
+  ],
+  slots: [
+    [[7, 5, 'C'], [7, 4, 'C']],
+    [[9, 5, 'C'], [10, 4, 'C']],
+    [[9, 7, 'C'], [10, 7, 'C']],
+    [[9, 9, 'C'], [10, 10, 'C']],
+    [[7, 9, 'C'], [7, 10, 'C']],
+    [[5, 9, 'C'], [4, 10, 'C']],
+    [[5, 7, 'C'], [4, 7, 'C']],
+    [[5, 5, 'C'], [4, 4, 'C']],
+  ],
+};
+
+// Might: crossed blades radiating from a wooden pommel, one blade per slot.
+const MIGHT: GroupGlyphSpec = {
+  skeleton: [
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '.......W........',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+  ],
+  slots: [
+    [[7, 6, 'S'], [7, 5, 's'], [7, 4, 's']],
+    [[8, 6, 'S'], [9, 5, 's'], [10, 4, 's']],
+    [[8, 7, 'S'], [9, 7, 's'], [10, 7, 's']],
+    [[8, 8, 'S'], [9, 9, 's'], [10, 10, 's']],
+    [[7, 8, 'S'], [7, 9, 's'], [7, 10, 's']],
+    [[6, 8, 'S'], [5, 9, 's'], [4, 10, 's']],
+    [[6, 7, 'S'], [5, 7, 's'], [4, 7, 's']],
+    [[6, 6, 'S'], [5, 5, 's'], [4, 4, 's']],
+  ],
+};
+
+// Greed: a rock vein whose eight gems glint out as the seam is worked.
+const GREED: GroupGlyphSpec = {
+  skeleton: [
+    '................',
+    '.....kkkkkk.....',
+    '...kkbbbbbbkk...',
+    '..kbbbbbbbbbbk..',
+    '..kbdbbbbbbbbk..',
+    '.kbbbbbbbbbbbbk.',
+    '.kbbbdbbbbbbbbk.',
+    '.kbbbbbbbbbbbbk.',
+    '.kbbbbbdbbbbbbk.',
+    '..kbbbbbbbbbbk..',
+    '..kbbbbbbbbbbk..',
+    '...kkbbbbbbkk...',
+    '.....kkkkkk.....',
+    '................',
+    '................',
+    '................',
+  ],
+  slots: [
+    gem(4, 3), gem(6, 3), gem(8, 4), gem(10, 5),
+    gem(9, 6), gem(7, 7), gem(5, 8), gem(3, 9),
+  ],
+};
+
+const GROUP_SPECS: Record<AscendancyGroupId, GroupGlyphSpec> = {
+  wealth: WEALTH, depth: DEPTH, insight: INSIGHT, cartography: CARTOGRAPHY,
+  endurance: ENDURANCE, fortuna: FORTUNA, might: MIGHT, greed: GREED,
+};
+
+/** The 64 composed group variations, keyed `groupWealth1` … `groupGreed8`. */
+const GROUP_VARIATION_GLYPHS = (() => {
+  const out = {} as Record<AscendancyGroupGlyphId, IconGlyph>;
+  for (const group of ASCENDANCY_GROUPS) {
+    const spec = GROUP_SPECS[group];
+    for (let n = 1; n <= 8; n++) {
+      const key = `group${group.charAt(0).toUpperCase()}${group.slice(1)}${n}` as AscendancyGroupGlyphId;
+      out[key] = groupGlyph(spec, n);
+    }
+  }
+  return out;
+})();
+
+/** The group glyph id for a cluster and slot tier: `wealth` + 3 → `groupWealth3`. */
+function groupGlyphId(group: AscendancyGroupId, variation: number): AscendancyGroupGlyphId {
+  return `group${group.charAt(0).toUpperCase()}${group.slice(1)}${variation}` as AscendancyGroupGlyphId;
+}
+
 // The small nodes' stat and structural glyphs.
 const DIG_POWER = spriteGlyph('pickaxe');
 
@@ -1461,6 +1770,7 @@ const AUTO_MAP_TIER = glyph12([
 
 /** Every glyph id, hand-drawn at 16 × 16 and anchored at its centre. */
 export const ICON_GLYPHS: Record<IconGlyphId, IconGlyph> = {
+  ...GROUP_VARIATION_GLYPHS,
   miner: MINER,
   minerReborn: MINER_REBORN,
   earthshaker: EARTHSHAKER,
@@ -1759,16 +2069,12 @@ export function iconForPassive(node: PassiveNode): IconGlyphId {
   }
 }
 
-/** The icon for an ascendancy node: the reborn miner, its own named id, or the first effect's stat/structural id. */
+/** The icon for an ascendancy node: the reborn miner, its own named id, or its cluster's group glyph at its slot tier. */
 export function iconForAscendancy(node: AscendancyNode): IconGlyphId {
   if (node.kind === 'start') return 'minerReborn';
   if (node.kind === 'mid' || node.kind === 'big') return knownGlyph(node.id);
-  const effect = node.effects[0];
-  if (effect === undefined) throw new Error(`ascendancy small ${node.id} has no effect`);
-  switch (effect.kind) {
-    case 'stat': return effect.stat;
-    case 'startingDepth': return 'startingDepth';
-    case 'passivePoints': return 'passivePoints';
-    case 'autoMapTier': return 'autoMapTier';
+  if (node.group === undefined || node.variation === undefined) {
+    throw new Error(`ascendancy small ${node.id} has no group or variation`);
   }
+  return groupGlyphId(node.group, node.variation);
 }

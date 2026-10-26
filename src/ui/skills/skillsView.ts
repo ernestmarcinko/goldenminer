@@ -25,6 +25,8 @@ export interface SkillNodeVM {
   links: string[];
   desc: string;
   line: string;
+  /** The hover `<title>`: `name — line`, plus the description when it adds something. */
+  tip: string;
   allocated: boolean;
   /** Allocatable now, counting staged nodes as allocated. */
   allocatable: boolean;
@@ -49,6 +51,13 @@ function effectLine(n: PassiveNode): string {
   if (n.desc !== '') return n.desc;
   const s = n.effects.find((e) => e.kind === 'stat');
   return s !== undefined && s.kind === 'stat' ? statText(s.stat, s.value) : '';
+}
+
+/** The hover `<title>`: `name — line`, plus the description when it differs and adds detail. */
+export function nodeTip(name: string, line: string, desc: string): string {
+  const parts = [name, line].filter((s) => s !== '');
+  if (desc !== '' && desc !== line) parts.push(desc);
+  return parts.join(' — ');
 }
 
 export function nodeVMs(state: GameState, options: NodeVMOptions = {}): SkillNodeVM[] {
@@ -79,6 +88,7 @@ export function nodeVMs(state: GameState, options: NodeVMOptions = {}): SkillNod
       links: n.links,
       desc: n.desc,
       line: effectLine(n),
+      tip: nodeTip(n.name, effectLine(n), n.desc),
       allocated,
       // A node only looks takeable when there is actually a point to spend on it.
       allocatable: mode === 'allocate' && n.side !== 'start' && !allocated && !isStaged
