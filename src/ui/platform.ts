@@ -21,6 +21,28 @@ export function lastPointerType(): string {
   return pointerType;
 }
 
+/** How long after the next frame a cell that mounted under a still pointer checks `:hover` a last time. */
+export const HOVER_RECHECK_MS = 100;
+
+type HoverTimers = { frame(cb: () => void): () => void; after(ms: number, cb: () => void): () => void };
+
+const BROWSER_TIMERS: HoverTimers = {
+  frame: (cb) => { const n = requestAnimationFrame(cb); return () => cancelAnimationFrame(n); },
+  after: (ms, cb) => { const n = setTimeout(cb, ms); return () => clearTimeout(n); },
+};
+
+/**
+ * Runs `look` at the next frame and, if it finds no `:hover` (returns false), once more HOVER_RECHECK_MS later: a
+ * browser sets `:hover` on a node inserted under a still pointer at the next frame at the soonest, and Chrome sometimes
+ * later. Returns what cancels the look still to come.
+ */
+export function recheckHover(look: () => boolean, timers: HoverTimers = BROWSER_TIMERS): () => void {
+  let cancel = timers.frame(() => {
+    cancel = look() ? () => {} : timers.after(HOVER_RECHECK_MS, look);
+  });
+  return () => cancel();
+}
+
 const CARD_CLICK_SLOP_PX = 3;
 
 /**
