@@ -84,14 +84,14 @@ it('xp that is negative or not a number is ignored', () => {
 
 it('monster numbers by rank and modifier', () => {
   const rat = { species: 0, rank: 'normal' as const, name: 'Mole Rat', mods: [], extra: 1 };
-  // tier 1's monsters are scaled × 2.1, tier 2's too (MAP_MONSTER_SCALE)
-  expect(monsterState(1, rat)).toMatchObject({ life: 25, maxLife: 25, damage: 7, intervalS: 2, xp: 10, element: 'physical' });
+  // tier 1's monsters are scaled × 2, tier 2's × 2.1 (MAP_MONSTER_SCALE)
+  expect(monsterState(1, rat)).toMatchObject({ life: 24, maxLife: 24, damage: 6, intervalS: 2, xp: 10, element: 'physical' });
   const champ = { ...rat, rank: 'champion' as const, name: 'Gorvash the Hollow', mods: ['thickSkinned', 'fireTouched'] as ChampionMod[] };
-  expect(monsterState(1, champ)).toMatchObject({ life: 113, damage: 10, xp: 30, element: 'elemental' });
+  expect(monsterState(1, champ)).toMatchObject({ life: 108, damage: 9, xp: 30, element: 'elemental' });
   const swift = monsterState(1, { ...champ, mods: ['swift', 'brutal'] });
   expect(swift.intervalS).toBeCloseTo(2 / 1.4);
-  expect(swift.damage).toBe(15);
-  expect(monsterState(1, { ...rat, rank: 'boss' })).toMatchObject({ life: 126, damage: 10, xp: 50 });
+  expect(swift.damage).toBe(14);
+  expect(monsterState(1, { ...rat, rank: 'boss' })).toMatchObject({ life: 120, damage: 9, xp: 50 });
   const slime = { species: 1, rank: 'normal' as const, name: 'Mud Slime', mods: [], extra: 1 };
   expect(monsterState(2, slime)).toMatchObject({ element: 'elemental', life: 78, damage: 9, xp: 28, intervalS: 2 });
   expect([monsterXp(2), monsterXp(4), monsterXp(10)]).toEqual([28, 80, 316]);

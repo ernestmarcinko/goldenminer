@@ -3,6 +3,7 @@ import { DROP_CHANCE, MATERIAL_TABLE, MAX_HELD, soulsPerKill } from '../../src/c
 import { deriveBattleStats } from '../../src/core/battle';
 import { onKill, soulsForKill } from '../../src/core/combat';
 import { applyTicks } from '../../src/core/dig';
+import { xpToNext } from '../../src/core/levels';
 import { startMap } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
 import { isGear, setOfSlot, type MapMod, type Material } from '../../src/core/items';
@@ -231,6 +232,7 @@ it('the offline summary reports maps, levels and Souls as differences from a non
   const before = newGame(1, 0);
   before.souls = 7;
   before.level = CLEARS_TIER_1;
+  before.xp = xpToNext(CLEARS_TIER_1) - 50;   // the run's 200 XP levels it up
   before.mapTally = { cleared: 3, lost: 1 };
   const after = structuredClone(before);
   startMap(after, stashMap(after, 1, 2).id);
@@ -241,6 +243,7 @@ it('the offline summary reports maps, levels and Souls as differences from a non
   expect(sum.souls).toBe(after.souls - 7);
   expect(sum.souls).toBeGreaterThan(0);
   expect(sum.levels).toBe(after.level - CLEARS_TIER_1);
+  expect(sum.levels).toBeGreaterThan(0);
 });
 
 it('the offline summary counts a lost map', () => {

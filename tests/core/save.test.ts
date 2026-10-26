@@ -25,7 +25,7 @@ import { deriveStats } from '../../src/core/stats';
 import { tierFor, tierRange } from '../../src/core/tiers';
 import { MAP_MOD_KINDS, MOD_SIDE } from '../../src/core/items';
 import type { Cell, GemGrade, GemType, MapItem, MapMod, ModLine } from '../../src/core/items';
-import type { ChampionMod, DeathEntry, DropEntry, FindRecord, GameState, LootAction, MapRun, RunOutcome } from '../../src/core/types';
+import type { ChampionMod, CombatLine, DeathEntry, DropEntry, FindRecord, GameState, LootAction, MapRun, RunOutcome } from '../../src/core/types';
 import { gear, gem, stashMap } from '../helpers/items';
 
 const raw = (env: unknown) => compressToBase64(JSON.stringify(env));
@@ -403,6 +403,17 @@ it('a run keeps its material loot notes', () => {
   const s = running();
   if (s.activity.kind === 'map') s.activity.run.loot.push({ name: 'Void crystal', rarity: 'material', base: 'voidCrystal', outcome: 'stash', value: 3 });
   expect(decodes(s)).toBe(true);
+});
+
+it('a hit line may still carry an old save\'s click flag, but only as a boolean', () => {
+  const withHit = (extra: Record<string, unknown>) => {
+    const s = running();
+    if (s.activity.kind === 'map') s.activity.run.log.push({ kind: 'hit', monster: 'Mole Rat', amount: 4, crit: false, ...extra } as CombatLine);
+    return decodes(s);
+  };
+  expect(withHit({})).toBe(true);
+  expect(withHit({ click: true })).toBe(true);
+  expect(withHit({ click: 'x' })).toBe(false);
 });
 
 it('accepts the legal extremes of maps, runs and levels', () => {

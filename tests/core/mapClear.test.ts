@@ -62,9 +62,10 @@ it('a fresh tier-N map is cleared by magic item-level-N gear at level 3N: at lea
   });
 }, 120_000);
 
-it('the first map of a new world is won without clicks, 60–80 % of the time', () => {
+it('the first map of a new world is won without clicks by a level-1 miner in normal item-level-1 gear, 60–80 % of the time', () => {
+  // maps are the only XP, so the first map is played at level 1
   let wins = 0;
-  for (let i = 0; i < MAPS; i++) if (cleared(miner(1, i, 2, 1, 'normal'), 1, i)) wins++;
+  for (let i = 0; i < MAPS; i++) if (cleared(miner(1, i, 1, 1, 'normal'), 1, i)) wins++;
   expect(wins).toBeGreaterThanOrEqual(60);
   expect(wins).toBeLessThanOrEqual(80);
 });
