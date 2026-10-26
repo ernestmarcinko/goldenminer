@@ -196,6 +196,13 @@ export function moveRow(rows: readonly RuleRow[], i: number, delta: number): rea
   return next;
 }
 
+/**
+ * The rules a write stores: every row's but the `unsaved` one, a rule Add rule made that no Save, ✕ or move has written
+ * yet. So Add rule then Cancel stores nothing, while a write to another row in between never stores it either.
+ */
+export const storedRules = (rows: readonly RuleRow[], unsaved: number | null): LootRule[] =>
+  rulesOf(unsaved === null ? rows : removeRow(rows, unsaved));
+
 /** Appends a new rule, unless the filter holds the most it may; then the same array. */
 export function addRow(rows: readonly RuleRow[]): readonly RuleRow[] {
   return rulesOf(rows).length >= MAX_LOOT_RULES ? rows : [...rows, NEW_RULE];

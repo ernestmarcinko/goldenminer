@@ -5,7 +5,7 @@ import { ruleValid } from '../../src/core/lootFilter';
 import {
   ACTION_OPTIONS, GEM_OPTIONS, GRADE_OPTIONS, KIND_OPTIONS, MAP_MOD_LABELS, MAP_MOD_OPTIONS, MATERIAL_OPTIONS, NEW_RULE,
   RARITY_OPTIONS, SET_OPTIONS, SLOT_OPTIONS, actionOptionsFor, addRow, boxProblems, boxTextsFor, fieldsFor, levelLabel, moveRow, moveTarget,
-  rarityOptionsFor, removeRow, ruleProblems, rowsOf, rulesOf, setRange, slotOptionsFor, withKind, withModTier, withPick,
+  rarityOptionsFor, removeRow, ruleProblems, rowsOf, rulesOf, setRange, slotOptionsFor, storedRules, withKind, withModTier, withPick,
 } from '../../src/ui/character/lootFilterView';
 
 const values = <T>(options: readonly { value: T }[]): T[] => options.map((o) => o.value);
@@ -142,6 +142,21 @@ it('keeps a removed rule\'s row empty, so no row moves', () => {
   const full = rowsOf(Array.from({ length: 40 }, () => a));
   expect(addRow(full)).toBe(full);
   expect(addRow(removeRow(full, 3))).toHaveLength(41);
+});
+
+it('stores a new rule only once it is saved, removed or moved: any other write leaves it out', () => {
+  const a: LootRule = { kind: 'gear', rarity: 'normal', action: 'sell' };
+  const b: LootRule = { kind: 'gem', action: 'keep' };
+  const added = addRow(rowsOf([a, b]));
+  expect(added).toEqual([a, b, NEW_RULE]);
+  // Add rule writes nothing, and a ✕ or a Save on another row while it is open writes the others only
+  expect(storedRules(added, 2)).toEqual([a, b]);
+  expect(storedRules(removeRow(added, 0), 2)).toEqual([b]);
+  expect(storedRules(added.map((r, j) => (j === 1 ? { ...b, action: 'sell' as const } : r)), 2)).toEqual([a, { ...b, action: 'sell' }]);
+  // its own Save, ✕ or move is a write with nothing unsaved left
+  expect(storedRules(added, null)).toEqual([a, b, NEW_RULE]);
+  expect(storedRules(removeRow(added, 2), null)).toEqual([a, b]);
+  expect(storedRules(moveRow(added, 2, -1), null)).toEqual([a, NEW_RULE, b]);
 });
 
 it('shows only fields the kind may set, so every field set at once still makes a rule that can match', () => {

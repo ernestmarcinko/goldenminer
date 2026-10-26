@@ -9,7 +9,7 @@ import { useDialog } from '../useDialog';
 import {
   GEM_OPTIONS, GRADE_OPTIONS, KIND_OPTIONS, MAP_MOD_OPTIONS, MATERIAL_OPTIONS, SET_OPTIONS, actionOptionsFor, addRow,
   boxProblems, boxRejects, boxTextsFor, fieldsFor, levelLabel, moveRow, moveTarget, rarityOptionsFor, removeRow,
-  ruleProblems, rowsOf, rulesOf, setRange, slotOptionsFor, withKind, withModTier, withPick,
+  ruleProblems, rowsOf, rulesOf, setRange, slotOptionsFor, storedRules, withKind, withModTier, withPick,
 } from './lootFilterView';
 import type { NumberBox as NumberBoxKey, Option, RuleField, RuleRow } from './lootFilterView';
 
@@ -123,7 +123,8 @@ function RuleFields({ rule, onChange, texts, onText }: {
 /**
  * The loot filter: the rules as sentences, each with Edit and ✕, and under them an editor for one rule. Nothing a click
  * lands on moves: Add rule sits in the head, outside the scrolling list; a removed rule leaves its row, as tall as it
- * was, until the dialog closes; moving is done from the editor, whose box keeps one size whatever the kind shows.
+ * was, until the dialog closes; moving is done from the editor, whose box keeps one size whatever the kind shows. A
+ * rule Add rule makes is stored only by its Save, ✕ or move.
  */
 export function LootFilterDialog({ store, onClose }: { store: GameStore; onClose: () => void }) {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -139,12 +140,27 @@ export function LootFilterDialog({ store, onClose }: { store: GameStore; onClose
   const [refusedAdd, setRefusedAdd] = useState(false);
   // a removed row keeps the height it had, so a row under it never slides up under the pointer
   const [removedHeights, setRemovedHeights] = useState<Readonly<Record<number, number>>>({});
+  // the row Add rule made, until its Save, ✕ or move writes it; Cancel, Edit on another row, Add rule again or closing
+  // the dialog drops it, and the store never had it
+  const [unsaved, setUnsaved] = useState<number | null>(null);
   const reveal = useRef<number | null>(null);
   const focusAfter = useRef<string | null>(null);
 
-  const save = (next: readonly RuleRow[]): void => {
+  const save = (next: readonly RuleRow[], stillUnsaved: number | null = unsaved): void => {
     setRows(next);
-    store.setLootFilter(rulesOf(next));
+    setUnsaved(stillUnsaved);
+    store.setLootFilter(storedRules(next, stillUnsaved));
+  };
+  const keepHeight = (i: number): void => {
+    const row = listRef.current?.querySelector(`[data-row="${i}"]`);
+    if (row) setRemovedHeights((h) => ({ ...h, [i]: row.getBoundingClientRect().height }));
+  };
+  // a dropped new rule leaves an empty row, as ✕ does, so nothing under the pointer moves
+  const dropUnsaved = (from: readonly RuleRow[]): readonly RuleRow[] => {
+    if (unsaved === null) return from;
+    keepHeight(unsaved);
+    setUnsaved(null);
+    return removeRow(from, unsaved);
   };
   const full = rulesOf(rows).length >= MAX_LOOT_RULES;
 
@@ -167,6 +183,7 @@ export function LootFilterDialog({ store, onClose }: { store: GameStore; onClose
   const edit = (i: number): void => {
     const rule = rows[i];
     if (rule == null || open === i) return;
+    if (unsaved !== null) setRows(dropUnsaved(rows));
     setOpen(i);
     setDraft(rule);
     setTexts({});
@@ -178,11 +195,19 @@ export function LootFilterDialog({ store, onClose }: { store: GameStore; onClose
     setDraft(null);
     setTexts({});
   };
+  const cancel = (): void => {
+    close();
+    if (unsaved === null) return;
+    setRows(dropUnsaved(rows));
+    // its Edit is gone with it: focus stays at the row, as after ✕
+    focusAfter.current = `[data-row="${unsaved}"] [data-removed-text]`;
+  };
   const add = (): void => {
     const next = addRow(rows);
     setRefusedAdd(next === rows);
     if (next === rows) return;
-    save(next);
+    setRows(dropUnsaved(next));
+    setUnsaved(next.length - 1);
     setOpen(next.length - 1);
     setDraft(next[next.length - 1] ?? null);
     setTexts({});
@@ -191,7 +216,7 @@ export function LootFilterDialog({ store, onClose }: { store: GameStore; onClose
   const remove = (i: number, e: MouseEvent<HTMLButtonElement>): void => {
     const row = e.currentTarget.closest('[data-row]');
     if (row) setRemovedHeights((h) => ({ ...h, [i]: row.getBoundingClientRect().height }));
-    save(removeRow(rows, i));
+    save(removeRow(rows, i), i === unsaved ? null : unsaved);
     if (open === i) {
       setOpen(null);
       setDraft(null);
@@ -203,7 +228,7 @@ export function LootFilterDialog({ store, onClose }: { store: GameStore; onClose
     if (open === null) return;
     const to = moveTarget(rows, open, delta);
     if (to === undefined) return;
-    save(moveRow(rows, open, delta));
+    save(moveRow(rows, open, delta), null);
     setOpen(to);
     reveal.current = to;
   };
@@ -296,13 +321,13 @@ export function LootFilterDialog({ store, onClose }: { store: GameStore; onClose
                 <button
                   type="button" className="gm-btn gm-btn--primary gm-rule-editor__btn" data-save="" disabled={problems.length > 0}
                   onClick={() => {
-                    save(rows.map((r, j) => (j === open ? draft : r)));
+                    save(rows.map((r, j) => (j === open ? draft : r)), null);
                     close();
                   }}
                 >
                   Save
                 </button>
-                <button type="button" className="gm-btn gm-rule-editor__btn" onClick={close}>Cancel</button>
+                <button type="button" className="gm-btn gm-rule-editor__btn" onClick={cancel}>Cancel</button>
               </div>
               <div className="gm-rule-editor__body">
                 <RuleFields rule={draft} onChange={setDraft} texts={texts} onText={(box, text) => setTexts((t) => ({ ...t, [box]: text }))} />
