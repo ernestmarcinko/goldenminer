@@ -13,7 +13,8 @@ import { deriveBattleStats } from '../../src/core/battle';
 import { deriveStats } from '../../src/core/stats';
 import { xpToNext } from '../../src/core/levels';
 import { seedFromText } from '../../src/core/seed';
-import { MAX_LOOT_RULES } from '../../src/core/balance';
+import { LEVEL_CAP, MAX_LOOT_RULES } from '../../src/core/balance';
+import { ascendancyPoints } from '../../src/core/ascendancy';
 import type { MapItem } from '../../src/core/items';
 import type { LootRule, TickEvent } from '../../src/core/types';
 import { gear, gem, stashMap } from '../helpers/items';
@@ -694,5 +695,28 @@ describe('passive web intents', () => {
     const again = make(now, storage).store;
     again.load();
     expect(again.state.passives.allocated).toEqual([ring1]);
+  });
+});
+
+describe('ascension intent', () => {
+  it('refuses below the cap and resets the store at it', () => {
+    const { store } = make();
+    store.load();
+    store.state.level = LEVEL_CAP - 1;
+    store.state.deepest = 1000;
+    const v = store.version;
+    expect(store.ascend()).toBe('notReady');
+    expect(store.version).toBe(v);
+    expect(store.state.level).toBe(LEVEL_CAP - 1);
+    expect(store.state.deepest).toBe(1000);
+
+    store.state.level = LEVEL_CAP;
+    expect(store.ascend()).toBe('ok');
+    expect(store.version).toBe(v + 1);
+    expect(store.state.level).toBe(1);
+    expect(store.state.deepest).toBe(0);
+    expect(store.state.ascendancy.points).toBe(ascendancyPoints(1000));
+    expect(store.stats).toEqual(deriveStats(store.state));
+    expect(store.battle).toEqual(deriveBattleStats(store.state));
   });
 });

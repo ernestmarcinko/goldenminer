@@ -1,3 +1,4 @@
+import { ascend as coreAscend } from '../core/ascend';
 import { LONG_GAP_MS, MAX_LOOT_RULES, OFFLINE_SUMMARY_MIN_TICKS } from '../core/balance';
 import { deriveBattleStats, type BattleStats } from '../core/battle';
 import { advance, ClickLimiter, clickTicks } from '../core/clock';
@@ -347,6 +348,13 @@ export class GameStore {
   /** A full web reset for Diamonds; only an 'ok' changes anything. */
   resetWeb(): ReturnType<typeof coreResetWeb> {
     const result = coreResetWeb(this._state);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
+  /** Trades a finished run for permanent ascendancy points; only an 'ok' changes anything. */
+  ascend(): ReturnType<typeof coreAscend> {
+    const result = coreAscend(this._state);
     if (result === 'ok') this.changed();
     return result;
   }
