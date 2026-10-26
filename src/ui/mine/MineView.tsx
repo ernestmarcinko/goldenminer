@@ -14,7 +14,7 @@ export function MineView({ store, onBackToMap }: { store: GameStore; onBackToMap
   const { state, stats } = useGame(store);
   const band = bandAt(state.deepest);
   const pct = Math.round(Math.min(1, Math.max(0, state.progress)) * 100);
-  const hazard = hazardText(metreLayer(state.seed, state.deepest + 1).hazard, stats.hazardWard);
+  const hazard = hazardText(metreLayer(state.seed, state.deepest + 1).hazard, stats.hazardWard, stats.hazardSlow);
   const status = digStatus(state, stats);
   return (
     <div className="gm-mine">

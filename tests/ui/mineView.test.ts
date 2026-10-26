@@ -15,6 +15,11 @@ it('speedText and hazardText', () => {
   expect(hazardText(null, 30)).toBeNull();
 });
 
+it('hazardText shows the Black Lantern\'s halved slowdown', () => {
+  expect(hazardText('gas', 0, 0.5)).toBe('Gas pocket: digging here takes 1.5× as long');
+  expect(hazardText('unstable', 50, 0.5)).toBe('Unstable rock: digging here takes 1.2× as long (hazard ward 50 %)');   // 1.15, to one decimal
+});
+
 it('digStatus: the run first, then the Pause, then a full bag, else the speed', () => {
   const s = newGame(1, 0);
   const stats = deriveStats(s);

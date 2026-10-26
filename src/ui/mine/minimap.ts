@@ -14,8 +14,9 @@ export const MINIMAP_PX_PER_METRE = 6;
 /** Metres drawn above and below the visible window, so a scroll never shows a gap before the next frame. */
 const MARGIN_METRES = 10;
 /**
- * Where the window's top sits while following: 50 m above the dig face. The scroll height ends lampSight + 2 m past the
- * face, so the browser clamps the scroll and the face usually rests near the bottom (about 90% down), not at 50/88 = 57%.
+ * Where the window's top sits while following: 50 m above the dig face. The scroll height ends max(lampSight, hazardSight)
+ * + 2 m past the face, so the browser clamps the scroll and the face usually rests near the bottom (about 90% down), not
+ * at 50/88 = 57%.
  */
 const FOLLOW_OFFSET_METRES = 50;
 

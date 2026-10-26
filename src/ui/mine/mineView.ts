@@ -13,10 +13,11 @@ export function speedText(speed: { metresPerMinute: number; secondsToNext: numbe
 
 const HAZARD_NAMES: Readonly<Record<Hazard, string>> = { gas: 'Gas pocket', unstable: 'Unstable rock' };
 
-export function hazardText(hazard: Hazard | null, ward: number): string | null {
+/** `slow`: the share of the slowdown left after ward (Black Lantern's half), as the dig itself counts it. */
+export function hazardText(hazard: Hazard | null, ward: number, slow = 1): string | null {
   if (hazard === null) return null;
   const wardNote = ward > 0 ? ` (hazard ward ${formatNumber(ward)} %)` : '';
-  return `${HAZARD_NAMES[hazard]}: digging here takes ${formatRate(hazardFactor(hazard, ward))}× as long${wardNote}`;
+  return `${HAZARD_NAMES[hazard]}: digging here takes ${formatRate(hazardFactor(hazard, ward, slow))}× as long${wardNote}`;
 }
 
 export type DigStatusKind = 'run' | 'paused' | 'bagFull' | 'digging';
