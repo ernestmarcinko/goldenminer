@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { SkillNodeVM } from './skillsView';
 
 const VIEW_W = 1120;
@@ -17,12 +17,15 @@ interface Props {
   focusNonce: number;
   /** The accessible name; the passive web and the ascendancy tree share this component. */
   label?: string;
+  /** The node whose card shows (hovered or pinned), and a renderer for that card. */
+  cardId?: string | null;
+  renderCard?: (node: SkillNodeVM) => ReactNode;
 }
 
 interface View { scale: number; x: number; y: number }
 
 /** The passive web as an SVG: edges and nodes, with drag-to-pan and wheel or button zoom. */
-export function Web({ nodes, onNode, onHover, focusId, focusNonce, label = 'Passive skill web' }: Props) {
+export function Web({ nodes, onNode, onHover, focusId, focusNonce, label = 'Passive skill web', cardId, renderCard }: Props) {
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
   const edges = useMemo(() => {
     const seen = new Set<string>();
@@ -69,6 +72,51 @@ export function Web({ nodes, onNode, onHover, focusId, focusNonce, label = 'Pass
   const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
+  // Moving from a node onto its card must not dismiss the card: a short grace period bridges the gap.
+  const leaveTimer = useRef<number | null>(null);
+  const cancelLeave = (): void => {
+    if (leaveTimer.current !== null) {
+      window.clearTimeout(leaveTimer.current);
+      leaveTimer.current = null;
+    }
+  };
+  useEffect(() => () => cancelLeave(), []);
+  const enterNode = (id: string): void => {
+    cancelLeave();
+    onHover(id);
+  };
+  const leaveNode = (): void => {
+    cancelLeave();
+    leaveTimer.current = window.setTimeout(() => {
+      leaveTimer.current = null;
+      onHover(null);
+    }, 300);
+  };
+
+  // The hovered/pinned card floats beside its node, in the panel's own pixels.
+  const cardNode = cardId === null || cardId === undefined ? undefined : byId.get(cardId);
+  const [cardAt, setCardAt] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (svg === null || cardNode === undefined) {
+      setCardAt(null);
+      return;
+    }
+    const place = (): void => {
+      const ctm = svg.getScreenCTM();
+      if (ctm === null) return;
+      const point = svg.createSVGPoint();
+      point.x = view.x + cardNode.x * view.scale;
+      point.y = view.y + cardNode.y * view.scale;
+      const screen = point.matrixTransform(ctm);
+      const rect = svg.getBoundingClientRect();
+      setCardAt({ x: screen.x - rect.left, y: screen.y - rect.top, width: rect.width, height: rect.height });
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [cardNode, view]);
+
   // Search centres the focused node at the current scale.
   useEffect(() => {
     const n = focusId === null ? undefined : byId.get(focusId);
@@ -103,6 +151,18 @@ export function Web({ nodes, onNode, onHover, focusId, focusNonce, label = 'Pass
     setView((v) => ({ ...v, x: d.ox + (e.clientX - d.x), y: d.oy + (e.clientY - d.y) }));
   };
   const endDrag = (): void => { drag.current = null; };
+
+  const cardBox = cardAt === null ? null : (() => {
+    const cardW = Math.min(280, cardAt.width - 16);
+    const above = cardAt.y > cardAt.height / 2;
+    const available = above ? cardAt.y - 22 : cardAt.height - cardAt.y - 22;
+    return {
+      left: Math.min(Math.max(cardAt.x, cardW / 2 + 8), cardAt.width - cardW / 2 - 8),
+      top: cardAt.y,
+      maxHeight: Math.max(96, available),
+      above,
+    };
+  })();
 
   return (
     <div className="gm-web">
@@ -145,8 +205,8 @@ export function Web({ nodes, onNode, onHover, focusId, focusNonce, label = 'Pass
                 data-refundable={n.refundable || undefined}
                 transform={`translate(${n.x} ${n.y})`}
                 onPointerDown={(e) => e.stopPropagation()}
-                onPointerEnter={() => onHover(n.id)}
-                onPointerLeave={() => onHover(null)}
+                onPointerEnter={() => enterNode(n.id)}
+                onPointerLeave={leaveNode}
                 onClick={() => onNode(n.id)}
               >
                 {/* the click target is at least 44 px, even for a small node */}
@@ -163,6 +223,18 @@ export function Web({ nodes, onNode, onHover, focusId, focusNonce, label = 'Pass
           })}
         </g>
       </svg>
+      {cardNode !== undefined && renderCard !== undefined && cardBox !== null && (
+        <div
+          className="gm-web__card"
+          data-above={cardBox.above ? 'true' : 'false'}
+          style={{ left: cardBox.left, top: cardBox.top, maxHeight: cardBox.maxHeight }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerEnter={cancelLeave}
+          onPointerLeave={() => onHover(null)}
+        >
+          {renderCard(cardNode)}
+        </div>
+      )}
       <div className="gm-web__controls">
         <button
           type="button" className="gm-web__zoom" aria-label="Zoom in" title="Zoom in"

@@ -190,6 +190,26 @@
 .gm-web__zoom:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
 .gm-web__zoom--fit { font-size: 13px; }
 
+/* The hovered or pinned node's card, floating beside the node inside the panel. */
+.gm-web__card {
+  position: absolute;
+  z-index: 2;
+  width: min(280px, calc(100% - 16px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  transform: translate(-50%, calc(-100% - 14px));
+}
+.gm-web__card[data-above='false'] {
+  transform: translate(-50%, 14px);
+}
+.gm-web__card .gm-skills__card,
+.gm-web__card .gm-ascend__card {
+  flex: none;
+  width: 100%;
+  box-sizing: border-box;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
 .gm-skills__footer {
   display: flex;
   gap: 12px;

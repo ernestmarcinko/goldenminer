@@ -24,8 +24,7 @@ export function AscensionView({ store }: { store: GameStore }) {
 
   const vms = useMemo(() => ascendancyVMs(state), [state, version]);
   const byId = useMemo(() => new Map(vms.map((n) => [n.id, n])), [vms]);
-  const shown = (hoveredId === null ? undefined : byId.get(hoveredId))
-    ?? (pinnedId === null ? undefined : byId.get(pinnedId)) ?? null;
+  const cardId = hoveredId ?? pinnedId;
 
   const pick = (id: string): void => {
     const vm = byId.get(id);
@@ -82,7 +81,7 @@ export function AscensionView({ store }: { store: GameStore }) {
       <div className="gm-ascend__legend" aria-hidden="true">
         <span className="gm-legend"><i className="gm-legend__dot gm-legend__dot--small" />small: +stat</span>
         <span className="gm-legend"><i className="gm-legend__dot gm-legend__dot--notable" />notable: named bonus</span>
-        <span className="gm-legend gm-muted">drag to pan · wheel or +/− to zoom</span>
+        <span className="gm-legend gm-muted">click to pin · drag to pan · wheel or +/− to zoom</span>
       </div>
       <Web
         nodes={vms}
@@ -91,25 +90,26 @@ export function AscensionView({ store }: { store: GameStore }) {
         focusId={null}
         focusNonce={0}
         label="Ascendancy tree"
-      />
-      <div className="gm-ascend__footer">
-        {shown !== null && (
-          <section className="gm-ascend__card" data-side={shown.side}>
-            <h3 className="gm-ascend__card-name">{shown.name}</h3>
-            <div className="gm-ascend__card-line">{shown.line}</div>
-            {shown.desc !== '' && shown.desc !== shown.line && (
-              <div className="gm-ascend__card-desc gm-muted">{shown.desc}</div>
+        cardId={cardId}
+        renderCard={(node) => (
+          <section className="gm-ascend__card" data-side={node.side}>
+            <h3 className="gm-ascend__card-name">{node.name}</h3>
+            <div className="gm-ascend__card-line">{node.line}</div>
+            {node.desc !== '' && node.desc !== node.line && (
+              <div className="gm-ascend__card-desc gm-muted">{node.desc}</div>
             )}
-            {shown.allocatable && (
-              <button type="button" className="gm-btn gm-btn--primary" onClick={() => pick(shown.id)}>
+            {node.allocatable && (
+              <button type="button" className="gm-btn gm-btn--primary" onClick={() => pick(node.id)}>
                 Allocate · 1 point
               </button>
             )}
-            {shown.allocated && (
-              <div className="gm-ascend__card-desc gm-muted">Allocated{shown.kind === 'start' ? ' · the start' : ''}.</div>
+            {node.allocated && (
+              <div className="gm-ascend__card-desc gm-muted">Allocated{node.kind === 'start' ? ' · the start' : ''}.</div>
             )}
           </section>
         )}
+      />
+      <div className="gm-ascend__footer">
         <div className="gm-ascend__status" role="status">{message}</div>
       </div>
     </div>
