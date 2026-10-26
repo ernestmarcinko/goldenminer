@@ -84,8 +84,8 @@ export function AscensionView({ store }: { store: GameStore }) {
       </div>
       <div className="gm-ascend__legend" aria-hidden="true">
         <span className="gm-legend"><i className="gm-legend__dot gm-legend__dot--small" />small · 1 point</span>
-        <span className="gm-legend"><i className="gm-legend__dot gm-legend__dot--notable" />mid · 2 points</span>
-        <span className="gm-legend"><i className="gm-legend__dot gm-legend__dot--keystone" />big · 4 points</span>
+        <span className="gm-legend"><i className="gm-legend__dot gm-legend__dot--notable" />mid · 6 points</span>
+        <span className="gm-legend"><i className="gm-legend__dot gm-legend__dot--keystone" />big · 12 points</span>
         <span className="gm-legend gm-muted">click to pin · drag to pan · wheel or +/− to zoom</span>
       </div>
       <Web

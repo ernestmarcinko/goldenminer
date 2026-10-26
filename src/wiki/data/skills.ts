@@ -16,7 +16,7 @@ export function smallNodes(): PassiveNode[] {
   return PASSIVE_NODES.filter((n) => n.kind === 'small');
 }
 
-/** The whole ascendancy tree, each node carrying its allocation cost (small 1, mid 2, big 4, start 0). */
+/** The whole ascendancy tree, each node carrying its allocation cost (small 1, mid 6, big 12, start 0). */
 export function ascendancyNodes(): AscendancyNode[] {
   return [...ASCENDANCY_NODES];
 }

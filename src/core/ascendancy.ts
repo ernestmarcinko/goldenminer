@@ -1,4 +1,7 @@
-import { ASCEND_DEPTH_PER_POINT, ASCEND_LEVEL, ASCEND_LEVEL_STEP } from './balance';
+import {
+  ASCENDANCY_BIG_COST, ASCENDANCY_MID_COST, ASCENDANCY_SMALL_COST,
+  ASCEND_DEPTH_PER_POINT, ASCEND_LEVEL, ASCEND_LEVEL_STEP,
+} from './balance';
 import type { StatKey } from './items';
 import type { GameState } from './types';
 
@@ -14,7 +17,7 @@ export interface AscendancyNode {
   id: string;
   name: string;
   kind: AscendancyKind;
-  /** The points the node costs to allocate: small 1, mid 2, big 4, start 0 (free). The cost is code, never saved. */
+  /** The points the node costs to allocate: small 1, mid 6, big 12, start 0 (free). The cost is code, never saved. */
   cost: number;
   x: number;
   y: number;
@@ -51,10 +54,16 @@ interface ClusterDef {
    * mid's link to the last of them — stay stable, keeping old saves connected). New clusters have none.
    */
   legacySmalls?: number;
+  /**
+   * How many leading smalls sit before the mid, so the mid lands mid-branch (ring midAfter + 1) and the rest trail it
+   * to the big. Defaults to 4, so a branch reads small ×4 → mid → small ×4 → big.
+   */
+  midAfter?: number;
 }
 
-// Eight radial clusters, each a chain of smalls (1 point) into a mid (2 points) and a big (4 points). The smalls are
-// whole percents or whole numbers; the mid is the old "notable", the big the new keystone-grade permanent bonus.
+// Eight radial clusters, each a branch of smalls (1 point each) with a mid (6 points) sat mid-branch and a big
+// (12 points) as the terminal keystone. The smalls are whole percents or whole numbers; the mid is the old "notable",
+// the big the keystone-grade permanent bonus.
 const CLUSTERS: ClusterDef[] = [
   {
     prefix: 'wealth', angle: 90, legacySmalls: 5,
@@ -205,28 +214,37 @@ function pointY(angleDeg: number, ring: number): number {
 function buildTree(): AscendancyNode[] {
   const placed: Placed[] = [];
   for (const cluster of CLUSTERS) {
+    const midAfter = cluster.midAfter ?? 4;
     let previous = ASCENDANCY_START_ID;
     // The mid also links back to the last pre-expansion small so an old save's chain stays connected to the start.
     const legacyLastId = cluster.legacySmalls !== undefined ? `${cluster.prefix}Small${cluster.legacySmalls}` : undefined;
     cluster.smalls.forEach((small, i) => {
       const id = `${cluster.prefix}Small${i + 1}`;
+      // The first `midAfter` smalls lead the branch; the rest trail the mid, shifted out one ring by it.
+      const ring = i < midAfter ? i + 1 : i + 2;
       placed.push({
-        id, name: small.name, kind: 'small', cost: 1, effects: small.effects, desc: '',
-        x: pointX(cluster.angle, i + 1), y: pointY(cluster.angle, i + 1), links: [previous], ring: i + 1,
+        id, name: small.name, kind: 'small', cost: ASCENDANCY_SMALL_COST, effects: small.effects, desc: '',
+        x: pointX(cluster.angle, ring), y: pointY(cluster.angle, ring), links: [previous], ring,
       });
       previous = id;
+      if (i === midAfter - 1) {
+        // The mid sits mid-branch: linked from the last leading small, and back to the legacy small if it differs.
+        const midLinks = [id];
+        if (legacyLastId !== undefined && legacyLastId !== id) midLinks.push(legacyLastId);
+        placed.push({
+          id: cluster.mid.id, name: cluster.mid.name, kind: 'mid', cost: ASCENDANCY_MID_COST,
+          effects: cluster.mid.effects, desc: cluster.mid.desc,
+          x: pointX(cluster.angle, midAfter + 1), y: pointY(cluster.angle, midAfter + 1),
+          links: midLinks, ring: midAfter + 1,
+        });
+        previous = cluster.mid.id;
+      }
     });
-    const midLinks = [previous];
-    if (legacyLastId !== undefined && legacyLastId !== previous) midLinks.push(legacyLastId);
     placed.push({
-      id: cluster.mid.id, name: cluster.mid.name, kind: 'mid', cost: 2, effects: cluster.mid.effects,
-      desc: cluster.mid.desc, x: pointX(cluster.angle, cluster.smalls.length + 1),
-      y: pointY(cluster.angle, cluster.smalls.length + 1), links: midLinks, ring: cluster.smalls.length + 1,
-    });
-    placed.push({
-      id: cluster.big.id, name: cluster.big.name, kind: 'big', cost: 4, effects: cluster.big.effects,
-      desc: cluster.big.desc, x: pointX(cluster.angle, cluster.smalls.length + 2),
-      y: pointY(cluster.angle, cluster.smalls.length + 2), links: [cluster.mid.id], ring: cluster.smalls.length + 2,
+      id: cluster.big.id, name: cluster.big.name, kind: 'big', cost: ASCENDANCY_BIG_COST,
+      effects: cluster.big.effects, desc: cluster.big.desc,
+      x: pointX(cluster.angle, cluster.smalls.length + 2), y: pointY(cluster.angle, cluster.smalls.length + 2),
+      links: [previous], ring: cluster.smalls.length + 2,
     });
   }
   // symmetric links: every link a -> b is also b -> a

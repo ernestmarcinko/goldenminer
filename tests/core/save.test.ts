@@ -1172,7 +1172,7 @@ function ascendancyPathTo(target: string): string[] {
 }
 
 it('ascendancy passive points raise the passive web ceiling', () => {
-  // Second Sight's chain is three passive-point smalls and the 2-point mid.
+  // Second Sight's chain is three passive-point smalls and the 6-point mid.
   const bonus = ascendancyPathTo('secondSight');
   expect(bonus).toHaveLength(4);
   const ascendancy = newGame(1, 0);

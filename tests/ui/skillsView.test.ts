@@ -173,9 +173,9 @@ it('the ascendancy VM carries each node\'s cost and frames the kinds', () => {
   const start = vms.find((n) => n.id === 'minerReborn');
   expect(small?.cost).toBe(1);
   expect(small?.kind).toBe('small');
-  expect(mid?.cost).toBe(2);
+  expect(mid?.cost).toBe(6);
   expect(mid?.kind).toBe('notable');
-  expect(big?.cost).toBe(4);
+  expect(big?.cost).toBe(12);
   expect(big?.kind).toBe('keystone');
   expect(start?.cost).toBe(0);
   expect(start?.kind).toBe('start');

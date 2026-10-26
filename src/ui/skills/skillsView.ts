@@ -17,7 +17,7 @@ export interface SkillNodeVM {
   id: string;
   name: string;
   kind: PassiveKind;
-  /** The points the node costs: 1 on the passive web, 1/2/4 on the ascendancy tree (0 for the start). */
+  /** The points the node costs: 1 on the passive web, 1/6/12 on the ascendancy tree (0 for the start). */
   cost: number;
   side: PassiveSide;
   x: number;

@@ -26,7 +26,7 @@ it('the tree is 81 nodes: one start, 64 smalls, eight mids and eight bigs', () =
 
 it('every node\'s cost follows its kind and every big carries a large bonus', () => {
   for (const n of ASCENDANCY_NODES) {
-    const cost = n.kind === 'start' ? 0 : n.kind === 'small' ? 1 : n.kind === 'mid' ? 2 : 4;
+    const cost = n.kind === 'start' ? 0 : n.kind === 'small' ? 1 : n.kind === 'mid' ? 6 : 12;
     expect(n.cost, n.id).toBe(cost);
   }
   const bigStartingDepth = ASCENDANCY_NODES.find((n) => n.kind === 'big'
@@ -41,15 +41,15 @@ it('every node\'s cost follows its kind and every big carries a large bonus', ()
   expect(bigTier?.effects.some((e) => e.kind === 'autoMapTier' && e.value === 4)).toBe(true);
 });
 
-it('the original node ids survive: smalls still cost 1, the old notables are 2-point mids', () => {
+it('the original node ids survive: smalls still cost 1, the old notables are 6-point mids', () => {
   for (const id of ['wealthSmall1', 'depthSmall1', 'insightSmall1', 'cartographySmall1', 'enduranceSmall1',
     'fortunaSmall1', 'midasTouch', 'deepRoots', 'secondSight', 'masterSurveyor', 'tireless', 'luckyBreak']) {
     expect(ASCENDANCY_NODE_BY_ID.get(id), id).toBeDefined();
   }
   expect(node('wealthSmall1').cost).toBe(1);
   expect(node('insightSmall1').cost).toBe(1);
-  expect(node('masterSurveyor').cost).toBe(2);
-  expect(node('luckyBreak').cost).toBe(2);
+  expect(node('masterSurveyor').cost).toBe(6);
+  expect(node('luckyBreak').cost).toBe(6);
 });
 
 it('links are symmetric, ids unique, and the start never links to itself', () => {
@@ -62,6 +62,50 @@ it('links are symmetric, ids unique, and the start never links to itself', () =>
     }
   }
   expect(start.links.includes(ASCENDANCY_START_ID)).toBe(false);
+});
+
+it('every mid sits mid-branch: four smalls before it, four after it, and the big is the tip', () => {
+  const dist = (n: { x: number; y: number }): number => Math.hypot(n.x - start.x, n.y - start.y);
+  const prefixes = [...new Set(ASCENDANCY_NODES.filter((n) => n.kind === 'small')
+    .map((n) => n.id.replace(/Small\d+$/, '')))];
+  expect(prefixes).toHaveLength(8);
+  for (const prefix of prefixes) {
+    const smalls = ASCENDANCY_NODES.filter((n) => n.id.startsWith(`${prefix}Small`));
+    const mid = ASCENDANCY_NODES.find((n) => n.kind === 'mid' && n.links.some((l) => l.startsWith(`${prefix}Small`)));
+    const big = ASCENDANCY_NODES.find((n) => n.kind === 'big' && n.links.some((l) => l.startsWith(`${prefix}Small`)));
+    if (mid === undefined || big === undefined) throw new Error(`cluster ${prefix} has no mid/big`);
+    expect(smalls, prefix).toHaveLength(8);
+    const midDist = dist(mid);
+    // The mid is strictly between the leading and trailing smalls — in the branch, not at its tip.
+    expect(smalls.filter((s) => dist(s) < midDist), prefix).toHaveLength(4);
+    expect(smalls.filter((s) => dist(s) > midDist), prefix).toHaveLength(4);
+    // The big is the terminal keystone, farther out than every small.
+    expect(smalls.every((s) => dist(s) < dist(big)), prefix).toBe(true);
+  }
+});
+
+it('clearing the whole tree costs 208 points: 8 × (8 smalls + 6 + 12)', () => {
+  expect(ASCENDANCY_NODES.reduce((sum, n) => sum + n.cost, 0)).toBe(208);
+});
+
+it('an old save\'s chain (start → smalls → mid → big) stays one connected set under the new links', () => {
+  // A pre-change save could hold the whole spine of a branch; the reordered links must still connect all of it.
+  const set = new Set([
+    'wealthSmall1', 'wealthSmall2', 'wealthSmall3', 'wealthSmall4', 'wealthSmall5',
+    'wealthSmall6', 'wealthSmall7', 'wealthSmall8', 'midasTouch', 'goldRush',
+  ]);
+  const reached = new Set([ASCENDANCY_START_ID]);
+  const queue = [ASCENDANCY_START_ID];
+  while (queue.length > 0) {
+    const id = queue.pop();
+    if (id === undefined) break;
+    for (const l of node(id).links) {
+      if (!set.has(l) || reached.has(l)) continue;
+      reached.add(l);
+      queue.push(l);
+    }
+  }
+  for (const id of set) expect(reached.has(id), id).toBe(true);
 });
 
 it('points come from the deepest depth as a square root', () => {
@@ -116,7 +160,7 @@ it('allocation spends a point, follows adjacency, and never refunds', () => {
   expect(s.ascendancy.points).toBe(0);
 });
 
-it('a mid node costs 2 points and a big node costs 4', () => {
+it('a mid node costs 6 points and a big node costs 12', () => {
   const mid = ASCENDANCY_NODES.find((n) => n.kind === 'mid');
   const big = ASCENDANCY_NODES.find((n) => n.kind === 'big');
   if (mid === undefined || big === undefined) throw new Error('no mid/big ascendancy node');
@@ -126,11 +170,11 @@ it('a mid node costs 2 points and a big node costs 4', () => {
 
   const s = newGame(1, 0);
   s.ascendancy.allocated = [midParent];
-  s.ascendancy.points = 1;
-  expect(allocateAscendancy(s, mid.id)).toBe('noPoints');   // 1 < 2
+  s.ascendancy.points = 5;
+  expect(allocateAscendancy(s, mid.id)).toBe('noPoints');   // 5 < 6
   expect(s.ascendancy.allocated).toEqual([midParent]);
-  expect(s.ascendancy.points).toBe(1);
-  s.ascendancy.points = 2;
+  expect(s.ascendancy.points).toBe(5);
+  s.ascendancy.points = 6;
   expect(canAllocateAscendancy(s, mid.id)).toBe(true);
   expect(allocateAscendancy(s, mid.id)).toBe('ok');
   expect(s.ascendancy.points).toBe(0);
@@ -138,10 +182,10 @@ it('a mid node costs 2 points and a big node costs 4', () => {
 
   const t = newGame(1, 0);
   t.ascendancy.allocated = [bigParent];
-  t.ascendancy.points = 3;
-  expect(allocateAscendancy(t, big.id)).toBe('noPoints');   // 3 < 4
+  t.ascendancy.points = 11;
+  expect(allocateAscendancy(t, big.id)).toBe('noPoints');   // 11 < 12
   expect(t.ascendancy.allocated).toEqual([bigParent]);
-  t.ascendancy.points = 4;
+  t.ascendancy.points = 12;
   expect(allocateAscendancy(t, big.id)).toBe('ok');
   expect(t.ascendancy.points).toBe(0);
   expect(t.ascendancy.allocated).toEqual([bigParent, big.id]);

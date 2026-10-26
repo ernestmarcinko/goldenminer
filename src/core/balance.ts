@@ -96,6 +96,10 @@ export const XP_RAMP_CAP = 7.0;
 export const ASCEND_DEPTH_PER_POINT = 250;
 export const ASCEND_LEVEL = 60;
 export const ASCEND_LEVEL_STEP = 10;
+// What each ascendancy node kind costs in points: minors stay a point, the majors are a multi-ascension save-up.
+export const ASCENDANCY_SMALL_COST = 1;
+export const ASCENDANCY_MID_COST = 6;
+export const ASCENDANCY_BIG_COST = 12;
 export const AUTO_MAP_BASE_TIER = 3;
 export const COMBAT_LOG_LIMIT = 20;
 export const RUN_LOOT_LIMIT = 30;

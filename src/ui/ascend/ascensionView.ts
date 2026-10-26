@@ -24,7 +24,7 @@ function nodeLine(effects: readonly AscendancyEffect[]): string {
   return effects.map(effectLine).join(', ');
 }
 
-/** A node's cost in words: "1 point", "2 points", "4 points" (empty for the free start). */
+/** A node's cost in words: "1 point", "6 points", "12 points" (empty for the free start). */
 export function ascendancyCostLine(cost: number): string {
   return cost <= 0 ? '' : plural(cost, 'point', 'points');
 }

@@ -534,7 +534,7 @@ export function WikiApp() {
               ascension on — one point for every {ASCEND_LEVEL_STEP} levels past {ASCEND_LEVEL}. The points spend on a small
               tree of their own; ascending keeps the tree, the queue, your lifetime best and your settings.
             </p>
-            <p>Each node costs points: small 1, mid 2, big 4. The mid and big nodes:</p>
+            <p>Each node costs points: small 1, mid 6, big 12. The mid and big nodes:</p>
             <Table>
               <thead><tr><th>Node</th><th className="wiki__num">Cost</th><th>Effect</th></tr></thead>
               <tbody>
