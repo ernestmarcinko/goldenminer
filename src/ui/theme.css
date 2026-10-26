@@ -1,13 +1,18 @@
 :root {
+  --gm-ink: #0b0907;
   --gm-ground: #15120f;
-  --gm-panel: #1f1a16;
-  --gm-panel-raised: #29221d;
-  --gm-header: #1a1612;
-  --gm-line: #3a3029;
+  --gm-panel: #1b1713;
+  --gm-panel-raised: #241e19;
+  --gm-header: #171310;
+  --gm-line: #332a23;
   --gm-text: #f1e9dc;
   --gm-muted: #a89f94;
+  --gm-bone: #d9c9a3;
   --gm-gold: #e8b44a;
   --gm-gold-bright: #f5cf7a;
+  --gm-gold-dim: #8a6a2a;
+  --gm-blood: #8e2f26;
+  --gm-steel: #6f7378;
   --gm-diamond: #7fd3e8;
   --gm-diamond-bright: #c9f1fa;
   --gm-magic: #8fb0ff;
@@ -39,15 +44,66 @@
   --gm-font-display: 'Metamorphous', serif;
   --gm-font-ui: 'Alegreya Sans', system-ui, sans-serif;
   --gm-font-mono: 'IBM Plex Mono', monospace;
+
+  --gm-radius: 0px;
+  --gm-text-shadow: 0 1px 0 #000;
+  --gm-edge: 1px solid #0a0806;
+  --gm-bevel: inset 1px 1px 0 rgba(255, 255, 255, 0.06), inset -1px -1px 0 rgba(0, 0, 0, 0.75);
+  --gm-bevel-deep: inset 2px 2px 0 rgba(255, 255, 255, 0.05), inset -2px -2px 0 rgba(0, 0, 0, 0.8);
 }
 
 body {
   margin: 0;
-  background: var(--gm-ground);
+  background: var(--gm-ink);
   color: var(--gm-text);
   font-family: var(--gm-font-ui);
   font-size: 14px;
   line-height: 1.45;
+}
+
+/* Square, iron scrollbars (WebKit and Firefox). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--gm-line) var(--gm-ink);
+}
+*::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+  background: var(--gm-ink);
+}
+*::-webkit-scrollbar-track {
+  background: var(--gm-ink);
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--gm-line);
+  border: 2px solid var(--gm-ink);
+  border-radius: 0;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--gm-gold-dim);
+}
+*::-webkit-scrollbar-corner {
+  background: var(--gm-ink);
+}
+
+/* Four 3 px corner rivets; panels opt in with the class. */
+.gm-rivets {
+  position: relative;
+}
+.gm-rivets::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--gm-steel), var(--gm-steel)),
+    linear-gradient(var(--gm-steel), var(--gm-steel)),
+    linear-gradient(var(--gm-steel), var(--gm-steel)),
+    linear-gradient(var(--gm-steel), var(--gm-steel));
+  background-size: 3px 3px;
+  background-repeat: no-repeat;
+  background-position: 3px 3px, right 3px top 3px, left 3px bottom 3px, right 3px bottom 3px;
 }
 
 a {
