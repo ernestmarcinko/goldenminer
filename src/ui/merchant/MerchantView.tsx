@@ -22,6 +22,12 @@ import './merchant.css';
 
 const GROUP_TITLES: Readonly<Record<GearSet, string>> = { mining: 'Mining gear', battle: 'Battle gear' };
 
+/** "Buy · 1,240 Gold" with its price kept on one line, so a narrow button wraps only after the dot. */
+function PriceLabel({ text }: { text: string }) {
+  const at = text.indexOf('· ') + 2;
+  return <>{text.slice(0, at)}<span className="gm-merchant__price">{text.slice(at)}</span></>;
+}
+
 /**
  * Brannoc the Trader's stock and Old Mirela's gambling, side by side (stacked on a narrow screen). A bought tile stays
  * where it was, reading Sold, and what a buy or a gamble says sits below its own grid, so the button under the pointer
@@ -85,13 +91,12 @@ export function MerchantView({ store }: { store: GameStore }) {
                   type="button"
                   className="gm-btn gm-stock__buy"
                   data-buy={t.index}
-                  disabled={t.item === null}
-                  // stays clickable so a click can say why it was refused
-                  aria-disabled={(t.item !== null && (!t.affordable || !t.room)) || undefined}
+                  // stays clickable and keeps focus, sold too, so a click can say why it was refused
+                  aria-disabled={t.item === null || !t.affordable || !t.room || undefined}
                   aria-label={t.item === null ? 'Sold' : `${buyLabel(t.price)}: ${t.name}`}
                   onClick={(e) => { if (!clickedThroughCard(e)) buy(t.index); }}
                 >
-                  {t.item === null ? 'Sold' : buyLabel(t.price)}
+                  {t.item === null ? 'Sold' : <PriceLabel text={buyLabel(t.price)} />}
                 </button>
               </li>
             ))}
@@ -131,7 +136,7 @@ export function MerchantView({ store }: { store: GameStore }) {
                       aria-label={`Gamble · ${formatNumber(s.price)} Gold: ${s.label}`}
                       onClick={(e) => { if (!clickedThroughCard(e)) setRefused(store.gamble(s.slot).result); }}
                     >
-                      Gamble · {formatNumber(s.price)} Gold
+                      <PriceLabel text={`Gamble · ${formatNumber(s.price)} Gold`} />
                     </button>
                   </li>
                 ))}

@@ -21,17 +21,21 @@ export function lastPointerType(): string {
   return pointerType;
 }
 
+const CARD_CLICK_SLOP_PX = 3;
+
 /**
- * Where a click inside an item card landed, until the pointer moves off that point. A card's action or a click on
- * the pinned card closes it, and a second click at the same point lands on whatever the card covered: a Buy or Gamble
- * button that was never aimed at.
+ * Where a click inside an item card landed, until the pointer moves more than CARD_CLICK_SLOP_PX from that point. A
+ * card's action or a click on the pinned card closes it, and a second click at the same point lands on whatever the
+ * card covered: a Buy or Gamble button that was never aimed at.
  */
 export function cardClickTracker() {
   let at: { x: number; y: number } | null = null;
+  // a hand resting on a mouse jitters by a pixel or two; only a move past this is aiming somewhere else
+  const near = (x: number, y: number): boolean => at !== null && Math.hypot(x - at.x, y - at.y) <= CARD_CLICK_SLOP_PX;
   return {
     click(x: number, y: number, inCard: boolean): void { if (inCard) at = { x, y }; },
-    move(x: number, y: number): void { if (at !== null && (x !== at.x || y !== at.y)) at = null; },
-    through(x: number, y: number): boolean { return at !== null && x === at.x && y === at.y; },
+    move(x: number, y: number): void { if (!near(x, y)) at = null; },
+    through(x: number, y: number): boolean { return near(x, y); },
   };
 }
 
@@ -45,7 +49,7 @@ if (typeof document !== 'undefined') {
   document.addEventListener('pointermove', (e) => cardClicks.move(e.clientX, e.clientY), { capture: true });
 }
 
-/** The click came at the point of a click inside a card, with no move since: the pointer was aimed at that card. */
+/** The click came at the point of a click inside a card, with no real move since: the pointer was aimed at that card. */
 export function clickedThroughCard(e: { clientX: number; clientY: number; detail: number }): boolean {
   return e.detail > 0 && cardClicks.through(e.clientX, e.clientY);
 }

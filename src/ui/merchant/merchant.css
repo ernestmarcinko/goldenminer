@@ -18,7 +18,11 @@
 .gm-merchant__name { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 18px; }
 .gm-merchant__name:focus { outline: none; }
 
-.gm-stock { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+/* six to a row while a tile has room for its longest Buy label on two lines, fewer when it hasn't (three on a phone) */
+.gm-stock {
+  list-style: none; margin: 0; padding: 0; display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(max(100px, (100% - 40px) / 6), 1fr));
+}
 /* every part has a fixed height, so a tile bought (Sold, no price) keeps its size and its Buy button its place */
 .gm-stock__tile {
   display: grid; grid-template-rows: 48px 1.3em 1.4em 44px; gap: 6px; min-width: 0; padding: 8px;
@@ -37,26 +41,28 @@
   font-family: var(--gm-font-mono); font-size: 12px; line-height: 1.4; color: var(--gm-muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-/* up to three lines of label fit its fixed height, so a long price never makes the tile taller */
-/* doubled class: .gm-btn's font shorthand would reset the size and line height */
+/* "Buy ·" and the price, at most two lines in its fixed height, so a long price never makes the tile taller. Doubled
+   class: .gm-btn's font shorthand would reset the size and line height */
 .gm-btn.gm-stock__buy {
-  width: 100%; height: 44px; min-width: 0; padding: 0 4px; overflow: hidden; font-size: 12px; line-height: 1.15;
+  width: 100%; height: 44px; min-width: 0; padding: 0 2px; overflow: hidden; font-size: 12px; line-height: 1.15;
   border-color: var(--gm-gold); color: var(--gm-gold-bright);
 }
-.gm-stock__buy[aria-disabled='true'], .gm-stock__buy:disabled { opacity: 0.55; border-color: var(--gm-line); color: var(--gm-text); }
-.gm-stock__buy:disabled { cursor: default; }
+.gm-stock__buy[aria-disabled='true'] { opacity: 0.55; border-color: var(--gm-line); color: var(--gm-text); }
+/* a price never breaks inside, so a label wraps only after its dot */
+.gm-merchant__price { white-space: nowrap; }
 
 .gm-merchant__group { display: flex; flex-direction: column; gap: 8px; }
 .gm-merchant__group-title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 15px; }
 .gm-merchant__slots { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.gm-merchant__slots--mining { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.gm-merchant__slots--battle { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.gm-merchant__slots--mining, .gm-merchant__slots--battle { grid-template-columns: repeat(auto-fit, minmax(116px, 1fr)); }
 .gm-merchant__slot {
   display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; padding: 10px;
   border-radius: 10px; background: var(--gm-panel); border: 1px solid var(--gm-line);
 }
 .gm-merchant__label { font-weight: 700; overflow-wrap: anywhere; }
-.gm-merchant__gamble { width: 100%; margin-top: auto; padding: 6px 8px; font-size: 13px; line-height: 1.3; }
+/* each slot is wide enough for "Gamble ·" over a price of up to "3,000,000 Gold". Doubled class: .gm-btn's padding and
+   font shorthand would win over these */
+.gm-btn.gm-merchant__gamble { width: 100%; margin-top: auto; padding: 6px; font-size: 13px; line-height: 1.3; }
 .gm-merchant__gamble[aria-disabled='true'] { opacity: 0.55; }
 .gm-merchant__gamble[aria-disabled='true']:hover { border-color: var(--gm-line); }
 
@@ -74,7 +80,4 @@
 @media (max-width: 900px) {
   .gm-merchants { grid-template-columns: minmax(0, 1fr); }
 }
-@media (max-width: 600px) {
-  .gm-merchant__slots--mining, .gm-merchant__slots--battle { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .gm-stock { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
+
