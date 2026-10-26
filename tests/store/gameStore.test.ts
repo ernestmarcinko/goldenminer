@@ -14,7 +14,7 @@ import { deriveStats } from '../../src/core/stats';
 import { xpToNext } from '../../src/core/levels';
 import { seedFromText } from '../../src/core/seed';
 import { LEVEL_CAP, MAX_LOOT_RULES } from '../../src/core/balance';
-import { ascendancyPoints } from '../../src/core/ascendancy';
+import { ascendancyPoints, ASCENDANCY_NODE_BY_ID, ASCENDANCY_START_ID } from '../../src/core/ascendancy';
 import type { MapItem } from '../../src/core/items';
 import type { LootRule, TickEvent } from '../../src/core/types';
 import { gear, gem, stashMap } from '../helpers/items';
@@ -718,5 +718,78 @@ describe('ascension intent', () => {
     expect(store.state.ascendancy.points).toBe(ascendancyPoints(1000));
     expect(store.stats).toEqual(deriveStats(store.state));
     expect(store.battle).toEqual(deriveBattleStats(store.state));
+  });
+});
+
+describe('ascendancy and auto-map intents', () => {
+  const start = ASCENDANCY_NODE_BY_ID.get(ASCENDANCY_START_ID);
+  if (start === undefined) throw new Error('the ascendancy tree has no start');
+  const ring1 = start.links[0];
+  const ring1b = start.links[1];
+  if (ring1 === undefined || ring1b === undefined) throw new Error('the ascendancy start has too few links');
+
+  it('allocates a first-ring node for a point; a repeat and an unaffordable node are refused', () => {
+    const { store } = make();
+    store.load();
+    store.state.ascendancy.points = 1;
+    const v = store.version;
+    expect(store.allocateAscendancy(ring1)).toBe('ok');
+    expect(store.state.ascendancy.allocated).toEqual([ring1]);
+    expect(store.state.ascendancy.points).toBe(0);
+    expect(store.version).toBe(v + 1);
+    expect(store.allocateAscendancy(ring1)).toBe('allocated');
+    expect(store.state.ascendancy.allocated).toEqual([ring1]);
+    expect(store.version).toBe(v + 1);
+    expect(store.allocateAscendancy(ring1b)).toBe('noPoints');
+    expect(store.state.ascendancy.allocated).toEqual([ring1]);
+    expect(store.version).toBe(v + 1);
+  });
+
+  it('an ascendancy allocation persists across a save and a load', () => {
+    const { store, storage, now } = make();
+    store.load();
+    store.state.ascendancy.points = 1;
+    expect(store.allocateAscendancy(ring1)).toBe('ok');
+    store.save();
+    const again = make(now, storage).store;
+    again.load();
+    expect(again.state.ascendancy.allocated).toEqual([ring1]);
+  });
+
+  it('a queued map persists across a save and a load', () => {
+    const { store, storage, now } = make();
+    store.load();
+    const map = stashMap(store.state, 1, 2);
+    expect(store.queueForAutoMap(map.id)).toBe('ok');
+    expect(store.state.autoMap.queue).toEqual([map.id]);
+    store.save();
+    const again = make(now, storage).store;
+    again.load();
+    expect(again.state.autoMap.queue).toEqual([map.id]);
+  });
+
+  it('allocating, queueing and unqueueing leave both RNG streams untouched', () => {
+    const { store } = make();
+    store.load();
+    const rng = store.state.rng;
+    const uniqueRng = store.state.uniqueRng;
+    const map = stashMap(store.state, 1, 2);
+    store.state.ascendancy.points = 1;
+    expect(store.allocateAscendancy(ring1)).toBe('ok');
+    expect(store.queueForAutoMap(map.id)).toBe('ok');
+    expect(store.state.rng).toBe(rng);
+    expect(store.state.uniqueRng).toBe(uniqueRng);
+    expect(store.unqueueForAutoMap(map.id)).toBe('ok');
+    expect(store.state.rng).toBe(rng);
+    expect(store.state.uniqueRng).toBe(uniqueRng);
+  });
+
+  it('unqueueing an id that was never queued is refused and changes nothing', () => {
+    const { store } = make();
+    store.load();
+    const v = store.version;
+    expect(store.unqueueForAutoMap(1234)).toBe('notQueued');
+    expect(store.state.autoMap.queue).toEqual([]);
+    expect(store.version).toBe(v);
   });
 });

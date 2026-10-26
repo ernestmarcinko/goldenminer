@@ -1,4 +1,6 @@
 import { ascend as coreAscend } from '../core/ascend';
+import { allocateAscendancy as coreAllocateAscendancy } from '../core/ascendancy';
+import { queueForAutoMap as coreQueueForAutoMap, unqueueForAutoMap as coreUnqueueForAutoMap } from '../core/autoMap';
 import { LONG_GAP_MS, MAX_LOOT_RULES, OFFLINE_SUMMARY_MIN_TICKS } from '../core/balance';
 import { deriveBattleStats, type BattleStats } from '../core/battle';
 import { advance, ClickLimiter, clickTicks } from '../core/clock';
@@ -355,6 +357,27 @@ export class GameStore {
   /** Trades a finished run for permanent ascendancy points; only an 'ok' changes anything. */
   ascend(): ReturnType<typeof coreAscend> {
     const result = coreAscend(this._state);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
+  /** Allocates an ascendancy node for a permanent point; only an 'ok' changes anything. */
+  allocateAscendancy(id: string): ReturnType<typeof coreAllocateAscendancy> {
+    const result = coreAllocateAscendancy(this._state, id);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
+  /** Queues a held map for away-time auto-mapping; only an 'ok' changes anything. */
+  queueForAutoMap(id: number): ReturnType<typeof coreQueueForAutoMap> {
+    const result = coreQueueForAutoMap(this._state, id);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
+  /** Takes a map id out of the auto-map queue; only an 'ok' changes anything. */
+  unqueueForAutoMap(id: number): ReturnType<typeof coreUnqueueForAutoMap> {
+    const result = coreUnqueueForAutoMap(this._state, id);
     if (result === 'ok') this.changed();
     return result;
   }
