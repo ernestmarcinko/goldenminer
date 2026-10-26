@@ -4,6 +4,8 @@ import {
   MIN_ATTACKS_PER_SECOND, baseDamage,
 } from './balance';
 import { gearTotals } from './stats';
+import { passiveTotals } from './passives';
+import type { StatKey } from './items';
 import type { Element, GameState } from './types';
 
 export interface BattleStats {
@@ -20,18 +22,47 @@ const pct = (n: number) => Math.max(0, 1 + n / 100);
 
 export function deriveBattleStats(state: GameState): BattleStats {
   const g = gearTotals(state, 'battle');
+  const p = passiveTotals(state);
+  for (const [stat, value] of Object.entries(p.stats) as [StatKey, number][]) g[stat] += value;
   const base = baseDamage(state.level);
-  const damageMin = clamp(Math.round((base.min + g.damage) * pct(g.damagePct)), 1, MAX_DAMAGE);
+  const ks = p.keystones;
+  let damageMin = clamp(Math.round((base.min + g.damage) * pct(g.damagePct)), 1, MAX_DAMAGE);
+  let damageMax = Math.max(damageMin, clamp(Math.round((base.max + g.damage) * pct(g.damagePct)), 1, MAX_DAMAGE));
+  let maxLife = clamp(Math.round((BASE_LIFE + LIFE_PER_LEVEL * state.level + g.life) * pct(g.lifePct)), 1, MAX_LIFE);
+  let armor = clamp(Math.round(g.armor * pct(g.armorPct)), 0, MAX_DAMAGE);
+  let soulMultiplier = pct(g.soulFind);
+  // Keystone trade-offs: Berserker hits half again as hard but keeps no armor; Bulwark doubles armor at a quarter off
+  // damage; Two-Way Street hits a little harder for a little life; Soul Reaper doubles Souls for a fifth less life.
+  if (ks.has('berserker')) {
+    damageMin = clamp(Math.round(damageMin * 1.5), 1, MAX_DAMAGE);
+    damageMax = clamp(Math.round(damageMax * 1.5), 1, MAX_DAMAGE);
+    armor = 0;
+  }
+  if (ks.has('bulwark')) {
+    armor = clamp(Math.round(armor * 2), 0, MAX_DAMAGE);
+    damageMin = clamp(Math.round(damageMin * 0.75), 1, MAX_DAMAGE);
+    damageMax = clamp(Math.round(damageMax * 0.75), 1, MAX_DAMAGE);
+  }
+  if (ks.has('twoWayStreet')) {
+    damageMin = clamp(Math.round(damageMin * 1.15), 1, MAX_DAMAGE);
+    damageMax = clamp(Math.round(damageMax * 1.15), 1, MAX_DAMAGE);
+    maxLife = clamp(Math.round(maxLife * 0.9), 1, MAX_LIFE);
+  }
+  if (ks.has('soulReaper')) {
+    soulMultiplier *= 2;
+    maxLife = clamp(Math.round(maxLife * 0.8), 1, MAX_LIFE);
+  }
+  if (damageMax < damageMin) damageMax = damageMin;
   return {
-    maxLife: clamp(Math.round((BASE_LIFE + LIFE_PER_LEVEL * state.level + g.life) * pct(g.lifePct)), 1, MAX_LIFE),
+    maxLife,
     damageMin,
-    damageMax: Math.max(damageMin, clamp(Math.round((base.max + g.damage) * pct(g.damagePct)), 1, MAX_DAMAGE)),
+    damageMax,
     attacksPerSecond: clamp(BASE_ATTACKS_PER_SECOND * pct(g.attackSpeed), MIN_ATTACKS_PER_SECOND, MAX_ATTACKS_PER_SECOND),
     critChance: clamp(BASE_CRIT_CHANCE + g.critChance, 0, MAX_CRIT_CHANCE) / 100,
     critMultiplier: Math.max(1, CRIT_MULTIPLIER + g.critMultiplier / 100),
-    armor: clamp(Math.round(g.armor * pct(g.armorPct)), 0, MAX_DAMAGE),
+    armor,
     resistAll: clamp(g.resistAll, 0, MAX_RESIST),
-    soulMultiplier: pct(g.soulFind),
+    soulMultiplier,
     magicFindMultiplier: pct(g.magicFind),
     elementalDamage: clamp(g.elementalDamage, 0, MAX_DAMAGE),
     lifeRegen: clamp(g.lifeRegen, 0, MAX_LIFE),

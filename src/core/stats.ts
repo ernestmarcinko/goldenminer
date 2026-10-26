@@ -8,6 +8,7 @@ import { BATTLE_STATS, MINING_STATS, setOfSlot } from './items';
 import type { Gem, GearItem, GearSet, StatKey, StatLine } from './items';
 import { GEM_EFFECTS } from './itemData';
 import { tierRange } from './tiers';
+import { passiveTotals } from './passives';
 import type { FeatureKind, GameState, Stats } from './types';
 import { hasUnique } from './uniques';
 
@@ -41,6 +42,8 @@ const pct = (n: number) => Math.max(0, 1 + n / 100);
 
 export function deriveStats(state: GameState): Stats {
   const g = gearTotals(state, 'mining');
+  const p = passiveTotals(state);
+  for (const [stat, value] of Object.entries(p.stats) as [StatKey, number][]) g[stat] += value;
   const featureChances: Record<FeatureKind, number> = {
     ...BASE_FEATURE_CHANCES,
     chest: BASE_FEATURE_CHANCES.chest * pct(g.chestFind),
@@ -65,18 +68,26 @@ export function deriveStats(state: GameState): Stats {
     bonusChances.gem *= scale;
     bonusChances.map *= scale;
   }
+  const ks = p.keystones;
+  const digPower = clamp((BASE_DIG_POWER + g.digPower) * pct(g.digPowerPct), 1, MAX_DIG_POWER);
+  const autoTicksPerSecond = clamp(BASE_AUTO_TICKS_PER_SECOND * pct(g.autoTickRate), MIN_AUTO_TICKS_PER_SECOND, MAX_AUTO_TICKS_PER_SECOND);
+  const ticksPerClick = clamp(BASE_TICKS_PER_CLICK + g.ticksPerClick, 1, MAX_TICKS_PER_CLICK);
+  const goldMultiplier = pct(g.goldYield);
+  const diamondMultiplier = pct(g.diamondYield);
   return {
-    digPower: clamp((BASE_DIG_POWER + g.digPower) * pct(g.digPowerPct), 1, MAX_DIG_POWER),
-    autoTicksPerSecond: Math.min(MAX_AUTO_TICKS_PER_SECOND, Math.max(MIN_AUTO_TICKS_PER_SECOND, BASE_AUTO_TICKS_PER_SECOND * pct(g.autoTickRate))),
-    ticksPerClick: clamp(BASE_TICKS_PER_CLICK + g.ticksPerClick, 1, MAX_TICKS_PER_CLICK),
+    // Earthshaker digs three times as much per click but a third slower on its own; Two-Way Street digs a bit harder.
+    digPower: ks.has('twoWayStreet') ? clamp(digPower * 1.15, 1, MAX_DIG_POWER) : digPower,
+    autoTicksPerSecond: ks.has('earthshaker') ? clamp(autoTicksPerSecond * 0.7, MIN_AUTO_TICKS_PER_SECOND, MAX_AUTO_TICKS_PER_SECOND) : autoTicksPerSecond,
+    ticksPerClick: ks.has('earthshaker') ? clamp(ticksPerClick * 3, 1, MAX_TICKS_PER_CLICK) : ticksPerClick,
     lampSight: clamp(BASE_LAMP_SIGHT + g.lampSight, 0, MAX_LAMP_SIGHT),
     // Long Voyage doubles the cap past its clamp.
     offlineCapMs: clamp(BASE_OFFLINE_CAP_MS + g.offlineCap * 60_000, MIN_OFFLINE_CAP_MS, MAX_OFFLINE_CAP_MS)
       * (hasUnique(state, 'longVoyage') ? LONG_VOYAGE_CAP : 1),
     featureChances,
     hardRockChance: BASE_HARD_ROCK_CHANCE,
-    goldMultiplier: pct(g.goldYield),
-    diamondMultiplier: pct(g.diamondYield),
+    // Prospector's Luck trades Gold for Diamonds.
+    goldMultiplier: ks.has('prospectorsLuck') ? goldMultiplier * 0.8 : goldMultiplier,
+    diamondMultiplier: ks.has('prospectorsLuck') ? diamondMultiplier * 1.5 : diamondMultiplier,
     hazardWard: clamp(g.hazardWard, 0, MAX_HAZARD_WARD),
     bonusChances,
     veinMultiplier: pct(g.veinYield),

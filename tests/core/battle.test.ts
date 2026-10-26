@@ -150,3 +150,29 @@ it('elemental damage, life regeneration, life per kill and XP come from battle g
   s.equipped.battle.amulet = gear(s, 'amulet', { affixes: [{ stat: 'xpFind', value: 50 }] });
   expect(deriveBattleStats(s)).toMatchObject({ elementalDamage: 5, lifeRegen: 2, lifeOnKill: 5, xpMultiplier: 1.5 });
 });
+
+it('allocated battle passives add to the derived battle stats', () => {
+  const s = newGame(1, 0);
+  const before = deriveBattleStats(s);
+  s.passives.allocated = ['thickSkin', 'sharpened'];
+  const after = deriveBattleStats(s);
+  expect(after.maxLife).toBe(Math.round(before.maxLife * 1.15));
+  expect(after.damageMin).toBe(Math.round(before.damageMin * 1.15));
+  expect(after.damageMax).toBe(Math.round(before.damageMax * 1.15));
+});
+
+it('Berserker, Soul Reaper and Bulwark trade off', () => {
+  const s = newGame(1, 0);
+  const base = deriveBattleStats(s);
+  s.passives.allocated = ['berserker'];
+  const berserk = deriveBattleStats(s);
+  expect(berserk.armor).toBe(0);
+  expect(berserk.damageMin).toBe(Math.round(base.damageMin * 1.5));
+  s.passives.allocated = ['soulReaper'];
+  const reaper = deriveBattleStats(s);
+  expect(reaper.soulMultiplier).toBe(base.soulMultiplier * 2);
+  expect(reaper.maxLife).toBe(Math.round(base.maxLife * 0.8));
+  s.passives.allocated = ['bulwark'];
+  const wall = deriveBattleStats(s);
+  expect(wall.damageMin).toBe(Math.round(base.damageMin * 0.75));
+});

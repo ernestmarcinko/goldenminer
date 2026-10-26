@@ -102,3 +102,30 @@ it('the ore bonus chance is capped and never negative', () => {
   s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'oreFind', value: -50 }] });
   expect(deriveStats(s).oreBonusChance).toBe(0);
 });
+
+it('allocated mining passives add to the derived stats', () => {
+  const s = newGame(1, 0);
+  const before = deriveStats(s);
+  s.passives.allocated = ['veinSense', 'prospector'];
+  const after = deriveStats(s);
+  expect(after.featureChances.chest).toBeCloseTo(before.featureChances.chest * 1.15, 6);
+  expect(after.diamondMultiplier).toBeCloseTo(before.diamondMultiplier * 1.2, 6);
+});
+
+it('Earthshaker digs three times per click but a third slower automatically', () => {
+  const s = newGame(1, 0);
+  const base = deriveStats(s);
+  s.passives.allocated = ['earthshaker'];
+  const shaker = deriveStats(s);
+  expect(shaker.ticksPerClick).toBe(base.ticksPerClick * 3);
+  expect(shaker.autoTicksPerSecond).toBeCloseTo(base.autoTicksPerSecond * 0.7, 6);
+});
+
+it("Prospector's Luck trades Gold for Diamonds", () => {
+  const s = newGame(1, 0);
+  const base = deriveStats(s);
+  s.passives.allocated = ['prospectorsLuck'];
+  const after = deriveStats(s);
+  expect(after.diamondMultiplier).toBeCloseTo(base.diamondMultiplier * 1.5, 6);
+  expect(after.goldMultiplier).toBeCloseTo(base.goldMultiplier * 0.8, 6);
+});

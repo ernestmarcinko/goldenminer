@@ -302,3 +302,37 @@ export function canRefund(state: Pick<GameState, 'passives'>, id: string): boole
   if (!state.passives.allocated.includes(id)) return false;
   return isConnectedWeb(state.passives.allocated.filter((n) => n !== id));
 }
+
+export interface PassiveTotals {
+  stats: Record<StatKey, number>;
+  gemStack: number;
+  materialStack: number;
+  stashPages: number;
+  keystones: Set<KeystoneId>;
+}
+
+/** The allocated nodes' effects, summed: stat effects into `stats`, the structural bonuses and the keystones set. */
+export function passiveTotals(state: Pick<GameState, 'passives'>): PassiveTotals {
+  const totals: PassiveTotals = {
+    stats: {} as Record<StatKey, number>, gemStack: 0, materialStack: 0, stashPages: 0, keystones: new Set(),
+  };
+  for (const id of state.passives.allocated) {
+    const node = PASSIVE_NODE_BY_ID.get(id);
+    if (node === undefined) continue;
+    for (const effect of node.effects) {
+      switch (effect.kind) {
+        case 'stat': totals.stats[effect.stat] = (totals.stats[effect.stat] ?? 0) + effect.value; break;
+        case 'keystone': totals.keystones.add(effect.id); break;
+        case 'gemStack': totals.gemStack += effect.value; break;
+        case 'materialStack': totals.materialStack += effect.value; break;
+        case 'stashPages': totals.stashPages += effect.value; break;
+      }
+    }
+  }
+  return totals;
+}
+
+/** Whether a keystone is allocated (its node is). */
+export function hasKeystone(state: Pick<GameState, 'passives'>, id: KeystoneId): boolean {
+  return passiveTotals(state).keystones.has(id);
+}
