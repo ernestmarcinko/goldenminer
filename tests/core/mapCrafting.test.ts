@@ -156,6 +156,17 @@ describe('every rule', () => {
     expect(validateState(s)).toBe(true);
   });
 
+  it('a special never counts toward the six: Iron adds a sixth modifier beside it, and a seventh is noRoom', () => {
+    const five = allSix().slice(0, 5);
+    const s = withMap((s) => rare(s, five));
+    at(s, 0).special = 'championPacks';
+    expect(craft(s, bagLoc(0), 'iron')).toEqual({ check: 'ok' });
+    expect(at(s, 0).mods).toHaveLength(MAX_MAP_MODS);
+    expect(at(s, 0).special).toBe('championPacks');
+    expect(canCraft(s, bagLoc(0), 'iron')).toBe('noRoom');
+    expect(validateState(s)).toBe(true);
+  });
+
   it('Silver rerolls a rare map to 4–6 new modifiers', () => {
     const counts = new Set<number>();
     for (let rng = 1; rng < 60; rng++) {
@@ -421,6 +432,7 @@ describe('random craft chains on maps', () => {
       return Math.floor((pick / 2 ** 32) * n);
     };
     const seen = new Set<string>();
+    let specials = 0;
     for (let chain = 0; chain < 300; chain++) {
       const s = newGame(200 + chain, 0);
       s.rng = 1 + chain * 7919;
@@ -444,7 +456,9 @@ describe('random craft chains on maps', () => {
         if (check !== 'ok') expect(s).toEqual(before);
         expect(validateState(s), `chain ${chain} step ${step} ${kind}`).toBe(true);
       }
+      if (map.special !== undefined) specials++;
     }
     expect([...seen].sort()).toEqual(['noRoom', 'notForMaps', 'nothingToChange', 'ok', 'sealed', 'wrongRarity']);
+    expect(specials).toBeGreaterThan(0);   // the chains roll specials too, and stay valid with them
   });
 });

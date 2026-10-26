@@ -334,6 +334,27 @@ it('an enchanted map card shows its rarity, its modifiers with their tiers and w
   expect(itemLines({ ...four, sealed: true }).at(-1)).toEqual({ text: "Tempered: it can't be enchanted any more.", tone: 'muted' });
 });
 
+it('a map card shows its special after the modifiers, in the legendary colour and with no tier, before the rewards', () => {
+  const map: MapItem = { id: 1, type: 'map', tier: 4, metre: 327, rarity: 'rare', special: 'treasureRoom', mods: [
+    { kind: 'monsterLife', tier: 4, value: 27 },
+    { kind: 'monsterDamage', tier: 3, value: 17 },
+    { kind: 'weakHealing', tier: 2, value: 16 },
+  ] };
+  expect(itemLines(map)).toEqual([
+    { text: 'Monsters have +27% life', tone: 'plain', tier: 4 },
+    { text: 'Monsters deal +17% damage', tone: 'plain', tier: 3 },
+    { text: 'Rooms heal 16% less', tone: 'plain', tier: 2 },
+    { text: 'A treasure room before the boss', tone: 'special' },
+    { text: 'Rewards: +30% items · +18% rarity · +30% Souls', tone: 'plain' },
+    { text: 'Found at 327 m', tone: 'plain' },
+  ]);
+  // a normal map with a special pays nothing more, so it has no rewards line
+  expect(itemLines({ ...map, rarity: 'normal', mods: [] })).toEqual([
+    { text: 'A treasure room before the boss', tone: 'special' },
+    { text: 'Found at 327 m', tone: 'plain' },
+  ]);
+});
+
 it('a map\'s name, the label of its grid cell, leads with its rarity when it is enchanted', () => {
   const map: MapItem = { id: 1, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
   expect(itemName(map)).toBe('Tier 4 map');

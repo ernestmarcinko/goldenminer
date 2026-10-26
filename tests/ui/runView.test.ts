@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import {
-  combatLineText, deathOfLastRun, fightTiles, gainsLine, hurtParticle, mapDungeon, mapModLines, mapRewardsText, monsterCaption, monsterTags,
+  combatLineText, deathOfLastRun, fightTiles, gainsLine, hurtParticle, mapDungeon, mapModLines, mapRewardsText, mapSpecialLine, monsterCaption, monsterTags,
   roomTrack, runMapLine, runTitle, strikeParticle, xpBar,
 } from '../../src/ui/run/runView';
 import { dungeonIndexAt, dungeonType } from '../../src/core/dungeons';
@@ -119,6 +119,14 @@ it('the run\'s head lists an enchanted map\'s modifiers and what they pay, and n
   ]);
   expect(mapRewardsText(enchanted)).toBe('Rewards: +11% items · +6% rarity · +11% Souls');
   expect(mapRewardsText(plain.map)).toBe('');
+});
+
+it('the run\'s head lists a map\'s special in the legendary colour, with no tier, and nothing for a map without one', () => {
+  const plain = run(1, 3).map;
+  expect(mapSpecialLine(plain)).toBeNull();
+  expect(mapSpecialLine({ ...plain, special: 'treasureRoom' })).toEqual({ text: 'A treasure room before the boss', tone: 'special' });
+  expect(mapSpecialLine({ ...plain, special: 'tripleSouls' })).toEqual({ text: 'Souls ×3, but rooms don\'t heal', tone: 'special' });
+  expect(mapModLines({ ...plain, special: 'secondBoss' })).toEqual([]);
 });
 
 it('the last run names its map\'s rarity when it was enchanted', () => {

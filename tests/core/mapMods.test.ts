@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { MAP_MOD_KINDS } from '../../src/core/items';
+import { MAP_MOD_KINDS, MAP_SPECIALS } from '../../src/core/items';
 import type { MapItem, MapMod } from '../../src/core/items';
 import { MAP_MOD_TEXT, NO_MAP_EFFECTS, mapEffects, mapModRange } from '../../src/core/mapMods';
 import { rangeOf, tierRange } from '../../src/core/tiers';
@@ -46,8 +46,18 @@ it('weak healing and hardened are capped', () => {
 it('a normal map changes nothing and pays nothing extra', () => {
   expect(mapEffects(map([]))).toEqual({
     lifeMult: 1, damageMult: 1, speedMult: 1, bossMult: 1, healMult: 1, takenMult: 1, quantity: 0, rarity: 0, souls: 0,
+    soulsMult: 1, materialMult: 1,
   });
   expect(NO_MAP_EFFECTS).toEqual(mapEffects(map([])));
+});
+
+it('a special pays nothing toward the rewards; only Souls ×3 and double materials change an effect', () => {
+  const mods: MapMod[] = [{ kind: 'monsterLife', tier: 2, value: 20 }, { kind: 'weakHealing', tier: 2, value: 25 }];
+  const plain = mapEffects(map(mods));
+  for (const special of MAP_SPECIALS) {
+    const changed = special === 'tripleSouls' ? { healMult: 0, soulsMult: 3 } : special === 'doubleMaterials' ? { materialMult: 2 } : {};
+    expect(mapEffects({ ...map(mods), special }), special).toEqual({ ...plain, ...changed });
+  }
 });
 
 it('every modifier reads as its effect', () => {

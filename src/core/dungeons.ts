@@ -1,6 +1,7 @@
 import { CHAMPION_UNITS, MAX_ROOMS, MIN_ROOMS, MONSTER_BUDGET } from './balance';
 import { allDungeonNames, bossName, championName, dungeonName } from './names';
 import { hashN, mulberry32 } from './rng';
+import type { MapSpecial } from './items';
 import { speciesOf } from './species';
 import { CHAMPION_MODS, ELEMENTS, type ChampionMod, type Element, type Rank } from './types';
 
@@ -132,10 +133,15 @@ function championMods(h: number): ChampionMod[] {
   return picks.map((i) => CHAMPION_MODS[i] ?? 'brutal');
 }
 
+/**
+ * The rooms and the boss of the dungeon a map opens. Two specials change it: `championPacks` gives every room without a
+ * champion one at the next slot, seeded as the budget's champions are, and `secondBoss` adds the boss's twin (`boss2`).
+ * Every other map, special or not, gets the layout it always had.
+ */
 export function dungeonLayout(
-  seed: number, map: { tier: number; metre: number },
-): { type: DungeonType; rooms: LayoutMonster[][]; boss: LayoutMonster } {
-  const { tier, metre } = map;
+  seed: number, map: { tier: number; metre: number; special?: MapSpecial },
+): { type: DungeonType; rooms: LayoutMonster[][]; boss: LayoutMonster; boss2: LayoutMonster | null } {
+  const { tier, metre, special } = map;
   const index = dungeonIndexAt(seed, metre);
   const type = dungeonType(seed, tier, index);
   const order = roomOrder(seed, metre, type.rooms);
@@ -155,12 +161,15 @@ export function dungeonLayout(
       };
     };
     const list = Array.from({ length: n }, (_, slot) => monster(slot, 'normal'));
-    if (hasChampion[room]) list.push(monster(n, 'champion'));
+    if (hasChampion[room] || special === 'championPacks') list.push(monster(n, 'champion'));
     return list;
   });
 
   const boss: LayoutMonster = {
     species: type.bossSpecies, rank: 'boss', name: type.bossName, mods: [], extra: hashN(seed, SALT_BOSS, tier, index),
   };
-  return { type, rooms, boss };
+  const boss2: LayoutMonster | null = special === 'secondBoss'
+    ? { species: type.bossSpecies, rank: 'boss', name: `${type.bossName}'s Twin`, mods: [], extra: hashN(seed, SALT_BOSS, tier, index, 2) }
+    : null;
+  return { type, rooms, boss, boss2 };
 }

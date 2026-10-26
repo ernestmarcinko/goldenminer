@@ -213,6 +213,11 @@ export const MAP_REWARD_FACTORS: Readonly<Record<'quantity' | 'rarity' | 'souls'
   quantity: 0.5, rarity: 0.3, souls: 0.5,
 };
 export const MAX_MAP_MODS = 6;
+// A map's special modifier: the chance an enchant adds one to a map with none, and what the specials pay.
+export const MAP_SPECIAL_CHANCE = 0.1;
+export const TREASURE_CHESTS = 3;
+export const TRIPLE_SOULS = 3;
+export const DOUBLE_MATERIALS = 2;
 
 export const DEFAULT_STAT_WEIGHT = 10;
 export const STAT_WEIGHTS: Readonly<Partial<Record<StatKey, number>>> = { ticksPerClick: 2, lampSight: 4 };

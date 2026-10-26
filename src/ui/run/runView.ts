@@ -1,7 +1,7 @@
 import { dungeonIndexAt, dungeonType, type DungeonType } from '../../core/dungeons';
 import type { MapItem } from '../../core/items';
 import { xpToNext } from '../../core/levels';
-import { MAP_MOD_TEXT, mapEffects } from '../../core/mapMods';
+import { MAP_MOD_TEXT, MAP_SPECIAL_TEXT, mapEffects } from '../../core/mapMods';
 import type { ChampionMod, CombatLine, DeathEntry, GameState, MapRun, MonsterState, RunGains, RunResult } from '../../core/types';
 import { itemKindLine, lootNoteText } from '../character/itemView';
 import type { ViewLine } from '../character/itemView';
@@ -48,6 +48,11 @@ export function mapDungeon(seed: number, map: Pick<MapItem, 'tier' | 'metre'>): 
 /** A map's modifiers in their rolled order, each with its tier; none for a normal map. The item card and the run's head show these. */
 export function mapModLines(map: MapItem): ViewLine[] {
   return map.mods.map((m) => ({ text: MAP_MOD_TEXT[m.kind](m.value), tone: 'plain', tier: m.tier }));
+}
+
+/** A map's special, apart from its modifiers: in the legendary colour, with no tier; null for a map without one. */
+export function mapSpecialLine(map: MapItem): ViewLine | null {
+  return map.special === undefined ? null : { text: MAP_SPECIAL_TEXT[map.special], tone: 'special' };
 }
 
 /** What a map's modifiers pay, or '' for a map with none. */

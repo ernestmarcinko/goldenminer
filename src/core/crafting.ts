@@ -1,13 +1,13 @@
 import {
-  CRAFT_COST, DEFAULT_STAT_WEIGHT, GEM_STASH_STACK, MAGIC_LINE_WEIGHTS, MAP_CRAFT_SOULS_PER_TIER, MAX_CRAFTED_LINES, MAX_MAP_MODS,
-  MAX_SIDE_LINES, MAX_TIER_OVER_CAP, RARE_LINE_WEIGHTS, STAT_WEIGHTS, TEMPER_WEIGHTS,
+  CRAFT_COST, DEFAULT_STAT_WEIGHT, GEM_STASH_STACK, MAGIC_LINE_WEIGHTS, MAP_CRAFT_SOULS_PER_TIER, MAP_SPECIAL_CHANCE, MAX_CRAFTED_LINES,
+  MAX_MAP_MODS, MAX_SIDE_LINES, MAX_TIER_OVER_CAP, RARE_LINE_WEIGHTS, STAT_WEIGHTS, TEMPER_WEIGHTS,
 } from './balance';
 import { itemAt, sameLoc } from './cells';
 import { trail } from './dropLog';
 import { baseName } from './itemData';
 import { magicName, rareName, rollLines, rollSockets, rollValue, sideCount } from './itemGen';
-import { MAP_MOD_KINDS, MOD_SIDE, SLOT_IMPLICIT, isGear, isMap, setOfSlot, statsOf } from './items';
-import type { GearItem, Gem, MapItem, MapMod, MapModKind, Material, ModLine } from './items';
+import { MAP_MOD_KINDS, MAP_SPECIALS, MOD_SIDE, SLOT_IMPLICIT, isGear, isMap, setOfSlot, statsOf } from './items';
+import type { GearItem, Gem, MapItem, MapMod, MapModKind, MapSpecial, Material, ModLine } from './items';
 import { mapModRange } from './mapMods';
 import { fillAhead } from './metres';
 import { nextRandom, pickWeighted } from './rng';
@@ -264,6 +264,16 @@ function addMapMod(map: MapItem, m: MapMod): void {
   map.mods.push(m);
 }
 
+/**
+ * A chance at a special modifier, for a map with none: one draw for the chance and, on success, one for which. A map
+ * holds one at most, and nothing ever takes it away.
+ */
+export function rollSpecial(state: GameState, map: MapItem): void {
+  if (map.special !== undefined) return;
+  if (nextRandom(state) >= MAP_SPECIAL_CHANCE) return;
+  map.special = MAP_SPECIALS[pickIndex(state, MAP_SPECIALS.length)] as MapSpecial;
+}
+
 function temperMap(state: GameState, map: MapItem): TemperOutcome {
   let outcome = pickWeighted(state, TEMPER_WEIGHTS);
   const missing = missingKinds(map);
@@ -284,6 +294,7 @@ function temperMap(state: GameState, map: MapItem): TemperOutcome {
     case 'nothing':
       break;
   }
+  rollSpecial(state, map);
   map.sealed = true;
   return outcome;
 }
@@ -294,12 +305,15 @@ function applyToMap(state: GameState, map: MapItem, kind: CraftKind): TemperOutc
     case 'copper':
       map.rarity = 'magic';
       map.mods = rollMapMods(state, map, pickWeighted(state, MAGIC_LINE_WEIGHTS));
+      rollSpecial(state, map);
       return undefined;
     case 'iron':
       for (const m of rollMapMods(state, map, 1)) addMapMod(map, m);
+      rollSpecial(state, map);
       return undefined;
     case 'silver':
       map.mods = rollMapMods(state, { ...map, mods: [] }, pickWeighted(state, RARE_LINE_WEIGHTS));
+      rollSpecial(state, map);
       return undefined;
     case 'obsidian':
       map.mods.splice(pickIndex(state, map.mods.length), 1);

@@ -7,7 +7,7 @@ import type { GameState, LootNote, Stats } from '../../core/types';
 import { UNIQUE_LINES, isLegendaryId } from '../../core/uniques';
 import type { SpriteName } from '../../sprites/atlas';
 import { formatDuration, formatNumber, formatRate, plural } from '../format';
-import { mapDungeon, mapModLines, mapRewardsText } from '../run/runView';
+import { mapDungeon, mapModLines, mapRewardsText, mapSpecialLine } from '../run/runView';
 
 export const SLOT_LABELS: Readonly<Record<Slot, string>> = {
   pickaxe: 'Pickaxe', lamp: 'Lamp helm', gloves: 'Gloves', boots: 'Boots', weapon: 'Weapon', armor: 'Armor',
@@ -115,6 +115,8 @@ export function cardHead(seed: number, item: Item): { name: string; kind: string
 /** A map's modifiers with their tiers, in their rolled order, and what they pay; then where it was found. */
 function mapLines(map: MapItem): ViewLine[] {
   const lines = mapModLines(map);
+  const special = mapSpecialLine(map);
+  if (special !== null) lines.push(special);
   const rewards = mapRewardsText(map);
   if (rewards !== '') lines.push({ text: rewards, tone: 'plain' });
   lines.push({ text: `Found at ${formatNumber(map.metre)} m`, tone: 'plain' });

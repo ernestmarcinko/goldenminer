@@ -65,6 +65,21 @@ it('dungeon types: three per tier with distinct names, 2–3 species, a valid bo
   expect([0, 1, 2]).toContain(dungeonIndexAt(5, 214));
 });
 
+it('a map without a special gives the layout it always did, with no second boss', () => {
+  for (let seed = 1; seed <= 30; seed++) {
+    for (const tier of [1, 4, 8]) {
+      const map = { tier, metre: seed * 19 };
+      const layout = dungeonLayout(seed, map);
+      expect(layout.boss2).toBeNull();
+      expect(dungeonLayout(seed, { ...map, special: undefined })).toEqual(layout);
+      // the specials that leave the rooms alone change nothing in the layout
+      for (const special of ['bossLegendary', 'treasureRoom', 'doubleMaterials', 'tripleSouls'] as const) {
+        expect(dungeonLayout(seed, { ...map, special })).toEqual(layout);
+      }
+    }
+  }
+});
+
 it('world generation ignores the loot stream and the player', () => {
   const seed = 42;
   const layout = JSON.stringify(dungeonLayout(seed, { tier: 4, metre: 333 }));

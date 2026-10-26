@@ -1,13 +1,13 @@
 import {
   ARMORED_TAKEN, BAND_OF_THE_DEEP_HEAL, BOSS_DROPS, CHAMPION_DROPS, CHAMPION_MAGIC_FIND, COMBAT_LOG_LIMIT, COMBAT_STEP_S,
   DROP_CHANCE, MAP_DROP_BATTLE_CHANCE, MAP_GEM_CHANCE, MAP_MATERIAL_CHANCE, PEACEMAKER_EVERY, ROOM_REGEN_TOTAL,
-  RUN_LOOT_LIMIT, VAMPIRIC_HEAL, WOLF_EYE_DROPS, goldPerKill, soulsPerKill,
+  RUN_LOOT_LIMIT, TREASURE_CHESTS, VAMPIRIC_HEAL, WOLF_EYE_DROPS, goldPerKill, soulsPerKill,
 } from './balance';
 import { deriveBattleStats, mitigate, type BattleStats } from './battle';
 import { dungeonLayout } from './dungeons';
 import { logDeath, trail } from './dropLog';
 import { gainXp } from './levels';
-import { rollGear, rollGem, rollRarity, type Gen } from './itemGen';
+import { rollChest, rollGear, rollGem, rollLegendary, rollRarity, type Gen } from './itemGen';
 import { materialAmount, pickMaterial } from './layer';
 import { receiveItem, receiveMaterial } from './loot';
 import { mapEffects } from './mapMods';
@@ -34,15 +34,15 @@ export function noteLoot(run: MapRun, note: LootNote): void {
 }
 
 /**
- * The monsters of `room`, regenerated from the seed: rooms 1..bossRoom-1 from the layout, then the boss alone. A room
- * the layout doesn't have is fought as the boss room, so the queue is never empty.
+ * The monsters of `room`, regenerated from the seed: rooms 1..bossRoom-1 from the layout, then the boss alone (and its
+ * twin on a `secondBoss` map). A room the layout doesn't have is fought as the boss room, so the queue is never empty.
  */
 function roomQueue(state: GameState, run: MapRun, room: number): MonsterState[] {
   const layout = dungeonLayout(state.seed, run.map);
   const fx = mapEffects(run.map);
   const monsters = room < run.bossRoom ? layout.rooms[room - 1] ?? [] : [];
-  if (monsters.length === 0) return [monsterState(run.map.tier, layout.boss, fx)];
-  return monsters.map((m) => monsterState(run.map.tier, m, fx));
+  const fought = monsters.length > 0 ? monsters : layout.boss2 === null ? [layout.boss] : [layout.boss, layout.boss2];
+  return fought.map((m) => monsterState(run.map.tier, m, fx));
 }
 
 /**
@@ -85,6 +85,7 @@ function takeDrop(run: MapRun, notes: LootNote[], isItem = true): void {
  * A monster fell: its XP (levelling up heals by the max-life gained), then Souls, Gold, items, a gem chance and the
  * material chances, in that draw order (exported so the rewards can be pinned per rank). Champions guarantee an item of raised rarity, bosses guarantee BOSS_DROPS, anything may add one more.
  * The map's modifiers raise the Souls, the magic find and the drop chances, but every draw is made as on a normal map.
+ * Its special may multiply the Souls and the materials, and on a `bossLegendary` map a boss adds a legendary last.
  */
 export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: BattleStats): void {
   const tier = run.map.tier;
@@ -103,7 +104,7 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
   }
   if (b.lifeOnKill > 0) run.life = Math.min(maxLife, run.life + Math.round(b.lifeOnKill));
 
-  const souls = soulsForKill(nextRandom(state), tier, monster.rank, b.soulMultiplier * (1 + fx.souls / 100));
+  const souls = soulsForKill(nextRandom(state), tier, monster.rank, b.soulMultiplier * (1 + fx.souls / 100) * fx.soulsMult);
   state.souls += souls;
   run.gained.souls += souls;
   logLine(run, { kind: 'kill', monster: monster.name, xp, souls });
@@ -136,8 +137,10 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
   for (let i = 0; i < rankReward(monster.rank); i++) {
     if (nextRandom(state) >= more(MAP_MATERIAL_CHANCE)) continue;
     const material = pickMaterial(metre, nextRandom(state));
-    takeDrop(run, receiveMaterial(state, material, materialAmount(material, metre, nextRandom(state)), origin), false);
+    const amount = materialAmount(material, metre, nextRandom(state)) * fx.materialMult;
+    takeDrop(run, receiveMaterial(state, material, amount, origin), false);
   }
+  if (monster.rank === 'boss' && run.map.special === 'bossLegendary') takeDrop(run, receiveItem(state, rollLegendary(state, tier), origin));
 }
 
 /** One strike at the fighting monster; its damage and crit draw from `gen` (the unique stream for the Peacemaker's second). */
@@ -172,6 +175,13 @@ function strike(state: GameState, run: MapRun, b: BattleStats, events?: TickEven
     return 'end';
   }
   logLine(run, { kind: 'room', room: run.room });
+  // The treasure room: the last regular room's chests, found there before the boss room opens.
+  if (run.map.special === 'treasureRoom' && run.room === run.bossRoom - 1) {
+    const origin = { kind: 'map', tier: run.map.tier, room: run.room } as const;
+    for (let i = 0; i < TREASURE_CHESTS; i++) {
+      for (const item of rollChest(state, run.map.tier)) takeDrop(run, receiveItem(state, item, origin));
+    }
+  }
   run.room += 1;
   const { maxLife } = deriveBattleStats(state);
   const heal = mapEffects(run.map).healMult;

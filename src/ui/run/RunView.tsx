@@ -7,7 +7,7 @@ import { useGame } from '../useGame';
 import { CombatLog } from './CombatLog';
 import { FightScene } from './FightScene';
 import { RoomTrack } from './RoomTrack';
-import { mapModLines, mapRewardsText } from './runView';
+import { mapModLines, mapRewardsText, mapSpecialLine } from './runView';
 import './run.css';
 
 const LOOT_SHOWN = 5;
@@ -20,14 +20,15 @@ export function RunView({ store }: { store: GameStore }) {
   // the dungeon is a pure function of the seed and the map; rebuilt only for a different map
   const layout = useMemo(
     () => (map === undefined ? null : dungeonLayout(state.seed, map)),
-    [state.seed, map?.id, map?.tier, map?.metre],
+    [state.seed, map?.id, map?.tier, map?.metre, map?.special],
   );
   if (run === null || layout === null) return null;
   const { type } = layout;
   const roomSize = layout.rooms[run.room - 1]?.length ?? 0;
   const g = run.gained;
   const loot = run.loot.slice(-LOOT_SHOWN).reverse();
-  const mods = mapModLines(run.map);
+  const special = mapSpecialLine(run.map);
+  const mods = special === null ? mapModLines(run.map) : [...mapModLines(run.map), special];
   const rewards = mapRewardsText(run.map);
   return (
     <div className="gm-run">
@@ -43,7 +44,7 @@ export function RunView({ store }: { store: GameStore }) {
           {mods.length > 0 && (
             <ul className="gm-run__mods">
               {mods.map((l, i) => (
-                <li key={i}>
+                <li key={i} data-tone={l.tone}>
                   <span>{l.text}</span>
                   {l.tier !== undefined && <span className="gm-run__modtier">T{formatNumber(l.tier)}</span>}
                 </li>
