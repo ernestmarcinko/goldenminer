@@ -26,6 +26,16 @@
   --gm-badge-fg: #2c2440;
   --gm-soul-panel: #2a2338;
 
+  --gm-skills-mining: #e8b44a;
+  --gm-skills-mining-fill: #3a2c12;
+  --gm-skills-battle: #ff8a7a;
+  --gm-skills-battle-fill: #3a1c18;
+  --gm-skills-hybrid: #7fd3e8;
+  --gm-skills-hybrid-fill: #16323a;
+  --gm-skills-start: #f1e9dc;
+  --gm-skills-off: #4a3f36;
+  --gm-skills-edge: #3a3029;
+
   --gm-font-display: 'Metamorphous', serif;
   --gm-font-ui: 'Alegreya Sans', system-ui, sans-serif;
   --gm-font-mono: 'IBM Plex Mono', monospace;

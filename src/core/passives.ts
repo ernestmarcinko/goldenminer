@@ -125,7 +125,7 @@ interface ChainDef {
 
 const START_X = 560;
 const START_Y = 400;
-const RING_GAP = 85;
+const RING_GAP = 40;
 
 const CHAINS: ChainDef[] = [
   // mining: upper-left, left, lower-left, plus two short branches

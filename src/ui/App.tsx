@@ -13,6 +13,7 @@ import { OfflineSummary } from './OfflineSummary';
 import { RunResultDialog } from './run/RunResultDialog';
 import { RunView } from './run/RunView';
 import { SettingsDialog } from './settings/SettingsDialog';
+import { SkillsView } from './skills/SkillsView';
 import { TabBlocked } from './TabBlocked';
 import { Toast } from './Toast';
 import { useGame } from './useGame';
@@ -88,6 +89,8 @@ function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: ()
           <MineView store={store} onBackToMap={() => openView('run')} />
         ) : shown === 'inventory' ? (
           <InventoryView store={store} />
+        ) : shown === 'skills' ? (
+          <SkillsView store={store} />
         ) : shown === 'merchant' ? (
           <MerchantView store={store} />
         ) : shown === 'log' ? (
