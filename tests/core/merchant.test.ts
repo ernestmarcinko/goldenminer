@@ -61,7 +61,7 @@ describe('a gamble', () => {
 
   it('never runs the loot filter', () => {
     const s = atTier7();
-    s.settings.lootFilter = [{ rarity: 'any', target: 'ring', action: 'sell' }];
+    s.settings.lootFilter = [{ kind: 'gear', slot: 'ring', action: 'sell' }];
     expect(gamble(s, 'ring').result).toBe('ok');
     expect(s.bag[2]).toMatchObject({ type: 'gear', slot: 'ring' });
     expect(s.gold).toBe(100_000 - 14_700);

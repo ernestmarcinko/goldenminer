@@ -16,7 +16,7 @@ const monster = (over: Partial<MonsterState> = {}): MonsterState => ({
 
 const run = (room: number, left: number, bossRoom = 6): MapRun => ({
   map: { id: 1, type: 'map', tier: 4, metre: 305, rarity: 'normal', mods: [] }, room, bossRoom, life: 50, hitCarry: 0, monsterCarry: 0, regenCarry: 0,
-  gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [],  loot: [], items: 0,
+  gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [],  loot: [], items: 0, strikes: 0,
   queue: Array.from({ length: left }, () => monster({ rank: room === bossRoom ? 'boss' : 'normal' })),
 });
 
@@ -50,6 +50,8 @@ it('combat log lines in words', () => {
   expect(combatLineText({ kind: 'kill', monster: 'Bog Leech', xp: 80, souls: 3 })).toEqual({ text: 'Bog Leech dies: +80 XP, +3 Souls', tone: 'gain' });
   expect(combatLineText({ kind: 'room', room: 2 })).toEqual({ text: 'Room 2 cleared', tone: 'gain' });
   expect(combatLineText({ kind: 'level', level: 12 })).toEqual({ text: 'Level 12!', tone: 'level' });
+  expect(combatLineText({ kind: 'saved', monster: 'Bog Leech' }))
+    .toEqual({ text: "Kraken Leather holds: Bog Leech's blow leaves you at 1 life", tone: 'level' });
   const note = { name: 'Gloomward Mail', rarity: 'rare', base: 'armor', outcome: 'bag', value: 0 } as const;
   expect(combatLineText({ kind: 'drop', note })).toEqual({ text: 'Gloomward Mail dropped (to bag)', tone: 'drop' });
 });

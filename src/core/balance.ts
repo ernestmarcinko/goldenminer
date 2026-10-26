@@ -45,6 +45,8 @@ export function stashPagePrice(n: number): number {
 }
 // The merchant's gamble costs GAMBLE_GOLD × tier² at the deepest tier reached, so it keeps pace with Gold income.
 export const GAMBLE_GOLD = 300;
+// The Trader's stock: this many slots, each bought at most once a band.
+export const STOCK_SIZE = 12;
 // The item level a gem's value is worked out at, and the first tier each grade is found at.
 export const GEM_GRADE_LEVEL: Readonly<Record<GemGrade, number>> = { tiny: 2, small: 5, big: 8, giant: 12, perfect: 18 };
 export const GEM_GRADE_FROM_TIER: Readonly<Record<GemGrade, number>> = { tiny: 1, small: 4, big: 7, giant: 10, perfect: 15 };
@@ -52,7 +54,8 @@ export const GEM_BAG_STACK = 25;
 export const GEM_STASH_STACK = 1_000_000;
 export const MATERIAL_BAG_STACK = 50;
 export const MATERIAL_STASH_STACK = 1_000_000;
-export const MAX_LOOT_RULES = 20;
+// Twice the old 20: a migrated catch-all splits into a gear rule and a gem rule, so no old filter overflows.
+export const MAX_LOOT_RULES = 40;
 // Finds held for want of room; past this many, a find is sold (or, for a material, stashed).
 export const MAX_HELD = 60;
 export const MAX_SOCKETS = 3;

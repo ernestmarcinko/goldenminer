@@ -6,17 +6,18 @@ import { formatNumber } from '../format';
 import { useDialog } from '../useDialog';
 import { useGame } from '../useGame';
 import {
-  ACTION_OPTIONS, RARITY_OPTIONS, TARGET_OPTIONS, addRule, moveRule, removeRule, updateRule,
+  ACTION_OPTIONS, RARITY_OPTIONS, TARGET_OPTIONS, addRule, moveRule, removeRule, targetOf, updateRule, withRarity, withTarget,
 } from './lootFilterView';
 
-function Select<T extends string>({ label, value, options, onChange }: {
-  label: string; value: T; options: readonly { value: T; label: string }[]; onChange: (v: T) => void;
+function Select<T extends string>({ label, value, options, onChange, disabled = false }: {
+  label: string; value: T; options: readonly { value: T; label: string }[]; onChange: (v: T) => void; disabled?: boolean;
 }) {
   return (
     <select
       aria-label={label}
       className="gm-rule__select"
       value={value}
+      disabled={disabled}
       onChange={(e) => {
         const picked = options.find((o) => o.value === e.target.value);
         if (picked) onChange(picked.value);
@@ -54,8 +55,15 @@ export function LootFilterDialog({ store, onClose }: { store: GameStore; onClose
           {rules.map((r, i) => (
             <div key={i} className="gm-rule">
               <span className="gm-rule__n">{formatNumber(i + 1)}</span>
-              <Select label="Rarity" value={r.rarity} options={RARITY_OPTIONS} onChange={(rarity) => set(updateRule(rules, i, { rarity }))} />
-              <Select label="Item" value={r.target} options={TARGET_OPTIONS} onChange={(target) => set(updateRule(rules, i, { target }))} />
+              {/* a gem has no rarity: a gem rule with one would never match */}
+              <Select
+                label="Rarity" value={r.rarity ?? 'any'} options={RARITY_OPTIONS} disabled={r.kind === 'gem'}
+                onChange={(rarity) => set(rules.map((x, j) => (j === i ? withRarity(x, rarity) : x)))}
+              />
+              <Select
+                label="Item" value={targetOf(r)} options={TARGET_OPTIONS}
+                onChange={(target) => set(rules.map((x, j) => (j === i ? withTarget(x, target) : x)))}
+              />
               <Select label="Action" value={r.action} options={ACTION_OPTIONS} onChange={(action) => set(updateRule(rules, i, { action }))} />
               <div className="gm-rule__btns">
                 <button type="button" className="gm-rule__btn" aria-label="Move rule up" disabled={i === 0} onClick={() => set(moveRule(rules, i, -1))}>↑</button>

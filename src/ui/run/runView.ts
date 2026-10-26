@@ -118,6 +118,7 @@ export function combatLineText(line: CombatLine): { text: string; tone: LineTone
     case 'room': return { text: `Room ${formatNumber(line.room)} cleared`, tone: 'gain' };
     case 'level': return { text: `Level ${formatNumber(line.level)}!`, tone: 'level' };
     case 'drop': return { text: `${line.note.name} dropped (${lootNoteText(line.note)})`, tone: 'drop' };
+    case 'saved': return { text: `Kraken Leather holds: ${line.monster}'s blow leaves you at 1 life`, tone: 'level' };
   }
 }
 

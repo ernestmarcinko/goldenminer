@@ -28,6 +28,8 @@ it('words every step', () => {
   expect(stepText(gearEntry, { event: 'filterSalvaged', materials: { copper: 2 } })).toBe('loot filter salvaged (+2 Copper ore)');
   expect(stepText(gearEntry, { event: 'stashed' })).toBe('stashed');
   expect(stepText(ore, { event: 'stashed' })).toBe('to Materials tab');
+  expect(stepText(gearEntry, { event: 'filterStashed' })).toBe('loot filter stashed');
+  expect(stepText(ore, { event: 'filterStashed' })).toBe('loot filter → Materials tab');
   expect(stepText(gearEntry, { event: 'toBag' })).toBe('moved to bag');
   expect(stepText(gearEntry, { event: 'equipped' })).toBe('equipped');
   expect(stepText(gearEntry, { event: 'sold', gold: 1500 })).toBe('sold (+1,500 Gold)');
@@ -56,6 +58,9 @@ it('joins a trail with arrows, and a stack leads with its count', () => {
     .toBe('+2 Small Ruby → held (bag full)');
   expect(trailText(entry({ kind: 'material', name: 'Iron ore', rarity: 'material', base: 'iron', count: 9, trail: steps({ event: 'stashed' }) })))
     .toBe('+9 Iron ore → Materials tab');
+  expect(trailText(entry({ trail: steps({ event: 'filterStashed' }, { event: 'toBag' }) }))).toBe('loot filter stashed → moved to bag');
+  expect(trailText(entry({ kind: 'material', name: 'Iron ore', rarity: 'material', base: 'iron', count: 3, trail: steps({ event: 'filterStashed' }) })))
+    .toBe('+3 Iron ore → loot filter → Materials tab');
 });
 
 it('lists the drops newest first, each with its kind and tone', () => {

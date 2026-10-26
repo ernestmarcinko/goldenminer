@@ -25,6 +25,7 @@ export function stepText(e: DropEntry, s: TrailStep): string {
     case 'held': return 'held (bag full)';
     case 'filterSold': return `loot filter sold${paid(s)}`;
     case 'filterSalvaged': return `loot filter salvaged${paid(s)}`;
+    case 'filterStashed': return e.kind === 'material' ? 'loot filter → Materials tab' : 'loot filter stashed';
     case 'stashed': return e.kind === 'material' ? 'to Materials tab' : 'stashed';
     case 'toBag': return 'moved to bag';
     case 'equipped': return 'equipped';

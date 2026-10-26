@@ -1,9 +1,43 @@
 import { MAX_LOOT_RULES } from '../../core/balance';
-import type { LootAction, LootRule, LootTarget } from '../../core/types';
-import type { Rarity } from '../../core/items';
+import type { LootAction, LootRule } from '../../core/types';
+import { GEAR_SETS } from '../../core/items';
+import type { GearSet, Rarity, Slot } from '../../core/items';
 import { SLOT_LABELS } from './itemView';
 
-export const NEW_RULE: LootRule = { rarity: 'normal', target: 'any', action: 'sell' };
+/** The dialog's one item select, until the rule editor replaces it: a gear set, a slot, gems, or any item. */
+export type LootTarget = GearSet | Slot | 'gem' | 'any';
+
+export const NEW_RULE: LootRule = { kind: 'gear', rarity: 'normal', action: 'sell' };
+
+/** What the item select shows for a rule: its slot or set for gear, gems, else any item. */
+export function targetOf(rule: LootRule): LootTarget {
+  switch (rule.kind) {
+    case 'gear': return rule.slot ?? rule.set ?? 'any';
+    case 'gem': return 'gem';
+    case 'map':
+    case 'material':
+    case 'any': return 'any';
+  }
+}
+
+/** The rule with a new item target; gems have no rarity, so a gem rule drops it. */
+export function withTarget(rule: LootRule, target: LootTarget): LootRule {
+  const { set: _set, slot: _slot, rarity, ...rest } = rule;
+  switch (target) {
+    case 'gem': return { ...rest, kind: 'gem' };
+    case 'any': return { ...rest, kind: 'any', ...(rarity === undefined ? {} : { rarity }) };
+    default: {
+      const where = (GEAR_SETS as readonly string[]).includes(target) ? { set: target as GearSet } : { slot: target as Slot };
+      return { ...rest, kind: 'gear', ...where, ...(rarity === undefined ? {} : { rarity }) };
+    }
+  }
+}
+
+/** The rule with a new rarity; 'any' clears it. */
+export function withRarity(rule: LootRule, rarity: Rarity | 'any'): LootRule {
+  const { rarity: _old, ...rest } = rule;
+  return rarity === 'any' ? rest : { ...rest, rarity };
+}
 
 export function addRule(rules: readonly LootRule[]): LootRule[] {
   return rules.length >= MAX_LOOT_RULES ? [...rules] : [...rules, NEW_RULE];

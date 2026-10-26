@@ -239,16 +239,17 @@ describe('inventory intents', () => {
     expect(store.version).toBe(v + 4);
   });
 
-  it('settings keep at most 20 rules, and a new filter drains the held loot it sells', () => {
+  it('settings keep at most 40 rules, only rules that can hold, and a new filter drains the held loot it sells', () => {
     const { store } = make();
     store.load();
-    const rule: LootRule = { rarity: 'normal', target: 'any', action: 'sell' };
+    const rule: LootRule = { kind: 'gear', rarity: 'normal', action: 'sell' };
     const s = store.state;
     s.bag = s.bag.map(() => gem(s));
     s.stash.general = s.stash.general.map(() => gear(s, 'ring'));
     s.overflow.push(gear(s, 'pickaxe', { rarity: 'normal' }));
-    store.setLootFilter(Array.from({ length: 25 }, () => rule));
+    store.setLootFilter([{ kind: 'material', action: 'sell' }, ...Array.from({ length: 45 }, () => rule)]);
     expect(store.state.settings.lootFilter).toHaveLength(MAX_LOOT_RULES);
+    expect(store.state.settings.lootFilter.every((r) => r.kind === 'gear')).toBe(true);
     expect(s.overflow).toEqual([]);
     expect('setBagFull' in store).toBe(false);
   });

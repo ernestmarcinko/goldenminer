@@ -12,6 +12,7 @@ export const GEM_TYPES = ['ruby', 'sapphire', 'emerald', 'amethyst', 'starstone'
 export const GEM_GRADES = ['tiny', 'small', 'big', 'giant', 'perfect'] as const;
 export const MATERIALS = ['copper', 'tin', 'iron', 'silver', 'mithril', 'starsteel', 'obsidian', 'voidCrystal'] as const;
 export const MAP_MOD_KINDS = ['monsterLife', 'monsterDamage', 'monsterSpeed', 'bossPower', 'weakHealing', 'hardened'] as const;
+export const MAP_SPECIALS = ['bossLegendary', 'treasureRoom', 'championPacks', 'doubleMaterials', 'tripleSouls', 'secondBoss'] as const;
 
 export type Rarity = (typeof RARITIES)[number];
 export type GearSet = (typeof GEAR_SETS)[number];
@@ -25,6 +26,7 @@ export type GemType = (typeof GEM_TYPES)[number];
 export type GemGrade = (typeof GEM_GRADES)[number];
 export type Material = (typeof MATERIALS)[number];
 export type MapModKind = (typeof MAP_MOD_KINDS)[number];
+export type MapSpecial = (typeof MAP_SPECIALS)[number];
 export type MapRarity = 'normal' | 'magic' | 'rare';
 
 export interface StatLine { stat: StatKey; value: number }
@@ -45,6 +47,8 @@ export interface MapItem {
   id: number; type: 'map'; tier: number; metre: number; rarity: MapRarity; mods: MapMod[];
   /** Set by tempering: the map takes no more enchanting. */
   sealed?: true;
+  /** At most one, outside `mods`: never counted toward the six, and no enchant removes it. */
+  special?: MapSpecial;
 }
 export type Item = GearItem | GemItem | MaterialItem | MapItem;
 /** What stacks in a bag cell and counts up in its stash tab. */

@@ -8,6 +8,7 @@ import { itemName } from '../core/itemData';
 import { BATTLE_SLOTS, MINING_SLOTS, setOfSlot } from '../core/items';
 import type { GearItem, Slot } from '../core/items';
 import { drainOverflow } from '../core/loot';
+import { ruleValid } from '../core/lootFilter';
 import { leaveMap as coreLeaveMap, startMap as coreStartMap } from '../core/maps';
 import { gamble as coreGamble, type GambleResult } from '../core/merchant';
 import { newGame } from '../core/newGame';
@@ -320,7 +321,8 @@ export class GameStore {
   }
 
   setLootFilter(rules: LootRule[]): void {
-    this._state.settings.lootFilter = rules.slice(0, MAX_LOOT_RULES).map((r) => ({ ...r }));
+    // a rule that could never match is dropped, so a save never holds one
+    this._state.settings.lootFilter = rules.filter(ruleValid).slice(0, MAX_LOOT_RULES).map((r) => ({ ...r }));
     drainOverflow(this._state);
     this.changed();
   }

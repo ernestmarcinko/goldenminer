@@ -46,8 +46,13 @@ export const RARE_SECOND: Readonly<Record<Slot, readonly string[]>> = {
   amulet: ['Charm', 'Token', 'Heart'],
 };
 
+export const LEGENDARY_IDS = [
+  'deepdelver', 'golddigger', 'blackLantern', 'longVoyage', 'bandOfTheDeep', 'wolfEye', 'krakenLeather', 'peacemaker',
+] as const;
+export type LegendaryId = (typeof LEGENDARY_IDS)[number];
+
 export interface LegendaryDef {
-  id: string; name: string; slot: Slot;
+  id: LegendaryId; name: string; slot: Slot;
   lines: ({ stat: StatKey; scale: number } | { stat: StatKey; fixed: number })[];
 }
 

@@ -5,7 +5,8 @@ import {
 import { firstEmpty } from './cells';
 import { logDrop, trail } from './dropLog';
 import { itemName, MATERIAL_LABELS } from './itemData';
-import { isGear, MATERIALS, setOfSlot } from './items';
+import { MATERIALS } from './items';
+import { ruleMatches } from './lootFilter';
 import type { Cell, GearItem, Gem, GemItem, Item, MapItem, Material, MaterialItem, Stack } from './items';
 import { deriveStats } from './stats';
 import type { DropOrigin, GameState, LootAction, LootNote, LootOutcome, LootRule, Stats, TrailStep } from './types';
@@ -88,18 +89,12 @@ export function stashMaterials(state: GameState, counts: Partial<Record<Material
 
 const units = (counts: Partial<Record<Material, number>>): number => Object.values(counts).reduce((sum, n) => sum + n, 0);
 
-export function lootAction(rules: LootRule[], item: Loot): LootAction {
-  // no rule names maps yet, so 'any' must not catch one
+/** The first matching rule's action; nothing matching keeps. */
+export function lootAction(rules: readonly LootRule[], item: Loot): LootAction {
+  // until the stash action has tabs to send a find to (Plan 10, Task 8), a stash rule keeps, and maps are not filtered
   if (item.type === 'map') return 'keep';
-  for (const rule of rules) {
-    const rarityOk = rule.rarity === 'any' || (isGear(item) && item.rarity === rule.rarity);
-    const targetOk = rule.target === 'any'
-      || (isGear(item)
-        ? rule.target === item.slot || rule.target === setOfSlot(item.slot)
-        : rule.target === 'gem');
-    if (rarityOk && targetOk) return rule.action;
-  }
-  return 'keep';
+  const rule = rules.find((r) => ruleMatches(r, item));
+  return rule === undefined || rule.action === 'stash' ? 'keep' : rule.action;
 }
 
 function note(item: Loot, outcome: LootOutcome, value = 0): LootNote {
@@ -194,7 +189,8 @@ function holdStack(state: GameState, kind: StackKind, count: number, open: (coun
 function applyFilter(state: GameState, item: Loot): Fate | null {
   const action = lootAction(state.settings.lootFilter, item);
   switch (action) {
-    case 'keep': return null;
+    case 'keep':
+    case 'stash': return null;
     case 'sell': {
       const sold = sellFind(state, item);
       return fate(sold, { event: 'filterSold', gold: sold.value }, unitsOf(item));
