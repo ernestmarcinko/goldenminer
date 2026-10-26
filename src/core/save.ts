@@ -12,6 +12,7 @@ import { gemGradeFor, itemName } from './itemData';
 import { sideCount } from './itemGen';
 import { sellValue } from './loot';
 import { isOldLootFilter, migrateLootFilter, ruleValid } from './lootFilter';
+import { isConnectedWeb, PASSIVE_NODE_BY_ID, START_NODE_ID } from './passives';
 import {
   BATTLE_STATS, GEAR_SETS, GEM_GRADES, GEM_TYPES, MAP_MOD_KINDS, MAP_SPECIALS, MATERIALS, MINING_STATS, MOD_SIDE, RARITIES, setOfSlot,
   slotsOf, statsOf,
@@ -27,7 +28,7 @@ import {
   SHAFT_MOTIONS, TRAIL_EVENTS, type DropEntry, type GameState, type LootRule,
 } from './types';
 
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
@@ -263,6 +264,11 @@ export const MIGRATIONS: Record<number, Migration> = {
     const { activity } = state;
     if (activity.kind === 'map' && isObject(activity.run)) next.activity = { ...activity, run: { ...activity.run, strikes: 0 } };
     return next;
+  },
+  10: (state) => {
+    if (!isObject(state)) return state;
+    // The passive web starts empty: old saves keep their level and every point unspent.
+    return { ...state, passives: { allocated: [] } };
   },
 };
 
@@ -543,6 +549,17 @@ function isMerchant(x: unknown): boolean {
   return x.bought.every((i) => isUpTo(i, STOCK_SIZE - 1)) && new Set(x.bought).size === x.bought.length;
 }
 
+// The passive web: at most one point per level past the first, unique known ids, never the start, connected to the start.
+function isPassives(x: unknown): x is { allocated: string[] } {
+  if (!isObject(x) || !Array.isArray(x.allocated) || x.allocated.length > LEVEL_CAP - 1) return false;
+  const ids = new Set<string>();
+  for (const id of x.allocated) {
+    if (typeof id !== 'string' || id === START_NODE_ID || !PASSIVE_NODE_BY_ID.has(id) || ids.has(id)) return false;
+    ids.add(id);
+  }
+  return isConnectedWeb(x.allocated as string[]);
+}
+
 const MAP_MOD_KEYS: readonly string[] = ['kind', 'tier', 'value'];
 // A map modifier has no keys but its own. Its tier may sit up to MAX_TIER_OVER_CAP above the map's, as tempering rolls there.
 function isMapMod(x: unknown, mapTier: number): x is MapMod {
@@ -735,6 +752,7 @@ export function validateState(x: unknown): x is GameState {
   if (!Array.isArray(x.finds) || x.finds.length > FINDS_LOG_LIMIT || !x.finds.every((f) => isFindRecord(f, nextId))) return false;
   if (typeof x.paused !== 'boolean' || !isDropLog(x.drops, nextId)) return false;
   if (!isMerchant(x.merchant) || !isUint32(x.uniqueRng)) return false;
+  if (!isPassives(x.passives) || x.passives.allocated.length > x.level - 1) return false;
   const { seed } = x;
   return Array.isArray(x.deaths) && x.deaths.length <= DEATH_LOG_LIMIT && x.deaths.every((d) => isDeathEntry(d, seed, nextId));
 }

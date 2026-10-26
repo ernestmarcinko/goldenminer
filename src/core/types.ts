@@ -147,6 +147,7 @@ export interface GameState {
   deaths: DeathEntry[];                    // the death log, oldest first, at most DEATH_LOG_LIMIT
   merchant: { band: number; bought: number[] };   // the stock band the Trader's slots were bought in, and their indexes
   uniqueRng: number;                       // the uniques' own stream, so state.rng is the same for a player without them
+  passives: { allocated: string[] };       // the passive web's allocated node ids, in allocation order
 }
 export interface Stats {
   digPower: number; autoTicksPerSecond: number; ticksPerClick: number; lampSight: number;

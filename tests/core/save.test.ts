@@ -9,6 +9,7 @@ import fixture6 from '../fixtures/save-schema-6.txt?raw';
 import fixture7 from '../fixtures/save-schema-7.txt?raw';
 import fixture8 from '../fixtures/save-schema-8.txt?raw';
 import fixture9 from '../fixtures/save-schema-9.txt?raw';
+import fixture10 from '../fixtures/save-schema-10.txt?raw';
 import { applyTicks } from '../../src/core/dig';
 import {
   BAG_SIZE, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_HELD, MAX_LOOT_RULES,
@@ -19,6 +20,7 @@ import { sideCount } from '../../src/core/itemGen';
 import { migrateLootFilter } from '../../src/core/lootFilter';
 import { addMap, startMap, takeMap } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
+import { PASSIVE_NODE_BY_ID, START_NODE_ID } from '../../src/core/passives';
 import { hash2 } from '../../src/core/rng';
 import { decodeSave, encodeSave, migrate, MIGRATIONS, SCHEMA_VERSION, validateState } from '../../src/core/save';
 import { deriveStats } from '../../src/core/stats';
@@ -497,7 +499,7 @@ it('a schema-5 save with no maps comes out with an empty Map stash', () => {
 });
 
 it('every older fixture still loads', () => {
-  for (const f of [fixture, fixture2, fixture3, fixture4, fixture5, fixture6, fixture7, fixture8, fixture9]) expect(decodeSave(f.trim()).ok).toBe(true);
+  for (const f of [fixture, fixture2, fixture3, fixture4, fixture5, fixture6, fixture7, fixture8, fixture9, fixture10]) expect(decodeSave(f.trim()).ok).toBe(true);
 });
 
 it('a schema-5 save carrying more than one bag holds is rejected, not cut short', () => {
@@ -1031,4 +1033,36 @@ describe('the validator holds the schema-10 shapes', () => {
     ];
     for (const [name, change] of cases) expect(check(change), name).toBe(false);
   });
+});
+
+it('a schema-10 save gains an empty passive web and keeps everything else', () => {
+  const raw = JSON.parse(decompressFromBase64(fixture10.trim())).state;
+  const r = decodeSave(fixture10.trim());
+  if (!r.ok) throw new Error(`fixture rejected: ${r.reason}`);
+  expect(r.savedAt).toBe(1_762_000_000_000);
+  expect(r.state.passives).toEqual({ allocated: [] });
+  expect(r.state.level).toBe(4);
+  const { passives: _passives, ...rest } = r.state;
+  expect(rest).toEqual(raw);   // nothing else changes
+});
+
+it('the validator refuses a broken web', () => {
+  const ok = (alloc: string[]): boolean => {
+    const s = newGame(1, 0);
+    s.level = 4;
+    s.passives.allocated = alloc;
+    return decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: s })).ok;
+  };
+  const start = PASSIVE_NODE_BY_ID.get(START_NODE_ID)!;
+  const ring1 = start.links[0]!;
+  const ring2 = PASSIVE_NODE_BY_ID.get(ring1)!.links.find((l) => l !== START_NODE_ID)!;
+  expect(ok([ring1])).toBe(true);
+  expect(ok([ring1, ring2])).toBe(true);
+  expect(ok(['prospectorsLuck'])).toBe(false);   // a keystone at the far end of a chain, detached from the start
+  expect(ok([ring1, ring1])).toBe(false);        // a duplicate id
+  expect(ok(['notANode'])).toBe(false);          // an unknown id
+  const tooMany = newGame(1, 0);
+  tooMany.level = 2;
+  tooMany.passives.allocated = [ring1, ring2];   // more nodes than level - 1
+  expect(decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: tooMany })).ok).toBe(false);
 });

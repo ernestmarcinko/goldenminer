@@ -297,3 +297,10 @@ export const LONG_VOYAGE_CAP = 2;             // the offline cap's multiplier, a
 export const BAND_OF_THE_DEEP_HEAL = 0.02;    // of max life, on every critical hit
 export const WOLF_EYE_DROPS = 1;              // more items from a champion or a boss
 export const PEACEMAKER_EVERY = 5;            // every 5th strike strikes twice
+
+// The passive web: a refund costs Gold scaling with level, a full reset Diamonds.
+export const RESPEC_GOLD_BASE = 100;
+export const RESET_WEB_DIAMONDS = 20;
+// How far above the base bag stack the passive web can push a gem or material stack (Gem Pouch / Ore Cart).
+export const MAX_PASSIVE_GEM_STACK = 10;
+export const MAX_PASSIVE_MATERIAL_STACK = 25;
