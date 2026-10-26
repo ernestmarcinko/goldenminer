@@ -1,4 +1,4 @@
-export type View = 'mine' | 'inventory' | 'skills' | 'merchant' | 'log' | 'run';
+export type View = 'mine' | 'inventory' | 'skills' | 'ascend' | 'merchant' | 'log' | 'run';
 
 /** The Nav's tabs: the Run tab comes first while a map runs. */
 export function navTabs(running: boolean): { view: View; label: string }[] {
@@ -6,6 +6,7 @@ export function navTabs(running: boolean): { view: View; label: string }[] {
     { view: 'mine', label: 'Mine' },
     { view: 'inventory', label: 'Inventory' },
     { view: 'skills', label: 'Skills' },
+    { view: 'ascend', label: 'Ascend' },
     { view: 'merchant', label: 'Merchant' },
     { view: 'log', label: 'Log' },
   ];

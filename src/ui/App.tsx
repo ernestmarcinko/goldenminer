@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { GameStore } from '../store/gameStore';
 import type { TabLock } from '../store/tabLock';
+import { AscensionView } from './ascend/AscensionView';
 import { startGame, type GameLoop } from './gameLoop';
 import { Header } from './Header';
 import { InventoryView } from './inventory/InventoryView';
@@ -91,6 +92,8 @@ function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: ()
           <InventoryView store={store} />
         ) : shown === 'skills' ? (
           <SkillsView store={store} />
+        ) : shown === 'ascend' ? (
+          <AscensionView store={store} />
         ) : shown === 'merchant' ? (
           <MerchantView store={store} />
         ) : shown === 'log' ? (

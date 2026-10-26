@@ -1,4 +1,5 @@
 import { GEM_BAG_STACK, GEM_STASH_STACK, MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK } from '../../core/balance';
+import { autoMapping } from '../../core/autoMap';
 import { firstEmpty, itemAt, mapTierCount } from '../../core/cells';
 import { MATERIAL_LABELS } from '../../core/itemData';
 import { isGear, MATERIALS } from '../../core/items';
@@ -19,7 +20,7 @@ import type { ClickIntent, ViewLine } from './itemView';
 export type ItemTarget = ItemLoc;
 
 export interface ActionSpec {
-  id: 'equip' | 'unequip' | 'sell' | 'salvage' | 'toStash' | 'toBag' | 'take' | 'run' | 'soulUpgrade' | 'craft' | 'buy';
+  id: 'equip' | 'unequip' | 'sell' | 'salvage' | 'toStash' | 'toBag' | 'take' | 'run' | 'autoMap' | 'unqueueAutoMap' | 'soulUpgrade' | 'craft' | 'buy';
   label: string;
   disabled: boolean;
   /** For 'craft': what it crafts with. */
@@ -102,14 +103,19 @@ function sellSalvage(state: GameState, item: Loot, all = false): [ActionSpec, Ac
 
 /**
  * A map runs from its card (not while another run is going), moves between the bag and the Maps tab, sells, salvages,
- * and is enchanted from it.
+ * and is enchanted from it. Surveyor adds a queue action once the notable is allocated.
  */
 function mapActions(state: GameState, target: ItemTarget, item: MapItem): ActionSpec[] {
   const run: ActionSpec = { id: 'run', label: 'Run this map', disabled: state.activity.kind === 'map' };
+  const auto: ActionSpec[] = autoMapping(state)
+    ? [state.autoMap.queue.includes(item.id)
+      ? { id: 'unqueueAutoMap', label: 'Remove from auto-map', disabled: false }
+      : { id: 'autoMap', label: 'Auto-map', disabled: false }]
+    : [];
   const move: ActionSpec = target.where === 'maps'
     ? { id: 'toBag', label: 'To bag', disabled: firstEmpty(state.bag) < 0 }
     : { id: 'toStash', label: 'To Maps tab', disabled: mapTierCount(state, item.tier) >= MAP_TIER_CAP };
-  return [run, move, ...sellSalvage(state, item), ...craftActions(state, target)];
+  return [run, ...auto, move, ...sellSalvage(state, item), ...craftActions(state, target)];
 }
 
 /**
@@ -255,6 +261,8 @@ export function runAction(store: GameStore, target: ItemTarget, action: ActionSp
     case 'toBag':
     case 'take': return store.sendItem(target, 'bag');
     case 'run': return item.type === 'map' ? store.startMap(item.id) : 'invalid';
+    case 'autoMap': return item.type === 'map' && store.queueForAutoMap(item.id) === 'ok' ? 'ok' : 'invalid';
+    case 'unqueueAutoMap': return item.type === 'map' && store.unqueueForAutoMap(item.id) === 'ok' ? 'ok' : 'invalid';
     case 'soulUpgrade': return store.soulUpgrade(target) === 'ok' ? 'ok' : 'craftRefused';
     case 'buy': return target.where === 'stock' && store.buyStock(target.index) === 'ok' ? 'ok' : 'invalid';
     case 'craft':

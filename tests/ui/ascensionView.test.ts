@@ -1,0 +1,56 @@
+import { expect, it } from 'vitest';
+import { ASCENDANCY_START_ID, ascendancyPoints } from '../../src/core/ascendancy';
+import { LEVEL_CAP } from '../../src/core/balance';
+import { newGame } from '../../src/core/newGame';
+import {
+  ascendancyPointsLine, ascendancyVMs, ascendLine, pointsPreview,
+} from '../../src/ui/ascend/ascensionView';
+
+it('the view model marks the start allocated and the first ring allocatable', () => {
+  const s = newGame(1, 0);
+  const vms = ascendancyVMs(s);
+  const start = vms.find((n) => n.id === ASCENDANCY_START_ID);
+  expect(start?.allocated).toBe(true);
+  expect(start?.allocatable).toBe(false);
+  expect(start?.side).toBe('start');
+  const ring = vms.find((n) => n.allocatable);
+  expect(ring).toBeTruthy();
+  expect(ring?.side).toBe('hybrid');
+});
+
+it('the points line says how many ascendancy points are left', () => {
+  const s = newGame(1, 0);
+  expect(ascendancyPointsLine(s)).toBe('No ascendancy points to spend');
+  s.ascendancy.points = 3;
+  expect(ascendancyPointsLine(s)).toBe('3 ascendancy points to spend');
+  s.ascendancy.points = 1;
+  expect(ascendancyPointsLine(s)).toBe('1 ascendancy point to spend');
+});
+
+it('the ascend line asks for the cap, then names the points the deepest depth pays', () => {
+  const s = newGame(1, 0);
+  s.level = LEVEL_CAP - 1;
+  expect(ascendLine(s)).toBe('Reach level 60 to ascend');
+  s.level = LEVEL_CAP;
+  s.deepest = 2_500;
+  expect(ascendLine(s)).toBe(`Ascend for ${ascendancyPoints(2_500)} points`);
+  expect(ascendLine(s)).toBe('Ascend for 3 points');
+});
+
+it('the points preview pairs the deepest depth with what it would pay', () => {
+  const s = newGame(1, 0);
+  s.deepest = 2_500;
+  expect(pointsPreview(s)).toBe(`Deepest 2,500 m → ${ascendancyPoints(2_500)} points`);
+});
+
+it('a node line names its effects in words, including the structural bonuses', () => {
+  const s = newGame(1, 0);
+  s.ascendancy.allocated = ['depthSmall1', 'insightSmall1', 'masterSurveyor', 'luckyBreak'];
+  const vms = ascendancyVMs(s);
+  const line = (id: string) => vms.find((n) => n.id === id)?.line;
+  expect(vms.find((n) => n.id === 'depthSmall1')?.allocated).toBe(true);
+  expect(line('depthSmall1')).toBe('+25 m starting depth');
+  expect(line('insightSmall1')).toBe('+1 passive point');
+  expect(line('masterSurveyor')).toBe('+2 auto-map tiers');
+  expect(line('luckyBreak')).toBe('+10% chest find, +10% gem find, +10% map find');
+});

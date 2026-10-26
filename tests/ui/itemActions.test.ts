@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest';
+import { queueForAutoMap } from '../../src/core/autoMap';
 import { newGame } from '../../src/core/newGame';
 import type { MapItem } from '../../src/core/items';
 import type { ItemLoc } from '../../src/core/types';
@@ -277,6 +278,43 @@ it('a map cannot run while another run is going, and moves need room', () => {
   expect(itemActions(s, bag(0))[1]).toMatchObject({ id: 'toStash', disabled: true });
   s.bag = s.bag.map((c) => c ?? gear(s, 'ring'));
   expect(itemActions(s, tab)[1]).toMatchObject({ id: 'toBag', disabled: true });
+});
+
+it('a map card offers Auto-map once Surveyor is allocated, and Remove from auto-map while it is queued', () => {
+  const store = new GameStore({ storage: new MemoryStorage(), storageAvailable: true, now: () => 0, newSeed: () => 7 });
+  store.load();
+  const s = store.state;
+  const map: MapItem = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] };
+  s.bag[0] = map;
+  const t = bag(0);
+  const ids = () => itemActions(s, t).map((a) => a.id);
+
+  // without the notable, a map card has neither queue action
+  expect(ids()).not.toContain('autoMap');
+  expect(ids()).not.toContain('unqueueAutoMap');
+
+  s.passives.allocated = ['surveyor'];
+  expect(ids()).not.toContain('unqueueAutoMap');
+  expect(ids().indexOf('autoMap')).toBe(ids().indexOf('run') + 1);
+  const auto = itemActions(s, t).find((a) => a.id === 'autoMap');
+  if (auto === undefined) throw new Error('no auto-map action');
+  expect(auto.label).toBe('Auto-map');
+
+  // queueing turns the same action into its removal
+  expect(queueForAutoMap(s, map.id)).toBe('ok');
+  expect(s.autoMap.queue).toEqual([map.id]);
+  expect(ids()).not.toContain('autoMap');
+  const unqueue = itemActions(s, t).find((a) => a.id === 'unqueueAutoMap');
+  expect(unqueue?.label).toBe('Remove from auto-map');
+
+  // both run through the store
+  if (unqueue === undefined) throw new Error('no unqueue action');
+  expect(runAction(store, t, unqueue)).toBe('ok');
+  expect(s.autoMap.queue).toEqual([]);
+  const again = itemActions(s, t).find((a) => a.id === 'autoMap');
+  if (again === undefined) throw new Error('no auto-map action');
+  expect(runAction(store, t, again)).toBe('ok');
+  expect(s.autoMap.queue).toEqual([map.id]);
 });
 
 it('Run this map starts that map', () => {
