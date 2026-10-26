@@ -102,6 +102,21 @@ it('the loot filter\'s sale or salvage is the whole trail', () => {
   expect(entryOf(s, ring.id)?.trail).toEqual([{ event: 'filterSalvaged', materials: { copper: 2, tin: 1 } }]);
 });
 
+it('a find the loot filter stashes says so, and a stashed material find is one entry', () => {
+  const s = newGame(1, 0);
+  s.settings.lootFilter = [{ kind: 'gear', action: 'stash' }, { kind: 'material', action: 'stash' }];
+  const ring = gear(s, 'ring', { rarity: 'rare', ilvl: 5 });
+  receiveItem(s, ring, HERE);
+  expect(entryOf(s, ring.id)?.trail).toEqual([{ event: 'filterStashed' }]);
+  const before = s.drops.length;
+  receiveMaterial(s, 'copper', 130, HERE);
+  expect(s.drops.slice(before)).toEqual([{
+    id: expect.any(Number), kind: 'material', name: 'Copper ore', rarity: 'material', base: 'copper', count: 130,
+    origin: HERE, trail: [{ event: 'filterStashed' }],
+  }]);
+  expect(validateState(s)).toBe(true);
+});
+
 it('a held item the loot filter settles while draining says so on its entry', () => {
   const s = newGame(1, 0);
   fullBag(s);

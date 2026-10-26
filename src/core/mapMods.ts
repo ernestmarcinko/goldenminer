@@ -52,6 +52,12 @@ export const MAP_MOD_TEXT: Readonly<Record<MapModKind, (v: number) => string>> =
   hardened: (v) => `Monsters take ${v}% less damage`,
 };
 
+/** A map modifier kind's short name, for the loot filter's rules. */
+export const MAP_MOD_LABELS: Readonly<Record<MapModKind, string>> = {
+  monsterLife: 'Monster life', monsterDamage: 'Monster damage', monsterSpeed: 'Monster speed', bossPower: 'Boss power',
+  weakHealing: 'Weak healing', hardened: 'Hardened',
+};
+
 export const MAP_SPECIAL_TEXT: Readonly<Record<MapSpecial, string>> = {
   bossLegendary: 'The boss drops a legendary',
   treasureRoom: 'A treasure room before the boss',

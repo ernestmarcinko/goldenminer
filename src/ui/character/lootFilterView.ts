@@ -86,4 +86,7 @@ export const ACTION_OPTIONS: readonly { value: LootAction; label: string }[] = [
   { value: 'keep', label: 'Keep' },
   { value: 'sell', label: 'Sell for Gold' },
   { value: 'salvage', label: 'Salvage for materials' },
+  { value: 'stash', label: 'Stash in its tab' },
 ];
+
+export { MAP_MOD_LABELS } from '../../core/mapMods';

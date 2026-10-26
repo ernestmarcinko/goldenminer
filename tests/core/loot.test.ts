@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LOOT_NOTES_KEPT, MAX_HELD } from '../../src/core/balance';
+import { GEM_STASH_STACK, LOOT_NOTES_KEPT, MAP_TIER_CAP, MAX_HELD } from '../../src/core/balance';
 import { filledCount } from '../../src/core/cells';
 import { applyTicks } from '../../src/core/dig';
 import { itemName } from '../../src/core/itemData';
@@ -57,11 +57,6 @@ it('the first matching rule decides, and nothing matching keeps', () => {
   expect(lootAction([{ kind: 'gear', slot: 'lamp', action: 'sell' }], gear(s, 'lamp'))).toBe('sell');
 });
 
-it('a stash rule is kept until Task 8', () => {
-  const s = newGame(1, 0);
-  expect(lootAction([{ kind: 'gear', action: 'stash' }], gear(s, 'boots'))).toBe('keep');
-});
-
 it('the filter sells and salvages before anything is stowed', () => {
   const s = newGame(1, 0);
   s.settings.lootFilter = [
@@ -92,6 +87,7 @@ const ore = (s: GameState, count: number, material: MaterialItem['material'] = '
   { id: s.nextId++, type: 'material', material, count }
 );
 const fullBag = (s: GameState): void => { s.bag = s.bag.map(() => gear(s, 'boots')); };
+const trailOf = (s: GameState, id: number) => s.drops.find((e) => e.id === id)?.trail;
 
 describe('every find goes to the bag', () => {
   it('a found map goes to the bag\'s first empty cell, never to the stash', () => {
@@ -201,14 +197,25 @@ describe('every find goes to the bag', () => {
     expect(s.overflow).toHaveLength(MAX_HELD);
   });
 
-  it('the loot filter never matches a map', () => {
+  it('the loot filter can match a map', () => {
     const s = newGame(1, 0);
-    s.settings.lootFilter = [{ kind: 'gear', action: 'sell' }, { kind: 'gem', action: 'sell' }];
-    expect(receiveItem(s, gem(s), HERE).map((n) => n.outcome)).toEqual(['sold']);
-    const map = mapOf(s, 3);
-    expect(lootAction(s.settings.lootFilter, map)).toBe('keep');
-    expect(receiveItem(s, map, HERE).map((n) => n.outcome)).toEqual(['bag']);
-    expect(s.bag[0]).toBe(map);
+    s.settings.lootFilter = [{ kind: 'map', rarity: 'normal', action: 'sell' }];
+    const normal = mapOf(s, 4);
+    expect(receiveItem(s, normal, HERE)).toEqual([{ name: 'Tier 4 map', rarity: 'normal', base: 'map', outcome: 'sold', value: 400 }]);
+    expect(s.gold).toBe(400);
+    expect(trailOf(s, normal.id)).toEqual([{ event: 'filterSold', gold: 400 }]);
+    const magic = mapOf(s, 4, 'magic');
+    expect(receiveItem(s, magic, HERE).map((n) => n.outcome)).toEqual(['bag']);
+    expect(s.bag[0]).toBe(magic);
+
+    // a migrated catch-all names gear and gems, so it never touches a map
+    const t = newGame(1, 0);
+    t.settings.lootFilter = [{ kind: 'gear', action: 'sell' }, { kind: 'gem', action: 'sell' }];
+    expect(receiveItem(t, gem(t), HERE).map((n) => n.outcome)).toEqual(['sold']);
+    const map = mapOf(t, 3);
+    expect(lootAction(t.settings.lootFilter, map)).toBe('keep');
+    expect(receiveItem(t, map, HERE).map((n) => n.outcome)).toEqual(['bag']);
+    expect(t.bag[0]).toBe(map);
   });
 
   it('a map salvages into Copper ore, plus Tin ore from tier 3', () => {
@@ -217,6 +224,104 @@ describe('every find goes to the bag', () => {
       { copper: 2 }, { copper: 2, tin: 1 }, { copper: 4, tin: 2 }, { copper: 6, tin: 3 },
     ]);
     expect(salvageYield(mapOf(s, 5, 'rare'))).toEqual({ copper: 4, tin: 2 });
+  });
+});
+
+describe('the loot filter\'s stash rules', () => {
+  it('a stash rule sends each kind to its tab', () => {
+    const s = newGame(1, 0);
+    s.settings.lootFilter = [{ kind: 'any', action: 'stash' }];
+    const bag = structuredClone(s.bag);
+    const first = gear(s, 'ring');
+    s.stash.general[0] = first;
+    const boots = gear(s, 'boots', { rarity: 'rare' });
+    expect(lootAction(s.settings.lootFilter, boots)).toBe('stash');
+    expect(receiveItem(s, boots, HERE)).toEqual([{ name: 'Test boots', rarity: 'rare', base: 'boots', outcome: 'stash', value: 0 }]);
+    expect([s.stash.general[0], s.stash.general[1]]).toEqual([first, boots]);
+    expect(trailOf(s, boots.id)).toEqual([{ event: 'filterStashed' }]);
+
+    s.stash.gems.ruby.small = 4;
+    const rubies = gem(s, 'ruby', { grade: 'small', count: 3 });
+    expect(receiveItem(s, rubies, HERE).map((n) => n.outcome)).toEqual(['stash']);
+    expect(s.stash.gems.ruby.small).toBe(7);
+
+    const map = mapOf(s, 4);
+    expect(receiveItem(s, map, HERE).map((n) => n.outcome)).toEqual(['stash']);
+    expect(s.stash.maps[4]).toEqual([map]);
+    expect(trailOf(s, map.id)).toEqual([{ event: 'filterStashed' }]);
+
+    expect(receiveMaterial(s, 'copper', 130, HERE)).toEqual([
+      { name: 'Copper ore', rarity: 'material', base: 'copper', outcome: 'stash', value: 130 },
+    ]);
+    expect(s.stash.materials.copper).toBe(130);
+    expect(s.bag).toEqual(bag);
+    expect(s.overflow).toEqual([]);
+    expect(s.lootTally).toEqual({ kept: 3, sold: 0, salvaged: 0 });
+    expect(validateState(s)).toBe(true);
+  });
+
+  it('a stash rule with no room lets the find go on to the bag', () => {
+    const s = newGame(1, 0);
+    s.settings.lootFilter = [{ kind: 'any', action: 'stash' }];
+    s.stash.general = s.stash.general.map(() => gear(s, 'gloves'));
+    const boots = gear(s, 'boots');
+    expect(receiveItem(s, boots, HERE).map((n) => n.outcome)).toEqual(['bag']);
+    expect(s.bag[0]).toBe(boots);
+    expect(trailOf(s, boots.id)).toEqual([{ event: 'bag' }]);
+
+    s.stash.maps[4] = Array.from({ length: MAP_TIER_CAP }, () => mapOf(s, 4));
+    const map = mapOf(s, 4);
+    expect(receiveItem(s, map, HERE).map((n) => n.outcome)).toEqual(['bag']);
+    expect(s.bag[1]).toBe(map);
+    expect(s.stash.maps[4]).toHaveLength(MAP_TIER_CAP);
+    expect(trailOf(s, map.id)).toEqual([{ event: 'bag' }]);
+
+    s.stash.gems.ruby.tiny = GEM_STASH_STACK;
+    const ruby = gem(s, 'ruby');
+    expect(receiveItem(s, ruby, HERE).map((n) => n.outcome)).toEqual(['bag']);
+    expect(s.bag[2]).toEqual(ruby);
+    expect(s.stash.gems.ruby.tiny).toBe(GEM_STASH_STACK);
+
+    // a stack the cap takes part of: the rest goes on as kept
+    s.stash.gems.sapphire.tiny = GEM_STASH_STACK - 1;
+    const sapphires = gem(s, 'sapphire', { count: 3 });
+    expect(receiveItem(s, sapphires, HERE).map((n) => n.outcome)).toEqual(['stash', 'bag']);
+    expect(s.stash.gems.sapphire.tiny).toBe(GEM_STASH_STACK);
+    expect(s.bag[3]).toEqual({ ...sapphires, count: 2 });
+    expect(validateState(s)).toBe(true);
+  });
+
+  it('sell and salvage rules never touch a material, and a material rule can only keep or stash', () => {
+    const s = newGame(1, 0);
+    s.settings.lootFilter = [{ kind: 'any', action: 'sell' }];
+    expect(receiveMaterial(s, 'copper', 130, HERE).map((n) => n.outcome)).toEqual(['bag']);
+    expect([s.gold, filledCount(s.bag), s.stash.materials.copper]).toEqual([0, 3, 0]);
+    s.settings.lootFilter = [{ kind: 'any', action: 'salvage' }];
+    expect(receiveMaterial(s, 'copper', 20, HERE).map((n) => n.outcome)).toEqual(['bag']);
+    expect(s.stash.materials).toEqual(newGame(1, 0).stash.materials);
+
+    const t = newGame(1, 0);
+    t.settings.lootFilter = [{ kind: 'material', material: 'copper', action: 'stash' }];
+    expect(receiveMaterial(t, 'copper', 12, HERE).map((n) => n.outcome)).toEqual(['stash']);
+    expect(receiveMaterial(t, 'tin', 12, HERE).map((n) => n.outcome)).toEqual(['bag']);
+    expect([t.stash.materials.copper, t.stash.materials.tin]).toEqual([12, 0]);
+    expect(t.bag[0]).toEqual(expect.objectContaining({ type: 'material', material: 'tin', count: 12 }));
+  });
+
+  it('held finds follow stash rules too', () => {
+    const s = newGame(1, 0);
+    fullBag(s);
+    const map = mapOf(s, 3);
+    receiveItem(s, map, HERE);
+    receiveMaterial(s, 'tin', 12, HERE);
+    expect(s.overflow).toEqual([map, expect.objectContaining({ type: 'material', material: 'tin', count: 12 })]);
+    s.settings.lootFilter = [{ kind: 'map', action: 'stash' }, { kind: 'material', action: 'stash' }];
+    drainOverflow(s);
+    expect(s.overflow).toEqual([]);
+    expect(s.stash.maps[3]).toEqual([map]);
+    expect(trailOf(s, map.id)).toEqual([{ event: 'held' }, { event: 'filterStashed' }]);
+    expect(s.stash.materials.tin).toBe(12);
+    expect(validateState(s)).toBe(true);
   });
 });
 

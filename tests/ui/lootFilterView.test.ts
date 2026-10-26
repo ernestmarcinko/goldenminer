@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import type { LootRule } from '../../src/core/types';
 import { ruleValid } from '../../src/core/lootFilter';
 import {
-  ACTION_OPTIONS, NEW_RULE, RARITY_OPTIONS, TARGET_OPTIONS, addRule, moveRule, removeRule, targetOf, updateRule, withRarity, withTarget,
+  ACTION_OPTIONS, MAP_MOD_LABELS, NEW_RULE, RARITY_OPTIONS, TARGET_OPTIONS, addRule, moveRule, removeRule, targetOf, updateRule, withRarity, withTarget,
 } from '../../src/ui/character/lootFilterView';
 
 it('edits the rule list without mutating it', () => {
@@ -33,6 +33,8 @@ it('reads and writes a rule through the interim item select', () => {
   expect(withRarity(mining, 'any')).toEqual({ kind: 'gear', set: 'mining', action: 'salvage' });
   expect(withRarity({ kind: 'gear', action: 'keep' }, 'rare')).toEqual({ kind: 'gear', rarity: 'rare', action: 'keep' });
   for (const target of TARGET_OPTIONS.map((o) => o.value)) expect(ruleValid(withTarget(mining, target)), target).toBe(true);
-  expect(ACTION_OPTIONS.map((o) => o.value)).toEqual(['keep', 'sell', 'salvage']);
+  expect(ACTION_OPTIONS.map((o) => o.value)).toEqual(['keep', 'sell', 'salvage', 'stash']);
+  expect(ACTION_OPTIONS[3]?.label).toBe('Stash in its tab');
+  expect(Object.values(MAP_MOD_LABELS)).toEqual(['Monster life', 'Monster damage', 'Monster speed', 'Boss power', 'Weak healing', 'Hardened']);
   expect(RARITY_OPTIONS.map((o) => o.value)).toEqual(['any', 'normal', 'magic', 'rare', 'legendary']);
 });

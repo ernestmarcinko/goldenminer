@@ -1,7 +1,9 @@
 import { MAX_LOOT_RULES } from './balance';
+import { GEM_GRADE_LABELS, MATERIAL_LABELS } from './itemData';
 import { BATTLE_SLOTS, GEAR_SETS, MINING_SLOTS, RARITIES, setOfSlot } from './items';
-import type { GearSet, Item, Rarity, Slot } from './items';
-import type { LootKind, LootRange, LootRule } from './types';
+import type { GearSet, GemType, Item, Rarity, Slot } from './items';
+import { MAP_MOD_LABELS } from './mapMods';
+import type { LootAction, LootKind, LootRange, LootRule } from './types';
 
 /** No rules: every find is kept, as the game has always done. */
 export const DEFAULT_LOOT_FILTER: readonly LootRule[] = [];
@@ -47,6 +49,46 @@ export function ruleMatches(rule: LootRule, item: Item): boolean {
   if (rule.gem !== undefined && !(item.type === 'gem' && item.gem === rule.gem)) return false;
   if (rule.grade !== undefined && !(item.type === 'gem' && item.grade === rule.grade)) return false;
   return rule.material === undefined || (item.type === 'material' && item.material === rule.material);
+}
+
+const ACTION_WORDS: Readonly<Record<LootAction, string>> = { keep: 'Keep', sell: 'Sell', salvage: 'Salvage', stash: 'Stash' };
+const KIND_WORDS: Readonly<Record<LootKind | 'any', string>> = { gear: 'gear', gem: 'gems', map: 'maps', material: 'materials', any: 'items' };
+const SLOT_WORDS: Readonly<Record<Slot, string>> = {
+  pickaxe: 'pickaxes', lamp: 'lamp helms', gloves: 'gloves', boots: 'boots', weapon: 'weapons', armor: 'armor', helm: 'helms',
+  ring: 'rings', amulet: 'amulets',
+};
+const GEM_WORDS: Readonly<Record<GemType, string>> = {
+  ruby: 'rubies', sapphire: 'sapphires', emerald: 'emeralds', amethyst: 'amethysts', starstone: 'starstones',
+};
+
+// A range in words: `4 to 6`, `4 or more`, `up to 6`, or one number when both ends are it.
+function rangeWords(range: LootRange): string | undefined {
+  const { min, max } = range;
+  if (min !== undefined && max !== undefined) return min === max ? `${min}` : `${min} to ${max}`;
+  if (min !== undefined) return `${min} or more`;
+  return max !== undefined ? `up to ${max}` : undefined;
+}
+
+/**
+ * A rule as a sentence: the action, the kind narrowed by rarity, set, slot, gem and material, then a clause for each of
+ * the level, modifier tier, modifier count and map modifier, as in `Stash rare gear, item level 4 or more`.
+ */
+export function describeRule(rule: LootRule): string {
+  const grade = rule.grade !== undefined ? GEM_GRADE_LABELS[rule.grade].toLowerCase() : undefined;
+  const noun = rule.slot !== undefined ? SLOT_WORDS[rule.slot]
+    : rule.gem !== undefined ? GEM_WORDS[rule.gem]
+    : rule.material !== undefined ? MATERIAL_LABELS[rule.material]
+    : grade !== undefined ? 'gems'
+    : KIND_WORDS[rule.kind];
+  const subject = [rule.rarity, rule.set, grade, noun].filter((w) => w !== undefined).join(' ');
+  const clauses: string[] = [];
+  const level = rule.level !== undefined ? rangeWords(rule.level) : undefined;
+  if (level !== undefined) clauses.push(`${rule.kind === 'map' ? 'tier' : 'item level'} ${level}`);
+  if (rule.modTier !== undefined) clauses.push(`with a modifier at T${rule.modTier} or above`);
+  const mods = rule.mods !== undefined ? rangeWords(rule.mods) : undefined;
+  if (mods !== undefined) clauses.push(`with ${mods} ${mods === '1' || mods === 'up to 1' ? 'modifier' : 'modifiers'}`);
+  if (rule.mapMod !== undefined) clauses.push(`with ${MAP_MOD_LABELS[rule.mapMod]}`);
+  return [`${ACTION_WORDS[rule.action]} ${subject}`, ...clauses].join(', ');
 }
 
 type RuleField = Exclude<keyof LootRule, 'kind' | 'action'>;

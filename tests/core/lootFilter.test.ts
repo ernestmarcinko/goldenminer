@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { lootAction, type Loot } from '../../src/core/loot';
-import { DEFAULT_LOOT_FILTER, migrateLootFilter, migrateRule, ruleMatches, ruleValid } from '../../src/core/lootFilter';
+import { DEFAULT_LOOT_FILTER, describeRule, migrateLootFilter, migrateRule, ruleMatches, ruleValid } from '../../src/core/lootFilter';
 import { newGame } from '../../src/core/newGame';
 import { BATTLE_SLOTS, GEAR_SETS, MINING_SLOTS, RARITIES, setOfSlot } from '../../src/core/items';
 import type { Item, MapItem, MapMod, MaterialItem, Rarity } from '../../src/core/items';
@@ -147,4 +147,26 @@ it('refuses rules that cannot hold', () => {
     { kind: 'gem', gem: 'emerald', grade: 'perfect', action: 'keep' },
   ];
   for (const r of valid) expect(ruleValid(r), JSON.stringify(r)).toBe(true);
+});
+
+it('describes a rule as a sentence', () => {
+  const said = (r: LootRule): string => describeRule(r);
+  expect(said({ kind: 'gear', rarity: 'normal', action: 'sell' })).toBe('Sell normal gear');
+  expect(said({ kind: 'gear', rarity: 'magic', set: 'mining', action: 'salvage' })).toBe('Salvage magic mining gear');
+  expect(said({ kind: 'gem', action: 'keep' })).toBe('Keep gems');
+  expect(said({ kind: 'gear', rarity: 'rare', level: { min: 4 }, modTier: 3, action: 'stash' }))
+    .toBe('Stash rare gear, item level 4 or more, with a modifier at T3 or above');
+  expect(said({ kind: 'map', level: { min: 5, max: 8 }, action: 'stash' })).toBe('Stash maps, tier 5 to 8');
+  expect(said({ kind: 'material', material: 'tin', action: 'keep' })).toBe('Keep Tin ore');
+  expect(said({ kind: 'any', mods: { min: 5 }, action: 'stash' })).toBe('Stash items, with 5 or more modifiers');
+
+  expect(said({ kind: 'gear', slot: 'boots', rarity: 'legendary', action: 'keep' })).toBe('Keep legendary boots');
+  expect(said({ kind: 'gem', gem: 'ruby', grade: 'small', action: 'sell' })).toBe('Sell small rubies');
+  expect(said({ kind: 'gear', level: { max: 6 }, mods: { min: 2, max: 4 }, action: 'sell' }))
+    .toBe('Sell gear, item level up to 6, with 2 to 4 modifiers');
+  expect(said({ kind: 'gear', level: { min: 4, max: 6 }, mods: { max: 2 }, action: 'salvage' }))
+    .toBe('Salvage gear, item level 4 to 6, with up to 2 modifiers');
+  expect(said({ kind: 'map', rarity: 'rare', mods: { min: 3 }, mapMod: 'hardened', action: 'keep' }))
+    .toBe('Keep rare maps, with 3 or more modifiers, with Hardened');
+  expect(said({ kind: 'material', action: 'stash' })).toBe('Stash materials');
 });
