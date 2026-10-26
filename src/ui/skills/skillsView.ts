@@ -32,6 +32,7 @@ function effectLine(n: PassiveNode): string {
 }
 
 export function nodeVMs(state: GameState): SkillNodeVM[] {
+  const points = pointsToSpend(state);
   return PASSIVE_NODES.map((n) => {
     const allocated = n.side === 'start' || state.passives.allocated.includes(n.id);
     return {
@@ -45,7 +46,8 @@ export function nodeVMs(state: GameState): SkillNodeVM[] {
       desc: n.desc,
       line: effectLine(n),
       allocated,
-      allocatable: n.side !== 'start' && !allocated && canAllocate(state, n.id),
+      // A node only looks takeable when there is actually a point to spend on it.
+      allocatable: n.side !== 'start' && !allocated && points > 0 && canAllocate(state, n.id),
       refundable: n.side !== 'start' && allocated && canRefund(state, n.id),
     };
   });

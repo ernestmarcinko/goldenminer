@@ -21,6 +21,15 @@
   color: var(--gm-gold-bright);
   font-weight: 600;
 }
+.gm-skills__hint {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--gm-line);
+  background: var(--gm-panel);
+  color: var(--gm-gold-bright);
+  font-size: 13px;
+}
 
 .gm-skills__bar {
   display: flex;

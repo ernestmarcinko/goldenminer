@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { LEVEL_CAP } from '../../core/balance';
 import type { GameStore } from '../../store/gameStore';
-import type { SkillNodeVM } from '../skills/skillsView';
 import { Web } from '../skills/Web';
 import { useGame } from '../useGame';
 import { ascendancyPointsLine, ascendancyVMs, ascendLine, pointsPreview } from './ascensionView';
@@ -18,22 +17,32 @@ const ALLOCATE_TEXT: Readonly<Record<string, string>> = {
 /** The ascendancy tree: hover a node for its card, click an allocatable one to spend a point, and ascend at the cap. */
 export function AscensionView({ store }: { store: GameStore }) {
   const { state, version } = useGame(store);
-  const [selected, setSelected] = useState<SkillNodeVM | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [pinnedId, setPinnedId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [armed, setArmed] = useState(false);
 
   const vms = useMemo(() => ascendancyVMs(state), [state, version]);
   const byId = useMemo(() => new Map(vms.map((n) => [n.id, n])), [vms]);
+  const shown = (hoveredId === null ? undefined : byId.get(hoveredId))
+    ?? (pinnedId === null ? undefined : byId.get(pinnedId)) ?? null;
 
   const pick = (id: string): void => {
     const vm = byId.get(id);
     if (vm === undefined) return;
-    setSelected(vm);
+    setPinnedId(id);
     setMessage(null);
     setArmed(false);
-    if (!vm.allocatable) return;
-    const r = store.allocateAscendancy(id);
-    setMessage(r === 'ok' ? `Allocated ${vm.name}.` : ALLOCATE_TEXT[r] ?? 'Refused.');
+    if (vm.allocatable) {
+      const r = store.allocateAscendancy(id);
+      setMessage(r === 'ok' ? `Allocated ${vm.name}.` : ALLOCATE_TEXT[r] ?? 'Refused.');
+    } else if (vm.allocated) {
+      setMessage(`${vm.name} is already allocated.`);
+    } else if (state.ascendancy.points === 0) {
+      setMessage('No ascendancy points — ascend at level 60 to earn them.');
+    } else {
+      setMessage('Allocate next to an allocated node first.');
+    }
   };
 
   const ascendNow = (): void => {
@@ -43,7 +52,7 @@ export function AscensionView({ store }: { store: GameStore }) {
     }
     const r = store.ascend();
     setArmed(false);
-    setSelected(null);
+    setPinnedId(null);
     setMessage(r === 'ok' ? 'Ascended.' : 'Not ready.');
   };
 
@@ -53,6 +62,9 @@ export function AscensionView({ store }: { store: GameStore }) {
         <h2 className="gm-ascend__title">Ascension</h2>
         <span className="gm-ascend__points">{ascendancyPointsLine(state)}</span>
       </div>
+      {state.ascendancy.points === 0 && (
+        <p className="gm-ascend__hint">No ascendancy points yet — ascend at level 60 to earn them.</p>
+      )}
       <div className="gm-ascend__bar">
         <span className="gm-ascend__preview">{pointsPreview(state)}</span>
         {state.level >= LEVEL_CAP ? (
@@ -75,23 +87,26 @@ export function AscensionView({ store }: { store: GameStore }) {
       <Web
         nodes={vms}
         onNode={pick}
-        onHover={(id) => setSelected(id === null ? null : (byId.get(id) ?? null))}
+        onHover={(id) => setHoveredId(id)}
         focusId={null}
         focusNonce={0}
         label="Ascendancy tree"
       />
       <div className="gm-ascend__footer">
-        {selected !== null && (
-          <section className="gm-ascend__card" data-side={selected.side}>
-            <h3 className="gm-ascend__card-name">{selected.name}</h3>
-            <div className="gm-ascend__card-line">{selected.line}</div>
-            {selected.desc !== '' && selected.desc !== selected.line && (
-              <div className="gm-ascend__card-desc gm-muted">{selected.desc}</div>
+        {shown !== null && (
+          <section className="gm-ascend__card" data-side={shown.side}>
+            <h3 className="gm-ascend__card-name">{shown.name}</h3>
+            <div className="gm-ascend__card-line">{shown.line}</div>
+            {shown.desc !== '' && shown.desc !== shown.line && (
+              <div className="gm-ascend__card-desc gm-muted">{shown.desc}</div>
             )}
-            {selected.allocatable && (
-              <button type="button" className="gm-btn gm-btn--primary" onClick={() => pick(selected.id)}>
+            {shown.allocatable && (
+              <button type="button" className="gm-btn gm-btn--primary" onClick={() => pick(shown.id)}>
                 Allocate · 1 point
               </button>
+            )}
+            {shown.allocated && (
+              <div className="gm-ascend__card-desc gm-muted">Allocated{shown.kind === 'start' ? ' · the start' : ''}.</div>
             )}
           </section>
         )}

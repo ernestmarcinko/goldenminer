@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
+import { pointsToSpend } from '../../core/passives';
 import type { GameStore } from '../../store/gameStore';
 import { useGame } from '../useGame';
-import { nodeVMs, pointsLine, refundLine, resetLine, searchNodes, type SkillNodeVM } from './skillsView';
+import { nodeVMs, pointsLine, refundLine, resetLine, searchNodes } from './skillsView';
 import { Web } from './Web';
 import './skills.css';
 
@@ -25,16 +26,21 @@ export function SkillsView({ store }: { store: GameStore }) {
   const { state } = useGame(store);
   const [query, setQuery] = useState('');
   const [focus, setFocus] = useState<{ id: string; n: number } | null>(null);
-  const [selected, setSelected] = useState<SkillNodeVM | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [pinnedId, setPinnedId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const vms = useMemo(() => nodeVMs(state), [state]);
   const byId = useMemo(() => new Map(vms.map((n) => [n.id, n])), [vms]);
+  const points = pointsToSpend(state);
+  // The card follows the pointer, but a click pins it, so the card's own buttons stay reachable.
+  const shown = (hoveredId === null ? undefined : byId.get(hoveredId))
+    ?? (pinnedId === null ? undefined : byId.get(pinnedId)) ?? null;
 
   const pick = (id: string): void => {
     const vm = byId.get(id);
     if (vm === undefined) return;
-    setSelected(vm);
+    setPinnedId(id);
     setMessage(null);
     if (vm.allocatable) {
       const r = store.allocate(id);
@@ -42,12 +48,18 @@ export function SkillsView({ store }: { store: GameStore }) {
     } else if (vm.refundable) {
       const r = store.refund(id);
       setMessage(r === 'ok' ? `Refunded ${vm.name}.` : REFUND_TEXT[r] ?? 'Refused.');
+    } else if (vm.allocated) {
+      setMessage(`${vm.name} is already allocated.`);
+    } else if (points === 0) {
+      setMessage('No points to spend — level up by running maps.');
+    } else {
+      setMessage('Allocate next to an allocated node first.');
     }
   };
 
   const reset = (): void => {
     const r = store.resetWeb();
-    setSelected(null);
+    setPinnedId(null);
     setMessage(r === 'ok' ? 'Web reset.' : r === 'noDiamonds' ? 'Not enough Diamonds.' : 'Empty the free stash pages first.');
   };
 
@@ -63,6 +75,9 @@ export function SkillsView({ store }: { store: GameStore }) {
         <h2 className="gm-skills__title">Skills</h2>
         <span className="gm-skills__points">{pointsLine(state)}</span>
       </div>
+      {points === 0 && (
+        <p className="gm-skills__hint">No points yet — every level gives one, and levels come from running maps.</p>
+      )}
       <div className="gm-skills__bar">
         <input
           type="search"
@@ -82,20 +97,23 @@ export function SkillsView({ store }: { store: GameStore }) {
         <span className="gm-legend"><i className="gm-legend__dot gm-legend__dot--keystone" />keystone: changes a rule</span>
         <span className="gm-legend gm-muted">drag to pan · wheel or +/− to zoom</span>
       </div>
-      <Web nodes={vms} onNode={pick} onHover={(id) => setSelected(id === null ? null : (byId.get(id) ?? null))} focusId={focus?.id ?? null} focusNonce={focus?.n ?? 0} />
+      <Web nodes={vms} onNode={pick} onHover={(id) => setHoveredId(id)} focusId={focus?.id ?? null} focusNonce={focus?.n ?? 0} />
       <div className="gm-skills__footer">
-        {selected !== null && (
-          <section className="gm-skills__card" data-side={selected.side}>
-            <h3 className="gm-skills__card-name">{selected.name}</h3>
-            <div className="gm-skills__card-line">{selected.line}</div>
-            {selected.desc !== '' && selected.desc !== selected.line && (
-              <div className="gm-skills__card-desc gm-muted">{selected.desc}</div>
+        {shown !== null && (
+          <section className="gm-skills__card" data-side={shown.side}>
+            <h3 className="gm-skills__card-name">{shown.name}</h3>
+            <div className="gm-skills__card-line">{shown.line}</div>
+            {shown.desc !== '' && shown.desc !== shown.line && (
+              <div className="gm-skills__card-desc gm-muted">{shown.desc}</div>
             )}
-            {selected.allocatable && (
-              <button type="button" className="gm-btn gm-btn--primary" onClick={() => pick(selected.id)}>Allocate · 1 point</button>
+            {shown.allocatable && (
+              <button type="button" className="gm-btn gm-btn--primary" onClick={() => pick(shown.id)}>Allocate · 1 point</button>
             )}
-            {selected.refundable && (
-              <button type="button" className="gm-btn" onClick={() => pick(selected.id)}>{refundLine(state, selected.id)}</button>
+            {shown.refundable && (
+              <button type="button" className="gm-btn" onClick={() => pick(shown.id)}>{refundLine(state, shown.id)}</button>
+            )}
+            {shown.allocated && !shown.refundable && (
+              <div className="gm-skills__card-desc gm-muted">Allocated{shown.kind === 'start' ? ' · the start' : ''}.</div>
             )}
           </section>
         )}

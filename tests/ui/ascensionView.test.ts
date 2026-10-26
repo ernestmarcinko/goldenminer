@@ -6,14 +6,16 @@ import {
   ascendancyPointsLine, ascendancyVMs, ascendLine, pointsPreview,
 } from '../../src/ui/ascend/ascensionView';
 
-it('the view model marks the start allocated and the first ring allocatable', () => {
+it('the view model marks the start allocated, and only offers nodes once there is a point', () => {
   const s = newGame(1, 0);
   const vms = ascendancyVMs(s);
   const start = vms.find((n) => n.id === ASCENDANCY_START_ID);
   expect(start?.allocated).toBe(true);
   expect(start?.allocatable).toBe(false);
   expect(start?.side).toBe('start');
-  const ring = vms.find((n) => n.allocatable);
+  expect(vms.some((n) => n.allocatable)).toBe(false);   // no points yet
+  s.ascendancy.points = 1;
+  const ring = ascendancyVMs(s).find((n) => n.allocatable);
   expect(ring).toBeTruthy();
   expect(ring?.side).toBe('hybrid');
 });

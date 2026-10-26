@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
 import { PASSIVE_NODE_BY_ID, START_NODE_ID } from '../../src/core/passives';
+import { allocate } from '../../src/core/respec';
 import { nodeVMs, pointsLine, refundLine, resetLine, searchNodes } from '../../src/ui/skills/skillsView';
 
 it('the view model marks the start allocated and the first ring allocatable', () => {
@@ -12,6 +13,23 @@ it('the view model marks the start allocated and the first ring allocatable', ()
   expect(start.allocatable).toBe(false);
   const ring = vms.find((n) => n.allocatable);
   expect(ring).toBeTruthy();
+});
+
+it('nothing is allocatable without a point to spend', () => {
+  const s = newGame(1, 0);            // level 1: no points
+  expect(nodeVMs(s).some((n) => n.allocatable)).toBe(false);
+  s.level = 2;                         // level 2: one point
+  expect(nodeVMs(s).some((n) => n.allocatable)).toBe(true);
+});
+
+it('allocating a first-ring node opens the next ring', () => {
+  const s = newGame(1, 0);
+  s.level = 3;
+  const ring = nodeVMs(s).find((n) => n.allocatable)!;
+  expect(allocate(s, ring.id)).toBe('ok');
+  const after = nodeVMs(s);
+  expect(after.find((n) => n.id === ring.id)?.allocated).toBe(true);
+  expect(after.some((n) => n.allocatable)).toBe(true);
 });
 
 it('the points line says how many are left', () => {
