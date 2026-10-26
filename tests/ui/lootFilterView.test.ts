@@ -4,7 +4,7 @@ import type { RuleField } from '../../src/ui/character/lootFilterView';
 import { ruleValid } from '../../src/core/lootFilter';
 import {
   ACTION_OPTIONS, GEM_OPTIONS, GRADE_OPTIONS, KIND_OPTIONS, MAP_MOD_LABELS, MAP_MOD_OPTIONS, MATERIAL_OPTIONS, NEW_RULE,
-  RARITY_OPTIONS, SET_OPTIONS, SLOT_OPTIONS, actionOptionsFor, addRow, boxProblems, fieldsFor, levelLabel, moveRow, moveTarget,
+  RARITY_OPTIONS, SET_OPTIONS, SLOT_OPTIONS, actionOptionsFor, addRow, boxProblems, boxTextsFor, fieldsFor, levelLabel, moveRow, moveTarget,
   rarityOptionsFor, removeRow, ruleProblems, rowsOf, rulesOf, setRange, slotOptionsFor, withKind, withModTier, withPick,
 } from '../../src/ui/character/lootFilterView';
 
@@ -168,4 +168,20 @@ it('says when a number box holds a number it can\'t use, for the boxes the kind 
   expect(boxProblems({ modTier: '0', 'level.max': '-1' }, 'any')).toEqual([line]);
   // a box the kind no longer shows says nothing
   expect(boxProblems({ 'level.min': '0' }, 'gem')).toEqual([]);
+});
+
+it('drops a number box\'s text when its field leaves the rule, so a box never shows a bound the rule lacks', () => {
+  const gear = setRange({ kind: 'gear', action: 'salvage' }, 'level', 'min', '7');
+  const texts = { 'level.min': '7', modTier: '0' } as const;
+  expect(boxTextsFor(texts, 'map')).toEqual(texts);
+  expect(boxTextsFor(texts, 'any')).toEqual(texts);
+  // Gear, then Gem, then Gear: the rule has no item level any more, and neither has its box
+  const gem = withKind(gear, 'gem');
+  const gemTexts = boxTextsFor(texts, 'gem');
+  expect(gem.level).toBeUndefined();
+  expect(gemTexts).toEqual({});
+  const back = withKind(gem, 'gear');
+  expect(back).toEqual({ kind: 'gear', action: 'salvage' });
+  expect(boxTextsFor(gemTexts, 'gear')).toEqual({});
+  expect(boxTextsFor(texts, 'material')).toEqual({});
 });

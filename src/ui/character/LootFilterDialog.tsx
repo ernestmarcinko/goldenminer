@@ -8,8 +8,8 @@ import { formatNumber } from '../format';
 import { useDialog } from '../useDialog';
 import {
   GEM_OPTIONS, GRADE_OPTIONS, KIND_OPTIONS, MAP_MOD_OPTIONS, MATERIAL_OPTIONS, SET_OPTIONS, actionOptionsFor, addRow,
-  boxProblems, boxRejects, fieldsFor, levelLabel, moveRow, moveTarget, rarityOptionsFor, removeRow, ruleProblems, rowsOf, rulesOf, setRange,
-  slotOptionsFor, withKind, withModTier, withPick,
+  boxProblems, boxRejects, boxTextsFor, fieldsFor, levelLabel, moveRow, moveTarget, rarityOptionsFor, removeRow,
+  ruleProblems, rowsOf, rulesOf, setRange, slotOptionsFor, withKind, withModTier, withPick,
 } from './lootFilterView';
 import type { NumberBox as NumberBoxKey, Option, RuleField, RuleRow } from './lootFilterView';
 
@@ -273,7 +273,10 @@ export function LootFilterDialog({ store, onClose }: { store: GameStore; onClose
                     data-editor-kind="" aria-label="Kind" className="gm-pick__select" value={draft.kind}
                     onChange={(e) => {
                       const kind = KIND_OPTIONS.find((o) => o.value === e.currentTarget.value)?.value;
-                      if (kind) setDraft(withKind(draft, kind as LootKind | 'any'));
+                      if (!kind) return;
+                      setDraft(withKind(draft, kind as LootKind | 'any'));
+                      // a box whose field the kind drops loses its text too, so no box shows a bound the rule lacks
+                      setTexts((t) => boxTextsFor(t, kind as LootKind | 'any'));
                     }}
                   >
                     {KIND_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}

@@ -165,7 +165,6 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-rules__head-btns { display: flex; gap: 8px; }
 /* a line of its own under the buttons, so Add rule stays where it was when it shows */
 .gm-rules__full { flex-basis: 100%; margin: 0; text-align: right; color: var(--gm-muted); font-size: 14px; line-height: 24px; }
-.gm-rules__full:empty { line-height: 0; }
 .gm-rules__scroll { flex: 1 1 auto; min-height: calc(2 * 57px + 8px); overflow-y: auto; overflow-anchor: none; }
 .gm-rules__intro { margin: 0 0 8px; color: var(--gm-muted); }
 .gm-rules { display: flex; flex-direction: column; }

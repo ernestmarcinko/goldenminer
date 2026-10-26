@@ -136,6 +136,12 @@ const BOX_LEAST: Readonly<Record<NumberBox, number>> = { 'level.min': 1, 'level.
 /** Whether a box's text is something the rule can't take: not empty, and not a whole number at or above its least. */
 export const boxRejects = (box: NumberBox, text: string): boolean => text.trim() !== '' && parseCount(text, BOX_LEAST[box]) === undefined;
 
+/** The box texts the kind still shows; `withKind` drops the others' fields, so their texts go with them. */
+export function boxTextsFor(texts: Readonly<Partial<Record<NumberBox, string>>>, kind: LootKind | 'any'): Partial<Record<NumberBox, string>> {
+  const shown = fieldsFor(kind);
+  return Object.fromEntries((Object.entries(texts) as [NumberBox, string][]).filter(([box]) => shown.includes(BOX_FIELD[box])));
+}
+
 /**
  * A line when a box the kind shows holds text the rule can't take. The box keeps what was typed, so the player sees
  * what was refused; the rule holds no bound there meanwhile.
