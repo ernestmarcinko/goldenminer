@@ -83,7 +83,8 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
       className={className}
       data-rarity={rarityOf(item)}
       data-drop={dropAttr(target)}
-      data-held={drag.held !== null && sameLoc(drag.held, target) ? '' : undefined}
+      data-held={drag.held !== null && !drag.heldGhost && sameLoc(drag.held, target) ? '' : undefined}
+      data-held-ghost={drag.held !== null && drag.heldGhost && sameLoc(drag.held, target) ? '' : undefined}
       aria-label={!isStack(item) || item.count <= 1 ? label : `${label}, ${formatNumber(item.count)}`}
       onPointerDown={(e) => { pointerType.current = e.pointerType; drag.onPointerDown(target, e); }}
       onClick={(e) => {

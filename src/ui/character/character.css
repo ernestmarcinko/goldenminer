@@ -65,6 +65,8 @@ button.gm-item:hover { background: #3a2f20; }
 }
 /* a touch tap lifts an item until it is placed or put back */
 .gm-item[data-held] { z-index: 1; transform: translateY(-6px); box-shadow: 0 0 0 3px var(--gm-gold), 0 10px 18px rgba(0, 0, 0, 0.6); }
+/* a mouse click-hold has a cursor ghost, so its cell only dims, exactly as a drag source does */
+.gm-item[data-held-ghost] { opacity: 0.4; }
 
 /* a 10 × 6 grid (the bag, a General or Maps page) of 40 px cells, as on the Round 3 board. On a narrow screen the
    cells shrink to fit, never under 28 px, and below that the box scrolls sideways on its own. The box's 6 px padding

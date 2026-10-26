@@ -64,7 +64,12 @@ export function tapAction(held: ItemLoc | null, tapped: DropTarget, tappedIsItem
 }
 
 /** A lifted item: where it is, and which item it was, so a hold whose item has gone can be dropped. */
-export interface Hold { loc: ItemLoc; id: number }
+export interface Hold {
+  loc: ItemLoc;
+  id: number;
+  /** A mouse/pen click-hold shows a cursor ghost, so its cell only dims; a touch hold stays lifted in its cell. */
+  ghost?: true;
+}
 
 /**
  * Where the held item is, or null when nothing is held or the item at that place is no longer the one lifted (sold,

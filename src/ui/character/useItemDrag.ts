@@ -17,6 +17,8 @@ export interface ItemDrag {
   dragging: boolean;
   /** Where the item lifted by a touch tap is; null once that item has gone from there. */
   held: ItemLoc | null;
+  /** True while the held item has a cursor ghost (a mouse/pen click), rather than a touch lift. */
+  heldGhost: boolean;
   /** A touch tap on a target; true when the tap lifted, put back or placed an item. */
   onTap: (tapped: DropTarget, tappedIsItem: boolean) => boolean;
   /** Picks an item up for click-to-place, with a ghost following the pointer from (`x`, `y`). */
@@ -88,7 +90,7 @@ export function useItemDrag({ store, onResult }: {
     const item = itemAt(store.state, loc);
     if (item === undefined) return;
     clearGhost();
-    setHold({ loc, id: item.id });
+    setHold({ loc, id: item.id, ghost: true });
     const rect = source.getBoundingClientRect();
     const grab = { x: x - rect.left, y: y - rect.top };
     const ghost = makeGhost(source);
@@ -259,5 +261,5 @@ export function useItemDrag({ store, onResult }: {
     return swallow;
   }, []);
 
-  return { onPointerDown, consumeClick, dragging, held, onTap, pickUp, release };
+  return { onPointerDown, consumeClick, dragging, held, heldGhost: held !== null && hold?.ghost === true, onTap, pickUp, release };
 }
