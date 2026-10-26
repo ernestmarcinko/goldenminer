@@ -163,3 +163,28 @@ it('every ascendancy VM carries a composed 24 × 24 icon', () => {
   const start = vms.find((n) => n.id === 'minerReborn');
   expect(start?.icon.id).toBe('minerReborn');
 });
+
+it('the ascendancy VM carries each node\'s cost and frames the kinds', () => {
+  const s = newGame(1, 0);
+  const vms = ascendancyVMs(s);
+  const small = vms.find((n) => n.id === 'wealthSmall1');
+  const mid = vms.find((n) => n.id === 'midasTouch');
+  const big = vms.find((n) => n.id === 'goldRush');
+  const start = vms.find((n) => n.id === 'minerReborn');
+  expect(small?.cost).toBe(1);
+  expect(small?.kind).toBe('small');
+  expect(mid?.cost).toBe(2);
+  expect(mid?.kind).toBe('notable');
+  expect(big?.cost).toBe(4);
+  expect(big?.kind).toBe('keystone');
+  expect(start?.cost).toBe(0);
+  expect(start?.kind).toBe('start');
+  // the new named nodes resolve to their own glyphs
+  expect(big?.icon.id).toBe('goldRush');
+  const colossus = vms.find((n) => n.id === 'colossus');
+  expect(colossus?.icon.id).toBe('colossus');
+  expect(colossus?.kind).toBe('keystone');
+  const deepVeins = vms.find((n) => n.id === 'deepVeins');
+  expect(deepVeins?.icon.id).toBe('deepVeins');
+  expect(deepVeins?.kind).toBe('notable');
+});

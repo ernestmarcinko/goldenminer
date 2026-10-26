@@ -20,7 +20,7 @@ const SIDES = Object.keys(SIDE_COLOURS) as (keyof typeof SIDE_COLOURS)[];
 
 it('every passive and ascendancy node resolves to a known glyph', () => {
   expect(PASSIVE_NODES).toHaveLength(202);
-  expect(ASCENDANCY_NODES).toHaveLength(30);
+  expect(ASCENDANCY_NODES).toHaveLength(81);
   for (const node of PASSIVE_NODES) {
     const id = iconForPassive(node);
     expect(ICON_GLYPHS[id], `${node.kind} ${node.id}`).toBeDefined();
@@ -34,22 +34,23 @@ it('every passive and ascendancy node resolves to a known glyph', () => {
 it('all named nodes keep their own glyph and the starts use the miner faces', () => {
   const keystones = PASSIVE_NODES.filter((node) => node.kind === 'keystone').map((node) => node.id);
   const notables = PASSIVE_NODES.filter((node) => node.kind === 'notable').map((node) => node.id);
-  const ascendancyNotables = ASCENDANCY_NODES.filter((node) => node.kind === 'notable').map((node) => node.id);
+  const ascendancyNotables = ASCENDANCY_NODES.filter((node) => node.kind === 'mid' || node.kind === 'big')
+    .map((node) => node.id);
   expect(keystones.sort()).toEqual([
     'allOrNothing', 'berserker', 'bloodMoney', 'bulwark', 'cartographer', 'deepBreath', 'deepPockets',
     'earthshaker', 'oreBaron', 'prospectorsEye', 'prospectorsLuck', 'soulDebt', 'soulReaper', 'twoWayStreet',
   ]);
   expect(notables).toHaveLength(22);
   expect(new Set(notables).size).toBe(22);
-  expect(ascendancyNotables).toHaveLength(6);
-  expect(new Set(ascendancyNotables).size).toBe(6);
+  expect(ascendancyNotables).toHaveLength(16);
+  expect(new Set(ascendancyNotables).size).toBe(16);
   for (const id of [...keystones, ...notables, ...ascendancyNotables]) {
     expect(ICON_GLYPHS[id as IconGlyphId], id).toBeDefined();
   }
   for (const node of PASSIVE_NODES.filter((n) => n.kind === 'keystone' || n.kind === 'notable')) {
     expect(iconForPassive(node), node.id).toBe(node.id);
   }
-  for (const node of ASCENDANCY_NODES.filter((n) => n.kind === 'notable')) {
+  for (const node of ASCENDANCY_NODES.filter((n) => n.kind === 'mid' || n.kind === 'big')) {
     expect(iconForAscendancy(node), node.id).toBe(node.id);
   }
   const passiveStart = PASSIVE_NODES.find((node) => node.kind === 'start');
@@ -109,7 +110,7 @@ it('smalls use their first effect, including stats and structural bonuses', () =
 });
 
 it('every glyph is 16 × 16 with only glyph-palette letters', () => {
-  expect(GLYPH_IDS).toHaveLength(83);
+  expect(GLYPH_IDS).toHaveLength(93);
   for (const id of GLYPH_IDS) {
     const glyph = ICON_GLYPHS[id];
     expect(glyph.grid, id).toHaveLength(16);

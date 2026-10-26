@@ -77,6 +77,16 @@
   font-weight: 400;
   font-size: 17px;
 }
+.gm-ascend__card-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gm-ascend__card-cost {
+  color: var(--gm-gold-bright);
+  font-size: 12px;
+  font-weight: 600;
+}
 .gm-ascend__card-line {
   color: var(--gm-text);
 }

@@ -4,7 +4,7 @@ import type { GameStore } from '../../store/gameStore';
 import { Web } from '../skills/Web';
 import { NodeIcon } from '../skills/SkillIcon';
 import { useGame } from '../useGame';
-import { ascendancyPointsLine, ascendancyVMs, ascendLine, pointsPreview } from './ascensionView';
+import { ascendancyCostLine, ascendancyPointsLine, ascendancyVMs, ascendLine, pointsPreview } from './ascensionView';
 import '../skills/skills.css';
 import './ascend.css';
 
@@ -83,8 +83,9 @@ export function AscensionView({ store }: { store: GameStore }) {
         )}
       </div>
       <div className="gm-ascend__legend" aria-hidden="true">
-        <span className="gm-legend"><i className="gm-legend__dot gm-legend__dot--small" />small: +stat</span>
-        <span className="gm-legend"><i className="gm-legend__dot gm-legend__dot--notable" />notable: named bonus</span>
+        <span className="gm-legend"><i className="gm-legend__dot gm-legend__dot--small" />small · 1 point</span>
+        <span className="gm-legend"><i className="gm-legend__dot gm-legend__dot--notable" />mid · 2 points</span>
+        <span className="gm-legend"><i className="gm-legend__dot gm-legend__dot--keystone" />big · 4 points</span>
         <span className="gm-legend gm-muted">click to pin · drag to pan · wheel or +/− to zoom</span>
       </div>
       <Web
@@ -100,7 +101,10 @@ export function AscensionView({ store }: { store: GameStore }) {
           <section className="gm-ascend__card" data-side={node.side}>
             <div className="gm-node-head">
               <NodeIcon icon={node.icon} size={48} />
-              <h3 className="gm-ascend__card-name">{node.name}</h3>
+              <div className="gm-ascend__card-title">
+                <h3 className="gm-ascend__card-name">{node.name}</h3>
+                {node.cost > 0 && <div className="gm-ascend__card-cost">{ascendancyCostLine(node.cost)}</div>}
+              </div>
             </div>
             <div className="gm-ascend__card-line">{node.line}</div>
             {node.desc !== '' && node.desc !== node.line && (
@@ -109,7 +113,7 @@ export function AscensionView({ store }: { store: GameStore }) {
             <div className="gm-web__card-actions">
               {node.allocatable && (
                 <button type="button" className="gm-btn gm-btn--primary" onClick={() => pick(node.id)}>
-                  Allocate · 1 point
+                  Allocate · {ascendancyCostLine(node.cost)}
                 </button>
               )}
             </div>

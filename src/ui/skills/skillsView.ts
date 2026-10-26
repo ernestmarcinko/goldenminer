@@ -17,6 +17,8 @@ export interface SkillNodeVM {
   id: string;
   name: string;
   kind: PassiveKind;
+  /** The points the node costs: 1 on the passive web, 1/2/4 on the ascendancy tree (0 for the start). */
+  cost: number;
   side: PassiveSide;
   x: number;
   y: number;
@@ -70,6 +72,7 @@ export function nodeVMs(state: GameState, options: NodeVMOptions = {}): SkillNod
       id: n.id,
       name: n.name,
       kind: n.kind,
+      cost: 1,
       side: n.side,
       x: n.x,
       y: n.y,

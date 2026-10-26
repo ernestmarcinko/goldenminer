@@ -24,16 +24,23 @@ function nodeLine(effects: readonly AscendancyEffect[]): string {
   return effects.map(effectLine).join(', ');
 }
 
+/** A node's cost in words: "1 point", "2 points", "4 points" (empty for the free start). */
+export function ascendancyCostLine(cost: number): string {
+  return cost <= 0 ? '' : plural(cost, 'point', 'points');
+}
+
 /** The ascendancy tree as the web draws it: each node's place, its effect in words, and whether it can be clicked now. */
 export function ascendancyVMs(state: GameState): SkillNodeVM[] {
   return ASCENDANCY_NODES.map((n) => {
     const start = n.id === ASCENDANCY_START_ID;
     const glyph = iconForAscendancy(n);
-    const frameKind = n.kind === 'start' ? 'start' : 'ascendancy';
+    // Render mid/big with the notable/keystone frames; the cost field carries their real weight.
+    const kind = start ? 'start' : n.kind === 'big' ? 'keystone' : n.kind === 'mid' ? 'notable' : 'small';
     return {
       id: n.id,
       name: n.name,
-      kind: n.kind,
+      kind,
+      cost: n.cost,
       side: start ? 'start' : 'hybrid',
       x: n.x,
       y: n.y,
@@ -41,12 +48,12 @@ export function ascendancyVMs(state: GameState): SkillNodeVM[] {
       desc: n.desc,
       line: nodeLine(n.effects),
       allocated: start || state.ascendancy.allocated.includes(n.id),
-      // A node only looks takeable when there is an ascendancy point to spend on it.
-      allocatable: state.ascendancy.points > 0 && canAllocateAscendancy(state, n.id),
+      // A node only looks takeable when there are enough points for its cost and it sits next to an allocated node.
+      allocatable: canAllocateAscendancy(state, n.id),
       refundable: false,
       staged: false,
       refunding: false,
-      icon: composeIcon(frameKind, glyph, 'ascendancy'),
+      icon: composeIcon(kind, glyph, 'ascendancy'),
     };
   });
 }

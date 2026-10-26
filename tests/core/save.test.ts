@@ -1101,11 +1101,12 @@ function ascendancyPathTo(target: string): string[] {
 }
 
 it('ascendancy passive points raise the passive web ceiling', () => {
-  // Second Sight's chain is four passive-point nodes: three smalls and the notable.
+  // Second Sight's chain is three passive-point smalls and the 2-point mid.
   const bonus = ascendancyPathTo('secondSight');
   expect(bonus).toHaveLength(4);
   const ascendancy = newGame(1, 0);
-  ascendancy.ascendancy.points = bonus.length;
+  const cost = bonus.reduce((sum, id) => sum + (ASCENDANCY_NODE_BY_ID.get(id)?.cost ?? 0), 0);
+  ascendancy.ascendancy.points = cost;
   for (const id of bonus) expect(allocateAscendancy(ascendancy, id)).toBe('ok');
 
   // The first six passive nodes in BFS order stay connected to the start.

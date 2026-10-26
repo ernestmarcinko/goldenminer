@@ -29,8 +29,10 @@ export type PassiveNotableGlyphId =
   | 'lampAndBlade' | 'wellRested' | 'sureFooting' | 'careful' | 'gemPouch'
   | 'oreCart' | 'surveyor' | 'deepMiner' | 'reckoner' | 'vanguard' | 'alchemist' | 'nightowl';
 
-export type AscendancyNotableGlyphId =
-  | 'midasTouch' | 'deepRoots' | 'secondSight' | 'masterSurveyor' | 'tireless' | 'luckyBreak';
+export type AscendancyNamedGlyphId =
+  | 'midasTouch' | 'deepRoots' | 'secondSight' | 'masterSurveyor' | 'tireless' | 'luckyBreak'
+  | 'goldRush' | 'worldCore' | 'thirdEye' | 'worldAtlas' | 'perpetualMotion' | 'jackpot'
+  | 'gladiator' | 'colossus' | 'deepVeins' | 'elDorado';
 
 export type StructuralGlyphId =
   | 'gemStack' | 'materialStack' | 'stashPages' | 'autoMap'
@@ -40,7 +42,7 @@ export type IconGlyphId =
   | 'miner' | 'minerReborn'
   | KeystoneGlyphId
   | PassiveNotableGlyphId
-  | AscendancyNotableGlyphId
+  | AscendancyNamedGlyphId
   | StatKey
   | StructuralGlyphId;
 
@@ -799,6 +801,156 @@ const LUCKY_BREAK = glyph12([
   '............',
 ]);
 
+const GOLD_RUSH = glyph12([
+  '..kk....kk..',
+  '.kGGk..kGGk.',
+  '.kGgk..kGgk.',
+  '..kk....kk..',
+  '...kkkkkk...',
+  '..kGGggGGk..',
+  '..kGggggGk..',
+  '...kkkkkk...',
+  '....kGGk....',
+  '....kGgk....',
+  '....kkkk....',
+  '............',
+]);
+
+const WORLD_CORE = glyph12([
+  '...kkkkkk...',
+  '..kSSSSSSk..',
+  '.kSssssssSk.',
+  '.kSskGGksSk.',
+  '.kSsGppGsSk.',
+  '.kSsGppGsSk.',
+  '.kSskGGksSk.',
+  '.kSssssssSk.',
+  '..kSSSSSSk..',
+  '...kkkkkk...',
+  '.....kk.....',
+  '.....kk.....',
+]);
+
+const THIRD_EYE = glyph12([
+  '...kk.kk....',
+  '..kGGkGGk...',
+  '..kGpkGpk...',
+  '..kGGkGGk...',
+  '...kk.kk....',
+  '..kkkkkkkk..',
+  '.keeeeeeeeek',
+  '.keeGppGeeek',
+  '.keeGppGeeek',
+  '.keeeeeeeeek',
+  '..keeeeeek..',
+  '...kkkkkk...',
+]);
+
+const WORLD_ATLAS = glyph12([
+  '.kkkkkkkkkk.',
+  '.kttttttttk.',
+  '.ktiiiiiitk.',
+  '.ktikkkkitk.',
+  '.ktikRRkitk.',
+  '.ktikRRkitk.',
+  '.ktikkkkitk.',
+  '.ktiiiiiitk.',
+  '.kttttttttk.',
+  '.kkkkkkkkkk.',
+  '............',
+  '............',
+]);
+
+const PERPETUAL_MOTION = glyph12([
+  '..kk....kk..',
+  '.kGGk..kGGk.',
+  'kGGGGkkGGGGk',
+  'kGGGGSSGGGGk',
+  'kGGGGSSGGGGk',
+  '.kGGkkkkGGk.',
+  '..kkGGGGkk..',
+  '.kGGGGGGGGk.',
+  'kGGGGGGGGGGk',
+  '.kGGGGGGGGk.',
+  '..kkkkkkkk..',
+  '............',
+]);
+
+const JACKPOT = glyph12([
+  '....o..o....',
+  '...ooo.oo...',
+  '....o..o....',
+  '..kkkkkkkk..',
+  '.kGGGGGGGGk.',
+  '.kGgGGggGgk.',
+  '.kGgGGggGgk.',
+  '.kGGGGGGGGk.',
+  '..kkkkkkkk..',
+  '...kGGGGk...',
+  '...kggggk...',
+  '....kkkk....',
+]);
+
+const GLADIATOR = glyph12([
+  '....kkkk....',
+  '...kSSSSk...',
+  '..kSSSSSSk..',
+  '...kSSSSk...',
+  '....kSSk....',
+  '.....kk.....',
+  '....kWWk....',
+  '...kWWWWk...',
+  '....kWWk....',
+  '....kWWk....',
+  '.....kk.....',
+  '............',
+]);
+
+const COLOSSUS = glyph12([
+  '..kkkkkkkk..',
+  '.kSSSSSSSSk.',
+  'kSssssssssSk',
+  'kSskkkkkksSk',
+  'kSskWWWWksSk',
+  'kSskWWWWksSk',
+  'kSskWWWWksSk',
+  'kSskkkkkksSk',
+  'kSssssssssSk',
+  '.kSSSSSSSSk.',
+  '..kkkkkkkk..',
+  '............',
+]);
+
+const DEEP_VEINS = glyph12([
+  '..kk....kk..',
+  '.kCCk..kCCk.',
+  '.kCcbk.kCcbk',
+  '.kcbk...kcbk',
+  '..kk.....kk.',
+  '...kkkkkk...',
+  '..kCCcccck..',
+  '.kCccccccbk.',
+  '..kcccccbk..',
+  '...kcccbk...',
+  '....kcbk....',
+  '.....kk.....',
+]);
+
+const EL_DORADO = glyph12([
+  '....kkkk....',
+  '...kGGGGk...',
+  '..kGGggGGk..',
+  '..kGggggGk..',
+  '..kGGggGGk..',
+  '...kGGGGk...',
+  '....kkkk....',
+  '.kkkkkkkkkk.',
+  'kGGGGGGGGGGk',
+  'kGggggggggGk',
+  '.kkkkkkkkkk.',
+  '............',
+]);
+
 // The small nodes' stat and structural glyphs.
 const DIG_POWER = spriteGlyph('pickaxe');
 
@@ -1353,6 +1505,16 @@ export const ICON_GLYPHS: Record<IconGlyphId, IconGlyph> = {
   masterSurveyor: MASTER_SURVEYOR,
   tireless: TIRELESS,
   luckyBreak: LUCKY_BREAK,
+  goldRush: GOLD_RUSH,
+  worldCore: WORLD_CORE,
+  thirdEye: THIRD_EYE,
+  worldAtlas: WORLD_ATLAS,
+  perpetualMotion: PERPETUAL_MOTION,
+  jackpot: JACKPOT,
+  gladiator: GLADIATOR,
+  colossus: COLOSSUS,
+  deepVeins: DEEP_VEINS,
+  elDorado: EL_DORADO,
   digPower: DIG_POWER,
   digPowerPct: DIG_POWER_PCT,
   goldYield: GOLD_YIELD,
@@ -1600,7 +1762,7 @@ export function iconForPassive(node: PassiveNode): IconGlyphId {
 /** The icon for an ascendancy node: the reborn miner, its own named id, or the first effect's stat/structural id. */
 export function iconForAscendancy(node: AscendancyNode): IconGlyphId {
   if (node.kind === 'start') return 'minerReborn';
-  if (node.kind === 'notable') return knownGlyph(node.id);
+  if (node.kind === 'mid' || node.kind === 'big') return knownGlyph(node.id);
   const effect = node.effects[0];
   if (effect === undefined) throw new Error(`ascendancy small ${node.id} has no effect`);
   switch (effect.kind) {
