@@ -7,7 +7,7 @@
 }
 .gm-inv__col {
   box-sizing: border-box; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 12px;
-  border-radius: 0; background: var(--gm-panel); border: 1px solid var(--gm-line);
+  border-radius: 0; background: var(--gm-panel); border: var(--gm-edge); box-shadow: var(--gm-bevel);
 }
 .gm-inv__col--stash { gap: 0; }
 /* the 260 px column keeps both 60 px slot boxes beside a narrower figure */
@@ -31,19 +31,20 @@
 .gm-stash__tab {
   min-height: 44px; padding: 0 14px; border-radius: 0; border: 1px solid var(--gm-line); border-bottom: 0;
   background: var(--gm-header); color: var(--gm-normal); font: inherit; font-weight: 700; cursor: pointer;
+  text-transform: uppercase; letter-spacing: 0.06em; text-shadow: var(--gm-text-shadow);
 }
-.gm-stash__tab[aria-selected='true'] { background: var(--gm-panel-raised); border-color: var(--gm-gold); color: var(--gm-gold-bright); }
+.gm-stash__tab[aria-selected='true'] { background: var(--gm-panel-raised); border-color: var(--gm-gold); color: var(--gm-gold-bright); box-shadow: var(--gm-bevel); }
 .gm-stash__tab[data-drop-over] { outline-offset: -4px; }
 .gm-stash__tab:focus-visible, .gm-stash__panel:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: -2px; }
 .gm-stash__panel {
   box-sizing: border-box; padding: 10px; border-radius: 0; background: var(--gm-panel-raised);
-  border: 1px solid var(--gm-gold);
+  border: 1px solid var(--gm-gold); box-shadow: var(--gm-bevel);
 }
 .gm-stash__paged { display: flex; flex-direction: column; gap: 10px; }
 .gm-stash__pages { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .gm-stash__page {
   min-height: 40px; padding: 0 12px; border-radius: 0; border: 1px solid var(--gm-line); background: var(--gm-panel);
-  color: var(--gm-normal); font: inherit; font-size: 13px; cursor: pointer;
+  color: var(--gm-normal); font: inherit; font-size: 13px; cursor: pointer; box-shadow: var(--gm-bevel);
 }
 .gm-stash__page:hover { border-color: var(--gm-gold); }
 .gm-stash__page[aria-pressed='true'] { border-color: var(--gm-gold); color: var(--gm-gold-bright); }
