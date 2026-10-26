@@ -67,7 +67,7 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
     if (el === null || lastPointerType() === 'touch') return;
     if (el.matches(':hover')) { handlers.onInspect(target, el); return; }
     requestAnimationFrame(() => {
-      if (ref.current === el && shown.current === id && el.matches(':hover')) handlers.onInspect(target, el);
+      if (ref.current === el && shown.current === id && lastPointerType() !== 'touch' && el.matches(':hover')) handlers.onInspect(target, el);
     });
   });
   return (
