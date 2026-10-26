@@ -351,8 +351,8 @@ export function ItemCard({
       ref={pairRef} className="gm-cardpair" data-item-card={pinned ? '' : undefined} data-pinned={pinned ? '' : undefined}
       style={{ left }}
     >
-      <div className="gm-card gm-card--equipped" data-rarity={rarityOf(worn)}><EquippedContent worn={worn} /></div>
       {card}
+      <div className="gm-card gm-card--equipped" data-rarity={rarityOf(worn)}><EquippedContent worn={worn} /></div>
     </div>
   );
 }
