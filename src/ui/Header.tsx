@@ -1,7 +1,8 @@
 import { LEVEL_CAP } from '../core/balance';
+import { pointsToSpend } from '../core/passives';
 import type { GameStore } from '../store/gameStore';
 import { Sprite } from '../sprites/Sprite';
-import { formatNumber } from './format';
+import { formatNumber, plural } from './format';
 import { xpBar } from './run/runView';
 import { useGame } from './useGame';
 import './mine/mine.css';
@@ -10,6 +11,8 @@ export function Header({ store, onOpenSettings }: { store: GameStore; onOpenSett
   const { state } = useGame(store);
   const bar = xpBar(state.level, state.xp);
   const run = state.activity.kind === 'map' ? state.activity.run : null;
+  const points = pointsToSpend(state);
+  const pointsText = points === 0 ? 'No points to spend' : `${plural(points, 'point', 'points')} to spend`;
   return (
     <header className="gm-header">
       <div className="gm-header__title">Golden Miner</div>
@@ -38,7 +41,7 @@ export function Header({ store, onOpenSettings }: { store: GameStore; onOpenSett
       <div className="gm-header__level">
         <div className="gm-header__level-text">
           <span><strong>{bar.label}</strong> <span className="gm-muted">/ {formatNumber(LEVEL_CAP)}</span></span>
-          <span className="gm-muted">{run === null ? bar.text : `+${formatNumber(run.gained.xp)} XP this run`}</span>
+          <span className="gm-muted">{run === null ? pointsText : `+${formatNumber(run.gained.xp)} XP this run`}</span>
         </div>
         <div
           className="gm-header__xpbar"
