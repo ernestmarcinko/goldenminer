@@ -5,6 +5,7 @@ import { decodeSave, encodeSave } from '../../src/core/save';
 import { compressToBase64 } from 'lz-string';
 import fixture5 from '../fixtures/save-schema-5.txt?raw';
 import { newGame } from '../../src/core/newGame';
+import { PASSIVE_NODE_BY_ID, START_NODE_ID } from '../../src/core/passives';
 import { startMap } from '../../src/core/maps';
 import { advance } from '../../src/core/clock';
 import { freshWorld } from '../../src/core/seed';
@@ -661,5 +662,37 @@ describe('pausing', () => {
     const again = make(now, storage).store; again.load();
     expect(again.state.paused).toBe(true);
     expect(dug(again.state)).toEqual(dug(store.state));
+  });
+});
+
+describe('passive web intents', () => {
+  const start = PASSIVE_NODE_BY_ID.get(START_NODE_ID)!;
+  const ring1 = start.links[0]!;
+  const ring2 = PASSIVE_NODE_BY_ID.get(ring1)!.links.find((l) => l !== START_NODE_ID)!;
+
+  it('allocate, refund and reset change the state and re-derive stats', () => {
+    const { store } = make();
+    store.load();
+    store.state.level = 3;
+    store.state.gold = 1000;
+    store.state.diamonds = 100;
+    expect(store.allocate(ring1)).toBe('ok');
+    expect(store.state.passives.allocated).toEqual([ring1]);
+    expect(store.allocate(ring2)).toBe('ok');
+    expect(store.refund(ring2)).toBe('ok');
+    expect(store.state.passives.allocated).toEqual([ring1]);
+    expect(store.resetWeb()).toBe('ok');
+    expect(store.state.passives.allocated).toEqual([]);
+  });
+
+  it('an allocation persists across a save and a load', () => {
+    const { store, storage, now } = make();
+    store.load();
+    store.state.level = 3;
+    expect(store.allocate(ring1)).toBe('ok');
+    store.save();
+    const again = make(now, storage).store;
+    again.load();
+    expect(again.state.passives.allocated).toEqual([ring1]);
   });
 });

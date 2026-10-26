@@ -1,5 +1,6 @@
 import { MAX_STASH_PAGES, STASH_PAGE_SIZE, stashPagePrice } from './balance';
 import { pageCount } from './cells';
+import { freeStashPages } from './passives';
 import type { GameState } from './types';
 
 /** Adds an empty page to the General tab for Gold; the price rises with each page bought. */
@@ -10,7 +11,10 @@ export function buyStashPage(state: GameState): 'ok' | 'noGold' | 'full' {
   if (state.gold < price) return 'noGold';
   state.gold -= price;
   state.stash.bought.general += 1;
-  for (let i = 0; i < STASH_PAGE_SIZE; i++) cells.push(null);
+  // A bought page goes before the web's free pages, so those stay the trailing pages a refund removes.
+  const free = freeStashPages(state) * STASH_PAGE_SIZE;
+  const at = cells.length - free;
+  for (let i = 0; i < STASH_PAGE_SIZE; i++) cells.splice(at, 0, null);
   return 'ok';
 }
 

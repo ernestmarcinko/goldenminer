@@ -11,6 +11,7 @@ import { ruleValid } from '../core/lootFilter';
 import { leaveMap as coreLeaveMap, startMap as coreStartMap } from '../core/maps';
 import { gamble as coreGamble, type GambleResult } from '../core/merchant';
 import { newGame } from '../core/newGame';
+import { allocate as coreAllocate, refund as coreRefund, resetWeb as coreResetWeb } from '../core/respec';
 import { soulUpgrade as coreSoulUpgrade, type SoulUpgradeCheck } from '../core/soulUpgrade';
 import { buyStashPage as coreBuyStashPage } from '../core/stashPages';
 import { decodeSave, encodeSave, type DecodeResult } from '../core/save';
@@ -326,6 +327,27 @@ export class GameStore {
       drainOverflow(this._state);
       this.changed();
     }
+    return result;
+  }
+
+  /** Allocates a passive node; only an 'ok' changes anything. */
+  allocate(id: string): ReturnType<typeof coreAllocate> {
+    const result = coreAllocate(this._state, id);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
+  /** Refunds a passive node for Gold; only an 'ok' changes anything. */
+  refund(id: string): ReturnType<typeof coreRefund> {
+    const result = coreRefund(this._state, id);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
+  /** A full web reset for Diamonds; only an 'ok' changes anything. */
+  resetWeb(): ReturnType<typeof coreResetWeb> {
+    const result = coreResetWeb(this._state);
+    if (result === 'ok') this.changed();
     return result;
   }
 
