@@ -31,6 +31,24 @@ it('battle gear and level add up', () => {
   expect(deriveBattleStats(s)).toMatchObject({ maxLife: 190, damageMin: 39, damageMax: 57, attacksPerSecond: 1.2, critChance: 0.1, armor: 30, resistAll: 75, soulMultiplier: 1.5 });
 });
 
+it("a weapon's damage% raises the weapon's own damage, not the global pool", () => {
+  const s = newGame(1, 0);
+  s.equipped.battle.weapon = gear(s, 'weapon', { implicit: { stat: 'damage', value: 10 }, affixes: [{ stat: 'damagePct', value: 100 }] });
+  s.equipped.battle.amulet = gear(s, 'amulet', { implicit: { stat: 'damagePct', value: 100 } });
+  const b = deriveBattleStats(s);
+  // the weapon's +100% is local: 10 × 2 = 20; the amulet's +100% is global, over base + weapon
+  expect(b.damageMin).toBe(46);   // round((3 + 20) × 2)
+  expect(b.damageMax).toBe(52);   // round((6 + 20) × 2)
+});
+
+it("an armor's armor% raises its own flat first, then a global armor% applies on top", () => {
+  const s = newGame(1, 0);
+  s.equipped.battle.armor = gear(s, 'armor', { implicit: { stat: 'armor', value: 30 }, affixes: [{ stat: 'armorPct', value: 50 }] });
+  expect(deriveBattleStats(s).armor).toBe(45);   // 30 × 1.5
+  s.equipped.battle.helm = gear(s, 'helm', { affixes: [{ stat: 'armorPct', value: 20 }] });
+  expect(deriveBattleStats(s).armor).toBe(54);   // (30 × 1.5 + 0) × 1.2
+});
+
 it('each battle stat stops at its limit', () => {
   const stat = (key: StatKey, value: number, slot: Slot) => {
     const s = newGame(1, 0);

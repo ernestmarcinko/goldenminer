@@ -467,10 +467,12 @@ it('a hardened map\'s monsters take less from every strike, never below 1, with 
     let checked = 0;
     for (let rng = 1; rng <= 200; rng++) {
       const { s, run } = started();
-      // No physical damage to speak of (1 a hit), so a strike is 1 plus the elemental part.
+      // No physical damage to speak of (1 a hit), so a strike is 1 plus the elemental part. The damage% that zeroes
+      // the physical sits on the amulet (global), not the weapon, whose damage% is local now.
       s.equipped.battle.weapon = gear(s, 'weapon', {
-        affixes: [{ stat: 'damagePct', value: -100 }, { stat: 'elementalDamage', value: elemental }],
+        affixes: [{ stat: 'elementalDamage', value: elemental }],
       });
+      s.equipped.battle.amulet = gear(s, 'amulet', { implicit: { stat: 'damagePct', value: -100 } });
       s.rng = rng;
       const plain = structuredClone(s);
       enchant(run, [{ kind: 'hardened', tier: 10, value: 50 }]);

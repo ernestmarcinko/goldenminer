@@ -94,3 +94,12 @@
 .gm-banner--run { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
 .gm-finds__item > .gm-small { flex: 0 0 auto; white-space: nowrap; }
 .gm-finds__label { flex: 1 1 auto; min-width: 0; }
+
+/* the collapsible character panel, mining half first */
+.gm-mine__char { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 0; background: var(--gm-panel); border: var(--gm-edge); box-shadow: var(--gm-bevel); }
+.gm-mine__char-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gm-mine__char-title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 16px; }
+.gm-mine__char .gm-sheet { column-gap: 24px; }
+@media (min-width: 700px) {
+  .gm-mine__char .gm-sheet { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); align-items: start; }
+}

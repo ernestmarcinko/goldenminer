@@ -43,13 +43,13 @@ function Lines({ lines }: { lines: ViewLine[] }) {
 }
 
 /** The worn item's name, kind line and lines under an "Equipped" label. */
-function EquippedContent({ worn }: { worn: GearItem }) {
+function EquippedContent({ worn, level }: { worn: GearItem; level: number }) {
   return (
     <>
       <div className="gm-card__label">Equipped</div>
       <div className="gm-card__name">{itemName(worn)}</div>
       <div className="gm-card__kind">{itemKindLine(worn)}</div>
-      <div className="gm-card__lines"><Lines lines={itemLines(worn)} /></div>
+      <div className="gm-card__lines"><Lines lines={itemLines(worn, level)} /></div>
     </>
   );
 }
@@ -239,9 +239,9 @@ export function ItemCard({
   const beside = pair && !isMenu && worn !== undefined;
   const note = isMenu ? menuNote(item) : null;
   const others = actions.filter((a) => a.id !== 'craft' && a.id !== UPGRADE);
-  const lines = isMenu ? itemLines(item) : [...itemLines(item), ...hoverLines(item)];
+  const lines = isMenu ? itemLines(item, state.level) : [...itemLines(item, state.level), ...hoverLines(item)];
   const wornBlock = worn !== undefined && !beside && (
-    <div className="gm-card__equipped" data-rarity={rarityOf(worn)}><EquippedContent worn={worn} /></div>
+    <div className="gm-card__equipped" data-rarity={rarityOf(worn)}><EquippedContent worn={worn} level={state.level} /></div>
   );
   const onKeyDown = (e: KeyboardEvent): void => {
     if (e.key === 'Escape' && menu) {
@@ -358,7 +358,7 @@ export function ItemCard({
     >
       {card}
       <div className="gm-cardpair__side">
-        <div className="gm-card gm-card--equipped" data-rarity={rarityOf(worn)}><EquippedContent worn={worn} /></div>
+        <div className="gm-card gm-card--equipped" data-rarity={rarityOf(worn)}><EquippedContent worn={worn} level={state.level} /></div>
         {compare !== null && compare.lines.length > 0 && (
           <div className="gm-card gm-card--compare">
             <div className="gm-card__kind">{compare.title}</div>

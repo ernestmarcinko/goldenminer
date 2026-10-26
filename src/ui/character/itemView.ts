@@ -1,8 +1,8 @@
-import { hardness, MATERIAL_TABLE, TICKS_PER_METRE_AT_PARITY } from '../../core/balance';
+import { baseDamage, hardness, MATERIAL_TABLE, TICKS_PER_METRE_AT_PARITY } from '../../core/balance';
 import { GEM_GRADE_LABELS, STAT_NAMES, gemName, itemName } from '../../core/itemData';
 import { BATTLE_STATS, MOD_SIDE, isGear, setOfSlot } from '../../core/items';
 import type { GearItem, GemType, Item, MapItem, Material, ModLine, Slot, StatKey } from '../../core/items';
-import { gemEffect, itemTotals } from '../../core/stats';
+import { gemEffect, itemTotals, weaponDamage } from '../../core/stats';
 import type { GameState, LootNote, Stats } from '../../core/types';
 import { UNIQUE_LINES, isLegendaryId } from '../../core/uniques';
 import type { SpriteName } from '../../sprites/atlas';
@@ -134,7 +134,7 @@ function mapLines(map: MapItem): ViewLine[] {
   return lines;
 }
 
-export function itemLines(item: Item): ViewLine[] {
+export function itemLines(item: Item, level?: number): ViewLine[] {
   if (item.type === 'map') return mapLines(item);
   if (item.type === 'material') {
     const from = MATERIAL_TABLE[item.material].from;
@@ -164,6 +164,15 @@ export function itemLines(item: Item): ViewLine[] {
     ];
   }
   const lines: ViewLine[] = [{ text: lineText(item.implicit), tone: item.implicit.value < 0 ? 'down' : 'plain' }];
+  // A weapon's overall damage: its flat (after its own damage%) laid on the base damage, shown as a range.
+  if (item.slot === 'weapon' && level !== undefined) {
+    const wd = weaponDamage(item);
+    const base = baseDamage(level);
+    lines.unshift({
+      text: `Damage ${formatNumber(Math.round(base.min + wd))}–${formatNumber(Math.round(base.max + wd))}`,
+      tone: 'plain',
+    });
+  }
   for (const a of cardOrder(item.affixes)) lines.push(modLine(a, item.rarity === 'legendary'));
   // A legendary's unique line has no tier; an id this build doesn't know has no line.
   if (item.rarity === 'legendary' && isLegendaryId(item.uniqueId)) lines.push({ text: UNIQUE_LINES[item.uniqueId], tone: 'special' });

@@ -88,6 +88,18 @@ export const SLOT_IMPLICIT: Readonly<Record<Slot, StatKey>> = {
   weapon: 'damage', armor: 'armor', helm: 'life', ring: 'critChance', amulet: 'damagePct',
 };
 
+/**
+ * Which stats on a slot are *local*: they multiply that slot's own base/affix values before the global pool adds the
+ * rest on top. A weapon's `damage`/`damagePct` raise the weapon's own flat damage first; an armor's `armor`/`armorPct`
+ * raise the armor's own flat first; a pickaxe's `digPower`/`digPowerPct` raise the base dig power plus the pickaxe's
+ * own flat first. Everything else is global.
+ */
+export const LOCAL_STATS: Readonly<Partial<Record<Slot, readonly StatKey[]>>> = {
+  weapon: ['damage', 'damagePct'],
+  armor: ['armor', 'armorPct'],
+  pickaxe: ['digPower', 'digPowerPct'],
+};
+
 /** Which side of an item's name a modifier sits on; each gear set has 8 prefixes and 8 suffixes. */
 export const MOD_SIDE: Readonly<Record<StatKey, 'prefix' | 'suffix'>> = {
   digPower: 'prefix', digPowerPct: 'prefix', goldYield: 'prefix', diamondYield: 'prefix', veinYield: 'prefix',

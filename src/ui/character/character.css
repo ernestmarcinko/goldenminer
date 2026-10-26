@@ -10,6 +10,15 @@
 }
 .gm-char__tab:focus-visible, .gm-item:focus-visible, .gm-card__btn:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
 .gm-char__stats { padding: 8px 10px; border-radius: 0; background: var(--gm-panel-raised); font-size: 12px; color: var(--gm-normal); border: var(--gm-edge); box-shadow: var(--gm-bevel); }
+/* the character sheet: label–value rows, mining half then battle half */
+.gm-sheet { display: flex; flex-direction: column; gap: 10px; font-size: 12px; }
+.gm-sheet__half { display: flex; flex-direction: column; gap: 2px; }
+.gm-sheet__title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gm-gold); }
+.gm-sheet__rows { margin: 0; display: flex; flex-direction: column; }
+.gm-sheet__row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-height: 22px; }
+.gm-sheet__label { color: var(--gm-muted); }
+.gm-sheet__value { margin: 0; text-align: right; font-family: var(--gm-font-mono); color: var(--gm-normal); }
+.gm-sheet__toggle { margin-bottom: 8px; }
 .gm-char__baghead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .gm-char__bag {
   margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 14px;

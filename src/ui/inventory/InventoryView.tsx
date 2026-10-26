@@ -3,15 +3,14 @@ import type { KeyboardEvent } from 'react';
 import { BAG_SIZE, MAX_STASH_PAGES, STASH_PAGE_SIZE } from '../../core/balance';
 import { pageCount } from '../../core/cells';
 import { setOfSlot, type Cell, type GearSet } from '../../core/items';
-import { gearTotals } from '../../core/stats';
 import type { GameState } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
 import { dropAttr } from '../character/dragDrop';
+import { CharacterSheet } from '../character/CharacterSheet';
 import { EssenceTab } from '../character/EssenceTab';
 import { GemTab } from '../character/GemTab';
 import { ItemGrid } from '../character/ItemGrid';
 import type { ItemHandlers } from '../character/ItemGrid';
-import { battleStatLine, miningStatLine } from '../character/itemView';
 import { LootFilterDialog } from '../character/LootFilterDialog';
 import { MaterialTab } from '../character/MaterialTab';
 import { PaperDoll } from '../character/PaperDoll';
@@ -111,11 +110,12 @@ function MapsTab({ state, handlers, tier, onTier }: {
  * tier, each remembered while the view is open.
  */
 export function InventoryView({ store }: { store: GameStore }) {
-  const { state, stats } = useGame(store);
+  const { state } = useGame(store);
   const recentEquip = useRecentEquip(store);
   const flashSlot = recentEquip?.slot ?? null;
   const running = state.activity.kind === 'map';
   const [set, setSet] = useState<GearSet>(running ? 'battle' : 'mining');
+  const [sheetHalf, setSheetHalf] = useState<'mining' | 'battle'>(running ? 'battle' : 'mining');
   const [filterOpen, setFilterOpen] = useState(false);
   const [tab, setTab] = useState<StashTab>('general');
   const [page, setPage] = useState(0);
@@ -214,7 +214,25 @@ export function InventoryView({ store }: { store: GameStore }) {
         <PaperDoll state={state} set={set} handlers={handlers} flashSlot={flashSlot} />
         {tapSpot === 'doll' && tapCard}
         <div className="gm-char__stats">
-          {set === 'mining' ? miningStatLine(stats, state.deepest) : battleStatLine(gearTotals(state, 'battle'))}
+          <div role="group" aria-label="Character stats" className="gm-char__toggle gm-sheet__toggle">
+            <button
+              type="button"
+              className="gm-char__tab"
+              aria-pressed={sheetHalf === 'mining'}
+              onClick={() => setSheetHalf('mining')}
+            >
+              Mining
+            </button>
+            <button
+              type="button"
+              className="gm-char__tab"
+              aria-pressed={sheetHalf === 'battle'}
+              onClick={() => setSheetHalf('battle')}
+            >
+              Battle
+            </button>
+          </div>
+          <CharacterSheet state={state} half={sheetHalf} />
         </div>
       </section>
 

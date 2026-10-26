@@ -3,7 +3,7 @@ import {
   MAX_ARMOR_REDUCTION, MAX_ATTACKS_PER_SECOND, MAX_CRIT_CHANCE, MAX_DAMAGE, MAX_LIFE, MAX_RESIST,
   MIN_ATTACKS_PER_SECOND, baseDamage,
 } from './balance';
-import { gearTotals } from './stats';
+import { gearTotals, localTotals } from './stats';
 import { passiveTotals } from './passives';
 import type { StatKey } from './items';
 import type { Element, GameState } from './types';
@@ -26,10 +26,17 @@ export function deriveBattleStats(state: GameState): BattleStats {
   for (const [stat, value] of Object.entries(p.stats) as [StatKey, number][]) g[stat] += value;
   const base = baseDamage(state.level);
   const ks = p.keystones;
-  let damageMin = clamp(Math.round((base.min + g.damage) * pct(g.damagePct)), 1, MAX_DAMAGE);
-  let damageMax = Math.max(damageMin, clamp(Math.round((base.max + g.damage) * pct(g.damagePct)), 1, MAX_DAMAGE));
+  // A weapon's damage and damage% are local: they raise the weapon's own flat first, then the global pool adds the rest.
+  const weapon = state.equipped.battle.weapon;
+  const weaponLocal = weapon === undefined ? undefined : localTotals(weapon).local;
+  const weaponDamage = (weaponLocal?.damage ?? 0) * pct(weaponLocal?.damagePct ?? 0);
+  let damageMin = clamp(Math.round((base.min + weaponDamage + g.damage) * pct(g.damagePct)), 1, MAX_DAMAGE);
+  let damageMax = Math.max(damageMin, clamp(Math.round((base.max + weaponDamage + g.damage) * pct(g.damagePct)), 1, MAX_DAMAGE));
   let maxLife = clamp(Math.round((BASE_LIFE + LIFE_PER_LEVEL * state.level + g.life) * pct(g.lifePct)), 1, MAX_LIFE);
-  let armor = clamp(Math.round(g.armor * pct(g.armorPct)), 0, MAX_DAMAGE);
+  // An armor's armor and armor% are local: they raise the armor's own flat first, then the global pool adds the rest.
+  const armorItem = state.equipped.battle.armor;
+  const armorLocal = armorItem === undefined ? undefined : localTotals(armorItem).local;
+  let armor = clamp(Math.round(((armorLocal?.armor ?? 0) * pct(armorLocal?.armorPct ?? 0) + g.armor) * pct(g.armorPct)), 0, MAX_DAMAGE);
   let soulMultiplier = pct(g.soulFind);
   // Keystone trade-offs: Berserker hits half again as hard but keeps no armor; Bulwark doubles armor at a quarter off
   // damage; Two-Way Street hits a little harder for a little life; Soul Reaper doubles Souls for a fifth less life.
@@ -73,10 +80,15 @@ export function deriveBattleStats(state: GameState): BattleStats {
   };
 }
 
+/** The fraction of a physical hit of `raw` that armor stops — the same formula `mitigate` uses. */
+export function armorReduction(armor: number, raw: number): number {
+  return armor > 0 ? Math.min(MAX_ARMOR_REDUCTION, armor / (armor + ARMOR_FACTOR * raw)) : 0;
+}
+
 /** What a monster hit of `raw` does to the miner: armor softens physical, resistance elemental; never below 1. */
 export function mitigate(raw: number, element: Element, b: BattleStats): number {
   const taken = element === 'physical'
-    ? raw * (1 - (b.armor > 0 ? Math.min(MAX_ARMOR_REDUCTION, b.armor / (b.armor + ARMOR_FACTOR * raw)) : 0))
+    ? raw * (1 - armorReduction(b.armor, raw))
     : raw * (1 - b.resistAll / 100);
   return Math.max(1, Math.round(taken));
 }

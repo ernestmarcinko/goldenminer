@@ -113,7 +113,8 @@ it('summarises each set', () => {
   expect(battleStatLine(gearTotals(s, 'battle'))).toBe('Battle gear: nothing equipped yet');
   s.equipped.battle.weapon = gear(s, 'weapon', { implicit: { stat: 'damage', value: 14 }, affixes: [{ stat: 'critChance', value: 5 }] });
   s.equipped.battle.armor = gear(s, 'armor', { implicit: { stat: 'armor', value: 30 } });
-  expect(battleStatLine(gearTotals(s, 'battle'))).toBe('Battle gear: +14 damage · +30 armor · +5% crit chance');
+  // the weapon's damage and the armor's armor are local now, so the global summary keeps only the crit chance
+  expect(battleStatLine(gearTotals(s, 'battle'))).toBe('Battle gear: +5% crit chance');
 });
 
 it('a card opens below its item, above it when there is more room above, and always inside the screen', () => {
