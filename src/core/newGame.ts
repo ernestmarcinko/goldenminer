@@ -20,6 +20,7 @@ export function newGame(seed: number, nowMs: number, options: NewGameOptions = {
     paused: false, drops: [], deaths: [],
     merchant: { band: 0, bought: [] }, uniqueRng: hash2(options.lootSeed ?? seed, 0xa11e),
     passives: { allocated: [] },
+    ascendancy: { points: 0, allocated: [] }, autoMap: { queue: [] }, lifetime: { ascensions: 0, deepest: 0 },
   };
   fillAhead(state, deriveStats(state));
   const first = state.ahead[1];

@@ -148,6 +148,9 @@ export interface GameState {
   merchant: { band: number; bought: number[] };   // the stock band the Trader's slots were bought in, and their indexes
   uniqueRng: number;                       // the uniques' own stream, so state.rng is the same for a player without them
   passives: { allocated: string[] };       // the passive web's allocated node ids, in allocation order
+  ascendancy: { points: number; allocated: string[] };   // the permanent tree: unspent points and allocated node ids
+  autoMap: { queue: number[] };                          // queued map ids, oldest first, run only while away
+  lifetime: { ascensions: number; deepest: number };     // across all runs: the ascension count and the best depth
 }
 export interface Stats {
   digPower: number; autoTicksPerSecond: number; ticksPerClick: number; lampSight: number;

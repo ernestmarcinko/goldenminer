@@ -10,6 +10,7 @@ import fixture7 from '../fixtures/save-schema-7.txt?raw';
 import fixture8 from '../fixtures/save-schema-8.txt?raw';
 import fixture9 from '../fixtures/save-schema-9.txt?raw';
 import fixture10 from '../fixtures/save-schema-10.txt?raw';
+import fixture11 from '../fixtures/save-schema-11.txt?raw';
 import { applyTicks } from '../../src/core/dig';
 import {
   BAG_SIZE, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_HELD, MAX_LOOT_RULES,
@@ -499,7 +500,7 @@ it('a schema-5 save with no maps comes out with an empty Map stash', () => {
 });
 
 it('every older fixture still loads', () => {
-  for (const f of [fixture, fixture2, fixture3, fixture4, fixture5, fixture6, fixture7, fixture8, fixture9, fixture10]) expect(decodeSave(f.trim()).ok).toBe(true);
+  for (const f of [fixture, fixture2, fixture3, fixture4, fixture5, fixture6, fixture7, fixture8, fixture9, fixture10, fixture11]) expect(decodeSave(f.trim()).ok).toBe(true);
 });
 
 it('a schema-5 save carrying more than one bag holds is rejected, not cut short', () => {
@@ -1042,7 +1043,7 @@ it('a schema-10 save gains an empty passive web and keeps everything else', () =
   expect(r.savedAt).toBe(1_762_000_000_000);
   expect(r.state.passives).toEqual({ allocated: [] });
   expect(r.state.level).toBe(4);
-  const { passives: _passives, ...rest } = r.state;
+  const { passives: _passives, ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, ...rest } = r.state;
   expect(rest).toEqual(raw);   // nothing else changes
 });
 
@@ -1081,4 +1082,34 @@ it('a stack over the base cap but under the passive ceiling is a valid save', ()
   expect(decodeSave(encodeSave(s, 1)).ok).toBe(true);
   m.count = 76;
   expect(decodeSave(encodeSave(s, 1)).ok).toBe(false);
+});
+
+it('a schema-11 save gains an empty ascendancy, auto-map and lifetime record', () => {
+  const raw = JSON.parse(decompressFromBase64(fixture11.trim())).state;
+  const r = decodeSave(fixture11.trim());
+  if (!r.ok) throw new Error(`fixture rejected: ${r.reason}`);
+  expect(r.savedAt).toBe(1_762_100_000_000);
+  expect(r.state.ascendancy).toEqual({ points: 0, allocated: [] });
+  expect(r.state.autoMap).toEqual({ queue: [] });
+  expect(r.state.lifetime).toEqual({ ascensions: 0, deepest: 0 });
+  const { ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, ...rest } = r.state;
+  expect(rest).toEqual(raw);   // nothing else changes
+});
+
+it('the validator refuses a broken ascendancy, auto-map and lifetime', () => {
+  const cases: [string, (s: GameState) => void][] = [
+    ['negative ascendancy points', (s) => { s.ascendancy.points = -1; }],
+    ['a duplicate ascendancy id', (s) => { s.ascendancy.allocated = ['wealthSmall1', 'wealthSmall1']; }],
+    ['an unknown ascendancy id', (s) => { s.ascendancy.allocated = ['notANode']; }],
+    ['a detached ascendancy id', (s) => { s.ascendancy.allocated = ['wealthSmall3']; }],
+    ['a duplicate queued id', (s) => { s.autoMap.queue = [1, 1]; }],
+    ['a negative queued id', (s) => { s.autoMap.queue = [-1]; }],
+    ['negative ascensions', (s) => { s.lifetime.ascensions = -1; }],
+    ['a negative deepest depth', (s) => { s.lifetime.deepest = -1; }],
+  ];
+  for (const [name, mutate] of cases) {
+    const s = newGame(1, 0);
+    mutate(s);
+    expect(decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: s })), name).toEqual({ ok: false, reason: 'invalid' });
+  }
 });

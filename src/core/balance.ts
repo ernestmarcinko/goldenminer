@@ -73,6 +73,9 @@ export const MAX_TIER_OVER_CAP = 2;
 export const MAX_ITEM_LEVEL = 100_000;
 
 export const LEVEL_CAP = 60;
+// Ascendancy: the depth each point costs, and the map tier auto-mapping reaches before the tree extends it.
+export const ASCEND_DEPTH_PER_POINT = 250;
+export const AUTO_MAP_BASE_TIER = 3;
 export const COMBAT_LOG_LIMIT = 20;
 export const RUN_LOOT_LIMIT = 30;
 export const MAX_LIFE = 1_000_000;

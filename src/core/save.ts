@@ -6,6 +6,7 @@ import {
   MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MAX_TRAIL_STEPS,
   MONSTER_BUDGET, RUN_LOOT_LIMIT, START_GENERAL_PAGES, STASH_PAGE_SIZE, STOCK_SIZE, stashPagePrice,
 } from './balance';
+import { ASCENDANCY_NODE_BY_ID, ASCENDANCY_NODE_COUNT, ASCENDANCY_START_ID } from './ascendancy';
 import { metreTier } from './bands';
 import { emptyGemCounts, emptyMaterialCounts, pageCount } from './cells';
 import { dungeonIndexAt, dungeonType } from './dungeons';
@@ -29,7 +30,7 @@ import {
   SHAFT_MOTIONS, TRAIL_EVENTS, type DropEntry, type GameState, type LootRule,
 } from './types';
 
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
@@ -270,6 +271,16 @@ export const MIGRATIONS: Record<number, Migration> = {
     if (!isObject(state)) return state;
     // The passive web starts empty: old saves keep their level and every point unspent.
     return { ...state, passives: { allocated: [] } };
+  },
+  11: (state) => {
+    if (!isObject(state)) return state;
+    // Ascension, auto-mapping and the lifetime record start empty; nothing else changes.
+    return {
+      ...state,
+      ascendancy: { points: 0, allocated: [] },
+      autoMap: { queue: [] },
+      lifetime: { ascensions: 0, deepest: 0 },
+    };
   },
 };
 
@@ -550,6 +561,54 @@ function isMerchant(x: unknown): boolean {
   return x.bought.every((i) => isUpTo(i, STOCK_SIZE - 1)) && new Set(x.bought).size === x.bought.length;
 }
 
+/** Whether every allocated id reaches `start` over links that stay inside { start } ∪ allocated. */
+function isConnectedTree(
+  allocated: readonly string[],
+  nodes: ReadonlyMap<string, { links: string[] }>,
+  start: string,
+): boolean {
+  const alloc = new Set(allocated);
+  const seen = new Set<string>([start]);
+  const queue = [start];
+  while (queue.length > 0) {
+    const id = queue.pop() as string;
+    const node = nodes.get(id);
+    if (node === undefined) return false;
+    for (const l of node.links) {
+      if (seen.has(l) || (l !== start && !alloc.has(l))) continue;
+      seen.add(l);
+      queue.push(l);
+    }
+  }
+  return [...alloc].every((id) => seen.has(id));
+}
+
+// The ascendancy tree: unspent points and unique known node ids, never the start, connected to the start.
+function isAscendancy(x: unknown): x is { points: number; allocated: string[] } {
+  if (!isObject(x) || !isNonNegInt(x.points) || !Array.isArray(x.allocated)) return false;
+  if (x.allocated.length > ASCENDANCY_NODE_COUNT - 1) return false;
+  const ids = new Set<string>();
+  for (const id of x.allocated) {
+    if (typeof id !== 'string' || id === ASCENDANCY_START_ID || !ASCENDANCY_NODE_BY_ID.has(id) || ids.has(id)) return false;
+    ids.add(id);
+  }
+  return isConnectedTree(x.allocated as string[], ASCENDANCY_NODE_BY_ID, ASCENDANCY_START_ID);
+}
+
+// The auto-map queue: unique map ids in the order queued; whether a map exists is the run loop's business.
+function isAutoMap(x: unknown): x is { queue: number[] } {
+  if (!isObject(x) || !Array.isArray(x.queue)) return false;
+  const ids = new Set<number>();
+  for (const id of x.queue) {
+    if (!isNonNegInt(id) || ids.has(id)) return false;
+    ids.add(id);
+  }
+  return true;
+}
+
+const isLifetime = (x: unknown): x is { ascensions: number; deepest: number } =>
+  isObject(x) && isNonNegInt(x.ascensions) && isNonNegInt(x.deepest);
+
 // The passive web: at most one point per level past the first, unique known ids, never the start, connected to the start.
 function isPassives(x: unknown): x is { allocated: string[] } {
   if (!isObject(x) || !Array.isArray(x.allocated) || x.allocated.length > LEVEL_CAP - 1) return false;
@@ -753,6 +812,7 @@ export function validateState(x: unknown): x is GameState {
   if (!Array.isArray(x.finds) || x.finds.length > FINDS_LOG_LIMIT || !x.finds.every((f) => isFindRecord(f, nextId))) return false;
   if (typeof x.paused !== 'boolean' || !isDropLog(x.drops, nextId)) return false;
   if (!isMerchant(x.merchant) || !isUint32(x.uniqueRng)) return false;
+  if (!isAscendancy(x.ascendancy) || !isAutoMap(x.autoMap) || !isLifetime(x.lifetime)) return false;
   if (!isPassives(x.passives) || x.passives.allocated.length > x.level - 1) return false;
   const { seed } = x;
   return Array.isArray(x.deaths) && x.deaths.length <= DEATH_LOG_LIMIT && x.deaths.every((d) => isDeathEntry(d, seed, nextId));
