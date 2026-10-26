@@ -1,5 +1,5 @@
 import {
-  DEEPDELVER_EVERY, FINDS_LOG_LIMIT, HARD_ROCK_MULTIPLIER, LOOT_NOTES_KEPT, TICKS_PER_METRE_AT_PARITY, hardness,
+  DEEPDELVER_EVERY, FINDS_LOG_LIMIT, HARD_ROCK_MULTIPLIER, LOOT_NOTES_KEPT, MAX_ITEM_LEVEL, TICKS_PER_METRE_AT_PARITY, hardness,
 } from './balance';
 import { metreTier } from './bands';
 import { mapTick } from './combat';
@@ -10,8 +10,14 @@ import { drainOverflow, receiveItem, receiveMaterial } from './loot';
 import { addMap } from './maps';
 import { fillAhead, metreChances, rollMetre } from './metres';
 import { nextRandom } from './rng';
+import { hasKeystone } from './passives';
 import type { FindRecord, GameState, LootNote, MetreRoll, Stats, TickEvent } from './types';
 import { hasUnique, uniqueGen } from './uniques';
+
+/** Cartographer finds maps one tier higher, never past the highest item level. */
+function mapTier(state: GameState, tier: number): number {
+  return Math.min(MAX_ITEM_LEVEL, tier + (hasKeystone(state, 'cartographer') ? 1 : 0));
+}
 
 function logFind(state: GameState, find: FindRecord, events?: TickEvent[]): void {
   state.finds.push(find);
@@ -48,7 +54,7 @@ export function collect(
   const find: FindRecord = { id: state.nextId++, depth, kind: roll.feature, amount, tick: state.tickCount };
   if (bonus) find.bonus = true;
   if (roll.feature === 'map') {
-    loot.push(...addMap(state, tier, depth));
+    loot.push(...addMap(state, mapTier(state, tier), depth));
   } else if (roll.feature === 'chest') {
     for (const item of rollChest(gen, tier)) loot.push(...receiveItem(state, item, origin));
   } else if (roll.feature === 'gem') {

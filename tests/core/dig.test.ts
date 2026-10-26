@@ -7,6 +7,7 @@ import { digClearing } from '../helpers/dig';
 import { gear } from '../helpers/items';
 import { validateState } from '../../src/core/save';
 import type { GameState, Stats, TickEvent } from '../../src/core/types';
+import type { MapItem } from '../../src/core/items';
 import { BASE_ROLL_CHANCES, FINDS_LOG_LIMIT, TICKS_PER_METRE_AT_PARITY, goldVeinAmount, hardness } from '../../src/core/balance';
 import { metreLayer } from '../../src/core/layer';
 import { rollMetre } from '../../src/core/metres';
@@ -374,4 +375,20 @@ it('digging stops while finds are held and resumes when the bag has room', () =>
   expect([s.overflow, s.bag.findIndex((c) => c?.type === 'map')]).toEqual([[], 33]);
   applyTicks(s, 1, stats);
   expect(s.progress).toBeGreaterThan(before.progress);
+});
+
+it('Cartographer finds maps one tier higher, without touching the loot stream', () => {
+  const mapOf = (s: GameState) => s.bag.find((c): c is MapItem => c?.type === 'map');
+  const plain = newGame(3, 0);
+  plain.ahead[1] = { feature: 'map', amount: 0, hardRock: false };
+  const carto = newGame(3, 0);
+  carto.ahead[1] = { feature: 'map', amount: 0, hardRock: false };
+  carto.passives.allocated = ['cartographer'];
+  while (plain.deepest < 1) applyTicks(plain, 1, deriveStats(plain));
+  while (carto.deepest < 1) applyTicks(carto, 1, deriveStats(carto));
+  expect(mapOf(plain)?.tier).toBe(1);
+  expect(mapOf(carto)?.tier).toBe(2);
+  expect(plain.rng).toBe(carto.rng);
+  expect(plain.finds[0]?.kind).toBe('map');
+  expect(carto.finds[0]?.kind).toBe('map');
 });
