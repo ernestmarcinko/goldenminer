@@ -84,7 +84,7 @@ it('xp that is negative or not a number is ignored', () => {
 
 it('monster numbers by rank and modifier', () => {
   const rat = { species: 0, rank: 'normal' as const, name: 'Mole Rat', mods: [], extra: 1 };
-  // tier 1's monsters are scaled × 1.38, tier 2's × 2.1 (MAP_MONSTER_SCALE)
+  // tier 1's monsters are scaled × 1.38, tier 2's × 1.34 (MAP_MONSTER_SCALE)
   expect(monsterState(1, rat)).toMatchObject({ life: 17, maxLife: 17, damage: 4, intervalS: 2, xp: 10, element: 'physical' });
   const champ = { ...rat, rank: 'champion' as const, name: 'Gorvash the Hollow', mods: ['thickSkinned', 'fireTouched'] as ChampionMod[] };
   expect(monsterState(1, champ)).toMatchObject({ life: 75, damage: 7, xp: 30, element: 'elemental' });
@@ -93,7 +93,8 @@ it('monster numbers by rank and modifier', () => {
   expect(swift.damage).toBe(10);
   expect(monsterState(1, { ...rat, rank: 'boss' })).toMatchObject({ life: 83, damage: 7, xp: 50 });
   const slime = { species: 1, rank: 'normal' as const, name: 'Mud Slime', mods: [], extra: 1 };
-  expect(monsterState(2, slime)).toMatchObject({ element: 'elemental', life: 78, damage: 9, xp: 28, intervalS: 2 });
+  // re-pinned for Plan 10's tier-2 scale (was life 78, damage 9)
+  expect(monsterState(2, slime)).toMatchObject({ element: 'elemental', life: 49, damage: 6, xp: 28, intervalS: 2 });
   expect([monsterXp(2), monsterXp(4), monsterXp(10)]).toEqual([28, 80, 316]);
 });
 
