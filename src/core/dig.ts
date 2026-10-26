@@ -1,3 +1,4 @@
+import { tryAutoMap } from './autoMap';
 import {
   DEEPDELVER_EVERY, FINDS_LOG_LIMIT, HARD_ROCK_MULTIPLIER, LOOT_NOTES_KEPT, MAX_ITEM_LEVEL, TICKS_PER_METRE_AT_PARITY, hardness,
 } from './balance';
@@ -218,6 +219,12 @@ export function applyTicks(
     // Held loot stops digging only while it has no room, whatever freed a cell: the gate heals itself. A drain draws nothing.
     if (state.overflow.length > 0) drainOverflow(state);
     if (digPaused || state.overflow.length > 0) {
+      state.tickCount += 1;
+      continue;
+    }
+    // Away time turns queued maps into XP: auto-mapping starts the next eligible map instead of digging.
+    if (away && tryAutoMap(state)) {
+      mapTick(state, stats, events);
       state.tickCount += 1;
       continue;
     }

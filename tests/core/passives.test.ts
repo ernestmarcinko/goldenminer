@@ -5,12 +5,18 @@ import {
   PASSIVE_NODE_BY_ID, PASSIVE_NODES, START_NODE_ID, canAllocate, canRefund, freeStashPages, pointsToSpend, stackCaps,
 } from '../../src/core/passives';
 
-it('the web is 140 nodes with one start, eight keystones and sixteen notables', () => {
-  expect(PASSIVE_NODES).toHaveLength(140);
+it('the web is 141 nodes with one start, eight keystones and seventeen notables', () => {
+  expect(PASSIVE_NODES).toHaveLength(141);
   const kinds = { start: 0, small: 0, notable: 0, keystone: 0 };
   for (const n of PASSIVE_NODES) kinds[n.kind] += 1;
-  expect(kinds).toEqual({ start: 1, small: 115, notable: 16, keystone: 8 });
+  expect(kinds).toEqual({ start: 1, small: 115, notable: 17, keystone: 8 });
   expect(PASSIVE_NODES.filter((n) => n.side === 'mining').length).toBeGreaterThan(PASSIVE_NODES.filter((n) => n.side === 'hybrid').length);
+});
+
+it('Surveyor is a hybrid notable that unlocks auto-mapping', () => {
+  expect(PASSIVE_NODE_BY_ID.get('surveyor')).toMatchObject({
+    kind: 'notable', side: 'hybrid', effects: [{ kind: 'autoMap' }],
+  });
 });
 
 it('links are symmetric, ids unique, and the start never links to itself', () => {

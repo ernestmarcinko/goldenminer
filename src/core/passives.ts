@@ -15,7 +15,8 @@ export type PassiveEffect =
   | { kind: 'keystone'; id: KeystoneId }
   | { kind: 'gemStack'; value: number }
   | { kind: 'materialStack'; value: number }
-  | { kind: 'stashPages'; value: number };
+  | { kind: 'stashPages'; value: number }
+  | { kind: 'autoMap' };
 
 export interface PassiveNode {
   id: string;
@@ -86,6 +87,8 @@ const gemPouch = n('gemPouch', 'Gem Pouch', 'notable', [{ kind: 'gemStack', valu
   'Gems stack 10 higher in the bag.');
 const oreCart = n('oreCart', 'Ore Cart', 'notable', [{ kind: 'materialStack', value: 25 }],
   'Materials stack 25 higher in the bag.');
+const surveyor = n('surveyor', 'Surveyor', 'notable', [{ kind: 'autoMap' }],
+  'Auto-mapping: queue maps to run themselves while you are away.');
 
 // The small nodes' budget: [stat, value, count]. Mining totals 48, battle 48, hybrid 19 — 115 in all.
 const SMALL_BUDGET: Record<Exclude<PassiveSide, 'start'>, ReadonlyArray<readonly [StatKey, number, number]>> = {
@@ -149,7 +152,7 @@ const CHAINS: ChainDef[] = [
   { side: 'battle', angle: 333, parent: { chain: 7, ring: 3 }, items: ['s', treasureHunter] },
   // hybrid: the bottom
   { side: 'hybrid', angle: 250, items: ['s', 's', 's', 's', 's', 's', 's', 's', 's',
-    lampAndBlade, gemPouch, deepPockets] },
+    lampAndBlade, gemPouch, deepPockets, surveyor] },
   { side: 'hybrid', angle: 290, items: ['s', 's', 's', 's', 's', 's', 's', 's', 's', 's',
     wellRested, sureFooting, careful, oreCart, twoWayStreet] },
 ];
@@ -311,12 +314,14 @@ export interface PassiveTotals {
   materialStack: number;
   stashPages: number;
   keystones: Set<KeystoneId>;
+  autoMap: boolean;
 }
 
-/** The allocated nodes' effects, summed: stat effects into `stats`, the structural bonuses and the keystones set. */
+/** The allocated nodes' effects, summed: stat effects into `stats`, the structural bonuses, the keystones set. */
 export function passiveTotals(state: Pick<GameState, 'passives'>): PassiveTotals {
   const totals: PassiveTotals = {
     stats: {} as Record<StatKey, number>, gemStack: 0, materialStack: 0, stashPages: 0, keystones: new Set(),
+    autoMap: false,
   };
   for (const id of state.passives.allocated) {
     const node = PASSIVE_NODE_BY_ID.get(id);
@@ -328,6 +333,7 @@ export function passiveTotals(state: Pick<GameState, 'passives'>): PassiveTotals
         case 'gemStack': totals.gemStack += effect.value; break;
         case 'materialStack': totals.materialStack += effect.value; break;
         case 'stashPages': totals.stashPages += effect.value; break;
+        case 'autoMap': totals.autoMap = true; break;
       }
     }
   }
