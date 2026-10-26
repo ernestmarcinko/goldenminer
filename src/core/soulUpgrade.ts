@@ -44,6 +44,7 @@ export function soulUpgrade(state: GameState, target: ItemLoc): SoulUpgradeCheck
   if (check !== 'ok') return check;
   const item = upgradable(state, target) as GearItem;
   state.souls -= soulUpgradeCostFor(state, item.ilvl);
+  state.stats.soulsSpent += soulUpgradeCostFor(state, item.ilvl);
   item.ilvl++;
   trail(state, item.id, { event: 'upgraded' });
   return check;

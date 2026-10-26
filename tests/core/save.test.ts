@@ -12,7 +12,7 @@ import fixture9 from '../fixtures/save-schema-9.txt?raw';
 import fixture10 from '../fixtures/save-schema-10.txt?raw';
 import fixture11 from '../fixtures/save-schema-11.txt?raw';
 import { applyTicks } from '../../src/core/dig';
-import { zeroTotals } from '../../src/core/achievements';
+import { emptyLifetimeStats } from '../../src/core/telemetry';
 import {
   BAG_SIZE, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_HELD, MAX_LOOT_RULES,
   MAX_TIER_OVER_CAP, MAX_TRAIL_STEPS, START_GENERAL_PAGES, STASH_PAGE_SIZE,
@@ -28,9 +28,9 @@ import { hash2 } from '../../src/core/rng';
 import { decodeSave, encodeSave, migrate, MIGRATIONS, SCHEMA_VERSION, validateState } from '../../src/core/save';
 import { deriveStats } from '../../src/core/stats';
 import { tierFor, tierRange } from '../../src/core/tiers';
-import { MAP_MOD_KINDS, MOD_SIDE } from '../../src/core/items';
+import { MAP_MOD_KINDS, MOD_SIDE, MATERIALS } from '../../src/core/items';
 import type { Cell, GemGrade, GemType, MapItem, MapMod, ModLine } from '../../src/core/items';
-import type { ChampionMod, CombatLine, DeathEntry, DropEntry, FindRecord, GameState, LootAction, MapRun, RunOutcome } from '../../src/core/types';
+import type { ChampionMod, CombatLine, DeathEntry, DropEntry, FindRecord, GameState, LootAction, LifetimeStats, MapRun, RunOutcome } from '../../src/core/types';
 import { gear, gem, stashMap } from '../helpers/items';
 
 const raw = (env: unknown) => compressToBase64(JSON.stringify(env));
@@ -1050,7 +1050,7 @@ it('a schema-10 save gains an empty passive web and keeps everything else', () =
   expect(r.state.level).toBe(4);
   const {
     passives: _passives, ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, oreMarket: _oreMarket,
-    totals: _totals, achievements: _achievements, ...rest
+    stats: _stats, achievements: _achievements, lastWallAt: _lastWallAt, ...rest
   } = r.state;
   const { essences: _ess10, ...restStash } = r.state.stash;
   expect({ ...rest, stash: restStash }).toEqual(raw);   // nothing else changes
@@ -1167,8 +1167,8 @@ it('a schema-11 save gains an empty ascendancy, auto-map and lifetime record', (
   expect(r.state.autoMap).toEqual({ queue: [] });
   expect(r.state.lifetime).toEqual({ ascensions: 0, deepest: 0 });
   const {
-    ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, oreMarket: _oreMarket, totals: _totals,
-    achievements: _achievements, ...rest
+    ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, oreMarket: _oreMarket, stats: _stats,
+    achievements: _achievements, lastWallAt: _lastWallAt, ...rest
   } = r.state;
   const { essences: _ess11, ...restStash } = r.state.stash;
   expect({ ...rest, stash: restStash }).toEqual(raw);   // nothing else changes
@@ -1188,16 +1188,61 @@ it('a schema-12 save gains a zeroed ore market and an empty essence tab', () => 
   expect(r.state).toEqual(s);   // nothing else changes
 });
 
-it('a schema-13 save gains empty achievements and zeroed totals', () => {
+it('a schema-13 save gains empty achievements and zeroed stats', () => {
   const s = newGame(1, 0);
   const asV13 = structuredClone(s) as unknown as Record<string, unknown>;
   delete asV13.achievements;
-  delete asV13.totals;
+  delete asV13.stats;
   const r = decodeSave(raw({ schema: 13, savedAt: 0, state: asV13 }));
   if (!r.ok) throw new Error(`schema-13 save rejected: ${r.reason}`);
   expect(r.state.achievements).toEqual({ earned: [] });
-  expect(r.state.totals).toEqual(zeroTotals());
+  expect(r.state.stats).toEqual(emptyLifetimeStats());
   expect(r.state).toEqual(s);   // nothing else changes
+});
+
+it('a schema-14 save migrates to 15 and carries its totals into the lifetime stats', () => {
+  const s = newGame(1, 0);
+  const asV14 = structuredClone(s) as unknown as Record<string, unknown>;
+  delete asV14.stats;
+  asV14.totals = {
+    gold: 500, diamonds: 12, metres: 34, gems: 56,
+    ore: Object.fromEntries(MATERIALS.map((m, i) => [m, i])),
+    kills: 78, bosses: 9, deaths: 4, maps: 20, crafts: 15, buys: 7, sockets: 3, legendaries: 2,
+  };
+  const r = decodeSave(raw({ schema: 14, savedAt: 0, state: asV14 }));
+  if (!r.ok) throw new Error(`schema-14 save rejected: ${r.reason}`);
+  expect(r.state.stats.goldFound).toBe(500);
+  expect(r.state.stats.diamondsFound).toBe(12);
+  expect(r.state.stats.metresDug).toBe(34);
+  expect(r.state.stats.gems).toBe(56);
+  expect(r.state.stats.monstersKilled).toBe(78);
+  expect(r.state.stats.bossKills).toBe(9);
+  expect(r.state.stats.deaths).toBe(4);
+  expect(r.state.stats.mapsCleared).toBe(20);
+  expect(r.state.stats.itemsCrafted).toBe(15);
+  expect(r.state.stats.itemsBought).toBe(7);
+  expect(r.state.stats.gemsSocketed).toBe(3);
+  expect(r.state.stats.legendaries).toBe(2);
+  expect(MATERIALS.every((m, i) => r.state.stats.oresFound[m] === i)).toBe(true);
+  expect((r.state as unknown as Record<string, unknown>).totals).toBeUndefined();
+});
+
+it('the validator refuses a malformed lifetime stats object', () => {
+  const cases: [string, (s: GameState) => void][] = [
+    ['a missing counter', (s) => { delete (s.stats as Partial<LifetimeStats>).goldFound; }],
+    ['a negative counter', (s) => { s.stats.metresDug = -1; }],
+    ['a non-finite counter', (s) => { s.stats.timePlayedMs = NaN; }],
+    ['a missing ore key', (s) => { delete (s.stats.oresFound as Record<string, number>).copper; }],
+    ['an extra ore key', (s) => { (s.stats.oresFound as Record<string, number>).unobtanium = 1; }],
+    ['a negative ore count', (s) => { s.stats.oresFound.copper = -1; }],
+    ['a missing gem key', (s) => { delete (s.stats.gemsFound as Record<string, unknown>).ruby; }],
+    ['a missing grade key', (s) => { delete (s.stats.gemsFound.ruby as Record<string, number>).tiny; }],
+  ];
+  for (const [name, mutate] of cases) {
+    const s = newGame(1, 0);
+    mutate(s);
+    expect(decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: s })), name).toEqual({ ok: false, reason: 'invalid' });
+  }
 });
 
 it('the validator refuses a broken ascendancy, auto-map and lifetime', () => {

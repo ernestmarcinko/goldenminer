@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   ACHIEVEMENTS, ACHIEVEMENT_BOOST, ACHIEVEMENT_IDS, FAMILY_LABELS, achievementBoost, checkAchievements, earnedCount,
-  zeroTotals,
 } from '../../src/core/achievements';
 import { ASCEND_LEVEL, MAX_DAMAGE, MAX_LIFE } from '../../src/core/balance';
 import { ascend } from '../../src/core/ascend';
 import { deriveBattleStats } from '../../src/core/battle';
 import { collect, faceTicksPerMetre, finishMetre } from '../../src/core/dig';
-import { MATERIALS } from '../../src/core/items';
+import { GEM_GRADES, GEM_TYPES, MATERIALS } from '../../src/core/items';
 import { newGame } from '../../src/core/newGame';
 import { deriveStats } from '../../src/core/stats';
+import { emptyLifetimeStats } from '../../src/core/telemetry';
 
 describe('the achievement table', () => {
   it('holds ~1000 unique achievements across every family', () => {
@@ -87,7 +87,7 @@ describe('the boost', () => {
 describe('checks', () => {
   it('marks a family once, idempotently, and only when its condition holds', () => {
     const s = newGame(1, 0);
-    s.totals.gold = 500;
+    s.stats.goldFound = 500;
     checkAchievements(s, 'gold');
     const earned = [...s.achievements.earned];
     expect(earned.length).toBeGreaterThan(0);
@@ -95,7 +95,7 @@ describe('checks', () => {
     expect(s.achievements.earned).toContain('gold.100');
     checkAchievements(s, 'gold');
     expect(s.achievements.earned).toEqual(earned);
-    s.totals.gold = 1_000_000;
+    s.stats.goldFound = 1_000_000;
     checkAchievements(s, 'gold');
     expect(s.achievements.earned.length).toBeGreaterThan(earned.length);
     expect(s.achievements.earned).toContain('gold.1000000');
@@ -103,8 +103,8 @@ describe('checks', () => {
 
   it('a family check touches only that family', () => {
     const s = newGame(1, 0);
-    s.totals.gold = 1_000_000;
-    s.totals.kills = 50_000;
+    s.stats.goldFound = 1_000_000;
+    s.stats.monstersKilled = 50_000;
     checkAchievements(s, 'gold');
     expect(s.achievements.earned.some((id) => id.startsWith('gold.'))).toBe(true);
     expect(s.achievements.earned.some((id) => id.startsWith('kills.'))).toBe(false);
@@ -112,25 +112,25 @@ describe('checks', () => {
 });
 
 describe('carry-over', () => {
-  it('achievements and totals survive ascension', () => {
+  it('achievements and stats survive ascension', () => {
     const s = newGame(1, 0);
-    s.totals.gold = 1000;
+    s.stats.goldFound = 1000;
     checkAchievements(s, 'gold');
     const earned = [...s.achievements.earned];
     s.level = ASCEND_LEVEL;
     s.deepest = 100;
     expect(ascend(s)).toBe('ok');
-    expect(s.totals.gold).toBe(1000);
+    expect(s.stats.goldFound).toBe(1000);
     expect(earned.every((id) => s.achievements.earned.includes(id))).toBe(true);
     expect(s.achievements.earned).toContain('ascensions.1');
   });
 
   it('finishing a metre counts it and marks the depth achievements once', () => {
     const s = newGame(1, 0);
-    expect(s.totals.metres).toBe(0);
+    expect(s.stats.metresDug).toBe(0);
     finishMetre(s, 1, { feature: null, amount: 0, hardRock: false }, deriveStats(s));
     expect(s.deepest).toBe(1);
-    expect(s.totals.metres).toBe(1);
+    expect(s.stats.metresDug).toBe(1);
     s.deepest = 10;
     checkAchievements(s, 'depth');
     expect(s.achievements.earned).toContain('depth.10');
@@ -139,13 +139,16 @@ describe('carry-over', () => {
   });
 });
 
-describe('zeroTotals', () => {
+describe('emptyLifetimeStats', () => {
   it('starts every counter at zero', () => {
-    const totals = zeroTotals();
-    expect(totals.gold).toBe(0);
-    expect(totals.metres).toBe(0);
-    expect(totals.kills).toBe(0);
-    expect(Object.keys(totals.ore)).toEqual([...MATERIALS]);
-    expect(MATERIALS.every((m) => totals.ore[m] === 0)).toBe(true);
+    const stats = emptyLifetimeStats();
+    expect(stats.goldFound).toBe(0);
+    expect(stats.metresDug).toBe(0);
+    expect(stats.monstersKilled).toBe(0);
+    expect(Object.keys(stats.oresFound)).toEqual([...MATERIALS]);
+    expect(MATERIALS.every((m) => stats.oresFound[m] === 0)).toBe(true);
+    expect(MATERIALS.every((m) => stats.oresTraded[m] === 0)).toBe(true);
+    expect(Object.keys(stats.gemsFound)).toEqual([...GEM_TYPES]);
+    expect(GEM_TYPES.every((t) => Object.keys(stats.gemsFound[t]).join() === GEM_GRADES.join())).toBe(true);
   });
 });

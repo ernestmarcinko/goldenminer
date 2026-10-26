@@ -16,6 +16,7 @@ import { RunResultDialog } from './run/RunResultDialog';
 import { RunView } from './run/RunView';
 import { SettingsDialog } from './settings/SettingsDialog';
 import { SkillsView } from './skills/SkillsView';
+import { StatsView } from './stats/StatsView';
 import { TabBlocked } from './TabBlocked';
 import { Toast } from './Toast';
 import { useGame } from './useGame';
@@ -101,6 +102,8 @@ function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: ()
           <LogView store={store} show={logShow} />
         ) : shown === 'achievements' ? (
           <AchievementsView store={store} />
+        ) : shown === 'stats' ? (
+          <StatsView store={store} />
         ) : (
           <RunView store={store} />
         )}

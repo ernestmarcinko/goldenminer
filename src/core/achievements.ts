@@ -1,6 +1,6 @@
 import { MATERIAL_LABELS } from './itemData';
 import { MATERIALS, type Material } from './items';
-import type { GameState, Totals } from './types';
+import type { GameState } from './types';
 
 /**
  * The permanent, global boost each earned achievement grants: +0.1% per achievement, applied to the final derived
@@ -142,34 +142,25 @@ export const FAMILY_LABELS: Readonly<Record<string, string>> = Object.fromEntrie
   ALL_DEFS.map((def) => [def.family, def.label]),
 );
 
-/** The permanent counters the achievements read: everything that must survive ascension lives here, like `lifetime`. */
-export function zeroTotals(): Totals {
-  return {
-    gold: 0, diamonds: 0, metres: 0, gems: 0,
-    ore: Object.fromEntries(MATERIALS.map((m) => [m, 0])) as Record<Material, number>,
-    kills: 0, bosses: 0, deaths: 0, maps: 0, crafts: 0, buys: 0, sockets: 0, legendaries: 0,
-  };
-}
-
-/** The running total a family's condition compares against. Monotonic and cheap; it never touches the RNG. */
+/** The permanent counters the achievements read: everything that must survive ascension lives in `state.stats`. */
 function familyValue(state: GameState, family: string): number {
   switch (family) {
     case 'depth': return state.deepest;
-    case 'dig': return state.totals.metres;
-    case 'gold': return state.totals.gold;
-    case 'diamonds': return state.totals.diamonds;
-    case 'gems': return state.totals.gems;
-    case 'maps': return state.totals.maps;
-    case 'kills': return state.totals.kills;
-    case 'bosses': return state.totals.bosses;
-    case 'deaths': return state.totals.deaths;
+    case 'dig': return state.stats.metresDug;
+    case 'gold': return state.stats.goldFound + state.stats.goldFromSales;
+    case 'diamonds': return state.stats.diamondsFound;
+    case 'gems': return state.stats.gems;
+    case 'maps': return state.stats.mapsCleared;
+    case 'kills': return state.stats.monstersKilled;
+    case 'bosses': return state.stats.bossKills;
+    case 'deaths': return state.stats.deaths;
     case 'levels': return state.level;
     case 'ascensions': return state.lifetime.ascensions;
-    case 'craft': return state.totals.crafts;
-    case 'merchant': return state.totals.buys;
-    case 'legendaries': return state.totals.legendaries;
-    case 'sockets': return state.totals.sockets;
-    default: return family.startsWith('ore.') ? (state.totals.ore[family.slice(4) as Material] ?? 0) : 0;
+    case 'craft': return state.stats.itemsCrafted;
+    case 'merchant': return state.stats.itemsBought;
+    case 'legendaries': return state.stats.legendaries;
+    case 'sockets': return state.stats.gemsSocketed;
+    default: return family.startsWith('ore.') ? (state.stats.oresFound[family.slice(4) as Material] ?? 0) : 0;
   }
 }
 

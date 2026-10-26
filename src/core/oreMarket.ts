@@ -73,6 +73,7 @@ export function tradeOres(state: GameState, from: Material, to: Material, amount
   if (heldMaterial(state, from) < cost) return 'short';
   spendMaterial(state, from, cost);
   stashMaterials(state, { [to]: amount });
+  state.stats.oresTraded[to] += amount;
   raisePremium(state, to);
   return 'ok';
 }

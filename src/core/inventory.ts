@@ -302,7 +302,7 @@ export function socketGem(state: GameState, gem: ItemLoc, into: ItemLoc): InvRes
   if (target.gems.length >= target.sockets) return 'noSocket';
   target.gems.push({ gem: item.gem, grade: item.grade });
   removeUnits(state, gem, item, 1);
-  state.totals.sockets += 1;
+  state.stats.gemsSocketed += 1;
   checkAchievements(state, 'sockets');
   if (into.where === 'worn') refillAhead(state);
   return 'ok';
@@ -326,6 +326,7 @@ export function sell(state: GameState, from: ItemLoc): InvResult {
   const item = discard(state, from);
   if (item === undefined) return 'invalid';
   trail(state, item.id, { event: 'sold', gold: sellFind(state, item).value });
+  state.stats.itemsSold += 1;
   return 'ok';
 }
 
@@ -333,6 +334,7 @@ export function salvage(state: GameState, from: ItemLoc): InvResult {
   const item = discard(state, from);
   if (item === undefined) return 'invalid';
   trail(state, item.id, { event: 'salvaged', materials: stashMaterials(state, salvagePay(item, deriveStats(state))) });
+  state.stats.itemsSalvaged += 1;
   return 'ok';
 }
 

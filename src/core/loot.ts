@@ -12,6 +12,7 @@ import { putMap } from './maps';
 import { stackCaps } from './passives';
 import type { Cell, EssenceItem, GearItem, Gem, GemItem, Item, MapItem, Material, MaterialItem, OrbItem, Stack } from './items';
 import { deriveStats } from './stats';
+import { countGem, countOre } from './telemetry';
 import type { DropOrigin, GameState, LootAction, LootNote, LootOutcome, LootRule, Stats, TrailStep } from './types';
 
 const tierFactor = (level: number): number => 1 + Math.floor(level / 5);
@@ -115,7 +116,7 @@ function note(item: Item, outcome: LootOutcome, value = 0): LootNote {
 export function sellFind(state: GameState, item: Loot): LootNote {
   const value = sellPay(item, deriveStats(state));
   state.gold += value;
-  state.totals.gold += value;
+  state.stats.goldFromSales += value;
   checkAchievements(state, 'gold');
   return note(item, 'sold', value);
 }
@@ -128,9 +129,16 @@ const unitsOf = (item: Item): number => (isStack(item) ? item.count : 1);
 
 function tally(state: GameState, notes: LootNote[]): LootNote[] {
   for (const n of notes) {
-    if (n.outcome === 'sold') state.lootTally.sold += 1;
-    else if (n.outcome === 'salvaged') state.lootTally.salvaged += 1;
-    else state.lootTally.kept += 1;
+    if (n.outcome === 'sold') {
+      state.lootTally.sold += 1;
+      state.stats.itemsSold += 1;
+    } else if (n.outcome === 'salvaged') {
+      state.lootTally.salvaged += 1;
+      state.stats.itemsSalvaged += 1;
+    } else {
+      state.lootTally.kept += 1;
+      state.stats.itemsKept += 1;
+    }
   }
   return notes;
 }
@@ -308,10 +316,11 @@ function stow(state: GameState, item: Loot): Fate[] {
  */
 export function receiveItem(state: GameState, item: Loot, origin: DropOrigin): LootNote[] {
   if (item.type === 'gem') {
-    state.totals.gems += item.count;
+    state.stats.gems += item.count;
+    countGem(state.stats, item.gem, item.grade, item.count);
     checkAchievements(state, 'gems');
   } else if (item.type === 'gear' && item.rarity === 'legendary') {
-    state.totals.legendaries += 1;
+    state.stats.legendaries += 1;
     checkAchievements(state, 'legendaries');
   }
   const filtered = applyFilter(state, item);
@@ -332,7 +341,7 @@ export function receiveItem(state: GameState, item: Loot, origin: DropOrigin): L
  */
 export function receiveMaterial(state: GameState, material: Material, count: number, origin: DropOrigin): LootNote[] {
   if (count <= 0) return [];
-  state.totals.ore[material] += count;
+  countOre(state.stats, material, count);
   checkAchievements(state, `ore.${material}`);
   const stashed = applyFilter(state, { id: 0, type: 'material', material, count });
   if (stashed === null) return keepMaterial(state, material, count, origin);

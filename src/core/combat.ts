@@ -59,15 +59,16 @@ export function endRun(state: GameState, run: MapRun, outcome: RunOutcome, event
   state.lastRun = result;
   if (outcome === 'cleared') {
     state.mapTally.cleared += 1;
-    state.totals.maps += 1;
+    state.stats.mapsCleared += 1;
     checkAchievements(state, 'maps');
   } else {
     state.mapTally.lost += 1;
+    state.stats.mapsLost += 1;
     trail(state, run.map.id, { event: 'lost' });
   }
   if (outcome === 'died') {
     logDeath(state, run, killer ?? run.queue[0]?.name ?? 'a monster');
-    state.totals.deaths += 1;
+    state.stats.deaths += 1;
     checkAchievements(state, 'deaths');
     // Soul Debt: a death costs 10% of the Souls on hand.
     if (hasKeystone(state, 'soulDebt')) state.souls = Math.round(state.souls * 0.9);
@@ -106,6 +107,7 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
   const xp = Math.round(monster.xp * b.xpMultiplier);
   const levels = gainXp(state, xp);
   run.gained.xp += xp;
+  state.stats.levelsGained += levels;
   let { maxLife } = b;
   if (levels > 0) {
     maxLife = deriveBattleStats(state).maxLife;
@@ -118,17 +120,19 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
   const souls = soulsForKill(nextRandom(state), tier, monster.rank, b.soulMultiplier * (1 + fx.souls / 100) * fx.soulsMult);
   state.souls += souls;
   run.gained.souls += souls;
+  state.stats.soulsEarned += souls;
   logLine(run, { kind: 'kill', monster: monster.name, xp, souls });
 
   const gold = goldPerKill(tier) * rankReward(monster.rank) * (hasKeystone(state, 'bloodMoney') ? 2 : 1);
   state.gold += gold;
   run.gained.gold += gold;
-  state.totals.gold += gold;
+  state.stats.goldFound += gold;
   checkAchievements(state, 'gold');
-  state.totals.kills += 1;
+  state.stats.monstersKilled += 1;
   checkAchievements(state, 'kills');
+  if (monster.rank === 'champion') state.stats.championKills += 1;
   if (monster.rank === 'boss') {
-    state.totals.bosses += 1;
+    state.stats.bossKills += 1;
     checkAchievements(state, 'bosses');
   }
 
@@ -201,6 +205,7 @@ function strike(state: GameState, run: MapRun, b: BattleStats, events?: TickEven
   // The treasure room: the last regular room's chests, found there before the boss room opens.
   if (run.map.special === 'treasureRoom' && run.room === run.bossRoom - 1) {
     const origin = { kind: 'map', tier: run.map.tier, room: run.room } as const;
+    state.stats.chestsOpened += TREASURE_CHESTS;
     for (let i = 0; i < TREASURE_CHESTS; i++) {
       for (const item of rollChest(state, run.map.tier)) takeDrop(run, receiveItem(state, item, origin));
     }

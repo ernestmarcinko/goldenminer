@@ -14,7 +14,7 @@ describe('the achievements tab view model', () => {
 
   it('marks earned achievements and reports per-family progress', () => {
     const s = newGame(1, 0);
-    s.totals.gold = 1000;
+    s.stats.goldFound = 1000;
     checkAchievements(s, 'gold');
     const gold = achievementVMs(s).find((f) => f.family === 'gold');
     expect(gold?.earned).toBeGreaterThan(0);

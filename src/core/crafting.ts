@@ -335,8 +335,9 @@ export function craft(state: GameState, target: ItemLoc, kind: CraftKind, from?:
     const outcome = applyToMap(state, found, kind);
     pay(state, kind, cost, from);
     state.souls -= souls;
+    state.stats.soulsSpent += souls;
     trail(state, found.id, { event: 'crafted' });
-    state.totals.crafts += 1;
+    state.stats.itemsCrafted += 1;
     checkAchievements(state, 'craft');
     return outcome === undefined ? { check } : { check, temper: outcome };
   }
@@ -345,8 +346,9 @@ export function craft(state: GameState, target: ItemLoc, kind: CraftKind, from?:
   const cost = craftCost(kind, item.ilvl);
   const outcome = apply(state, item, kind);
   pay(state, kind, cost, from);
+  if (kind === 'diamond') state.stats.diamondsSpent += cost;
   trail(state, item.id, { event: 'crafted' });
-  state.totals.crafts += 1;
+  state.stats.itemsCrafted += 1;
   checkAchievements(state, 'craft');
   // Worn mining gear may change lamp sight, as equipping does.
   if (target.where === 'worn' && setOfSlot(target.slot) === 'mining') fillAhead(state, deriveStats(state));
@@ -535,7 +537,7 @@ export function targetedCraft(state: GameState, target: ItemLoc, action: Targete
   applyTargeted(state, item, action);
   payFor(state, item, action);
   trail(state, item.id, { event: 'crafted' });
-  state.totals.crafts += 1;
+  state.stats.itemsCrafted += 1;
   checkAchievements(state, 'craft');
   if (target.where === 'worn' && setOfSlot(target.slot) === 'mining') fillAhead(state, deriveStats(state));
   return { check };

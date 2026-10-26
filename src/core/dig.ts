@@ -14,6 +14,7 @@ import { fillAhead, metreChances, rollMetre } from './metres';
 import { nextRandom } from './rng';
 import { decayPremiums } from './oreMarket';
 import { hasKeystone } from './passives';
+import { addTime } from './telemetry';
 import type { FindRecord, GameState, LootNote, MetreRoll, Stats, TickEvent } from './types';
 import { hasUnique, uniqueGen } from './uniques';
 
@@ -43,7 +44,7 @@ export function collect(
   if (roll.feature === 'goldVein') {
     amount = Math.round(roll.amount * stats.goldMultiplier * stats.veinMultiplier * achievementBoost(state));
     state.gold += amount;
-    state.totals.gold += amount;
+    state.stats.goldFound += amount;
     checkAchievements(state, 'gold');
     if (amount > 0) events?.push({ kind: 'gold', amount });
     // The Golddigger's material draws from the unique stream, so the loot stream is the same without it.
@@ -55,7 +56,7 @@ export function collect(
   } else if (roll.feature === 'diamondVein') {
     amount = Math.round(roll.amount * stats.diamondMultiplier * stats.veinMultiplier * achievementBoost(state));
     state.diamonds += amount;
-    state.totals.diamonds += amount;
+    state.stats.diamondsFound += amount;
     checkAchievements(state, 'diamonds');
     if (amount > 0) events?.push({ kind: 'diamond', amount });
   }
@@ -64,6 +65,7 @@ export function collect(
   if (roll.feature === 'map') {
     loot.push(...addMap(state, mapTier(state, tier), depth));
   } else if (roll.feature === 'chest') {
+    state.stats.chestsOpened += 1;
     for (const item of rollChest(gen, tier)) loot.push(...receiveItem(state, item, origin));
   } else if (roll.feature === 'gem') {
     loot.push(...receiveItem(state, rollGem(gen, tier), origin));
@@ -172,7 +174,7 @@ export function finishMetre(
   }
   delete state.ahead[next];
   state.deepest = next;
-  state.totals.metres += 1;
+  state.stats.metresDug += 1;
   checkAchievements(state, 'depth');
   checkAchievements(state, 'dig');
   fillAhead(state, stats);
@@ -223,27 +225,35 @@ export function applyTicks(
   state: GameState, count: number, stats: Stats, events?: TickEvent[], digPaused = false, away = false,
 ): void {
   const finds = away && hasUnique(state, 'longVoyage') ? 2 : 1;
+  // Each applied tick is 1/autoTicksPerSecond seconds of simulated activity, bucketed by what the tick did. This is
+  // deterministic and derived from the tick model, never wall-clock, so it reproduces from the seed.
+  const dtMs = stats.autoTicksPerSecond > 0 && Number.isFinite(stats.autoTicksPerSecond)
+    ? 1000 / stats.autoTicksPerSecond : 0;
   for (let i = 0; i < count; i++) {
     // A running map takes the whole tick, with no digging; neither a pause nor held loot stops it.
     if (state.activity.kind === 'map') {
       mapTick(state, stats, events);
+      addTime(state.stats, 'timeCombatMs', dtMs);
       state.tickCount += 1;
       continue;
     }
     // Held loot stops digging only while it has no room, whatever freed a cell: the gate heals itself. A drain draws nothing.
     if (state.overflow.length > 0) drainOverflow(state);
     if (digPaused || state.overflow.length > 0) {
+      addTime(state.stats, 'timeIdleMs', dtMs);
       state.tickCount += 1;
       continue;
     }
     // Away time turns queued maps into XP: auto-mapping starts the next eligible map instead of digging.
     if (away && tryAutoMap(state)) {
       mapTick(state, stats, events);
+      addTime(state.stats, 'timeCombatMs', dtMs);
       state.tickCount += 1;
       continue;
     }
     // Digging pays nothing by the tick and draws nothing: Gold and Diamonds come from the veins it digs into.
     digFace(state, stats, events, finds);
+    addTime(state.stats, 'timeDiggingMs', dtMs);
     state.tickCount += 1;
   }
   decayPremiums(state, count);

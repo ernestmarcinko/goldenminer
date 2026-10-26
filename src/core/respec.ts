@@ -75,6 +75,7 @@ export function refundMany(
   if (state.gold < price) return 'noGold';
   if (pages > 0 && refundFreePages(state, pages) === 'occupied') return 'occupied';
   state.gold -= price;
+  state.stats.goldSpent += price;
   state.passives.allocated = remaining;
   return 'ok';
 }
@@ -90,6 +91,7 @@ export function resetWeb(state: GameState): 'ok' | 'noDiamonds' | 'occupied' {
   const free = freeStashPages(state);
   if (free > 0 && refundFreePages(state, free) === 'occupied') return 'occupied';
   state.diamonds -= RESET_WEB_DIAMONDS;
+  state.stats.diamondsSpent += RESET_WEB_DIAMONDS;
   state.passives.allocated = [];
   return 'ok';
 }

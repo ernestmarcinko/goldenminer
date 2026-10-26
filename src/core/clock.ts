@@ -10,8 +10,15 @@ export function advance(
   const elapsed = nowMs - state.lastTickAt;
   if (elapsed < 0) {
     state.lastTickAt = nowMs;
+    state.lastWallAt = nowMs;
     return 0;
   }
+  // Wall-clock time is accumulated here, from the `nowMs` parameter (never Date.now()): live elapsed counts as played,
+  // away/offline elapsed as away. `lastWallAt` (not the tick-aligned `lastTickAt`) measures the true wall-clock span, so
+  // a long gap or a closed tab never inflates "time played" and fractional ticks are never double-counted.
+  state.stats.timePlayedMs += away ? 0 : nowMs - state.lastWallAt;
+  state.stats.timeAwayMs += away ? nowMs - state.lastWallAt : 0;
+  state.lastWallAt = nowMs;
   if (!(stats.autoTicksPerSecond > 0) || !Number.isFinite(stats.autoTicksPerSecond)) {
     state.lastTickAt = nowMs;
     return 0;

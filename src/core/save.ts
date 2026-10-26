@@ -6,7 +6,7 @@ import {
   MAX_PASSIVE_MATERIAL_STACK, MAX_ROOMS, MAX_SIDE_LINES, MAX_SOCKETS, MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MAX_TRAIL_STEPS,
   MONSTER_BUDGET, PREMIUM_CAP, RUN_LOOT_LIMIT, START_GENERAL_PAGES, STASH_PAGE_SIZE, STOCK_SIZE, stashPagePrice,
 } from './balance';
-import { ACHIEVEMENT_IDS, zeroTotals } from './achievements';
+import { ACHIEVEMENT_IDS } from './achievements';
 import { ASCENDANCY_NODE_BY_ID, ASCENDANCY_NODE_COUNT, ASCENDANCY_START_ID, MAX_ASCENDANCY_PASSIVE_POINTS, ascendancyTotals } from './ascendancy';
 import { metreTier } from './bands';
 import { emptyGemCounts, emptyMaterialCounts, pageCount } from './cells';
@@ -17,6 +17,7 @@ import { sellValue } from './loot';
 import { isOldLootFilter, migrateLootFilter, ruleValid } from './lootFilter';
 import { emptyPremium } from './oreMarket';
 import { isConnectedWeb, PASSIVE_NODE_BY_ID, START_NODE_ID } from './passives';
+import { emptyLifetimeStats } from './telemetry';
 import {
   BATTLE_STATS, ESSENCE_TIER_MAX, GEAR_SETS, GEM_GRADES, GEM_TYPES, MAP_MOD_KINDS, MAP_SPECIALS, MATERIALS, MINING_STATS,
   MOD_SIDE, RARITIES, parseEssenceKey, setOfSlot, slotsOf, statsOf,
@@ -29,10 +30,10 @@ import { speciesOf } from './species';
 import { tierFor } from './tiers';
 import {
   CHAMPION_MODS, DEFAULT_MOTION, ELEMENTS, FEATURE_KINDS, FIND_KINDS, LOOT_ACTIONS, LOOT_KINDS, LOOT_OUTCOMES, RANKS, RUN_OUTCOMES,
-  SHAFT_MOTIONS, TRAIL_EVENTS, type DropEntry, type GameState, type LootRule, type Totals,
+  SHAFT_MOTIONS, TRAIL_EVENTS, type DropEntry, type GameState, type LifetimeStats, type LootRule,
 } from './types';
 
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
@@ -295,12 +296,41 @@ export const MIGRATIONS: Record<number, Migration> = {
   },
   13: (state) => {
     if (!isObject(state)) return state;
-    // Achievements start empty (past progress is not back-filled), and the lifetime counters at zero.
+    // Achievements start empty (past progress is not back-filled), and the Plan-20 lifetime counters at zero.
     return {
       ...state,
-      totals: zeroTotals(),
+      totals: {
+        gold: 0, diamonds: 0, metres: 0, gems: 0, ore: emptyMaterialCounts(),
+        kills: 0, bosses: 0, deaths: 0, maps: 0, crafts: 0, buys: 0, sockets: 0, legendaries: 0,
+      },
       achievements: { earned: [] },
     };
+  },
+  14: (state) => {
+    if (!isObject(state)) return state;
+    // The Plan-20 `totals` ledger becomes the lifetime `stats` ledger, carrying every counter it already tracked over
+    // (never resetting) and starting the new counters at zero. Gold earned cannot be split into found vs from-sales, so
+    // it all lands in `goldFound`; the `gold` achievement reads the two together, so its total is unchanged.
+    const stats = emptyLifetimeStats();
+    const totals = isObject(state.totals) ? state.totals : {};
+    const keep = (x: unknown): number => (isNonNegFinite(x) ? x : 0);
+    stats.metresDug = keep(totals.metres);
+    stats.goldFound = keep(totals.gold);
+    stats.diamondsFound = keep(totals.diamonds);
+    stats.gems = keep(totals.gems);
+    stats.monstersKilled = keep(totals.kills);
+    stats.bossKills = keep(totals.bosses);
+    stats.deaths = keep(totals.deaths);
+    stats.mapsCleared = keep(totals.maps);
+    stats.itemsCrafted = keep(totals.crafts);
+    stats.itemsBought = keep(totals.buys);
+    stats.gemsSocketed = keep(totals.sockets);
+    stats.legendaries = keep(totals.legendaries);
+    const ore = isObject(totals.ore) ? totals.ore : {};
+    for (const m of MATERIALS) stats.oresFound[m] = keep(ore[m]);
+    const next: Record<string, unknown> = { ...state, stats, lastWallAt: keep(state.lastTickAt) };
+    delete next.totals;
+    return next;
   },
 };
 
@@ -663,13 +693,28 @@ function isAutoMap(x: unknown): x is { queue: number[] } {
 const isLifetime = (x: unknown): x is { ascensions: number; deepest: number } =>
   isObject(x) && isNonNegInt(x.ascensions) && isNonNegInt(x.deepest);
 
-// The permanent achievement counters: every scalar a non-negative finite number, and one count per ore.
-function isTotals(x: unknown): x is Totals {
-  if (!isObject(x) || !isObject(x.ore)) return false;
-  const ore = x.ore;
-  if (Object.keys(ore).length !== MATERIALS.length || !MATERIALS.every((m) => isNonNegFinite(ore[m]))) return false;
-  const scalars = ['gold', 'diamonds', 'metres', 'gems', 'kills', 'bosses', 'deaths', 'maps', 'crafts', 'buys', 'sockets', 'legendaries'];
-  return scalars.every((k) => isNonNegFinite(x[k]));
+// The lifetime stats ledger: every scalar a non-negative finite number, one count per ore and per gem type and grade.
+function isLifetimeStats(x: unknown): x is LifetimeStats {
+  if (!isObject(x)) return false;
+  const scalars = [
+    'metresDug', 'timePlayedMs', 'timeAwayMs', 'timeDiggingMs', 'timeCombatMs', 'timeIdleMs',
+    'goldFound', 'goldFromSales', 'goldSpent', 'diamondsFound', 'diamondsSpent', 'soulsEarned', 'soulsSpent',
+    'chestsOpened', 'mapsFound', 'monstersKilled', 'championKills', 'bossKills', 'deaths', 'mapsCleared', 'mapsLost',
+    'levelsGained', 'itemsCrafted', 'itemsKept', 'itemsSold', 'itemsSalvaged', 'gems', 'itemsBought', 'gemsSocketed', 'legendaries',
+  ];
+  if (!scalars.every((k) => isNonNegFinite(x[k]))) return false;
+  const { oresFound, oresTraded } = x;
+  if (!isObject(oresFound) || !isObject(oresTraded)) return false;
+  if (Object.keys(oresFound).length !== MATERIALS.length || !MATERIALS.every((m) => isNonNegFinite(oresFound[m]))) return false;
+  if (Object.keys(oresTraded).length !== MATERIALS.length || !MATERIALS.every((m) => isNonNegFinite(oresTraded[m]))) return false;
+  const gemsFound = x.gemsFound;
+  if (!isObject(gemsFound) || Object.keys(gemsFound).length !== GEM_TYPES.length) return false;
+  for (const type of GEM_TYPES) {
+    const counts = gemsFound[type];
+    if (!isObject(counts) || Object.keys(counts).length !== GEM_GRADES.length) return false;
+    if (!GEM_GRADES.every((g) => isNonNegFinite(counts[g]))) return false;
+  }
+  return true;
 }
 
 // The earned set: unique ids, each a known achievement.
@@ -866,7 +911,7 @@ export function validateState(x: unknown): x is GameState {
   if (typeof x.worldSeed !== 'string' || !isValidSeedText(x.worldSeed) || seedFromText(x.worldSeed) !== x.seed) return false;
   if (x.worldGen !== 1 && x.worldGen !== 2) return false;
   if (!isNonNegInt(x.tickCount) || !isNonNegInt(x.deepest)) return false;
-  if (!isNonNegFinite(x.lastTickAt) || !isNonNegFinite(x.gold) || !isNonNegFinite(x.diamonds)) return false;
+  if (!isNonNegFinite(x.lastTickAt) || !isNonNegFinite(x.lastWallAt) || !isNonNegFinite(x.gold) || !isNonNegFinite(x.diamonds)) return false;
   if (!isUnitRange(x.progress)) return false;
   if (!isObject(x.ahead)) return false;
   for (const [key, roll] of Object.entries(x.ahead)) {
@@ -888,7 +933,7 @@ export function validateState(x: unknown): x is GameState {
   if (!isMerchant(x.merchant) || !isUint32(x.uniqueRng)) return false;
   if (!isOreMarket(x.oreMarket)) return false;
   if (!isAscendancy(x.ascendancy) || !isAutoMap(x.autoMap) || !isLifetime(x.lifetime)) return false;
-  if (!isTotals(x.totals) || !isAchievements(x.achievements)) return false;
+  if (!isLifetimeStats(x.stats) || !isAchievements(x.achievements)) return false;
   const extraPassivePoints = ascendancyTotals({ ascendancy: x.ascendancy }).passivePoints;
   if (!isPassives(x.passives) || x.passives.allocated.length > x.level - 1 + extraPassivePoints) return false;
   const { seed } = x;

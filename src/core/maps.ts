@@ -33,6 +33,7 @@ export function takeMapAt(state: GameState, loc: { tier: number; index: number }
 
 /** A found map is a normal one, and goes where every find goes: to the bag, else held, else sold. */
 export function addMap(state: GameState, tier: number, metre: number): LootNote[] {
+  state.stats.mapsFound += 1;
   return receiveItem(state, { id: state.nextId++, type: 'map', tier, metre, rarity: 'normal', mods: [] }, { kind: 'metre', metre });
 }
 

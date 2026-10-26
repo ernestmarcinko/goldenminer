@@ -92,12 +92,44 @@ export type CombatLine =
   | { kind: 'drop'; note: LootNote }
   | { kind: 'saved'; monster: string };
 export interface RunGains { xp: number; souls: number; gold: number; levels: number }
-/** The permanent achievement counters: everything cumulative that must survive ascension. */
-export interface Totals {
-  gold: number; diamonds: number; metres: number; gems: number;   // lifetime Gold/Diamonds earned, metres dug, gems found
-  ore: Record<Material, number>;                                   // lifetime each ore found
-  kills: number; bosses: number; deaths: number; maps: number;     // lifetime monsters, bosses, deaths, maps cleared
-  crafts: number; buys: number; sockets: number; legendaries: number;   // lifetime crafts, merchant buys, gems socketed, legendaries owned
+/**
+ * The lifetime ledger: every cumulative number the game produces, across all ascensions. Achievements read the subset of
+ * these counters they need (`goldFound + goldFromSales`, `metresDug`, `monstersKilled`, …) and the Stats tab shows them
+ * all. `gems` is the lifetime total of gems found (carried over from the Plan-20 `totals`), while `gemsFound` is the
+ * per-type-and-grade breakdown that only accumulates going forward.
+ */
+export interface LifetimeStats {
+  // Distance & time
+  metresDug: number;                       // metres completed, all ascensions
+  timePlayedMs: number;                    // wall-clock live elapsed
+  timeAwayMs: number;                      // wall-clock away/offline elapsed
+  timeDiggingMs: number;                   // simulated dig ticks × dt
+  timeCombatMs: number;                    // simulated map ticks × dt
+  timeIdleMs: number;                      // simulated paused/held ticks × dt
+  // Currency
+  goldFound: number;                       // Gold from veins and kills
+  goldFromSales: number;                   // Gold from every sale
+  goldSpent: number;                       // Gold paid to gamble, stock, stash pages and refunds
+  diamondsFound: number;                   // Diamonds from veins
+  diamondsSpent: number;                   // Diamonds paid for the web reset and diamond crafts
+  soulsEarned: number;                     // Souls from kills
+  soulsSpent: number;                      // Souls paid for map enchants and soul upgrades
+  // Finds
+  oresFound: Record<Material, number>;     // units of each ore dug/found
+  oresTraded: Record<Material, number>;    // units of each ore received via the market
+  gemsFound: Record<GemType, Record<GemGrade, number>>;   // gems found, by type and grade
+  chestsOpened: number;
+  mapsFound: number;
+  // Combat & runs
+  monstersKilled: number; championKills: number; bossKills: number; deaths: number;
+  mapsCleared: number; mapsLost: number;
+  // Progression & items
+  levelsGained: number; itemsCrafted: number; itemsKept: number; itemsSold: number; itemsSalvaged: number;
+  // Carried-over achievement counters the Stats tab also shows
+  gems: number;                            // lifetime total gems found (achievement 'gems')
+  itemsBought: number;                     // merchant buys (achievement 'merchant')
+  gemsSocketed: number;                    // gems socketed (achievement 'sockets')
+  legendaries: number;                     // legendaries owned (achievement 'legendaries')
 }
 export interface MapRun {
   map: MapItem; room: number; bossRoom: number;   // rooms 1..bossRoom; bossRoom = regular rooms + 1 (5..8)
@@ -141,6 +173,8 @@ export interface GameState {
   worldSeed: string;                       // the text the player sees and shares
   worldGen: 1 | 2;                         // 1 = pre-seed saves, 2 = procedural worlds
   rng: number; tickCount: number; lastTickAt: number;
+  /** The last wall-clock `nowMs` `advance` saw, distinct from the tick-aligned `lastTickAt`, so played/away time is honest. */
+  lastWallAt: number;
   gold: number; diamonds: number;
   deepest: number;                         // whole metres dug; 0 = surface; the miner works the face below it
   progress: number;                        // 0..1 toward metre deepest+1 (the dig face)
@@ -175,7 +209,7 @@ export interface GameState {
   ascendancy: { points: number; allocated: string[] };   // the permanent tree: unspent points and allocated node ids
   autoMap: { queue: number[] };                          // queued map ids, oldest first, run only while away
   lifetime: { ascensions: number; deepest: number };     // across all runs: the ascension count and the best depth
-  totals: Totals;                                        // permanent achievement counters, kept across ascension
+  stats: LifetimeStats;                                  // the lifetime ledger, kept across ascension
   achievements: { earned: string[] };                    // earned achievement ids, kept across ascension
 }
 export interface Stats {

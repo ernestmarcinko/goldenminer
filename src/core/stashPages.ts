@@ -10,6 +10,7 @@ export function buyStashPage(state: GameState): 'ok' | 'noGold' | 'full' {
   const price = stashPagePrice(state.stash.bought.general + 1);
   if (state.gold < price) return 'noGold';
   state.gold -= price;
+  state.stats.goldSpent += price;
   state.stash.bought.general += 1;
   // A bought page goes before the web's free pages, so those stay the trailing pages a refund removes.
   const free = freeStashPages(state) * STASH_PAGE_SIZE;
