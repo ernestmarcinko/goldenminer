@@ -35,7 +35,7 @@ import {
   SHAFT_MOTIONS, TRAIL_EVENTS, type DropEntry, type GameState, type LifetimeStats, type LootRule,
 } from './types';
 
-export const SCHEMA_VERSION = 17;
+export const SCHEMA_VERSION = 18;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
@@ -348,7 +348,27 @@ export const MIGRATIONS: Record<number, Migration> = {
     // Every pre-name save gains a deterministic, pronounceable name from its seed; the world is untouched.
     return { ...state, characterName: defaultCharacterName(state.seed) };
   },
+  17: (state) => {
+    if (!isObject(state) || !isObject(state.passives) || !Array.isArray(state.passives.allocated)) return state;
+    // The Plan-25 link change removed the major↔major cross-links, which can strand the tail of an old allocation.
+    // Keep each id in allocation order iff it links to the start or an already-kept node under the new graph; a
+    // disconnected tail drops off and its points return (points are derived from level, so nothing else is lost).
+    return { ...state, passives: { allocated: prunePassives(state.passives.allocated as string[]) } };
+  },
 };
+
+// The passive web the Plan-25 graph leaves connected to the start, in allocation order.
+function prunePassives(allocated: string[]): string[] {
+  const kept = new Set<string>([START_NODE_ID]);
+  const out: string[] = [];
+  for (const id of allocated) {
+    const node = PASSIVE_NODE_BY_ID.get(id);
+    if (node === undefined || !node.links.some((l) => kept.has(l))) continue;
+    kept.add(id);
+    out.push(id);
+  }
+  return out;
+}
 
 const ALL_STATS: readonly StatKey[] = [...MINING_STATS, ...BATTLE_STATS];
 /**

@@ -149,72 +149,89 @@ const SMALL_NAMES: Record<string, string> = {
   magicFind: 'Magic Find', xpFind: 'XP',
 };
 
-// The web's geometry: a hand-authored cluster table. The start sits at the centre; around it each side's clusters group
-// a short chain of smalls behind a terminal notable or keystone. A cluster's first small links from its `entry` (the
-// start or an earlier cluster's terminal), and its terminal cross-links its ring neighbours, weaving the whole mesh.
+// ── The world and its spacing constants ──────────────────────────────────────────────────────────────
+// The web lives in a 2400 × 2000 world centred on the miner. The gaps below are the decluttered spacing the web is
+// tuned to: adjacent smalls sit at least two icon widths apart, majors stand well clear of each other, and clusters
+// keep their own breathing room. They are pinned by the geometry tests, so changing them changes the web.
+export const START_X = 1200;
+export const START_Y = 1000;
+export const WORLD_W = 2400;
+export const WORLD_H = 2000;
+export const SMALL_GAP = 92;
+export const MAJOR_GAP = 280;
+export const CLUSTER_GAP = 120;
+export const MAX_RADIUS = 1100;
+
+// The web's geometry: a hand-authored cluster table. The start sits at the centre; each side's clusters group a chain
+// of smalls behind a terminal notable or keystone. A cluster's first small links from its `entry` (the start or an
+// earlier cluster's terminal), its smalls arc along the quadratic Bézier from the entry through its `bend` control
+// point to the terminal, and its terminal links only to its own last small. `cross` names neighbour clusters whose
+// first small this cluster's first small also cross-links to, weaving the mesh at the minor level (never major↔major).
 interface ClusterDef {
   side: Exclude<PassiveSide, 'start'>;
-  /** The terminal's place; the cluster's smalls sit on the ray from the entry to here. */
+  /** The terminal's place. */
   x: number;
   y: number;
+  /** The Bézier control point the smalls arc through on the way from the entry to the terminal. */
+  bendX: number;
+  bendY: number;
   /** How many smalls this cluster draws from its side's budget, in order. */
   count: number;
   terminal: NamedSpec;
   /** Where the cluster's first small links from: the start, or another cluster's terminal id. */
   entry: string;
-  /** Terminals this cluster's terminal also links to (the mesh's cross-links). */
+  /** Neighbour clusters (by terminal id) whose first small this cluster's first small cross-links to. */
   cross: string[];
 }
 
-const START_X = 560;
-const START_Y = 400;
-
 const cluster = (
-  side: Exclude<PassiveSide, 'start'>, x: number, y: number, count: number, terminal: NamedSpec, entry: string, cross: string[],
-): ClusterDef => ({ side, x, y, count, terminal, entry, cross });
+  side: Exclude<PassiveSide, 'start'>, x: number, y: number, bendX: number, bendY: number, count: number,
+  terminal: NamedSpec, entry: string, cross: string[],
+): ClusterDef => ({ side, x, y, bendX, bendY, count, terminal, entry, cross });
 
-// 36 clusters on 12 spokes × 3 rings: battle top-right, mining left, hybrid along the bottom. Each side's middle-spoke
-// ring-1 cluster is the anchor the start links to; the rest chain up the same spoke and cross-link their ring neighbour.
+// 36 scattered cluster centres across the three side wedges (battle right, mining left, hybrid top). Angles and radii
+// are jittered from the old 12-spoke × 3-ring grid, then nudged so majors stay ≥ MAJOR_GAP apart and every cluster
+// sits within MAX_RADIUS of the start. The bend control point pushes each chain into a gentle arc.
 const CLUSTERS: ClusterDef[] = [
-  // ── battle (top-right) ──────────────────────────────────────────────────────────────
-  cluster('battle', 707, 485, 6, thickSkin, 'sharpened', ['sharpened']),
-  cluster('battle', 645, 547, 6, sharpened, START_NODE_ID, ['treasureHunter']),
-  cluster('battle', 560, 570, 6, treasureHunter, 'sharpened', ['vanguard']),
-  cluster('battle', 475, 547, 6, vanguard, 'sharpened', ['thickSkin']),
-  cluster('battle', 820, 550, 6, deadlyAim, 'thickSkin', ['soulWarden']),
-  cluster('battle', 710, 660, 5, soulWarden, 'sharpened', ['reckoner']),
-  cluster('battle', 560, 700, 5, reckoner, 'treasureHunter', ['soulReaper']),
-  cluster('battle', 410, 660, 5, soulReaper, 'vanguard', ['deadlyAim']),
-  cluster('battle', 906, 600, 5, berserker, 'deadlyAim', ['allOrNothing']),
-  cluster('battle', 760, 746, 5, allOrNothing, 'soulWarden', ['bloodMoney']),
-  cluster('battle', 560, 800, 5, bloodMoney, 'reckoner', ['bulwark']),
-  cluster('battle', 360, 746, 5, bulwark, 'soulReaper', ['berserker']),
-  // ── mining (left) ───────────────────────────────────────────────────────────────────
-  cluster('mining', 413, 485, 6, veinSense, 'prospector', ['prospector']),
-  cluster('mining', 390, 400, 6, prospector, START_NODE_ID, ['steadyHands']),
-  cluster('mining', 413, 315, 6, steadyHands, 'prospector', ['prospectorsEye']),
-  cluster('mining', 475, 253, 6, prospectorsEye, 'prospector', ['veinSense']),
-  cluster('mining', 300, 550, 6, deepLungs, 'veinSense', ['oreSniffer']),
-  cluster('mining', 260, 400, 5, oreSniffer, 'prospector', ['deepMiner']),
-  cluster('mining', 300, 250, 5, deepMiner, 'steadyHands', ['deepBreath']),
-  cluster('mining', 410, 140, 5, deepBreath, 'prospectorsEye', ['deepLungs']),
-  cluster('mining', 214, 600, 5, earthshaker, 'deepLungs', ['oreBaron']),
-  cluster('mining', 160, 400, 5, oreBaron, 'oreSniffer', ['cartographer']),
-  cluster('mining', 214, 200, 5, cartographer, 'deepMiner', ['prospectorsLuck']),
-  cluster('mining', 360, 54, 5, prospectorsLuck, 'deepBreath', ['earthshaker']),
-  // ── hybrid (bottom) ─────────────────────────────────────────────────────────────────
-  cluster('hybrid', 560, 230, 3, lampAndBlade, 'sureFooting', ['sureFooting']),
-  cluster('hybrid', 645, 253, 3, sureFooting, START_NODE_ID, ['alchemist']),
-  cluster('hybrid', 707, 315, 3, alchemist, 'sureFooting', ['nightowl']),
-  cluster('hybrid', 730, 400, 3, nightowl, 'sureFooting', ['lampAndBlade']),
-  cluster('hybrid', 560, 100, 3, wellRested, 'lampAndBlade', ['careful']),
-  cluster('hybrid', 710, 140, 3, careful, 'sureFooting', ['gemPouch']),
-  cluster('hybrid', 820, 250, 3, gemPouch, 'alchemist', ['oreCart']),
-  cluster('hybrid', 860, 400, 3, oreCart, 'nightowl', ['wellRested']),
-  cluster('hybrid', 560, 0, 3, deepPockets, 'wellRested', ['twoWayStreet']),
-  cluster('hybrid', 760, 54, 3, twoWayStreet, 'careful', ['soulDebt']),
-  cluster('hybrid', 906, 200, 3, soulDebt, 'gemPouch', ['surveyor']),
-  cluster('hybrid', 960, 400, 2, surveyor, 'oreCart', ['deepPockets']),
+  // ── battle (right) ──────────────────────────────────────────────────────────────────────────────
+  cluster('battle', 1936, 1313, 2025, 908, 6, thickSkin, 'sharpened', ['sharpened']),
+  cluster('battle', 1617, 831, 1229, 473, 6, sharpened, START_NODE_ID, ['treasureHunter']),
+  cluster('battle', 1385, 1482, 1558, 1177, 6, treasureHunter, 'sharpened', ['vanguard']),
+  cluster('battle', 2025, 1043, 2035, 524, 6, vanguard, 'sharpened', ['thickSkin']),
+  cluster('battle', 1720, 1730, 2092, 1658, 5, deadlyAim, 'thickSkin', ['soulWarden']),
+  cluster('battle', 1667, 1451, 1851, 1124, 6, soulWarden, 'sharpened', ['reckoner']),
+  cluster('battle', 1475, 1958, 1700, 1669, 5, reckoner, 'treasureHunter', ['soulReaper']),
+  cluster('battle', 2133, 565, 2338, 863, 5, soulReaper, 'vanguard', ['deadlyAim']),
+  cluster('battle', 2260, 1206, 2032, 1511, 5, berserker, 'deadlyAim', ['allOrNothing']),
+  cluster('battle', 2003, 1723, 1616, 1858, 5, allOrNothing, 'soulWarden', ['bloodMoney']),
+  cluster('battle', 2246, 834, 1910, 1430, 5, bloodMoney, 'reckoner', ['bulwark']),
+  cluster('battle', 2162, 1490, 2207, 1026, 5, bulwark, 'soulReaper', ['berserker']),
+  // ── mining (left) ──────────────────────────────────────────────────────────────────────────────
+  cluster('mining', 661, 515, 245, 832, 6, veinSense, 'prospector', ['prospector']),
+  cluster('mining', 752, 961, 935, 1457, 6, prospector, START_NODE_ID, ['steadyHands']),
+  cluster('mining', 470, 1310, 238, 834, 6, steadyHands, 'prospector', ['prospectorsEye']),
+  cluster('mining', 348, 547, 337, 961, 6, prospectorsEye, 'prospector', ['veinSense']),
+  cluster('mining', 640, 1580, 591, 1046, 6, deepLungs, 'veinSense', ['oreSniffer']),
+  cluster('mining', 849, 1390, 470, 1250, 5, oreSniffer, 'prospector', ['deepMiner']),
+  cluster('mining', 300, 1030, -8, 1409, 5, deepMiner, 'steadyHands', ['deepBreath']),
+  cluster('mining', 190, 1330, 210, 927, 5, deepBreath, 'prospectorsEye', ['deepLungs']),
+  cluster('mining', 140, 770, 339, 1207, 5, earthshaker, 'deepLungs', ['oreBaron']),
+  cluster('mining', 517, 804, 631, 1127, 5, oreBaron, 'oreSniffer', ['cartographer']),
+  cluster('mining', 330, 1609, 255, 1323, 5, cartographer, 'deepMiner', ['prospectorsLuck']),
+  cluster('mining', 506, 1827, 297, 1611, 5, prospectorsLuck, 'deepBreath', ['earthshaker']),
+  // ── hybrid (top) ──────────────────────────────────────────────────────────────────────────────
+  cluster('hybrid', 1160, 300, 1019, 442, 3, lampAndBlade, 'sureFooting', ['sureFooting']),
+  cluster('hybrid', 984, 640, 1041, 851, 3, sureFooting, START_NODE_ID, ['alchemist']),
+  cluster('hybrid', 1380, 531, 1166, 528, 3, alchemist, 'sureFooting', ['nightowl']),
+  cluster('hybrid', 1695, 538, 1331, 530, 3, nightowl, 'sureFooting', ['lampAndBlade']),
+  cluster('hybrid', 1929, 366, 1550, 273, 3, wellRested, 'lampAndBlade', ['careful']),
+  cluster('hybrid', 1522, 277, 1219, 409, 3, careful, 'sureFooting', ['gemPouch']),
+  cluster('hybrid', 859, 301, 1144, 361, 3, gemPouch, 'alchemist', ['oreCart']),
+  cluster('hybrid', 1323, 40, 1557, 253, 3, oreCart, 'nightowl', ['wellRested']),
+  cluster('hybrid', 1740, 65, 1938, 150, 3, deepPockets, 'wellRested', ['twoWayStreet']),
+  cluster('hybrid', 660, 65, 1105, 113, 3, twoWayStreet, 'careful', ['soulDebt']),
+  cluster('hybrid', 979, 40, 701, 70, 3, soulDebt, 'gemPouch', ['surveyor']),
+  cluster('hybrid', 423, 250, 859, 87, 2, surveyor, 'oreCart', ['deepPockets']),
 ];
 
 interface Placed {
@@ -235,6 +252,46 @@ function expandSmall(side: Exclude<PassiveSide, 'start'>): { stat: StatKey; valu
   return out;
 }
 
+// A point on the quadratic Bézier from `p0` through `p1` to `p2`.
+const bezier = (p0: { x: number; y: number }, p1: { x: number; y: number }, p2: { x: number; y: number }, t: number): { x: number; y: number } => {
+  const mt = 1 - t;
+  return {
+    x: mt * mt * p0.x + 2 * mt * t * p1.x + t * t * p2.x,
+    y: mt * mt * p0.y + 2 * mt * t * p1.y + t * t * p2.y,
+  };
+};
+
+// The point at the given arc-length fraction along a quadratic Bézier, by sampling the curve finely.
+const bezierAtArc = (
+  p0: { x: number; y: number }, p1: { x: number; y: number }, p2: { x: number; y: number }, frac: number,
+): { x: number; y: number } => {
+  const SAMPLES = 128;
+  const pts: { x: number; y: number }[] = [p0];
+  const arc: number[] = [0];
+  let prev = p0;
+  let cum = 0;
+  for (let i = 1; i <= SAMPLES; i++) {
+    const cur = bezier(p0, p1, p2, i / SAMPLES);
+    cum += Math.hypot(cur.x - prev.x, cur.y - prev.y);
+    arc.push(cum);
+    pts.push(cur);
+    prev = cur;
+  }
+  const target = frac * (arc[SAMPLES] ?? 0);
+  for (let i = 0; i < SAMPLES; i++) {
+    const end = arc[i + 1];
+    if (end === undefined || end < target) continue;
+    const a = pts[i];
+    const b = pts[i + 1];
+    if (a === undefined || b === undefined) continue;
+    const start = arc[i] ?? 0;
+    const seg = end - start;
+    const f = seg === 0 ? 0 : (target - start) / seg;
+    return { x: Math.round(a.x + (b.x - a.x) * f), y: Math.round(a.y + (b.y - a.y) * f) };
+  }
+  return pts[SAMPLES] ?? p2;
+};
+
 function buildWeb(): PassiveNode[] {
   const smalls: Record<Exclude<PassiveSide, 'start'>, { stat: StatKey; value: number }[]> = {
     mining: expandSmall('mining'), battle: expandSmall('battle'), hybrid: expandSmall('hybrid'),
@@ -242,7 +299,7 @@ function buildWeb(): PassiveNode[] {
   const smallCursor: Record<Exclude<PassiveSide, 'start'>, number> = { mining: 0, battle: 0, hybrid: 0 };
   const placed: Placed[] = [];
 
-  // Every terminal's position is known up front, so a cluster's smalls can line up to its entry.
+  // Every terminal's place is known up front, so a cluster's smalls can arc from its entry to here.
   const terminalAt = new Map<string, { x: number; y: number }>();
   terminalAt.set(START_NODE_ID, { x: START_X, y: START_Y });
   for (const c of CLUSTERS) terminalAt.set(c.terminal.id, { x: c.x, y: c.y });
@@ -254,48 +311,84 @@ function buildWeb(): PassiveNode[] {
     return s;
   };
 
+  // A link between two placed nodes is added both ways; a guard refuses a link that would join two majors.
+  const linkTo = (a: Placed, b: Placed): void => {
+    const major = (p: Placed): boolean => p.kind === 'notable' || p.kind === 'keystone';
+    if (major(a) && major(b)) throw new Error(`major↔major link ${a.id} → ${b.id}`);
+    if (!a.links.includes(b.id)) a.links.push(b.id);
+    if (!b.links.includes(a.id)) b.links.push(a.id);
+  };
+
+  // Place each cluster's smalls (arc-length steps along the Bézier), then its terminal. The small ids fall out of the
+  // cluster order, which is load-bearing: it is what keeps every pre-existing id pointing at the same stat.
+  const smallIds = new Map<string, string[]>();   // terminal id → the cluster's small ids, in chain order
   const startLinks: string[] = [];
 
   for (const c of CLUSTERS) {
     const entry = terminalAt.get(c.entry);
     if (entry === undefined) throw new Error(`unknown cluster entry ${c.entry}`);
-    // The cluster's smalls sit evenly along the ray from the entry to the terminal, short edges all the way.
     const ids: string[] = [];
     for (let i = 0; i < c.count; i++) {
       const s = takeSmall(c.side);
       const id = `${c.side}Small${smallCursor[c.side]}`;
-      const t = (i + 1) / (c.count + 1);
+      const p = bezierAtArc(entry, { x: c.bendX, y: c.bendY }, { x: c.x, y: c.y }, (i + 1) / (c.count + 1));
       placed.push({
         id, name: SMALL_NAMES[s.stat] ?? s.stat, kind: 'small', side: c.side,
         effects: [{ kind: 'stat', stat: s.stat, value: s.value }], desc: '',
-        x: Math.round(entry.x + (c.x - entry.x) * t), y: Math.round(entry.y + (c.y - entry.y) * t), links: [],
+        x: p.x, y: p.y, links: [],
       });
       ids.push(id);
     }
-    // Chain entry → small0 → … → last small.
-    for (let i = 0; i < ids.length; i++) {
-      const node = placed.find((p) => p.id === ids[i]);
-      if (node === undefined) continue;
-      const prev = i === 0 ? c.entry : ids[i - 1];
-      if (prev !== undefined) node.links.push(prev);
-    }
-    // The terminal ends the chain and cross-links its ring neighbours.
-    const terminal: Placed = {
+    smallIds.set(c.terminal.id, ids);
+    if (c.entry === START_NODE_ID && ids[0] !== undefined) startLinks.push(ids[0]);
+    // The terminal ends its own chain and links to nothing else yet.
+    placed.push({
       id: c.terminal.id, name: c.terminal.name, kind: c.terminal.kind, side: c.side,
       effects: c.terminal.effects, desc: c.terminal.desc, x: c.x, y: c.y, links: [],
-    };
-    const last = ids[ids.length - 1];
-    if (last !== undefined) terminal.links.push(last);
-    for (const target of c.cross) if (!terminal.links.includes(target)) terminal.links.push(target);
-    placed.push(terminal);
-    if (c.entry === START_NODE_ID && ids[0] !== undefined) startLinks.push(ids[0]);
+    });
   }
 
-  // symmetric links: every link a -> b is also b -> a (among the placed nodes).
-  for (const p of placed) {
-    for (const l of p.links) {
-      const other = placed.find((o) => o.id === l);
-      if (other !== undefined && !other.links.includes(p.id)) other.links.push(p.id);
+  const byId = new Map<string, Placed>();
+  for (const p of placed) byId.set(p.id, p);
+  const must = (id: string): Placed => {
+    const p = byId.get(id);
+    if (p === undefined) throw new Error(`missing placed node ${id}`);
+    return p;
+  };
+
+  // Wire the chains and the entries. A terminal links only to its own last small; a first small links from its entry
+  // (the start, or another cluster's terminal) and on to its own second small.
+  for (const c of CLUSTERS) {
+    const ids = smallIds.get(c.terminal.id) ?? [];
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i];
+      if (id === undefined) continue;
+      const node = must(id);
+      if (i === 0) {
+        // The first small links from its entry: the start (a one-way edge the start mirrors via startLinks) or a
+        // terminal of another cluster (a both-ways edge).
+        if (c.entry === START_NODE_ID) node.links.push(START_NODE_ID);
+        else linkTo(node, must(c.entry));
+      } else {
+        const prev = ids[i - 1];
+        if (prev !== undefined) linkTo(node, must(prev));
+      }
+    }
+    const terminal = must(c.terminal.id);
+    const last = ids[ids.length - 1];
+    if (last !== undefined) linkTo(terminal, must(last));
+  }
+
+  // The mesh's cycles: this cluster's first small cross-links to each named neighbour's first small (minor↔minor).
+  for (const c of CLUSTERS) {
+    const mine = smallIds.get(c.terminal.id);
+    const myFirst = mine?.[0];
+    if (myFirst === undefined) continue;
+    for (const target of c.cross) {
+      const theirs = smallIds.get(target);
+      const theirFirst = theirs?.[0];
+      if (theirFirst === undefined) continue;
+      linkTo(must(myFirst), must(theirFirst));
     }
   }
 

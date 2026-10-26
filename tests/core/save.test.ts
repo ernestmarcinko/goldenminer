@@ -51,8 +51,8 @@ it('a character name round-trips through save and load', () => {
   expect(r.state.characterName).toBe('Gorvash');
 });
 
-it('a schema-16 save migrates to 17 with a generated name', () => {
-  expect(SCHEMA_VERSION).toBe(17);
+it('a schema-16 save migrates to 18 with a generated name', () => {
+  expect(SCHEMA_VERSION).toBe(18);
   const state16 = { ...newGame(12345, 0) };
   delete (state16 as Partial<GameState>).characterName;
   const r = decodeSave(raw({ schema: 16, savedAt: 0, state: state16 }));
@@ -60,6 +60,40 @@ it('a schema-16 save migrates to 17 with a generated name', () => {
   expect(r.state.characterName).toBe(defaultCharacterName(12345));
   expect(r.state.characterName.length).toBeGreaterThan(0);
   expect(r.state.worldGen).toBe(2);
+});
+
+it('a schema-17 save whose major was reached through a major↔major cross-link prunes the tail', () => {
+  // sharpened's own smalls (battleSmall7..12) then sharpened; thickSkin was reached only through the old
+  // sharpened↔thickSkin terminal cross-link, which Plan 25 removed. Under the new graph it is stranded.
+  const s = newGame(1, 0);
+  const allocated = ['battleSmall7', 'battleSmall8', 'battleSmall9', 'battleSmall10', 'battleSmall11', 'battleSmall12', 'sharpened', 'thickSkin'];
+  s.level = allocated.length + 1;
+  s.passives.allocated = allocated;
+  const r = decodeSave(raw({ schema: 17, savedAt: 0, state: s }));
+  expect(r.ok).toBe(true);
+  if (!r.ok) return;
+  expect(r.state.passives.allocated).toEqual(['battleSmall7', 'battleSmall8', 'battleSmall9', 'battleSmall10', 'battleSmall11', 'battleSmall12', 'sharpened']);
+  expect(r.state.passives.allocated.includes('thickSkin')).toBe(false);
+  // The pruned node's point returns: level − 1 − allocated.length.
+  expect(r.state.level - 1 - r.state.passives.allocated.length).toBe(1);
+});
+
+it('a schema-17 save reached through minors is unchanged after load', () => {
+  const s = newGame(1, 0);
+  s.level = 8;
+  s.passives.allocated = ['battleSmall7', 'battleSmall8', 'battleSmall9', 'battleSmall10', 'battleSmall11', 'battleSmall12', 'sharpened'];
+  const r = decodeSave(raw({ schema: 17, savedAt: 0, state: s }));
+  expect(r.ok).toBe(true);
+  if (!r.ok) return;
+  expect(r.state.passives.allocated).toEqual(s.passives.allocated);
+});
+
+it('a schema-17 save with no passives is byte-identical after load', () => {
+  const s = newGame(1, 0);
+  const r = decodeSave(raw({ schema: 17, savedAt: 0, state: s }));
+  expect(r.ok).toBe(true);
+  if (!r.ok) return;
+  expect(r.state).toEqual(s);
 });
 
 it('rejects a missing, empty, over-long or control-character name', () => {

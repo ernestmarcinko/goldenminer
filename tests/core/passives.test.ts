@@ -2,7 +2,8 @@ import { expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
 import { ASCENDANCY_NODES } from '../../src/core/ascendancy';
 import {
-  PASSIVE_NODE_BY_ID, PASSIVE_NODES, START_NODE_ID, canAllocate, canRefund, freeStashPages, pointsToSpend, stackCaps,
+  MAJOR_GAP, MAX_RADIUS, PASSIVE_NODE_BY_ID, PASSIVE_NODES, SMALL_GAP, START_NODE_ID, canAllocate, canRefund,
+  freeStashPages, pointsToSpend, stackCaps,
 } from '../../src/core/passives';
 import type { StatKey } from '../../src/core/items';
 
@@ -61,7 +62,53 @@ it('no node sits further than a bounded distance from the start', () => {
   if (start === undefined) return;
   for (const n of PASSIVE_NODES) {
     const distance = Math.hypot(n.x - start.x, n.y - start.y);
-    expect(distance, n.id).toBeLessThanOrEqual(500);
+    expect(distance, n.id).toBeLessThanOrEqual(MAX_RADIUS);
+  }
+});
+
+it('adjacent smalls stay at least SMALL_GAP apart', () => {
+  for (const n of PASSIVE_NODES) {
+    if (n.kind !== 'small') continue;
+    const num = Number(n.id.replace(/^(mining|battle|hybrid)Small/, ''));
+    const side = n.id.replace(/Small.*$/, '');
+    for (const l of n.links) {
+      const m = PASSIVE_NODE_BY_ID.get(l);
+      if (m === undefined || m.kind !== 'small') continue;
+      // A chain links consecutive smalls; a cross-link joins first smalls, never consecutive ids.
+      if (Number(m.id.replace(/^(mining|battle|hybrid)Small/, '')) !== num + 1) continue;
+      if (!m.id.startsWith(side)) continue;
+      const distance = Math.hypot(n.x - m.x, n.y - m.y);
+      expect(distance, `${n.id} → ${m.id}`).toBeGreaterThanOrEqual(SMALL_GAP);
+    }
+  }
+});
+
+it('majors stay at least MAJOR_GAP apart', () => {
+  const majors = PASSIVE_NODES.filter((n) => n.kind === 'notable' || n.kind === 'keystone');
+  for (let i = 0; i < majors.length; i++) {
+    const a = majors[i];
+    if (a === undefined) continue;
+    for (let j = i + 1; j < majors.length; j++) {
+      const b = majors[j];
+      if (b === undefined) continue;
+      const distance = Math.hypot(a.x - b.x, a.y - b.y);
+      expect(distance, `${a.id} ↔ ${b.id}`).toBeGreaterThanOrEqual(MAJOR_GAP);
+    }
+  }
+});
+
+it('no edge links two majors; a major reaches only its own cluster through smalls', () => {
+  const major = (id: string): boolean => {
+    const node = PASSIVE_NODE_BY_ID.get(id);
+    return node !== undefined && (node.kind === 'notable' || node.kind === 'keystone');
+  };
+  for (const n of PASSIVE_NODES) {
+    if (n.kind !== 'notable' && n.kind !== 'keystone') continue;
+    // A major's neighbours are all smalls — never another major.
+    for (const l of n.links) expect(major(l), `${n.id} → ${l}`).toBe(false);
+    // And it is not isolated: its own cluster's last small links to it.
+    expect(n.links.length, n.id).toBeGreaterThan(0);
+    expect(n.links.every((l) => PASSIVE_NODE_BY_ID.get(l)?.kind === 'small'), n.id).toBe(true);
   }
 });
 
