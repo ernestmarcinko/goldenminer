@@ -640,6 +640,28 @@ describe('pausing', () => {
     expect(store.state.lastTickAt).toBe(now.t);
   });
 
+  it('a gap of more than 5 minutes between live ticks is dug as time away, unless the player pressed Pause', () => {
+    const minute = 60_000;
+    const { store, now } = make(); store.load();
+    store.setViewPaused(true);
+    // the computer slept on the Inventory view
+    now.t += 6 * minute; store.pump();
+    expect(store.state.deepest).toBeGreaterThan(0);
+    expect(store.offlineSummary).not.toBeNull();
+    expect(store.offlineSummary?.paused).toBe(false);
+
+    store.setPaused(true);
+    const dugThen = dug(store.state);
+    now.t += 6 * minute; store.pump();
+    expect(dug(store.state)).toEqual(dugThen);
+    expect(store.offlineSummary?.paused).toBe(true);
+
+    // 4 minutes is no gap: the view still pauses it
+    store.setPaused(false);
+    now.t += 4 * minute; store.pump();
+    expect(dug(store.state)).toEqual(dugThen);
+  });
+
   it('the player\'s Pause survives a save and a load', () => {
     const { store, storage, now } = make(); store.load();
     store.setPaused(true);

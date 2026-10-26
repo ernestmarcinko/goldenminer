@@ -6,7 +6,7 @@ import type { DropTarget } from '../../core/types';
 import { itemName } from '../../core/itemData';
 import { Sprite } from '../../sprites/Sprite';
 import { formatCompact, formatNumber } from '../format';
-import { IS_MAC } from '../platform';
+import { IS_MAC, lastPointerType } from '../platform';
 import { clickRoute, dropAttr } from './dragDrop';
 import type { ItemTarget } from './itemActions';
 import { itemSprite, rarityOf } from './itemView';
@@ -51,16 +51,24 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
 }) {
   const pointerType = useRef('mouse');
   const ref = useRef<HTMLButtonElement>(null);
-  const shown = useRef(item.id);
+  const shown = useRef<number | null>(null);
   const { drag } = handlers;
-  // Another item came into this cell under a still pointer: a shortcut's sale let a held find in, or a map tier moved
-  // up. No mouseenter fires for it, so its card is shown here, or the next shortcut would act on an item unseen.
-  // By id, since a stash tab's stack is a new object each render (id 0, as its cell never changes item).
+  // An item came into this cell under a still pointer: a shortcut's sale let a held find in, a map tier moved up, or a
+  // find landed in an empty cell (a new button, so this runs on its mount). A browser need send no mouseenter for it,
+  // so its card is shown here, or the next shortcut would act on an item unseen. By id, since a stash tab's stack is a
+  // new object each render (id 0, as its cell never changes item). The page's last pointer, as a new button has seen
+  // none of its own. A browser sets :hover on a node inserted under a still pointer only at the next frame, so a miss
+  // looks once more then.
   useEffect(() => {
     if (shown.current === item.id) return;
-    shown.current = item.id;
+    const id = item.id;
+    shown.current = id;
     const el = ref.current;
-    if (el !== null && pointerType.current !== 'touch' && el.matches(':hover')) handlers.onInspect(target, el);
+    if (el === null || lastPointerType() === 'touch') return;
+    if (el.matches(':hover')) { handlers.onInspect(target, el); return; }
+    requestAnimationFrame(() => {
+      if (ref.current === el && shown.current === id && el.matches(':hover')) handlers.onInspect(target, el);
+    });
   });
   return (
     <button

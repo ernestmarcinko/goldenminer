@@ -139,6 +139,8 @@ export const MAX_ROOMS = 7;
 
 export const AUTOSAVE_INTERVAL_MS = 30_000;
 export const OFFLINE_SUMMARY_MIN_TICKS = 300;
+/** A gap between two live ticks longer than this (the computer slept) is dug as time away, whatever the view. */
+export const LONG_GAP_MS = 5 * 60_000;
 export const TAB_LOCK_STALE_MS = 5000;
 export const TAB_HEARTBEAT_MS = 2000;
 

@@ -1,4 +1,4 @@
-import { MAX_LOOT_RULES, OFFLINE_SUMMARY_MIN_TICKS } from '../core/balance';
+import { LONG_GAP_MS, MAX_LOOT_RULES, OFFLINE_SUMMARY_MIN_TICKS } from '../core/balance';
 import { deriveBattleStats, type BattleStats } from '../core/battle';
 import { advance, ClickLimiter, clickTicks } from '../core/clock';
 import { clickHit } from '../core/combat';
@@ -122,7 +122,8 @@ export class GameStore {
 
   /**
    * Advances to now; returns the ticks applied. Clones a "before" snapshot only when a summary is possible.
-   * Offline catch-up gates digging on the player's Pause alone: the view the game was left on doesn't matter.
+   * Offline catch-up gates digging on the player's Pause alone: the view the game was left on doesn't matter. So does a
+   * live tick after a long gap, as the computer slept and the player was away whatever view was showing.
    */
   private catchUp(events?: TickEvent[], live = false): number {
     const now = this.deps.now();
@@ -132,7 +133,8 @@ export class GameStore {
       now - state.lastTickAt >= (OFFLINE_SUMMARY_MIN_TICKS * 1000) / stats.autoTicksPerSecond;
     const before = summaryPossible ? structuredClone(state) : null;
     const elapsed = now - state.lastTickAt;
-    const ticks = advance(state, now, stats, events, live ? this.digPaused : state.paused);
+    const away = !live || elapsed > LONG_GAP_MS;
+    const ticks = advance(state, now, stats, events, away ? state.paused : this.digPaused);
     if (before && ticks >= OFFLINE_SUMMARY_MIN_TICKS) {
       this._summary = summarize(before, state, elapsed, ticks, stats.offlineCapMs);
     }
