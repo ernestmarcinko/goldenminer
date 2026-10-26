@@ -99,11 +99,13 @@ export function AscensionView({ store }: { store: GameStore }) {
             {node.desc !== '' && node.desc !== node.line && (
               <div className="gm-ascend__card-desc gm-muted">{node.desc}</div>
             )}
-            {node.allocatable && (
-              <button type="button" className="gm-btn gm-btn--primary" onClick={() => pick(node.id)}>
-                Allocate · 1 point
-              </button>
-            )}
+            <div className="gm-web__card-actions">
+              {node.allocatable && (
+                <button type="button" className="gm-btn gm-btn--primary" onClick={() => pick(node.id)}>
+                  Allocate · 1 point
+                </button>
+              )}
+            </div>
             {node.allocated && (
               <div className="gm-ascend__card-desc gm-muted">Allocated{node.kind === 'start' ? ' · the start' : ''}.</div>
             )}

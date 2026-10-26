@@ -41,42 +41,42 @@ it('a hover card shows what an item sells and salvages for, and the shortcuts', 
   s.bag[0] = pick;
   expect(hoverNotes(s, bag(0), pick, false)).toEqual([
     'Sells for 48 Gold · Salvages into 2 Copper ore, 1 Tin ore',
-    'Ctrl+click sell · Alt+click salvage · Shift+click move',
+    'Click to pick up · Ctrl+click sell · Alt+click salvage · Shift+click move',
   ]);
-  expect(hoverNotes(s, bag(0), pick, true)[1]).toBe('⌘+click sell · Alt+click salvage · Shift+click move');
+  expect(hoverNotes(s, bag(0), pick, true)[1]).toBe('Click to pick up · ⌘+click sell · Alt+click salvage · Shift+click move');
   // a normal tier-4 map: 25 × 4² Gold; Copper ore, and Tin ore from tier 3
   const map: MapItem = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
   s.bag[1] = map;
   expect(hoverNotes(s, bag(1), map, false)[0]).toBe('Sells for 400 Gold · Salvages into 2 Copper ore, 1 Tin ore');
   s.stash.maps[4] = [{ ...map, id: s.nextId++ }];
   const tab: ItemLoc = { where: 'maps', tier: 4, index: 0 };
-  expect(hoverNotes(s, tab, map, false)[1]).toBe('Ctrl+click sell · Alt+click salvage · Shift+click move');
+  expect(hoverNotes(s, tab, map, false)[1]).toBe('Click to pick up · Ctrl+click sell · Alt+click salvage · Shift+click move');
   s.stash.general[0] = gear(s, 'boots', { rarity: 'normal', ilvl: 2 });
   const general: ItemLoc = { where: 'stash', index: 0 };
   expect(hoverNotes(s, general, s.stash.general[0], false)).toEqual([
     'Sells for 10 Gold · Salvages into 1 Copper ore',
-    'Ctrl+click sell · Alt+click salvage · Shift+click move',
+    'Click to pick up · Ctrl+click sell · Alt+click salvage · Shift+click move',
   ]);
   // a material has no values, and its own shortcut line
   const copper = { id: s.nextId++, type: 'material', material: 'copper', count: 3 } as const;
   s.bag[2] = copper;
-  expect(hoverNotes(s, bag(2), copper, false)).toEqual(['Shift+click move · right-click for actions']);
+  expect(hoverNotes(s, bag(2), copper, false)).toEqual(['Click to pick up · Shift+click move · right-click for actions']);
   s.stash.materials.tin = 4;
   const mats: ItemLoc = { where: 'materials', material: 'tin' };
   expect(hoverNotes(s, mats, { ...copper, material: 'tin', count: 4 }, false))
-    .toEqual(['Shift+click take to bag · right-click for actions']);
+    .toEqual(['Click to pick up · Shift+click take to bag · right-click for actions']);
   // worn gear stashes; a Gems-tab stack shows the whole stack's values
   s.equipped.mining.pickaxe = gear(s, 'pickaxe', { rarity: 'magic', ilvl: 4 });
   const worn: ItemLoc = { where: 'worn', slot: 'pickaxe' };
   expect(hoverNotes(s, worn, s.equipped.mining.pickaxe, false)).toEqual([
     'Sells for 48 Gold · Salvages into 2 Copper ore, 1 Tin ore',
-    'Shift+click stash · right-click for actions',
+    'Click to pick up · Shift+click stash · right-click for actions',
   ]);
   s.stash.gems.sapphire.big = 100;
   const gems: ItemLoc = { where: 'gems', gem: 'sapphire', grade: 'big' };
   expect(hoverNotes(s, gems, gem(s, 'sapphire', { grade: 'big', count: 100 }), false)).toEqual([
     'Sells for 16,000 Gold · Salvages into 200 Tin ore',
-    'Shift+click take to bag · right-click for actions',
+    'Click to pick up · Shift+click take to bag · right-click for actions',
   ]);
   expect(materialsText({ tin: 1, copper: 2 })).toBe('2 Copper ore, 1 Tin ore');
   expect(materialsText({ copper: 1_234, iron: 0 })).toBe('1,234 Copper ore');

@@ -92,8 +92,16 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
           altKey: e.altKey, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey, detail: e.detail,
           pointerType: pointerType.current,
         }, drag.held !== null, IS_MAC);
-        if (route.kind === 'pick') handlers.onPick(target, route.intent, e.currentTarget);
-        else if (drag.onTap(target, true) && route.kind === 'lift') handlers.onLift(target, e.currentTarget);
+        if (route.kind === 'pick') {
+          handlers.onPick(target, route.intent, e.currentTarget);
+          return;
+        }
+        // a stock slot is bought from its card, never picked up
+        if (route.kind === 'hold' && target.where === 'stock') {
+          handlers.onPick(target, 'card', e.currentTarget);
+          return;
+        }
+        if (drag.onTap(target, true) && route.kind === 'lift') handlers.onLift(target, e.currentTarget);
       }}
       onContextMenu={(e) => { e.preventDefault(); handlers.onMenu(target, e.currentTarget); }}
       onMouseEnter={(e) => { if (pointerType.current !== 'touch') handlers.onInspect(target, e.currentTarget); }}

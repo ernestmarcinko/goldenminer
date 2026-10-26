@@ -248,6 +248,11 @@
   box-sizing: border-box;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
+/* Clicking the node already stages or allocates it; the card's duplicate buttons are for touch only. */
+.gm-web__card .gm-web__card-actions { display: none; }
+@media (pointer: coarse) {
+  .gm-web__card .gm-web__card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+}
 
 .gm-skills__footer {
   display: flex;

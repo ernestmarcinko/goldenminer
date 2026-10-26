@@ -167,18 +167,20 @@ export function SkillsView({ store }: { store: GameStore }) {
       {node.desc !== '' && node.desc !== node.line && (
         <div className="gm-skills__card-desc gm-muted">{node.desc}</div>
       )}
-      {mode === 'allocate' && node.staged && (
-        <button type="button" className="gm-btn" onClick={() => pick(node.id)}>Unstage</button>
-      )}
-      {mode === 'allocate' && node.allocatable && (
-        <button type="button" className="gm-btn gm-btn--primary" onClick={() => pick(node.id)}>Stage allocation</button>
-      )}
-      {mode === 'refund' && node.refunding && (
-        <button type="button" className="gm-btn" onClick={() => pick(node.id)}>Unmark refund</button>
-      )}
-      {mode === 'refund' && node.refundable && (
-        <button type="button" className="gm-btn gm-btn--primary" onClick={() => pick(node.id)}>Mark for refund</button>
-      )}
+      <div className="gm-web__card-actions">
+        {mode === 'allocate' && node.staged && (
+          <button type="button" className="gm-btn" onClick={() => pick(node.id)}>Unstage</button>
+        )}
+        {mode === 'allocate' && node.allocatable && (
+          <button type="button" className="gm-btn gm-btn--primary" onClick={() => pick(node.id)}>Stage allocation</button>
+        )}
+        {mode === 'refund' && node.refunding && (
+          <button type="button" className="gm-btn" onClick={() => pick(node.id)}>Unmark refund</button>
+        )}
+        {mode === 'refund' && node.refundable && (
+          <button type="button" className="gm-btn gm-btn--primary" onClick={() => pick(node.id)}>Mark for refund</button>
+        )}
+      </div>
       <div className="gm-skills__card-desc gm-muted">{stateText(node)}</div>
     </section>
   );

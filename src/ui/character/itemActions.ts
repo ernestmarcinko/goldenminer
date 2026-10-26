@@ -205,16 +205,16 @@ export function noShortcutText(state: GameState, target: ItemTarget, intent: Cli
 /** The shortcuts a hover card names; stacks in the stash's Gems and Materials tabs only come back to the bag. */
 function shortcutLine(target: ItemTarget, item: Item, mac: boolean): string {
   switch (target.where) {
-    case 'worn': return 'Shift+click stash · right-click for actions';
+    case 'worn': return 'Click to pick up · Shift+click stash · right-click for actions';
     case 'stock': return 'Click for its card · right-click to buy';
     case 'gems':
-    case 'materials': return 'Shift+click take to bag · right-click for actions';
+    case 'materials': return 'Click to pick up · Shift+click take to bag · right-click for actions';
     case 'bag':
     case 'stash':
     case 'maps':
       return item.type === 'material'
-        ? 'Shift+click move · right-click for actions'
-        : `${sellKey(mac)}+click sell · Alt+click salvage · Shift+click move`;
+        ? 'Click to pick up · Shift+click move · right-click for actions'
+        : `Click to pick up · ${sellKey(mac)}+click sell · Alt+click salvage · Shift+click move`;
   }
 }
 

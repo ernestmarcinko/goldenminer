@@ -77,11 +77,18 @@ export function heldLoc(state: GameState, hold: Hold | null): ItemLoc | null {
 
 export type ClickRoute =
   | { kind: 'lift' }                           // a touch tap with nothing held: lift the item and open its card
-  | { kind: 'tap' }                            // a touch tap with an item held: place it here, or put it back
+  | { kind: 'hold' }                           // a mouse/pen click with nothing held: pick the item up
+  | { kind: 'tap' }                            // a tap or click with an item held: place it here, or put it back
   | { kind: 'pick'; intent: ClickIntent };     // a mouse, pen or keyboard click: its card, or a shortcut
 
-/** How a click on an item is handled; `mac` picks the key that sells. A keyboard click (detail 0) never lifts or places anything. */
+/**
+ * How a click on an item is handled; `mac` picks the key that sells. A keyboard click (detail 0) opens the card and
+ * never lifts or places anything. A plain touch tap lifts, while a plain mouse/pen click picks the item up; either
+ * places the held item on the next target. Ctrl/Cmd, Alt and Shift keep their sell, salvage and move shortcuts.
+ */
 export function clickRoute(e: ClickKeys, holding: boolean, mac: boolean): ClickRoute {
-  if (e.pointerType === 'touch' && e.detail !== 0) return holding ? { kind: 'tap' } : { kind: 'lift' };
-  return { kind: 'pick', intent: clickIntent(e, mac) };
+  if (e.detail === 0) return { kind: 'pick', intent: clickIntent(e, mac) };
+  if (e.pointerType === 'touch') return holding ? { kind: 'tap' } : { kind: 'lift' };
+  if (clickIntent(e, mac) !== 'card') return { kind: 'pick', intent: clickIntent(e, mac) };
+  return holding ? { kind: 'tap' } : { kind: 'hold' };
 }

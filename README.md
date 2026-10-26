@@ -18,6 +18,7 @@ npm run build    # production build in dist/
 
 Click the rock in the Mine view to dig. Each click adds a tick, and digging also ticks along by itself; the Pause digging button stops it, and Continue digging starts it again.
 
+- Click an item to pick it up, then click where it should go; click it again to put it back, or press Escape. Hover for its card.
 - Right-click an item for its action card, which lists every action it offers.
 - Ctrl+click (⌘+click on a Mac) sells it, and Alt+click salvages it.
 - Shift+click moves it between the bag and the stash.
