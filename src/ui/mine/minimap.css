@@ -4,7 +4,8 @@
 .gm-minimap__range { font-size: 11px; }
 .gm-minimap__scroll {
   position: relative; width: 100%; overflow-x: hidden; overflow-y: auto;
-  box-sizing: border-box; border-radius: 0; border: 1px solid var(--gm-line); background: var(--gm-ground);
+  box-sizing: border-box; border-radius: 0; border: 1px solid var(--gm-gold-dim); background: var(--gm-ground);
+  box-shadow: var(--gm-bevel);
 }
 .gm-minimap__scroll:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
 /* The full history, as tall as the model says. It clips what it draws so nothing adds to the scroll height;
@@ -44,7 +45,7 @@
 .gm-minimap__you-line { position: absolute; left: 0; right: 0; height: 2px; display: block; background: var(--gm-gold); }
 .gm-minimap__you-tag {
   position: absolute; right: 6px; transform: translateY(calc(-100% - 4px)); padding: 1px 6px; border-radius: 0; background: var(--gm-gold);
-  color: #1b1410; font-size: 11px; font-weight: 600;
+  color: #1b1410; font-size: 11px; font-weight: 600; border: var(--gm-edge); box-shadow: var(--gm-bevel);
 }
 .gm-minimap__you-tag--below { transform: translateY(4px); }
 .gm-minimap__jump { align-self: stretch; }

@@ -11,10 +11,10 @@
 .gm-merchants { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: start; }
 .gm-merchant__card {
   display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px; border-radius: 0;
-  background: var(--gm-panel); border: 1px solid var(--gm-line);
+  background: var(--gm-panel); border: var(--gm-edge); box-shadow: var(--gm-bevel);
 }
 .gm-merchant__who { display: flex; align-items: center; gap: 12px; }
-.gm-merchant__who > [role='img'] { flex: none; border-radius: 0; }
+.gm-merchant__who > [role='img'] { flex: none; border-radius: 0; border: var(--gm-edge); box-shadow: var(--gm-bevel); }
 .gm-merchant__name { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 18px; }
 .gm-merchant__name:focus { outline: none; }
 
@@ -26,7 +26,7 @@
 /* every part has a fixed height, so a tile bought (Sold, no price) keeps its size and its Buy button its place */
 .gm-stock__tile {
   display: grid; grid-template-rows: 48px 1.3em 1.4em 44px; gap: 6px; min-width: 0; padding: 8px;
-  border-radius: 0; background: #241e19; border: 1px solid #33291f;
+  border-radius: 0; background: #241e19; border: var(--gm-edge); box-shadow: var(--gm-bevel);
 }
 .gm-stock__cell.gm-cell { width: 48px; height: 48px; min-width: 0; }
 .gm-stock__name {
@@ -52,12 +52,16 @@
 .gm-merchant__price { white-space: nowrap; }
 
 .gm-merchant__group { display: flex; flex-direction: column; gap: 8px; }
-.gm-merchant__group-title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 15px; }
+.gm-merchant__group-title {
+  margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 15px;
+  text-transform: uppercase; letter-spacing: 0.06em; text-shadow: var(--gm-text-shadow);
+  padding-bottom: 4px; border-bottom: 1px solid var(--gm-gold-dim);
+}
 .gm-merchant__slots { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .gm-merchant__slots--mining, .gm-merchant__slots--battle { grid-template-columns: repeat(auto-fit, minmax(116px, 1fr)); }
 .gm-merchant__slot {
   display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; padding: 10px;
-  border-radius: 0; background: var(--gm-panel); border: 1px solid var(--gm-line);
+  border-radius: 0; background: var(--gm-panel); border: var(--gm-edge); box-shadow: var(--gm-bevel);
 }
 .gm-merchant__label { font-weight: 700; overflow-wrap: anywhere; }
 /* each slot is wide enough for "Gamble ·" over a price of up to "3,000,000 Gold". Doubled class: .gm-btn's padding and
@@ -68,7 +72,7 @@
 
 .gm-merchant__got {
   display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 0;
-  background: var(--gm-panel-raised); border: 1px solid var(--gm-tone, var(--gm-line));
+  background: var(--gm-panel-raised); border: 1px solid var(--gm-tone, var(--gm-line)); box-shadow: var(--gm-bevel);
 }
 .gm-merchant__got[data-rarity='normal'] { --gm-tone: var(--gm-normal); }
 .gm-merchant__got[data-rarity='magic'] { --gm-tone: var(--gm-magic); }
