@@ -20,9 +20,8 @@ const DROP: DropEntry = {
   id: 0, kind: 'gear', name: 'Test ring', rarity: 'magic', base: 'ring', count: 1, origin: { kind: 'metre', metre: 1 }, trail: [{ event: 'bag' }],
 };
 
-function runMap(tier: number, seed: number, level = 1): GameState {
+function runMap(tier: number, seed: number): GameState {
   const s = newGame(seed, 0);
-  s.level = level;
   const map = stashMap(s, tier, 10 + seed);
   expect(startMap(s, map.id)).toBe('ok');
   const stats = deriveStats(s);
@@ -35,21 +34,21 @@ function runOf(s: GameState): MapRun {
   return s.activity.run;
 }
 
-// Re-pinned for Plan 10's monster scale: a naked miner needs level 5 for a tier-1 map, and level 1 falls there.
-it('a naked level-5 miner clears a tier-1 map', () => {
-  for (const seed of [1, 2, 3, 4, 5]) expect(runMap(1, seed, 5).lastRun?.outcome, `seed ${seed}`).toBe('cleared');
+it('a naked level-1 miner clears a tier-1 map on auto hits alone', () => {
+  for (const seed of [1, 2, 3, 4, 5]) expect(runMap(1, seed).lastRun?.outcome, `seed ${seed}`).toBe('cleared');
 });
 
 it('the same miner falls in a tier-2 map', () => {
-  for (const seed of [1, 2, 3, 4, 5]) expect(runMap(2, seed, 5).lastRun?.outcome, `seed ${seed}`).toBe('died');
+  for (const seed of [1, 2, 3, 4, 5]) expect(runMap(2, seed).lastRun?.outcome, `seed ${seed}`).toBe('died');
 });
 
 it('a tier-4 map kills a level-1 miner in the first room', () => {
   expect(runMap(4, 1).lastRun).toMatchObject({ outcome: 'died', room: 1 });
 });
 
-it('a cleared run gains its XP, consumes the map and keeps the tally', () => {
-  const s = runMap(1, 1, 5);
+it('a cleared run levels up, consumes the map and keeps the tally', () => {
+  const s = runMap(1, 1);
+  expect(s.level).toBeGreaterThanOrEqual(2);
   expect(s.stash.maps).toEqual({});
   expect(s.mapTally).toEqual({ cleared: 1, lost: 0 });
   expect(s.lastRun).toMatchObject({ room: s.lastRun?.bossRoom, seen: false, gained: { xp: 200 } });   // 12 normals + 1 champion ×3 + boss ×5 = 20 × 10 XP
@@ -172,7 +171,7 @@ it('a room clear ends its combat step: the unspent swings drop and the new room 
 
 it('the combat steps after a room clear fight on in the same tick', () => {
   const { s, run } = started({ life: 1 });
-  s.equipped.battle.weapon = gear(s, 'weapon', { implicit: { stat: 'damage', value: 6 } });   // room 2 holds 72 life
+  s.equipped.battle.weapon = gear(s, 'weapon', { implicit: { stat: 'damage', value: 6 } });   // room 2 holds 48 life
   run.hitCarry = 0.9;
   const events: TickEvent[] = [];
   applyTicks(s, 1, at(s, 0.1), events);   // 10 s in 40 steps: the first clears the room, the other 39 swing 9 times
@@ -183,12 +182,13 @@ it('the combat steps after a room clear fight on in the same tick', () => {
 });
 
 it('the tick rate never changes how long a fight lasts', () => {
-  // A tier-1 map kills a naked miner; the time it takes must not depend on how coarse the ticks are.
+  // A tier-2 map kills a naked miner; the time it takes must not depend on how coarse the ticks are.
   const medianDeath = (rate: number) => {
     const times: number[] = [];
     for (let seed = 1; seed <= 20; seed++) {
       const s = newGame(seed, 0);
-      expect(startMap(s, stashMap(s, 1, 10 + seed).id)).toBe('ok');
+      s.level = 5;   // long enough a fight that a 10 s tick is a small part of it
+      expect(startMap(s, stashMap(s, 2, 10 + seed).id)).toBe('ok');
       const stats = at(s, rate);
       while (s.activity.kind === 'map') applyTicks(s, 1, stats);
       expect(s.lastRun?.outcome, `seed ${seed} rate ${rate}`).toBe('died');
@@ -364,7 +364,7 @@ it('only one run at a time, and only maps that are held', () => {
 });
 
 it('pumped play and one long catch-up give the same run', () => {
-  const mk = () => { const s = newGame(3, 0); s.level = 5; startMap(s, stashMap(s, 1, 2).id); return s; };
+  const mk = () => { const s = newGame(3, 0); startMap(s, stashMap(s, 1, 2).id); return s; };
   const pumped = mk();
   const once = mk();
   const stats = deriveStats(pumped);
@@ -378,7 +378,7 @@ it('pumped play and one long catch-up give the same run', () => {
 
 it('pumped play and one long catch-up give the same run at a fractional tick rate', () => {
   // 0.8 ticks a second: 1.25 s ticks, so the hit carry keeps a fraction between ticks (and 1250 ms is exact).
-  const mk = () => { const s = newGame(3, 0); s.level = 5; startMap(s, stashMap(s, 1, 2).id); return s; };
+  const mk = () => { const s = newGame(3, 0); startMap(s, stashMap(s, 1, 2).id); return s; };
   const pumped = mk();
   const once = mk();
   const stats = at(pumped, 0.8);

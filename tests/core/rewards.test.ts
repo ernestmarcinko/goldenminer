@@ -44,12 +44,8 @@ function fight(s: GameState): void {
   while (s.activity.kind === 'map') applyTicks(s, 1, stats);
 }
 
-// A naked miner needs level 5 to clear a tier-1 map on auto strikes.
-const CLEARS_TIER_1 = 5;
-
 function clearTier1(seed: number) {
   const s = newGame(seed, 0);
-  s.level = CLEARS_TIER_1;
   startMap(s, stashMap(s, 1, 2).id);
   fight(s);
   return s;
@@ -66,7 +62,6 @@ it('a cleared tier-1 map pays Souls, 40 Gold and at least the boss and champion 
 
 it('a full bag holds map drops but the fight goes on', () => {
   const s = newGame(1, 0);
-  s.level = CLEARS_TIER_1;
   s.bag = s.bag.map((_, i) => gear(s, i % 2 ? 'weapon' : 'pickaxe'));
   startMap(s, stashMap(s, 1, 2).id);
   fight(s);
@@ -231,8 +226,8 @@ it('with MAX_HELD items already held, a further drop is sold and nothing more is
 it('the offline summary reports maps, levels and Souls as differences from a non-zero start', () => {
   const before = newGame(1, 0);
   before.souls = 7;
-  before.level = CLEARS_TIER_1;
-  before.xp = xpToNext(CLEARS_TIER_1) - 50;   // the run's 200 XP levels it up
+  before.level = 2;
+  before.xp = xpToNext(2) - 50;   // the run's XP levels it up
   before.mapTally = { cleared: 3, lost: 1 };
   const after = structuredClone(before);
   startMap(after, stashMap(after, 1, 2).id);
@@ -242,7 +237,7 @@ it('the offline summary reports maps, levels and Souls as differences from a non
   expect(sum.maps).toEqual({ cleared: 1, lost: 0 });
   expect(sum.souls).toBe(after.souls - 7);
   expect(sum.souls).toBeGreaterThan(0);
-  expect(sum.levels).toBe(after.level - CLEARS_TIER_1);
+  expect(sum.levels).toBe(after.level - 2);
   expect(sum.levels).toBeGreaterThan(0);
 });
 
@@ -257,7 +252,6 @@ it('the offline summary counts a lost map', () => {
 
 it('the offline summary notices the bag holding map drops', () => {
   const before = newGame(1, 0);
-  before.level = CLEARS_TIER_1;
   const after = structuredClone(before);
   after.bag = after.bag.map((_, i) => gear(after, i % 2 ? 'weapon' : 'pickaxe'));
   startMap(after, stashMap(after, 1, 2).id);

@@ -98,8 +98,9 @@ export function monsterDamageBase(tier: number): number {
   return 2 + 1.5 * tier ** 1.2;
 }
 // What a map's tier multiplies its monsters' life and damage by (tier 1 first; deeper tiers use the last entry): a new
-// miner wins the first map about 70% of the time, and from tier 3 a map of your gear's level is cleared about 40%.
-export const MAP_MONSTER_SCALE: readonly number[] = [2.0, 2.1, 2.05, 1.8, 1.7, 1.55, 1.4, 1.35, 1.3, 1.25];
+// miner with no gear wins the guaranteed first map about two times in three, and from tier 3 a map of your gear's level
+// is cleared about 40% of the time.
+export const MAP_MONSTER_SCALE: readonly number[] = [1.38, 2.1, 2.05, 1.8, 1.7, 1.55, 1.4, 1.35, 1.3, 1.25];
 export function mapMonsterScale(tier: number): number {
   return MAP_MONSTER_SCALE[Math.min(tier, MAP_MONSTER_SCALE.length) - 1] ?? 1;
 }

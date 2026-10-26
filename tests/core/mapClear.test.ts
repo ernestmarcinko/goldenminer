@@ -56,16 +56,19 @@ it('a fresh tier-N map is cleared by magic item-level-N gear at level 3N: at lea
   }
   const table = rates.map((r, i) => `tier ${i + 1}: ${Math.round(r * 100)}%`).join(', ');
   rates.forEach((r, i) => {
-    // tier 1 is tuned on the fresh miner below, who is the one that meets it: this miner only has to win it often
+    // tier 1 is tuned on the naked new miner below, who is the one that meets it: this miner only has to win it often
     const [lo, hi] = i === 0 ? [0.6, 1] : i === 1 ? [0.6, 0.8] : [0.3, 0.5];
     expect(r >= lo && r <= hi, table).toBe(true);
   });
 }, 120_000);
 
-it('the first map of a new world is won without clicks by a level-1 miner in normal item-level-1 gear, 60–80 % of the time', () => {
-  // maps are the only XP, so the first map is played at level 1
+it('the first map of a new world is won without clicks by a naked level-1 miner, 60–80 % of the time', () => {
+  // maps are the only XP and a new world wears nothing, so the guaranteed first map is played naked at level 1
   let wins = 0;
-  for (let i = 0; i < MAPS; i++) if (cleared(miner(1, i, 1, 1, 'normal'), 1, i)) wins++;
+  for (let i = 0; i < MAPS; i++) {
+    const s = newGame(hashN(0xc1ea7, 1, i), 0, { lootSeed: hashN(0xc1ea7, 99, 1, i) });
+    if (cleared(s, 1, i)) wins++;
+  }
   expect(wins).toBeGreaterThanOrEqual(60);
   expect(wins).toBeLessThanOrEqual(80);
 });
@@ -75,7 +78,6 @@ it('clicking in a map does nothing', () => {
   const make = () => {
     const store = new GameStore({ storage: new MemoryStorage(), storageAvailable: true, now: () => 0, newSeed: () => 7 });
     store.load();
-    store.state.level = 10;   // to live through the whole test
     expect(store.startMap(stashMap(store.state, 1, 2).id)).toBe('ok');
     return store;
   };
