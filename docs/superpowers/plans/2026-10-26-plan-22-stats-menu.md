@@ -19,7 +19,7 @@
 
 **Builds on:** Plans 15–21 (`dev-ernest`), because it counts everything those systems produce — the level-100 XP/levels (15), the ore market's trades (17), the character stats (18), the ascendancy tree (19), the achievements' earned count (20), and the wiki's final system list (21).
 
-**Roadmap:** this is the last plan, executed **after the wiki (Plan 21)**. 15. level cap 100 · 16. the passive-web rework · 17. crafting overhaul and the ore economy · 18. character stats · 19. ascendancy tree expansion · 20. achievements · 21. the wiki · **22. the stats menu** (this plan).
+**Roadmap:** this is the last plan, executed **after the wiki (Plan 21)**. 15. level cap 100 · 16. the passive-web rework · 17. crafting overhaul and the ore economy · 18. character stats · 19. ascendancy tree expansion · 20. achievements · 21. the wiki · **22. the stats menu** (this plan) · 23. runes.
 
 ## Global Constraints
 
