@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GEM_STASH_STACK, LOOT_NOTES_KEPT, MAP_TIER_CAP, MAX_HELD } from '../../src/core/balance';
+import { GEM_STASH_STACK, LOOT_NOTES_KEPT, MAP_TIER_CAP, MATERIAL_STASH_STACK, MAX_HELD } from '../../src/core/balance';
 import { filledCount } from '../../src/core/cells';
 import { applyTicks } from '../../src/core/dig';
 import { itemName } from '../../src/core/itemData';
@@ -306,6 +306,43 @@ describe('the loot filter\'s stash rules', () => {
     expect(receiveMaterial(t, 'tin', 12, HERE).map((n) => n.outcome)).toEqual(['bag']);
     expect([t.stash.materials.copper, t.stash.materials.tin]).toEqual([12, 0]);
     expect(t.bag[0]).toEqual(expect.objectContaining({ type: 'material', material: 'tin', count: 12 }));
+  });
+
+  it('a held gem stack the Gems tab takes part of stays held with the rest, then goes on as kept', () => {
+    const s = newGame(1, 0);
+    fullBag(s);
+    const sapphires = gem(s, 'sapphire', { count: 5 });
+    expect(receiveItem(s, sapphires, HERE).map((n) => n.outcome)).toEqual(['held']);
+    s.settings.lootFilter = [{ kind: 'gem', action: 'stash' }];
+    s.stash.gems.sapphire.tiny = GEM_STASH_STACK - 2;
+    drainOverflow(s);
+    expect(s.stash.gems.sapphire.tiny).toBe(GEM_STASH_STACK);
+    expect(s.overflow).toEqual([{ ...sapphires, count: 3 }]);
+    // stacks merge into others, so a gem's entry keeps its first step only, as every stack's does
+    expect(trailOf(s, sapphires.id)).toEqual([{ event: 'held' }]);
+    s.bag[8] = null;
+    drainOverflow(s);
+    expect([s.overflow, s.bag[8]]).toEqual([[], { ...sapphires, count: 3 }]);
+    expect(trailOf(s, sapphires.id)).toEqual([{ event: 'held' }]);
+    expect(s.drops.filter((e) => e.kind === 'gem')).toHaveLength(1);
+    expect(validateState(s)).toBe(true);
+  });
+
+  it('a material find the Materials tab takes part of: the rest goes to the bag, and nothing is lost', () => {
+    const s = newGame(1, 0);
+    s.settings.lootFilter = [{ kind: 'material', action: 'stash' }];
+    s.stash.materials.copper = MATERIAL_STASH_STACK - 30;
+    const before = s.drops.length;
+    expect(receiveMaterial(s, 'copper', 130, HERE)).toEqual([
+      { name: 'Copper ore', rarity: 'material', base: 'copper', outcome: 'stash', value: 30 },
+      { name: 'Copper ore', rarity: 'material', base: 'copper', outcome: 'bag', value: 100 },
+    ]);
+    expect(s.stash.materials.copper).toBe(MATERIAL_STASH_STACK);
+    expect(s.bag.filter((c) => c?.type === 'material').map((c) => c?.type === 'material' && c.count)).toEqual([50, 50]);
+    expect(s.drops.slice(before).map((e) => [e.count, e.trail])).toEqual([
+      [30, [{ event: 'filterStashed' }]], [100, [{ event: 'bag' }]],
+    ]);
+    expect(validateState(s)).toBe(true);
   });
 
   it('held finds follow stash rules too', () => {
