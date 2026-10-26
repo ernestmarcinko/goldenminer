@@ -7,6 +7,7 @@ import { gearTotals } from '../../core/stats';
 import type { GameState } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
 import { dropAttr } from '../character/dragDrop';
+import { EssenceTab } from '../character/EssenceTab';
 import { GemTab } from '../character/GemTab';
 import { ItemGrid } from '../character/ItemGrid';
 import type { ItemHandlers } from '../character/ItemGrid';
@@ -278,6 +279,7 @@ export function InventoryView({ store }: { store: GameStore }) {
           {tab === 'gems' && <GemTab state={state} handlers={handlers} />}
           {tab === 'maps' && <MapsTab state={state} handlers={handlers} tier={shownTier} onTier={showTier} />}
           {tab === 'materials' && <MaterialTab state={state} handlers={handlers} />}
+          {tab === 'essences' && <EssenceTab state={state} handlers={handlers} />}
           {tapSpot === 'stash' && tapCard}
         </div>
       </section>

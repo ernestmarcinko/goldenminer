@@ -2,6 +2,7 @@ import { GUARANTEED_FIRST_MAP_METRE } from './balance';
 import { emptyInventory } from './cells';
 import { DEFAULT_LOOT_FILTER } from './lootFilter';
 import { fillAhead } from './metres';
+import { emptyPremium } from './oreMarket';
 import { hash2 } from './rng';
 import { deriveStats } from './stats';
 import { DEFAULT_MOTION, type GameState } from './types';
@@ -19,6 +20,7 @@ export function newGame(seed: number, nowMs: number, options: NewGameOptions = {
     level: 1, xp: 0, souls: 0, activity: { kind: 'dig' }, lastRun: null, mapTally: { cleared: 0, lost: 0 },
     paused: false, drops: [], deaths: [],
     merchant: { band: 0, bought: [] }, uniqueRng: hash2(options.lootSeed ?? seed, 0xa11e),
+    oreMarket: { premium: emptyPremium() },
     passives: { allocated: [] },
     ascendancy: { points: 0, allocated: [] }, autoMap: { queue: [] }, lifetime: { ascensions: 0, deepest: 0 },
   };

@@ -24,6 +24,7 @@ const targetKey = (t: ItemTarget): string => {
     case 'maps': return `maps-${t.tier}-${t.index}`;
     case 'gems': return `gems-${t.gem}-${t.grade}`;
     case 'materials': return `materials-${t.material}`;
+    case 'essences': return `essences-${t.key}`;
     case 'stock': return `stock-${t.index}`;
   }
 };
@@ -68,6 +69,10 @@ export function useItemInteractions({ store, state, fallbackRef, drag }: {
     // a craft or a Soul upgrade keeps the card open on the same item, so they can chain
     if (action.id === 'craft' && action.kind !== undefined) {
       setMessage(craftResultText(store.craft(target, action.kind), craftTargetAt(store.state, target)));
+      return;
+    }
+    if (action.id === 'targetedCraft' && action.targeted !== undefined) {
+      setMessage(craftResultText(store.targetedCraft(target, action.targeted), craftTargetAt(store.state, target)));
       return;
     }
     if (action.id === 'soulUpgrade') {

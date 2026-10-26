@@ -11,6 +11,7 @@ import { drainOverflow, receiveItem, receiveMaterial } from './loot';
 import { addMap } from './maps';
 import { fillAhead, metreChances, rollMetre } from './metres';
 import { nextRandom } from './rng';
+import { decayPremiums } from './oreMarket';
 import { hasKeystone } from './passives';
 import type { FindRecord, GameState, LootNote, MetreRoll, Stats, TickEvent } from './types';
 import { hasUnique, uniqueGen } from './uniques';
@@ -233,4 +234,5 @@ export function applyTicks(
     digFace(state, stats, events, finds);
     state.tickCount += 1;
   }
+  decayPremiums(state, count);
 }

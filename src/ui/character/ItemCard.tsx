@@ -14,6 +14,7 @@ import {
   itemKindLine, itemLines, keptHeight, rarityOf, userScrolled, wornToCompare,
 } from './itemView';
 import type { CardFit, CraftAnchor, CraftGrid, ViewLine } from './itemView';
+import { targetedKey } from './craftView';
 import { screenView } from './useItemPopover';
 
 export interface CardMenu {
@@ -189,8 +190,12 @@ export function ItemCard({
   // the upgrade and craft slots keep their order while a placed card is open; the order is kept once the render commits
   const actions = isMenu ? itemActions(state, target) : [];
   const upgrade = actions.find((a) => a.id === UPGRADE);
-  const crafts = actions.filter((a) => a.id === 'craft');
-  const craftKinds = crafts.flatMap((a) => (a.kind === undefined ? [] : [a.kind]));
+  const crafts = actions.filter((a) => a.id === 'craft' || a.id === 'targetedCraft');
+  const craftKeyOf = (a: ActionSpec): string =>
+    a.id === 'craft' && a.kind !== undefined ? a.kind
+      : a.id === 'targetedCraft' && a.targeted !== undefined ? targetedKey(a.targeted)
+        : '';
+  const craftKinds = crafts.map(craftKeyOf).filter((k) => k !== '');
   const kinds = upgrade === undefined ? craftKinds : [UPGRADE, ...craftKinds];
   const slots = fit === undefined ? kinds : craftSlots(slotOrder.current, kinds);
   useLayoutEffect(() => { slotOrder.current = slots; });
@@ -308,7 +313,7 @@ export function ItemCard({
               <div className="gm-card__label gm-card__craft">{item.type === 'map' ? 'Enchant' : 'Craft'}</div>
               <div className="gm-card__crafts">
                 {craftSlotKinds.map((k) => {
-                  const a = crafts.find((c) => c.kind === k);
+                  const a = crafts.find((c) => craftKeyOf(c) === k);
                   // a click on an empty slot keeps focus where it is, in the card
                   if (a === undefined) {
                     return (

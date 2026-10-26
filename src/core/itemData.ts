@@ -107,11 +107,25 @@ export const MATERIAL_LABELS: Readonly<Record<Material, string>> = {
   obsidian: 'Obsidian shard', voidCrystal: 'Void crystal',
 };
 
+/** A short, unitless name per stat, for essences. */
+export const STAT_NAMES: Readonly<Record<StatKey, string>> = {
+  digPower: 'Dig power', digPowerPct: 'Dig power %', goldYield: 'Gold yield', diamondYield: 'Diamond yield', veinYield: 'Vein yield',
+  autoTickRate: 'Auto tick rate', ticksPerClick: 'Ticks per click', sellBonus: 'Sell bonus',
+  chestFind: 'Chest find', gemFind: 'Gem find', mapFind: 'Map find', oreFind: 'Ore find', lampSight: 'Lamp sight',
+  offlineCap: 'Offline cap', hazardWard: 'Hazard ward', salvageYield: 'Salvage yield',
+  damage: 'Damage', damagePct: 'Damage %', elementalDamage: 'Elemental damage', attackSpeed: 'Attack speed', critChance: 'Crit chance',
+  critMultiplier: 'Critical damage', life: 'Life', lifePct: 'Life %',
+  armor: 'Armor', armorPct: 'Armor %', resistAll: 'All resistances', lifeRegen: 'Life regen', lifeOnKill: 'Life on kill',
+  soulFind: 'Soul find', magicFind: 'Magic find', xpFind: 'XP',
+};
+
 export function itemName(item: Item): string {
   switch (item.type) {
     case 'gear': return item.name;
     case 'gem': return gemName(item);
     case 'material': return MATERIAL_LABELS[item.material];
+    case 'essence': return `T${item.tier} ${STAT_NAMES[item.stat]} essence`;
+    case 'orb': return item.side === 'prefix' ? 'Prefix orb' : 'Suffix orb';
     case 'map':
       // the rarity leads, so a grid cell's label tells an enchanted map from a plain one
       switch (item.rarity) {

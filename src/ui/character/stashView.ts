@@ -1,12 +1,12 @@
 import { BAG_SIZE, MAP_TIER_CAP, stashPagePrice, STASH_PAGE_SIZE } from '../../core/balance';
 import { filledCount, mapStashCount, mapTierCount, mapTiers as stashTiers, pageCount } from '../../core/cells';
-import { GEM_GRADES, GEM_TYPES, MATERIALS } from '../../core/items';
+import { GEM_GRADES, GEM_TYPES, MATERIALS, parseEssenceKey } from '../../core/items';
 import type { GemGrade, GemType, MapItem, Material } from '../../core/items';
-import { GEM_GRADE_LABELS, GEM_LABELS, MATERIAL_LABELS } from '../../core/itemData';
+import { GEM_GRADE_LABELS, GEM_LABELS, MATERIAL_LABELS, STAT_NAMES } from '../../core/itemData';
 import type { GameState, ItemLoc } from '../../core/types';
 import { formatCompact, formatNumber } from '../format';
 
-export const STASH_TABS = ['general', 'gems', 'maps', 'materials'] as const;
+export const STASH_TABS = ['general', 'gems', 'maps', 'materials', 'essences'] as const;
 export type StashTab = (typeof STASH_TABS)[number];
 
 export const GRADE_HEADERS: readonly string[] = GEM_GRADES.map((g) => GEM_GRADE_LABELS[g]);
@@ -17,6 +17,7 @@ export function tabLabel(state: GameState, tab: StashTab): string {
     case 'gems': return 'Gems';
     case 'maps': return `Maps ${formatNumber(mapStashCount(state))}`;
     case 'materials': return 'Materials';
+    case 'essences': return 'Essences';
   }
 }
 
@@ -99,4 +100,21 @@ export function materialTabCells(state: GameState): MaterialCell[] {
     const count = state.stash.materials[material];
     return { material, label: MATERIAL_LABELS[material], count, text: count > 0 ? formatCompact(count) : '' };
   });
+}
+
+export interface EssenceCell { key: string; label: string; count: number; text: string }
+
+/** The Essences tab's held stacks, keyed "stat:tier" or "prefix"/"suffix", sorted by key. */
+export function essenceTabCells(state: GameState): EssenceCell[] {
+  return Object.entries(state.stash.essences)
+    .filter(([, n]) => n > 0)
+    .map(([key, count]) => {
+      const parsed = parseEssenceKey(key);
+      const label = parsed === undefined ? key
+        : parsed === 'prefix' ? 'Prefix orb'
+          : parsed === 'suffix' ? 'Suffix orb'
+            : `T${parsed.tier} ${STAT_NAMES[parsed.stat]} essence`;
+      return { key, label, count, text: formatCompact(count) };
+    })
+    .sort((a, b) => a.key.localeCompare(b.key));
 }

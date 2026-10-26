@@ -16,7 +16,7 @@ import {
   BAG_SIZE, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_HELD, MAX_LOOT_RULES,
   MAX_TIER_OVER_CAP, MAX_TRAIL_STEPS, START_GENERAL_PAGES, STASH_PAGE_SIZE,
 } from '../../src/core/balance';
-import { emptyInventory, firstEmpty } from '../../src/core/cells';
+import { emptyInventory, emptyMaterialCounts, firstEmpty } from '../../src/core/cells';
 import { sideCount } from '../../src/core/itemGen';
 import { migrateLootFilter } from '../../src/core/lootFilter';
 import { addMap, startMap, takeMap } from '../../src/core/maps';
@@ -934,8 +934,11 @@ it('the schema-9 fixture migrates its rules, gains an empty bought record and a 
   expect(run?.strikes).toBe(0);
   expect(run?.saved).toBeUndefined();
   expect(run).toEqual({ ...old.activity.run, strikes: 0 });
-  expect([s.bag, s.equipped, s.stash, s.overflow, s.drops, s.deaths, s.lastRun, s.gold, s.deepest])
+  const { essences: _ess9, ...stash9 } = s.stash;
+  expect([s.bag, s.equipped, stash9, s.overflow, s.drops, s.deaths, s.lastRun, s.gold, s.deepest])
     .toEqual([old.bag, old.equipped, old.stash, old.overflow, old.drops, old.deaths, old.lastRun, old.gold, old.deepest]);
+  expect(s.stash.essences).toEqual({});
+  expect(s.oreMarket.premium).toEqual(emptyMaterialCounts());
   // the run in progress plays on to its end
   for (let t = 0; t < 20_000 && s.activity.kind !== 'dig'; t += 50) {
     expect(() => applyTicks(s, 50, deriveStats(s))).not.toThrow();
@@ -1044,8 +1047,12 @@ it('a schema-10 save gains an empty passive web and keeps everything else', () =
   expect(r.savedAt).toBe(1_762_000_000_000);
   expect(r.state.passives).toEqual({ allocated: [] });
   expect(r.state.level).toBe(4);
-  const { passives: _passives, ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, ...rest } = r.state;
-  expect(rest).toEqual(raw);   // nothing else changes
+  const {
+    passives: _passives, ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, oreMarket: _oreMarket, ...rest
+  } = r.state;
+  const { essences: _ess10, ...restStash } = r.state.stash;
+  expect({ ...rest, stash: restStash }).toEqual(raw);   // nothing else changes
+  expect(r.state.oreMarket.premium).toEqual(emptyMaterialCounts());
 });
 
 it('the validator refuses a broken web', () => {
@@ -1156,8 +1163,23 @@ it('a schema-11 save gains an empty ascendancy, auto-map and lifetime record', (
   expect(r.state.ascendancy).toEqual({ points: 0, allocated: [] });
   expect(r.state.autoMap).toEqual({ queue: [] });
   expect(r.state.lifetime).toEqual({ ascensions: 0, deepest: 0 });
-  const { ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, ...rest } = r.state;
-  expect(rest).toEqual(raw);   // nothing else changes
+  const { ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, oreMarket: _oreMarket, ...rest } = r.state;
+  const { essences: _ess11, ...restStash } = r.state.stash;
+  expect({ ...rest, stash: restStash }).toEqual(raw);   // nothing else changes
+  expect(r.state.oreMarket.premium).toEqual(emptyMaterialCounts());
+});
+
+it('a schema-12 save gains a zeroed ore market and an empty essence tab', () => {
+  const s = newGame(1, 0);
+  const asV12 = structuredClone(s) as unknown as Record<string, unknown>;
+  delete asV12.oreMarket;
+  const stash12 = asV12.stash as Record<string, unknown>;
+  delete stash12.essences;
+  const r = decodeSave(raw({ schema: 12, savedAt: 0, state: asV12 }));
+  if (!r.ok) throw new Error(`schema-12 save rejected: ${r.reason}`);
+  expect(r.state.oreMarket.premium).toEqual(emptyMaterialCounts());
+  expect(r.state.stash.essences).toEqual({});
+  expect(r.state).toEqual(s);   // nothing else changes
 });
 
 it('the validator refuses a broken ascendancy, auto-map and lifetime', () => {

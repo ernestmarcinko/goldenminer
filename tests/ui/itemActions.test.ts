@@ -21,7 +21,8 @@ import { MAP_TIER_CAP, MATERIAL_STASH_STACK, MAX_ITEM_LEVEL } from '../../src/co
 const bag = (index: number): ItemLoc => ({ where: 'bag', index });
 const labels = (specs: ReturnType<typeof itemActions>) => specs.map((a) => [a.id, a.label]);
 /** The actions besides crafts, which have tests of their own. */
-const noCrafts = (specs: ReturnType<typeof itemActions>) => specs.filter((a) => a.id !== 'craft');
+const noCrafts = (specs: ReturnType<typeof itemActions>) =>
+  specs.filter((a) => a.id !== 'craft' && a.id !== 'targetedCraft');
 
 it('bag gear offers equip, sell, salvage and stash', () => {
   const s = newGame(1, 0);
@@ -449,7 +450,7 @@ it('a map card lists Run this map, the move, Sell and Salvage, then its enchants
     ['run', 'Run this map'], ['toBag', 'To bag'], ['sell', 'Sell (+600 Gold)'], ['salvage', 'Salvage (+2 Copper ore, +1 Tin ore)'],
   ]);
   expect(tab.slice(4).map((a) => [a.id, a.kind, a.disabled])).toEqual([
-    ['craft', 'iron', false], ['craft', 'obsidian', true], ['craft', 'voidCrystal', true],
+    ['craft', 'obsidian', true], ['craft', 'voidCrystal', true],
   ]);
   s.souls = 19;
   expect(itemActions(s, bag(0))[4]).toMatchObject({ kind: 'copper', disabled: true });

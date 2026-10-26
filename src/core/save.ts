@@ -1,10 +1,10 @@
 import { compressToBase64, decompressFromBase64 } from 'lz-string';
 import {
-  BAG_SIZE, COMBAT_LOG_LIMIT, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, FINDS_LOG_LIMIT, GEM_BAG_STACK, GEM_STASH_STACK, LEVEL_CAP,
-  MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_CRAFTED_LINES, MAX_DAMAGE, MAX_HELD, MAX_ITEM_LEVEL, MAX_LIFE,
-  MAX_LOOT_RULES, MAX_MAP_MODS, MAX_PASSIVE_GEM_STACK, MAX_PASSIVE_MATERIAL_STACK, MAX_ROOMS, MAX_SIDE_LINES, MAX_SOCKETS,
-  MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MAX_TRAIL_STEPS,
-  MONSTER_BUDGET, RUN_LOOT_LIMIT, START_GENERAL_PAGES, STASH_PAGE_SIZE, STOCK_SIZE, stashPagePrice,
+  BAG_SIZE, COMBAT_LOG_LIMIT, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, ESSENCE_BAG_STACK, ESSENCE_STASH_STACK, FINDS_LOG_LIMIT,
+  GEM_BAG_STACK, GEM_STASH_STACK, LEVEL_CAP, MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_CRAFTED_LINES,
+  MAX_DAMAGE, MAX_HELD, MAX_ITEM_LEVEL, MAX_LIFE, MAX_LOOT_RULES, MAX_MAP_MODS, MAX_PASSIVE_GEM_STACK,
+  MAX_PASSIVE_MATERIAL_STACK, MAX_ROOMS, MAX_SIDE_LINES, MAX_SOCKETS, MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MAX_TRAIL_STEPS,
+  MONSTER_BUDGET, PREMIUM_CAP, RUN_LOOT_LIMIT, START_GENERAL_PAGES, STASH_PAGE_SIZE, STOCK_SIZE, stashPagePrice,
 } from './balance';
 import { ASCENDANCY_NODE_BY_ID, ASCENDANCY_NODE_COUNT, ASCENDANCY_START_ID, MAX_ASCENDANCY_PASSIVE_POINTS, ascendancyTotals } from './ascendancy';
 import { metreTier } from './bands';
@@ -14,10 +14,11 @@ import { gemGradeFor, itemName } from './itemData';
 import { sideCount } from './itemGen';
 import { sellValue } from './loot';
 import { isOldLootFilter, migrateLootFilter, ruleValid } from './lootFilter';
+import { emptyPremium } from './oreMarket';
 import { isConnectedWeb, PASSIVE_NODE_BY_ID, START_NODE_ID } from './passives';
 import {
-  BATTLE_STATS, GEAR_SETS, GEM_GRADES, GEM_TYPES, MAP_MOD_KINDS, MAP_SPECIALS, MATERIALS, MINING_STATS, MOD_SIDE, RARITIES, setOfSlot,
-  slotsOf, statsOf,
+  BATTLE_STATS, ESSENCE_TIER_MAX, GEAR_SETS, GEM_GRADES, GEM_TYPES, MAP_MOD_KINDS, MAP_SPECIALS, MATERIALS, MINING_STATS,
+  MOD_SIDE, RARITIES, parseEssenceKey, setOfSlot, slotsOf, statsOf,
 } from './items';
 import type { Cell, GearItem, GearSet, GemItem, GemType, MapItem, MapMod, MapRarity, ModLine, Slot, StatKey } from './items';
 import { xpToNext } from './levels';
@@ -30,7 +31,7 @@ import {
   SHAFT_MOTIONS, TRAIL_EVENTS, type DropEntry, type GameState, type LootRule,
 } from './types';
 
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
@@ -282,6 +283,15 @@ export const MIGRATIONS: Record<number, Migration> = {
       lifetime: { ascensions: 0, deepest: 0 },
     };
   },
+  12: (state) => {
+    if (!isObject(state) || !isObject(state.stash)) return state;
+    // The ore market starts with every premium at 0, and the Essences tab empty; nothing else changes.
+    return {
+      ...state,
+      stash: { ...state.stash, essences: {} },
+      oreMarket: { premium: emptyPremium() },
+    };
+  },
 };
 
 const ALL_STATS: readonly StatKey[] = [...MINING_STATS, ...BATTLE_STATS];
@@ -432,6 +442,19 @@ function isMaterialStack(x: unknown, nextId: number, seen: Set<number>): boolean
   return isItemBase(x, nextId, seen, false);
 }
 
+function isEssenceStack(x: unknown, nextId: number, seen: Set<number>): boolean {
+  if (!isObject(x) || x.type !== 'essence' || !isIn(ALL_STATS, x.stat)) return false;
+  if (!isNonNegInt(x.tier) || x.tier < 1 || x.tier > ESSENCE_TIER_MAX) return false;
+  if (!isNonNegInt(x.count) || x.count < 1 || x.count > ESSENCE_BAG_STACK) return false;
+  return isItemBase(x, nextId, seen, false);
+}
+
+function isOrbStack(x: unknown, nextId: number, seen: Set<number>): boolean {
+  if (!isObject(x) || x.type !== 'orb' || (x.side !== 'prefix' && x.side !== 'suffix')) return false;
+  if (!isNonNegInt(x.count) || x.count < 1 || x.count > ESSENCE_BAG_STACK) return false;
+  return isItemBase(x, nextId, seen, false);
+}
+
 function isItemBase(x: Record<string, unknown>, nextId: number, seen: Set<number>, leveled = true): boolean {
   if (!isIdBelow(x.id, nextId) || seen.has(x.id) || (leveled && !isItemLevel(x.ilvl))) return false;
   seen.add(x.id);
@@ -461,6 +484,8 @@ function isBagItem(x: unknown, nextId: number, seen: Set<number>): boolean {
     case 'gear': return isGearItem(x, nextId, seen);
     case 'gem': return isGemStack(x, nextId, seen);
     case 'material': return isMaterialStack(x, nextId, seen);
+    case 'essence': return isEssenceStack(x, nextId, seen);
+    case 'orb': return isOrbStack(x, nextId, seen);
     case 'map': return isMapItem(x, nextId, seen);
     default: return false;
   }
@@ -491,6 +516,14 @@ function isMaterialTab(x: unknown): boolean {
     isObject(x) &&
     Object.keys(x).length === MATERIALS.length &&
     MATERIALS.every((m) => isNonNegInt(x[m]) && x[m] <= MATERIAL_STASH_STACK)
+  );
+}
+
+// The Essences tab: a sparse map keyed "stat:tier" or "prefix"/"suffix", each count within the cap.
+function isEssencesTab(x: unknown): boolean {
+  return (
+    isObject(x) &&
+    Object.entries(x).every(([key, n]) => parseEssenceKey(key) !== undefined && isNonNegInt(n) && n <= ESSENCE_STASH_STACK)
   );
 }
 
@@ -559,6 +592,17 @@ function isSettings(x: unknown): boolean {
 function isMerchant(x: unknown): boolean {
   if (!isObject(x) || !isNonNegInt(x.band) || !Array.isArray(x.bought) || x.bought.length > STOCK_SIZE) return false;
   return x.bought.every((i) => isUpTo(i, STOCK_SIZE - 1)) && new Set(x.bought).size === x.bought.length;
+}
+
+// The ore market: a premium per ore, each a finite number within the cap.
+function isOreMarket(x: unknown): boolean {
+  if (!isObject(x) || !isObject(x.premium)) return false;
+  const premium = x.premium;
+  if (Object.keys(premium).length !== MATERIALS.length) return false;
+  return MATERIALS.every((m) => {
+    const n = premium[m];
+    return isNonNegFinite(n) && n <= PREMIUM_CAP;
+  });
 }
 
 /** Whether every allocated id reaches `start` over links that stay inside { start } ∪ allocated. */
@@ -733,7 +777,7 @@ function isInventory(x: Record<string, unknown>, nextId: number, seen: Set<numbe
   const { general, bought } = stash;
   if (!isPagedTab(general, START_GENERAL_PAGES, (c) => isGearItem(c, nextId, seen))) return false;
   if (!isMapStash(stash.maps, nextId, seen)) return false;
-  if (!isGemTab(stash.gems) || !isMaterialTab(stash.materials)) return false;
+  if (!isGemTab(stash.gems) || !isMaterialTab(stash.materials) || !isEssencesTab(stash.essences)) return false;
   if (!isObject(bought) || Object.keys(bought).length !== 1 || !isBoughtOf(bought.general, general)) return false;
   // held finds are any kind of item, each as a bag cell would hold it
   if (!Array.isArray(overflow) || overflow.length > MAX_HELD || !overflow.every((o) => isBagItem(o, nextId, seen))) return false;
@@ -812,6 +856,7 @@ export function validateState(x: unknown): x is GameState {
   if (!Array.isArray(x.finds) || x.finds.length > FINDS_LOG_LIMIT || !x.finds.every((f) => isFindRecord(f, nextId))) return false;
   if (typeof x.paused !== 'boolean' || !isDropLog(x.drops, nextId)) return false;
   if (!isMerchant(x.merchant) || !isUint32(x.uniqueRng)) return false;
+  if (!isOreMarket(x.oreMarket)) return false;
   if (!isAscendancy(x.ascendancy) || !isAutoMap(x.autoMap) || !isLifetime(x.lifetime)) return false;
   const extraPassivePoints = ascendancyTotals({ ascendancy: x.ascendancy }).passivePoints;
   if (!isPassives(x.passives) || x.passives.allocated.length > x.level - 1 + extraPassivePoints) return false;

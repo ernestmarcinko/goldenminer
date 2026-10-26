@@ -5,11 +5,11 @@ import {
 import { firstEmpty } from './cells';
 import { logDrop, trail } from './dropLog';
 import { itemName, MATERIAL_LABELS } from './itemData';
-import { MATERIALS } from './items';
+import { isStack, MATERIALS } from './items';
 import { ruleMatches } from './lootFilter';
 import { putMap } from './maps';
 import { stackCaps } from './passives';
-import type { Cell, GearItem, Gem, GemItem, Item, MapItem, Material, MaterialItem, Stack } from './items';
+import type { Cell, EssenceItem, GearItem, Gem, GemItem, Item, MapItem, Material, MaterialItem, OrbItem, Stack } from './items';
 import { deriveStats } from './stats';
 import type { DropOrigin, GameState, LootAction, LootNote, LootOutcome, LootRule, Stats, TrailStep } from './types';
 
@@ -60,6 +60,9 @@ export function salvageYield(item: Item): Partial<Record<Material, number>> {
     }
     case 'material':
       return out;
+    case 'essence':
+    case 'orb':
+      return out;
   }
 }
 
@@ -102,6 +105,8 @@ function note(item: Item, outcome: LootOutcome, value = 0): LootNote {
     case 'gem': return { name: itemName(item), rarity: 'gem', base: item.gem, outcome, value };
     case 'map': return { name: itemName(item), rarity: item.rarity, base: 'map', outcome, value };
     case 'material': return { name: itemName(item), rarity: 'material', base: item.material, outcome, value };
+    case 'essence':
+    case 'orb': throw new Error('essences and orbs are never looted');
   }
 }
 
@@ -116,7 +121,7 @@ export function sellFind(state: GameState, item: Loot): LootNote {
 interface Fate { note: LootNote; step: TrailStep; count: number }
 
 const fate = (note: LootNote, step: TrailStep, count = 1): Fate => ({ note, step, count });
-const unitsOf = (item: Item): number => (item.type === 'gem' || item.type === 'material' ? item.count : 1);
+const unitsOf = (item: Item): number => (isStack(item) ? item.count : 1);
 
 function tally(state: GameState, notes: LootNote[]): LootNote[] {
   for (const n of notes) {
@@ -128,17 +133,29 @@ function tally(state: GameState, notes: LootNote[]): LootNote[] {
 }
 
 // The kind of a stack: what decides whether two stacks are one.
-type StackKind = Pick<GemItem, 'type' | 'gem' | 'grade'> | Pick<MaterialItem, 'type' | 'material'>;
+type StackKind =
+  | Pick<GemItem, 'type' | 'gem' | 'grade'>
+  | Pick<MaterialItem, 'type' | 'material'>
+  | Pick<EssenceItem, 'type' | 'stat' | 'tier'>
+  | Pick<OrbItem, 'type' | 'side'>;
 
 const bagCap = (state: GameState, kind: StackKind): number => {
   const caps = stackCaps(state);
-  return kind.type === 'gem' ? caps.gem : caps.material;
+  switch (kind.type) {
+    case 'gem': return caps.gem;
+    case 'material': return caps.material;
+    case 'essence': return caps.essence;
+    case 'orb': return caps.orb;
+  }
 };
 
 function sameKind(kind: StackKind, c: Cell): c is Stack {
-  return kind.type === 'gem'
-    ? c?.type === 'gem' && c.gem === kind.gem && c.grade === kind.grade
-    : c?.type === 'material' && c.material === kind.material;
+  switch (kind.type) {
+    case 'gem': return c?.type === 'gem' && c.gem === kind.gem && c.grade === kind.grade;
+    case 'material': return c?.type === 'material' && c.material === kind.material;
+    case 'essence': return c?.type === 'essence' && c.stat === kind.stat && c.tier === kind.tier;
+    case 'orb': return c?.type === 'orb' && c.side === kind.side;
+  }
 }
 
 /** New stacks of a find's kind: the first keeps the find's id, any after it take fresh ones. */
@@ -214,6 +231,8 @@ function stashFind(state: GameState, item: Item): Fate | null {
       const n = units(stashMaterials(state, { [item.material]: item.count }));
       return n > 0 ? stashed(n) : null;
     }
+    case 'essence':
+    case 'orb': return null;
   }
 }
 
@@ -223,8 +242,9 @@ function stashFind(state: GameState, item: Item): Fate | null {
  */
 function applyFilter(state: GameState, item: Item): Fate | null {
   const action = lootAction(state.settings.lootFilter, item);
-  // materials are crafting currency: only keep and stash rules match them
+  // materials are crafting currency: only keep and stash rules match them; essences and orbs are never looted
   if (item.type === 'material') return action === 'stash' ? stashFind(state, item) : null;
+  if (item.type === 'essence' || item.type === 'orb') return null;
   switch (action) {
     case 'keep': return null;
     case 'stash': return stashFind(state, item);
@@ -337,6 +357,8 @@ function unhold(state: GameState, item: Item): boolean {
     case 'map': return intoEmptyCell(state, item);
     case 'gem':
     case 'material':
+    case 'essence':
+    case 'orb':
       item.count = stackIntoBag(state, item, item.count, 1, (n) => ({ ...item, count: n }));
       return item.count === 0;
   }

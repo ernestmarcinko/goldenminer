@@ -16,7 +16,9 @@ function levelOf(item: Item): number | undefined {
     case 'gear': return item.ilvl;
     case 'map': return item.tier;
     case 'gem':
-    case 'material': return undefined;
+    case 'material':
+    case 'essence':
+    case 'orb': return undefined;
   }
 }
 
@@ -26,7 +28,9 @@ function modsOf(item: Item): readonly { tier: number }[] | undefined {
     case 'gear': return item.affixes;
     case 'map': return item.mods;
     case 'gem':
-    case 'material': return undefined;
+    case 'material':
+    case 'essence':
+    case 'orb': return undefined;
   }
 }
 

@@ -1,9 +1,9 @@
-import { GEM_STASH_STACK, MATERIAL_STASH_STACK } from './balance';
+import { ESSENCE_STASH_STACK, GEM_STASH_STACK, MATERIAL_STASH_STACK } from './balance';
 import { firstEmpty, itemAt, mapTierCount, sameLoc } from './cells';
 import { craft } from './crafting';
 import { trail } from './dropLog';
-import { isGear, isMap, isStack, setOfSlot } from './items';
-import type { Cell, GearItem, Item, MaterialItem, Slot, Stack } from './items';
+import { essenceKey, isGear, isMap, isStack, setOfSlot } from './items';
+import type { Cell, EssenceItem, GearItem, Item, MaterialItem, OrbItem, Slot, Stack } from './items';
 import { fillAhead } from './metres';
 import { salvagePay, sellFind, stackIntoBag, stashMaterials } from './loot';
 import type { Loot } from './loot';
@@ -13,14 +13,14 @@ import { deriveStats } from './stats';
 import type { CraftResult, DropTarget, GameState, InvResult, ItemLoc } from './types';
 
 type CellLoc = Extract<ItemLoc, { where: 'bag' | 'stash' }>;
-/** A Gems or Materials stack: a count in a stash tab rather than a cell. */
-type TabLoc = Extract<ItemLoc, { where: 'gems' | 'materials' }>;
+/** A Gems, Materials or Essences stack: a count in a stash tab rather than a cell. */
+type TabLoc = Extract<ItemLoc, { where: 'gems' | 'materials' | 'essences' }>;
 
 function refillAhead(state: GameState): void {
   fillAhead(state, deriveStats(state));
 }
 
-const isTabLoc = (loc: ItemLoc): loc is TabLoc => loc.where === 'gems' || loc.where === 'materials';
+const isTabLoc = (loc: ItemLoc): loc is TabLoc => loc.where === 'gems' || loc.where === 'materials' || loc.where === 'essences';
 const isCellLoc = (loc: ItemLoc): loc is CellLoc => loc.where === 'bag' || loc.where === 'stash';
 // The Trader's stock is only ever bought from, so every move, drop, socket, sale or salvage that touches it is refused.
 const isStock = (loc: DropTarget): loc is Extract<ItemLoc, { where: 'stock' }> => loc.where === 'stock';
@@ -62,37 +62,59 @@ function fits(item: Item, loc: ItemLoc): InvResult {
     case 'maps': return isMap(item) ? 'ok' : 'mapsOnly';
     case 'gems': return item.type === 'gem' ? 'ok' : 'gemsOnly';
     case 'materials': return item.type === 'material' ? 'ok' : 'materialsOnly';
+    case 'essences': return item.type === 'essence' || item.type === 'orb' ? 'ok' : 'essencesOnly';
     case 'worn': return isGear(item) ? (item.slot === loc.slot ? 'ok' : 'wrongSlot') : 'invalid';
     case 'stock': return 'invalid';
   }
 }
 
-/** The same kind of stack: the same gem and grade, or the same material. */
+/** The same kind of stack: the same gem and grade, material, essence stat and tier, or orb side. */
 function sameStack(a: Stack, b: Stack): boolean {
   if (a.type === 'gem') return b.type === 'gem' && a.gem === b.gem && a.grade === b.grade;
-  return b.type === 'material' && a.material === b.material;
+  if (a.type === 'material') return b.type === 'material' && a.material === b.material;
+  if (a.type === 'essence') return b.type === 'essence' && a.stat === b.stat && a.tier === b.tier;
+  return b.type === 'orb' && a.side === b.side;
 }
 
 const bagStackCap = (state: GameState, item: Stack): number => {
   const caps = stackCaps(state);
-  return item.type === 'gem' ? caps.gem : caps.material;
+  switch (item.type) {
+    case 'gem': return caps.gem;
+    case 'material': return caps.material;
+    case 'essence': return caps.essence;
+    case 'orb': return caps.orb;
+  }
 };
-const tabStackCap = (item: Stack): number => (item.type === 'gem' ? GEM_STASH_STACK : MATERIAL_STASH_STACK);
+const tabStackCap = (item: Stack): number =>
+  item.type === 'gem' ? GEM_STASH_STACK : item.type === 'material' ? MATERIAL_STASH_STACK : ESSENCE_STASH_STACK;
+
+/** The Essences-tab key of an essence or orb stack. */
+function essenceTabKey(item: EssenceItem | OrbItem): string {
+  return item.type === 'essence' ? essenceKey(item.stat, item.tier) : item.side;
+}
 
 function tabLocOf(item: Stack): TabLoc {
-  return item.type === 'gem'
-    ? { where: 'gems', gem: item.gem, grade: item.grade }
-    : { where: 'materials', material: item.material };
+  if (item.type === 'gem') return { where: 'gems', gem: item.gem, grade: item.grade };
+  if (item.type === 'material') return { where: 'materials', material: item.material };
+  return { where: 'essences', key: essenceTabKey(item) };
 }
 
 /** The tab count of a stack's own kind. */
 function tabCount(state: GameState, item: Stack): number {
-  return item.type === 'gem' ? state.stash.gems[item.gem][item.grade] : state.stash.materials[item.material];
+  if (item.type === 'gem') return state.stash.gems[item.gem][item.grade];
+  if (item.type === 'material') return state.stash.materials[item.material];
+  return state.stash.essences[essenceTabKey(item)] ?? 0;
 }
 
 function addToTab(state: GameState, item: Stack, n: number): void {
   if (item.type === 'gem') state.stash.gems[item.gem][item.grade] += n;
-  else state.stash.materials[item.material] += n;
+  else if (item.type === 'material') state.stash.materials[item.material] += n;
+  else {
+    const key = essenceTabKey(item);
+    const next = (state.stash.essences[key] ?? 0) + n;
+    if (next <= 0) delete state.stash.essences[key];
+    else state.stash.essences[key] = next;
+  }
 }
 
 /** Takes `n` from `item`, the stack at `from`: a bag stack or a tab stack. */
@@ -107,9 +129,12 @@ function removeUnits(state: GameState, from: ItemLoc, item: Stack, n: number): v
 }
 
 function newStack(state: GameState, item: Stack, count: number): Stack {
-  return item.type === 'gem'
-    ? { id: state.nextId++, type: 'gem', gem: item.gem, grade: item.grade, count }
-    : { id: state.nextId++, type: 'material', material: item.material, count };
+  switch (item.type) {
+    case 'gem': return { id: state.nextId++, type: 'gem', gem: item.gem, grade: item.grade, count };
+    case 'material': return { id: state.nextId++, type: 'material', material: item.material, count };
+    case 'essence': return { id: state.nextId++, type: 'essence', stat: item.stat, tier: item.tier, count };
+    case 'orb': return { id: state.nextId++, type: 'orb', side: item.side, count };
+  }
 }
 
 /** Moves as many of `item` as fit into the tab count of its own kind. */
@@ -184,6 +209,10 @@ export function moveItem(state: GameState, from: ItemLoc, to: ItemLoc): InvResul
   if (to.where === 'materials') {
     if (item.type !== 'material') return 'materialsOnly';
     return item.material === to.material ? putInTab(state, from, item) : 'invalid';   // only its own slot
+  }
+  if (to.where === 'essences') {
+    if (item.type !== 'essence' && item.type !== 'orb') return 'essencesOnly';
+    return essenceTabKey(item) === to.key ? putInTab(state, from, item) : 'invalid';  // only its own slot
   }
   if (to.where === 'maps' || from.where === 'maps') return moveMap(state, from, item, to);
   if (!inGrid(state, to)) return 'invalid';
@@ -282,7 +311,7 @@ export function socketGem(state: GameState, gem: ItemLoc, into: ItemLoc): InvRes
  */
 function discard(state: GameState, from: ItemLoc): Loot | undefined {
   const item = itemAt(state, from);
-  if (item === undefined || item.type === 'material') return undefined;
+  if (item === undefined || item.type === 'material' || item.type === 'essence' || item.type === 'orb') return undefined;
   if (from.where === 'gems') state.stash.gems[from.gem][from.grade] = 0;
   else if (from.where === 'maps') takeMapAt(state, from);
   else if (isCellLoc(from)) writeCell(state, from, null);
@@ -346,6 +375,8 @@ function homeOf(item: Item): ItemLoc['where'] {
     case 'gem': return 'gems';
     case 'map': return 'maps';
     case 'material': return 'materials';
+    case 'essence':
+    case 'orb': return 'essences';
   }
 }
 
@@ -379,6 +410,7 @@ export function dropItem(state: GameState, from: ItemLoc, to: DropTarget, onCraf
     if (to.tab === 'general' && !isGear(item)) return 'gearOnly';
     if (to.tab === 'maps' && !isMap(item)) return 'mapsOnly';
     if (to.tab === 'materials' && item.type !== 'material') return 'materialsOnly';
+    if (to.tab === 'essences' && item.type !== 'essence' && item.type !== 'orb') return 'essencesOnly';
     if (from.where === homeOf(item)) return 'ok';
     return sendItem(state, from, 'stash');
   }

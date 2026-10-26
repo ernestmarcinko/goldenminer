@@ -34,13 +34,12 @@ function withMap(map: (s: GameState) => MapItem, rng: number): GameState {
 /** Each enchant that may add a special, on a map it works on. */
 const ENCHANTS: [CraftKind, (s: GameState, p?: Partial<MapItem>) => MapItem][] = [
   ['copper', (s, p) => mapOf(s, p)],
-  ['iron', (s, p) => mapOf(s, { rarity: 'magic', mods: [mod('monsterLife')], ...p })],
   ['silver', (s, p) => mapOf(s, { rarity: 'rare', mods: [mod('monsterLife'), mod('monsterSpeed'), mod('hardened')], ...p })],
   ['voidCrystal', (s, p) => mapOf(s, { rarity: 'rare', mods: [mod('monsterLife'), mod('monsterSpeed'), mod('hardened')], ...p })],
 ];
 
 describe('rolls', () => {
-  it('a Copper, Iron, Silver or Void enchant adds a special about one time in ten, only to a map with none', () => {
+  it('a Copper, Silver or Void enchant adds a special about one time in ten, only to a map with none', () => {
     expect(MAP_SPECIAL_CHANCE).toBe(0.1);
     for (const [kind, make] of ENCHANTS) {
       let added = 0;

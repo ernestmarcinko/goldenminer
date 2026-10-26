@@ -1,5 +1,6 @@
 import type {
   Cell, GearItem, GearSet, GemGrade, GemType, Item, MapItem, MapMod, MapModKind, MapRarity, Material, Rarity, Slot,
+  StatKey,
 } from './items';
 
 export type { MapItem, MapMod, MapRarity };
@@ -20,9 +21,10 @@ export type ItemLoc =
   | { where: 'maps'; tier: number; index: number }      // a map in the Map stash's list for its tier
   | { where: 'gems'; gem: GemType; grade: GemGrade }    // a Gems-tab stack
   | { where: 'materials'; material: Material }          // a Materials-tab stack (virtual, id 0, while its count > 0)
+  | { where: 'essences'; key: string }                  // an Essences-tab stack, keyed "stat:tier" or "prefix"/"suffix"
   | { where: 'worn'; slot: Slot }
   | { where: 'stock'; index: number };
-export type DropTarget = ItemLoc | { where: 'stashTab'; tab: 'general' | 'gems' | 'maps' | 'materials' | 'auto' };
+export type DropTarget = ItemLoc | { where: 'stashTab'; tab: 'general' | 'gems' | 'maps' | 'materials' | 'essences' | 'auto' };
 export const LOOT_ACTIONS = ['keep', 'sell', 'salvage', 'stash'] as const;
 export type LootAction = (typeof LOOT_ACTIONS)[number];
 export const LOOT_KINDS = ['gear', 'gem', 'map', 'material'] as const;
@@ -62,7 +64,8 @@ export type TrailEvent = (typeof TRAIL_EVENTS)[number];
 export interface TrailStep { event: TrailEvent; gold?: number; materials?: Partial<Record<Material, number>> }
 /** One find in the drop log; its id is the item's (a material find takes its own), and its trail is what became of it. */
 export interface DropEntry {
-  id: number; kind: Item['type']; name: string; rarity: Rarity | 'gem' | 'material'; base: Slot | GemType | Material | 'map';
+  id: number; kind: 'gear' | 'gem' | 'material' | 'map'; name: string; rarity: Rarity | 'gem' | 'material';
+  base: Slot | GemType | Material | 'map';
   count: number; origin: DropOrigin; trail: TrailStep[];
 }
 /** One death in a map: `at` is its wall time, `map` the map as it was lost. */
@@ -106,12 +109,24 @@ export interface FindRecord {
 }
 export type InvResult =
   | 'ok' | 'bagFull' | 'stashFull' | 'noSocket' | 'invalid' | 'busy'
-  | 'wrongSlot' | 'gemsOnly' | 'gearOnly' | 'mapsOnly' | 'materialsOnly' | 'stackFull' | 'craftRefused' | 'mapTierFull';
+  | 'wrongSlot' | 'gemsOnly' | 'gearOnly' | 'mapsOnly' | 'materialsOnly' | 'essencesOnly' | 'stackFull' | 'craftRefused' | 'mapTierFull';
 /** What a craft spends: a material, or Diamonds for the exalt. */
 export type CraftKind = Material | 'diamond';
+/**
+ * A targeted craft on gear: add a chosen prefix or suffix (an orb), add a chosen stat (an essence), reroll a chosen
+ * affix (a matching essence, or the side's orb), or remove a chosen affix (Obsidian, which keeps its random-remove
+ * meaning for the plain craft). `tier` is an essence's tier; an orb reroll uses the item's own band instead.
+ */
+export type TargetedCraft =
+  | { kind: 'addPrefix' }
+  | { kind: 'addSuffix' }
+  | { kind: 'addStat'; stat: StatKey; tier: number }
+  | { kind: 'rerollAffix'; index: number; tier: number }
+  | { kind: 'rerollOrb'; index: number }
+  | { kind: 'removeAffix'; index: number };
 export type CraftCheck =
   | 'ok' | 'notGear' | 'legendary' | 'sealed' | 'wrongRarity' | 'noRoom' | 'nothingToChange' | 'short' | 'gemsFull'
-  | 'notForMaps' | 'noSouls';
+  | 'notForMaps' | 'noSouls' | 'noSuchAffix';
 export type TemperOutcome = 'craftedLine' | 'raiseTiers' | 'nothing' | 'ruin';
 export interface CraftResult { check: CraftCheck; temper?: TemperOutcome }
 export interface GameState {
@@ -132,8 +147,10 @@ export interface GameState {
     gems: Record<GemType, Record<GemGrade, number>>;   // the Gems tab: counts of 0..GEM_STASH_STACK
     maps: Record<number, MapItem[]>;       // keyed by tier, at most MAP_TIER_CAP each, in the order put in; an emptied tier loses its key
     materials: Record<Material, number>;   // 0..MATERIAL_STASH_STACK each
+    essences: Record<string, number>;      // the Essences tab: "stat:tier" for essences, "prefix"/"suffix" for orbs, 0..ESSENCE_STASH_STACK
     bought: { general: number };           // General pages bought with Gold; free pages never count
   };
+  oreMarket: { premium: Record<Material, number> };   // the Refiner's per-ore premium, 0..PREMIUM_CAP, decayed by ticks
   overflow: Item[];                        // finds held for want of room, oldest first, at most MAX_HELD; digging waits on them
   lootTally: { kept: number; sold: number; salvaged: number };
   settings: Settings;                      // kept across ascension (Plan 6)

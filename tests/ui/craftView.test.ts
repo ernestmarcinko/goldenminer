@@ -32,7 +32,7 @@ it('counts bag stacks and the Materials tab together, and Diamonds from the purs
   s.stash.materials.silver = 4;
   s.diamonds = 1;
   const opts = craftOptions(s, bag(0));
-  expect(opts.map((o) => o.kind)).toEqual(['iron', 'silver', 'mithril', 'starsteel', 'obsidian', 'voidCrystal', 'diamond']);
+  expect(opts.map((o) => o.kind)).toEqual(['silver', 'mithril', 'starsteel', 'obsidian', 'voidCrystal', 'diamond']);
   expect(opts.find((o) => o.kind === 'silver')).toMatchObject({ have: 7, cost: 2, enabled: true });
   expect(opts.find((o) => o.kind === 'diamond')).toMatchObject({ have: 1, cost: 2, enabled: false });
 });
@@ -125,15 +125,15 @@ it('a map craft is off with too little material or too few Souls', () => {
   expect(craftOptions(s, tab)).toMatchObject([{ kind: 'copper', have: 2, enabled: false }]);
 });
 
-it('a magic map offers Iron, Obsidian and Void crystal; a rare one Silver too, and Iron while it has room', () => {
+it('a magic map offers Obsidian and Void crystal; a rare one Silver too', () => {
   const s = newGame(1, 0);
   plenty(s);
   s.souls = 1000;
   s.bag[0] = map(s, 'magic', mods(2));
   s.bag[1] = map(s, 'rare', mods(4));
   s.bag[2] = map(s, 'rare', mods(6));
-  expect(craftOptions(s, bag(0)).map((o) => o.kind)).toEqual(['iron', 'obsidian', 'voidCrystal']);
-  expect(craftOptions(s, bag(1)).map((o) => o.kind)).toEqual(['iron', 'silver', 'obsidian', 'voidCrystal']);
+  expect(craftOptions(s, bag(0)).map((o) => o.kind)).toEqual(['obsidian', 'voidCrystal']);
+  expect(craftOptions(s, bag(1)).map((o) => o.kind)).toEqual(['silver', 'obsidian', 'voidCrystal']);
   expect(craftOptions(s, bag(2)).map((o) => o.kind)).toEqual(['silver', 'obsidian', 'voidCrystal']);
   expect(craftOptions(s, bag(1)).every((o) => o.souls === 20 && o.enabled)).toBe(true);
 });

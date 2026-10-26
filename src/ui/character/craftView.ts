@@ -1,14 +1,16 @@
 import { itemAt } from '../../core/cells';
-import { canCraft, craftCost, held, mapCraftSouls } from '../../core/crafting';
-import { MATERIAL_LABELS } from '../../core/itemData';
-import { isGear, isMap, MATERIALS } from '../../core/items';
-import type { CraftCheck, CraftKind, CraftResult, GameState, ItemLoc, TemperOutcome } from '../../core/types';
+import { canCraft, canTargetedCraft, craftCost, held, heldEssence, heldOrb, mapCraftSouls } from '../../core/crafting';
+import { MATERIAL_LABELS, STAT_NAMES } from '../../core/itemData';
+import { ESSENCE_TIER_MAX, MOD_SIDE, SLOT_IMPLICIT, isGear, isMap, setOfSlot, statsOf } from '../../core/items';
+import type { StatKey } from '../../core/items';
+import type { CraftCheck, CraftKind, CraftResult, GameState, ItemLoc, TargetedCraft, TemperOutcome } from '../../core/types';
 import { formatNumber } from '../format';
 
 /** `souls`: what the craft also spends from the Souls, 0 for gear. */
 export interface CraftOption { kind: CraftKind; label: string; cost: number; souls: number; have: number; enabled: boolean }
 
-const CRAFT_KINDS: readonly CraftKind[] = [...MATERIALS, 'diamond'];
+// Iron is retired from crafting (it is the tier-1 essence ore): it is never offered, on gear or maps.
+const CRAFT_KINDS: readonly CraftKind[] = ['copper', 'tin', 'silver', 'mithril', 'starsteel', 'obsidian', 'voidCrystal', 'diamond'];
 
 /**
  * Checks that refuse a craft for what the item is; the others (short of material or Souls, Gems tab full) list it
@@ -96,5 +98,60 @@ export function craftResultText(result: Pick<CraftResult, 'check' | 'temper'>, t
     case 'notGear': return 'Only gear and maps can be crafted.';
     case 'notForMaps': return "That material doesn't work on maps.";
     case 'noSouls': return 'Not enough Souls.';
+    case 'noSuchAffix': return 'That modifier is gone.';
   }
+}
+
+/** One targeted craft in the card's list: its slot key, label, whether it can be done, and the action it runs. */
+export interface TargetedOption { key: string; label: string; enabled: boolean; targeted: TargetedCraft }
+
+/** The stable slot key of a targeted craft, so the card keeps its button under the pointer. */
+export function targetedKey(t: TargetedCraft): string {
+  switch (t.kind) {
+    case 'addPrefix': return 'addPrefix';
+    case 'addSuffix': return 'addSuffix';
+    case 'addStat': return `addStat:${t.stat}:${t.tier}`;
+    case 'rerollAffix': return `rerollAffix:${t.index}:${t.tier}`;
+    case 'rerollOrb': return `rerollOrb:${t.index}`;
+    case 'removeAffix': return `removeAffix:${t.index}`;
+  }
+}
+
+/** The best tier the player holds an essence of `stat` at, or 0. */
+function bestEssenceTier(state: GameState, stat: StatKey): number {
+  for (let t = ESSENCE_TIER_MAX; t >= 1; t--) if (heldEssence(state, stat, t) >= 1) return t;
+  return 0;
+}
+
+/**
+ * The targeted crafts an item's card offers: the two orbs, an "Add {stat}" per essence the player holds for a stat the
+ * item lacks, and a reroll and remove for each of its affixes. Each is greyed out when it has no room or no budget.
+ */
+export function targetedCraftOptions(state: GameState, target: ItemLoc): TargetedOption[] {
+  const item = itemAt(state, target);
+  if (item === undefined || !isGear(item)) return [];
+  if (item.rarity === 'normal' || item.rarity === 'legendary' || item.sealed === true) return [];
+  const out: TargetedOption[] = [];
+  const labelled = (targeted: TargetedCraft, label: string): void => {
+    out.push({ targeted, key: targetedKey(targeted), label, enabled: canTargetedCraft(state, target, targeted) === 'ok' });
+  };
+  labelled({ kind: 'addPrefix' }, 'Add a prefix (Prefix orb)');
+  labelled({ kind: 'addSuffix' }, 'Add a suffix (Suffix orb)');
+  const implicit = SLOT_IMPLICIT[item.slot];
+  for (const stat of statsOf(setOfSlot(item.slot))) {
+    if (stat === implicit || item.affixes.some((l) => l.stat === stat)) continue;
+    const tier = bestEssenceTier(state, stat);
+    if (tier === 0) continue;   // no essence of this stat: nothing to add with
+    labelled({ kind: 'addStat', stat, tier }, `Add ${STAT_NAMES[stat]} (T${tier} essence)`);
+  }
+  item.affixes.forEach((l, index) => {
+    const tier = bestEssenceTier(state, l.stat);
+    if (tier > 0) {
+      labelled({ kind: 'rerollAffix', index, tier }, `Reroll ${STAT_NAMES[l.stat]} (T${tier} essence)`);
+    } else {
+      labelled({ kind: 'rerollOrb', index }, `Reroll ${STAT_NAMES[l.stat]} (${MOD_SIDE[l.stat]} orb)`);
+    }
+    labelled({ kind: 'removeAffix', index }, `Remove ${STAT_NAMES[l.stat]} (Obsidian ×${formatNumber(craftCost('obsidian', item.ilvl))})`);
+  });
+  return out;
 }

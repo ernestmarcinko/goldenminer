@@ -1,5 +1,5 @@
 import { hardness, MATERIAL_TABLE, TICKS_PER_METRE_AT_PARITY } from '../../core/balance';
-import { GEM_GRADE_LABELS, gemName, itemName } from '../../core/itemData';
+import { GEM_GRADE_LABELS, STAT_NAMES, gemName, itemName } from '../../core/itemData';
 import { BATTLE_STATS, MOD_SIDE, isGear, setOfSlot } from '../../core/items';
 import type { GearItem, GemType, Item, MapItem, Material, ModLine, Slot, StatKey } from '../../core/items';
 import { gemEffect, itemTotals } from '../../core/stats';
@@ -81,7 +81,9 @@ export interface ViewLine { text: string; tone: Tone; tier?: number }
 /** An enchanted map takes the gear colour of its rarity; a normal map keeps the map colour. */
 export function rarityOf(item: Item): GearItem['rarity'] | 'gem' | 'material' | 'map' {
   if (item.type === 'map') return item.rarity === 'normal' ? 'map' : item.rarity;
-  return isGear(item) ? item.rarity : item.type;
+  if (isGear(item)) return item.rarity;
+  if (item.type === 'essence' || item.type === 'orb') return 'material';
+  return item.type;
 }
 
 const capitalise = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
@@ -99,6 +101,14 @@ export function itemKindLine(item: Item): string {
   if (item.type === 'material') return 'Crafting material';
   if (item.type === 'gem') {
     const base = `Gem · ${GEM_GRADE_LABELS[item.grade]} · socket into any gear`;
+    return item.count > 1 ? `${base} · ${formatNumber(item.count)} in this stack` : base;
+  }
+  if (item.type === 'essence') {
+    const base = `Essence · ${STAT_NAMES[item.stat]} · tier ${formatNumber(item.tier)}`;
+    return item.count > 1 ? `${base} · ${formatNumber(item.count)} in this stack` : base;
+  }
+  if (item.type === 'orb') {
+    const base = item.side === 'prefix' ? 'Prefix orb' : 'Suffix orb';
     return item.count > 1 ? `${base} · ${formatNumber(item.count)} in this stack` : base;
   }
   const base = gearKindBase(item);
@@ -138,6 +148,19 @@ export function itemLines(item: Item): ViewLine[] {
     return [
       { text: `In mining gear: ${lineText(gemEffect(item, 'mining'))}`, tone: 'plain' },
       { text: `In battle gear: ${lineText(gemEffect(item, 'battle'))}`, tone: 'plain' },
+    ];
+  }
+  if (item.type === 'essence') {
+    return [
+      { text: `Adds or rerolls ${STAT_NAMES[item.stat]} at a tier in T${item.tier}–T${item.tier + 2}.`, tone: 'plain' },
+      { text: 'Kept for crafting. Use its Craft action on gear, or the Refiner.', tone: 'muted' },
+    ];
+  }
+  if (item.type === 'orb') {
+    const side = item.side === 'prefix' ? 'prefix' : 'suffix';
+    return [
+      { text: `Adds a random ${side} in the item's own tier band.`, tone: 'plain' },
+      { text: 'Kept for crafting. Use its Craft action on gear, or the Refiner.', tone: 'muted' },
     ];
   }
   const lines: ViewLine[] = [{ text: lineText(item.implicit), tone: item.implicit.value < 0 ? 'down' : 'plain' }];
@@ -356,6 +379,8 @@ export function itemSprite(item: Item): SpriteName {
     case 'gem': return baseSprite(item.gem);
     case 'map': return 'map';
     case 'material': return baseSprite(item.material);
+    case 'essence': return 'gem';
+    case 'orb': return 'diamond';
   }
 }
 

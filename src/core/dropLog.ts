@@ -13,6 +13,8 @@ function snapshot(item: Item): Pick<DropEntry, 'kind' | 'rarity' | 'base' | 'cou
     case 'gem': return { kind: 'gem', rarity: 'gem', base: item.gem, count: item.count };
     case 'material': return { kind: 'material', rarity: 'material', base: item.material, count: item.count };
     case 'map': return { kind: 'map', rarity: item.rarity, base: 'map', count: 1 };
+    case 'essence':
+    case 'orb': throw new Error('essences and orbs are never logged');
   }
 }
 

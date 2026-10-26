@@ -85,3 +85,13 @@
   .gm-merchants { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* The Refiner spans the two merchants' row, stacked below them */
+.gm-refiner { grid-column: 1 / -1; }
+.gm-refiner__orbs, .gm-refiner__essences, .gm-refiner__exchange {
+  list-style: none; margin: 0; padding: 0; display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(max(120px, (100% - 56px) / 8), 1fr));
+}
+.gm-refiner__tiers { display: flex; flex-wrap: wrap; gap: 8px; }
+.gm-refiner__tiers .gm-stash__page[aria-disabled='true'] { opacity: 0.55; }
+
+

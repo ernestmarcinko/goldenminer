@@ -255,6 +255,32 @@ export const CRAFT_COST: Readonly<Record<CraftKind, { base: number; per: number 
   diamond: { base: 1, per: 3 },
   obsidian: { base: 1, per: 0 }, voidCrystal: { base: 1, per: 0 },
 };
+
+// The crafting overhaul (Plan 17): essences, orbs and the ore economy. Copper and Tin stay the cheap base crafts
+// (normal → magic, reroll magic); the other six ores buy tiered essences and exchange for each other.
+export const ESSENCE_BAG_STACK = 50;
+export const ESSENCE_STASH_STACK = 1_000_000;
+// The ore a tier-t essence is bought with, for t = 1..6; Copper and Tin are the base crafts, never a recipe.
+const ORE_FOR_TIER: readonly (Material | undefined)[] = [undefined, 'iron', 'silver', 'mithril', 'starsteel', 'obsidian', 'voidCrystal'];
+export function oreForTier(tier: number): Material | undefined {
+  return ORE_FOR_TIER[tier];
+}
+/** An essence of tier `tier` rolls its stat in tiers `[tier, tier + 2]`. */
+export function essenceBand(tier: number): readonly [number, number] {
+  return [tier, tier + 2];
+}
+/** What a tier-t essence costs, in units of its own ore: 1 Iron … 13 Void crystal (a gentle Fibonacci ramp). */
+export const ESSENCE_COST: readonly number[] = [0, 1, 2, 3, 5, 8, 13];
+/** A prefix or suffix orb costs this much Iron ore, the tier-1 essence ore. */
+export const ORB_COST = 2;
+// Ore exchange: adjacent rungs, up 4 : 1 and down 1 : 3.
+export const EXCHANGE_UP = 4;
+export const EXCHANGE_DOWN = 3;
+// The premium: buying into an ore adds PREMIUM_STEP to its premium (capped at PREMIUM_CAP); every applied tick
+// multiplies each premium by PREMIUM_DECAY_KEEP, so it eases back to 0 within a couple of hours of not buying.
+export const PREMIUM_STEP = 0.1;
+export const PREMIUM_CAP = 1.0;
+export const PREMIUM_DECAY_KEEP = 0.9994;
 export const TEMPER_WEIGHTS: readonly [TemperOutcome, number][] = [['craftedLine', 30], ['raiseTiers', 25], ['nothing', 25], ['ruin', 20]];
 // Enchanting a map also spends Souls, this many for each of its tiers.
 export const MAP_CRAFT_SOULS_PER_TIER = 5;

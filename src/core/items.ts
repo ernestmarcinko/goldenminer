@@ -11,6 +11,8 @@ export const BATTLE_STATS = ['damage', 'damagePct', 'attackSpeed', 'life', 'armo
 export const GEM_TYPES = ['ruby', 'sapphire', 'emerald', 'amethyst', 'starstone'] as const;
 export const GEM_GRADES = ['tiny', 'small', 'big', 'giant', 'perfect'] as const;
 export const MATERIALS = ['copper', 'tin', 'iron', 'silver', 'mithril', 'starsteel', 'obsidian', 'voidCrystal'] as const;
+/** The highest tier an essence can have; each of the 32 stats has one essence per tier 1..ESSENCE_TIER_MAX. */
+export const ESSENCE_TIER_MAX = 6;
 export const MAP_MOD_KINDS = ['monsterLife', 'monsterDamage', 'monsterSpeed', 'bossPower', 'weakHealing', 'hardened'] as const;
 export const MAP_SPECIALS = ['bossLegendary', 'treasureRoom', 'championPacks', 'doubleMaterials', 'tripleSouls', 'secondBoss'] as const;
 
@@ -50,10 +52,36 @@ export interface MapItem {
   /** At most one, outside `mods`: never counted toward the six, and no enchant removes it. */
   special?: MapSpecial;
 }
-export type Item = GearItem | GemItem | MaterialItem | MapItem;
+/** A crafting essence: adds or rerolls its exact stat at a tier in `[tier, tier + 2]`, capped by the item. */
+export interface EssenceItem { id: number; type: 'essence'; stat: StatKey; tier: number; count: number }
+/** The side a generic orb aims at. */
+export type OrbSide = 'prefix' | 'suffix';
+/** A generic orb: adds a random line on its side in the item's own band. */
+export interface OrbItem { id: number; type: 'orb'; side: OrbSide; count: number }
+export type Item = GearItem | GemItem | MaterialItem | MapItem | EssenceItem | OrbItem;
 /** What stacks in a bag cell and counts up in its stash tab. */
-export type Stack = GemItem | MaterialItem;
+export type Stack = GemItem | MaterialItem | EssenceItem | OrbItem;
 export type Cell = Item | null;
+
+/** Every stat, in mining then battle order: the set an essence may carry. */
+export const ALL_STATS: readonly StatKey[] = [...MINING_STATS, ...BATTLE_STATS];
+
+/** The Essences-tab key for an essence: `"stat:tier"`. */
+export function essenceKey(stat: StatKey, tier: number): string {
+  return `${stat}:${tier}`;
+}
+
+/** Reads an Essences-tab key back: `"stat:tier"` for an essence, `"prefix"`/`"suffix"` for an orb. */
+export function parseEssenceKey(key: string): { stat: StatKey; tier: number } | OrbSide | undefined {
+  if (key === 'prefix' || key === 'suffix') return key;
+  const i = key.lastIndexOf(':');
+  if (i <= 0 || i === key.length - 1) return undefined;
+  const stat = key.slice(0, i);
+  const tier = Number(key.slice(i + 1));
+  if (!(ALL_STATS as readonly string[]).includes(stat)) return undefined;
+  if (!Number.isInteger(tier) || tier < 1 || tier > ESSENCE_TIER_MAX) return undefined;
+  return { stat: stat as StatKey, tier };
+}
 
 export const SLOT_IMPLICIT: Readonly<Record<Slot, StatKey>> = {
   pickaxe: 'digPower', lamp: 'lampSight', gloves: 'goldYield', boots: 'offlineCap',
@@ -85,7 +113,7 @@ export function isGear(item: Item): item is GearItem {
   return item.type === 'gear';
 }
 export function isStack(item: Item): item is Stack {
-  return item.type === 'gem' || item.type === 'material';
+  return item.type === 'gem' || item.type === 'material' || item.type === 'essence' || item.type === 'orb';
 }
 export function isMap(item: Item): item is MapItem {
   return item.type === 'map';

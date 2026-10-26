@@ -125,45 +125,12 @@ describe('every rule', () => {
     expect([...counts].sort()).toEqual([1, 2]);
   });
 
-  it('Iron adds to a 1-modifier magic map, then turns a 2-modifier one rare with 3', () => {
+  it('Iron is retired on maps, as it is on gear', () => {
     const s = withMap((s) => magic(s));
     const before = identity(at(s, 0));
-    expect(craft(s, bagLoc(0), 'iron')).toEqual({ check: 'ok' });
-    expect(at(s, 0).rarity).toBe('magic');
-    expect(at(s, 0).mods).toHaveLength(2);
-    expect(at(s, 0).mods[0]).toEqual(mod('monsterLife', 2));
-    const two = structuredClone(at(s, 0).mods);
-    expect(craft(s, bagLoc(0), 'iron')).toEqual({ check: 'ok' });
-    const map = at(s, 0);
-    expect(map.rarity).toBe('rare');
-    expect(map.mods).toHaveLength(3);
-    expect(map.mods.slice(0, 2)).toEqual(two);
-    expect(unique(map.mods) && map.mods.every(inRange)).toBe(true);
-    expect(identity(map)).toEqual(before);
-    expect(s.stash.materials.iron).toBe(100 - 2 * 3);
-    expect(s.souls).toBe(10_000 - 2 * 20);
-    expect(validateState(s)).toBe(true);
-  });
-
-  it('Iron adds a modifier to a rare map with room', () => {
-    const s = withMap((s) => rare(s));
-    const before = structuredClone(at(s, 0).mods);
-    expect(craft(s, bagLoc(0), 'iron')).toEqual({ check: 'ok' });
-    expect(at(s, 0).rarity).toBe('rare');
-    expect(at(s, 0).mods.slice(0, 3)).toEqual(before);
-    expect(at(s, 0).mods).toHaveLength(4);
-    expect(unique(at(s, 0).mods)).toBe(true);
-    expect(validateState(s)).toBe(true);
-  });
-
-  it('a special never counts toward the six: Iron adds a sixth modifier beside it, and a seventh is noRoom', () => {
-    const five = allSix().slice(0, 5);
-    const s = withMap((s) => rare(s, five));
-    at(s, 0).special = 'championPacks';
-    expect(craft(s, bagLoc(0), 'iron')).toEqual({ check: 'ok' });
-    expect(at(s, 0).mods).toHaveLength(MAX_MAP_MODS);
-    expect(at(s, 0).special).toBe('championPacks');
-    expect(canCraft(s, bagLoc(0), 'iron')).toBe('noRoom');
+    expect(craft(s, bagLoc(0), 'iron')).toEqual({ check: 'notForMaps' });
+    expect(canCraft(s, bagLoc(0), 'iron')).toBe('notForMaps');
+    expect(identity(at(s, 0))).toEqual(before);
     expect(validateState(s)).toBe(true);
   });
 
@@ -305,18 +272,15 @@ describe('temper', () => {
 
 describe('refusals change nothing', () => {
   const normal = (s: GameState) => mapOf(s);
-  const fullRare = (s: GameState) => rare(s, allSix());
   const cases: [string, (s: GameState) => MapItem, CraftKind, string][] = [
-    ...(['tin', 'mithril', 'starsteel', 'diamond'] as const).flatMap((k) =>
+    ...(['tin', 'iron', 'mithril', 'starsteel', 'diamond'] as const).flatMap((k) =>
       [['normal', normal], ['magic', magic], ['rare', rare]].map(([r, m]): [string, (s: GameState) => MapItem, CraftKind, string] =>
         [`${k} on a ${r as string} map`, m as (s: GameState) => MapItem, k, 'notForMaps'])),
     ['copper on magic', magic, 'copper', 'wrongRarity'],
     ['copper on rare', rare, 'copper', 'wrongRarity'],
-    ['iron on normal', normal, 'iron', 'wrongRarity'],
     ['silver on normal', normal, 'silver', 'wrongRarity'],
     ['silver on magic', magic, 'silver', 'wrongRarity'],
     ['void crystal on normal', normal, 'voidCrystal', 'wrongRarity'],
-    ['iron on a rare with 6', fullRare, 'iron', 'noRoom'],
     ['obsidian on normal', normal, 'obsidian', 'nothingToChange'],
     ['obsidian on a rare with none', (s) => rare(s, []), 'obsidian', 'nothingToChange'],
     ['tin on a sealed map', (s) => ({ ...rare(s), sealed: true }), 'tin', 'sealed'],
@@ -458,7 +422,7 @@ describe('random craft chains on maps', () => {
       }
       if (map.special !== undefined) specials++;
     }
-    expect([...seen].sort()).toEqual(['noRoom', 'notForMaps', 'nothingToChange', 'ok', 'sealed', 'wrongRarity']);
+    expect([...seen].sort()).toEqual(['notForMaps', 'nothingToChange', 'ok', 'sealed', 'wrongRarity']);
     expect(specials).toBeGreaterThan(0);   // the chains roll specials too, and stay valid with them
   });
 });

@@ -1,5 +1,5 @@
 import { BAG_SIZE, START_GENERAL_PAGES, STASH_PAGE_SIZE } from './balance';
-import { GEM_GRADES, GEM_TYPES, MATERIALS, setOfSlot } from './items';
+import { GEM_GRADES, GEM_TYPES, MATERIALS, parseEssenceKey, setOfSlot } from './items';
 import type { Cell, GemGrade, GemType, Item, Material } from './items';
 import { stockAt } from './trader';
 import type { GameState, ItemLoc } from './types';
@@ -22,6 +22,11 @@ export function emptyMaterialCounts(): Record<Material, number> {
   return counts;
 }
 
+/** The Essences tab starts empty: keys appear as essences and orbs are bought, and go when their count reaches 0. */
+export function emptyEssenceCounts(): Record<string, number> {
+  return {};
+}
+
 export function emptyInventory(): Pick<GameState, 'equipped' | 'bag' | 'stash' | 'overflow'> {
   return {
     equipped: { mining: {}, battle: {} },
@@ -31,6 +36,7 @@ export function emptyInventory(): Pick<GameState, 'equipped' | 'bag' | 'stash' |
       gems: emptyGemCounts(),
       maps: {},
       materials: emptyMaterialCounts(),
+      essences: emptyEssenceCounts(),
       bought: { general: 0 },
     },
     overflow: [],
@@ -85,6 +91,14 @@ export function itemAt(state: GameState, loc: ItemLoc): Item | undefined {
       const count = state.stash.materials[loc.material];
       return count > 0 ? { id: 0, type: 'material', material: loc.material, count } : undefined;
     }
+    case 'essences': {
+      const count = state.stash.essences[loc.key];
+      const parsed = parseEssenceKey(loc.key);
+      if (count === undefined || count <= 0 || parsed === undefined) return undefined;
+      return parsed === 'prefix' || parsed === 'suffix'
+        ? { id: 0, type: 'orb', side: parsed, count }
+        : { id: 0, type: 'essence', stat: parsed.stat, tier: parsed.tier, count };
+    }
   }
 }
 
@@ -95,6 +109,7 @@ export function sameLoc(a: ItemLoc, b: ItemLoc): boolean {
     case 'maps': return b.where === 'maps' && a.tier === b.tier && a.index === b.index;
     case 'gems': return b.where === 'gems' && a.gem === b.gem && a.grade === b.grade;
     case 'materials': return b.where === 'materials' && a.material === b.material;
+    case 'essences': return b.where === 'essences' && a.key === b.key;
     case 'worn': return b.where === 'worn' && a.slot === b.slot;
     case 'stock': return b.where === 'stock' && a.index === b.index;
   }

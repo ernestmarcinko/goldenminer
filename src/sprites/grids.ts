@@ -2,7 +2,7 @@ export type SpriteName = 'miner' | 'coin' | 'diamond' | 'chest' | 'map' | 'gem' 
   | 'sapphire' | 'emerald' | 'amethyst' | 'starstone'
   | 'pickaxe' | 'lamphelm' | 'gloves' | 'boots' | 'maul' | 'armor' | 'helm' | 'ring' | 'amulet'
   | 'copper' | 'tin' | 'iron' | 'silver' | 'mithril' | 'starsteel' | 'obsidian' | 'voidCrystal'
-  | 'brannoc' | 'mirela';
+  | 'brannoc' | 'mirela' | 'ferrel';
 
 export const PALETTE: Record<string, string> = { k: '#1b1410', w: '#8a5a32', W: '#b07a45', s: '#9aa4ad', S: '#d5dde3', g: '#e8b44a', G: '#f5d68a', o: '#b8741c', r: '#c8453a', R: '#ff8a7a', b: '#3f6fc8', c: '#7fd3e8', C: '#c9f1fa', l: '#6b4429', L: '#9a6a40', y: '#ffe08a', p: '#d9c39a', P: '#a88d5c', v: '#8a6fe0', n: '#e0b08a', d: '#3b3550', D: '#5a5278', m: '#5f8a6a', M: '#8fb89a' };
 
@@ -93,6 +93,33 @@ export const GRIDS: Record<SpriteName, string[]> = {
     '.kDdddddddDk...L',
     '.kDdddddddDk...L',
     '.kkkkkkkkkkk...k',
+  ],
+  // Ferrel the Refiner: a bronze cap, a broad face and a braided copper beard over a leather apron
+  ferrel: [
+    '....kkkkkk......',
+    '...kSSSSSSk.....',
+    '..kSssssssSk....',
+    '..kssssssssk....',
+    '..ksnnnnnnsk....',
+    '..ksnWnnWnsk....',
+    '..ksnnnnnnsk....',
+    '...ksnnnnsk.....',
+    '....kkkkkk......',
+    '...kwwwwwwk.....',
+    '..kwwwwwwwwk....',
+    '.kwoooooooowk...',
+    '.kwoooooooowk...',
+    '.kwoooWWooowk...',
+    '.kwoooooooowk...',
+    '.kwowoooooowk...',
+    '.kwwwooooowwk...',
+    '..kwwwwwwwwk....',
+    '...kwwwwwwk.....',
+    '....kkkkkk......',
+    '................',
+    '................',
+    '................',
+    '................',
   ],
 };
 

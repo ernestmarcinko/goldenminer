@@ -1,4 +1,4 @@
-import { GEM_BAG_STACK, MATERIAL_BAG_STACK } from './balance';
+import { ESSENCE_BAG_STACK, GEM_BAG_STACK, MATERIAL_BAG_STACK } from './balance';
 import { ascendancyTotals } from './ascendancy';
 import type { StatKey } from './items';
 import type { GameState } from './types';
@@ -384,10 +384,13 @@ export function hasKeystone(state: Pick<GameState, 'passives'>, id: KeystoneId):
   return passiveTotals(state).keystones.has(id);
 }
 
-/** What a bag cell holds of a gem or material stack, raised by the web (Gem Pouch, Ore Cart). */
-export function stackCaps(state: Pick<GameState, 'passives'>): { gem: number; material: number } {
+/** What a bag cell holds of a gem, material, essence or orb stack; gems and materials rise with the web. */
+export function stackCaps(state: Pick<GameState, 'passives'>): { gem: number; material: number; essence: number; orb: number } {
   const p = passiveTotals(state);
-  return { gem: GEM_BAG_STACK + p.gemStack, material: MATERIAL_BAG_STACK + p.materialStack };
+  return {
+    gem: GEM_BAG_STACK + p.gemStack, material: MATERIAL_BAG_STACK + p.materialStack,
+    essence: ESSENCE_BAG_STACK, orb: ESSENCE_BAG_STACK,
+  };
 }
 
 /** The free General pages the web grants (Deep Pockets), on top of the free and bought pages. */

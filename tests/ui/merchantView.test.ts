@@ -6,8 +6,8 @@ import { buyStock, stockBand, stockPrice, traderStock } from '../../src/core/tra
 import type { GameState } from '../../src/core/types';
 import { rarityOf } from '../../src/ui/character/itemView';
 import {
-  buyLabel, buyRefusalHolds, buyResultText, gambleResultText, gambleSlots, gambledLine, MERCHANTS, stockCaption,
-  stockTiles,
+  buyLabel, buyRefusalHolds, buyResultText, essenceOffersForTier, essenceTiers, exchangeOffers, gambleResultText,
+  gambleSlots, gambledLine, MERCHANTS, orbOffers, refinerResultText, stockCaption, stockTiles,
 } from '../../src/ui/merchant/merchantView';
 import { gear } from '../helpers/items';
 
@@ -56,6 +56,7 @@ describe('the Trader', () => {
   it('names both merchants, whatever the world', () => {
     expect(MERCHANTS.trader).toEqual({ name: 'Brannoc the Trader', sprite: 'brannoc' });
     expect(MERCHANTS.gambler).toEqual({ name: 'Old Mirela', sprite: 'mirela' });
+    expect(MERCHANTS.refiner).toEqual({ name: 'Ferrel the Refiner', sprite: 'ferrel' });
   });
 
   it('says when the stock is next rolled', () => {
@@ -118,5 +119,48 @@ describe('the Trader', () => {
     s.bag = s.bag.map(() => gear(s, 'boots'));
     expect(buyRefusalHolds(s, 2, 'bagFull')).toBe(true);
     expect(buyRefusalHolds(s, 2, 'ok')).toBe(false);
+  });
+});
+
+describe('the Refiner', () => {
+  it('lists six essence tiers, cheapest ore first, none affordable with no ore held', () => {
+    const s = newGame(1, 0);
+    expect(essenceTiers(s).map((t) => [t.tier, t.ore, t.cost])).toEqual([
+      [1, 'iron', 1], [2, 'silver', 2], [3, 'mithril', 3], [4, 'starsteel', 5], [5, 'obsidian', 8], [6, 'voidCrystal', 13],
+    ]);
+    expect(essenceTiers(s).every((t) => !t.affordable)).toBe(true);
+  });
+
+  it('offers one essence per stat at a tier, all at that tier\'s price', () => {
+    const s = newGame(1, 0);
+    expect(essenceOffersForTier(s, 3)).toHaveLength(32);
+    expect(essenceOffersForTier(s, 3).every((o) => o.tier === 3 && o.cost === 3 && !o.affordable)).toBe(true);
+    s.stash.materials.mithril = 3;
+    expect(essenceOffersForTier(s, 3).every((o) => o.affordable)).toBe(true);
+  });
+
+  it('sells the two orbs for ORB_COST Iron', () => {
+    const s = newGame(1, 0);
+    expect(orbOffers(s)).toEqual([
+      { side: 'prefix', label: 'Prefix orb', cost: 2, affordable: false },
+      { side: 'suffix', label: 'Suffix orb', cost: 2, affordable: false },
+    ]);
+    s.stash.materials.iron = 2;
+    expect(orbOffers(s).every((o) => o.affordable)).toBe(true);
+  });
+
+  it('the exchange panel shows the premium-raised cost', () => {
+    const s = newGame(1, 0);
+    expect(exchangeOffers(s).find((e) => e.up && e.from === 'copper'))
+      .toMatchObject({ from: 'copper', to: 'tin', amount: 1, base: 4, cost: 4 });
+    s.oreMarket.premium.tin = 0.25;
+    expect(exchangeOffers(s).find((e) => e.up && e.from === 'copper'))
+      .toMatchObject({ from: 'copper', to: 'tin', base: 4, cost: 5 });
+  });
+
+  it('says why a buy or exchange was refused', () => {
+    expect(refinerResultText('ok')).toBeNull();
+    expect(refinerResultText('short')).toBe('Not enough ore.');
+    expect(refinerResultText('invalid')).toBe("That can't be traded.");
   });
 });

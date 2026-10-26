@@ -4,16 +4,17 @@ import { queueForAutoMap as coreQueueForAutoMap, unqueueForAutoMap as coreUnqueu
 import { LONG_GAP_MS, MAX_LOOT_RULES, OFFLINE_SUMMARY_MIN_TICKS } from '../core/balance';
 import { deriveBattleStats, type BattleStats } from '../core/battle';
 import { advance, ClickLimiter, clickTicks } from '../core/clock';
-import { craft as coreCraft } from '../core/crafting';
+import { craft as coreCraft, targetedCraft as coreTargetedCraft } from '../core/crafting';
 import * as inv from '../core/inventory';
 import { itemName } from '../core/itemData';
 import { BATTLE_SLOTS, MINING_SLOTS, setOfSlot } from '../core/items';
-import type { GearItem, Slot } from '../core/items';
+import type { GearItem, Material, OrbSide, Slot, StatKey } from '../core/items';
 import { drainOverflow } from '../core/loot';
 import { ruleValid } from '../core/lootFilter';
 import { leaveMap as coreLeaveMap, startMap as coreStartMap } from '../core/maps';
 import { gamble as coreGamble, type GambleResult } from '../core/merchant';
 import { newGame } from '../core/newGame';
+import { buyEssence as coreBuyEssence, buyOrb as coreBuyOrb, tradeOres as coreTradeOres, type MarketResult } from '../core/oreMarket';
 import {
   allocate as coreAllocate, allocateMany as coreAllocateMany, refund as coreRefund, refundMany as coreRefundMany,
   resetWeb as coreResetWeb,
@@ -27,7 +28,7 @@ import { deriveStats } from '../core/stats';
 import { summarize } from '../core/summary';
 import type {
   CraftCheck, CraftKind, CraftResult, DropTarget, FindRecord, GameState, InvResult, ItemLoc, LootRule, MotionSettings,
-  OfflineSummary, Stats, TemperOutcome, TickEvent,
+  OfflineSummary, Stats, TargetedCraft, TemperOutcome, TickEvent,
 } from '../core/types';
 import { BACKUP_PREFIX, SAVE_KEY, type StorageLike } from './storage';
 
@@ -294,6 +295,37 @@ export class GameStore {
       this.noteCraft(target, kind, result);
       return result.check === 'ok' ? 'ok' : 'craftRefused';
     });
+    return result;
+  }
+
+  /** A targeted craft on gear; only an 'ok' changes anything. */
+  targetedCraft(target: ItemLoc, action: TargetedCraft): CraftResult {
+    let result: CraftResult = { check: 'notGear' };
+    this.act(() => {
+      result = coreTargetedCraft(this._state, target, action);
+      return result.check === 'ok' ? 'ok' : 'craftRefused';
+    });
+    return result;
+  }
+
+  /** Buys an essence from the Refiner; only an 'ok' changes anything. */
+  buyEssence(stat: StatKey, tier: number): MarketResult {
+    const result = coreBuyEssence(this._state, stat, tier);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
+  /** Buys an orb from the Refiner; only an 'ok' changes anything. */
+  buyOrb(side: OrbSide): MarketResult {
+    const result = coreBuyOrb(this._state, side);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
+  /** Exchanges ores at the Refiner; only an 'ok' changes anything. */
+  tradeOres(from: Material, to: Material, amount: number): MarketResult {
+    const result = coreTradeOres(this._state, from, to, amount);
+    if (result === 'ok') this.changed();
     return result;
   }
 
