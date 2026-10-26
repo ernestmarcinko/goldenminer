@@ -15,6 +15,7 @@ import { soulUpgrade as coreSoulUpgrade, type SoulUpgradeCheck } from '../core/s
 import { buyStashPage as coreBuyStashPage } from '../core/stashPages';
 import { decodeSave, encodeSave, type DecodeResult } from '../core/save';
 import { freshWorld, isValidSeedText, seedFromText } from '../core/seed';
+import { buyStock as coreBuyStock, type BuyResult } from '../core/trader';
 import { deriveStats } from '../core/stats';
 import { summarize } from '../core/summary';
 import type {
@@ -305,6 +306,13 @@ export class GameStore {
       this.changed();
     }
     return outcome;
+  }
+
+  /** Buys a slot of the Trader's stock; only an 'ok' changes anything. */
+  buyStock(index: number): BuyResult {
+    const { result } = coreBuyStock(this._state, index);
+    if (result === 'ok') this.changed();
+    return result;
   }
 
   private noteCraft(target: ItemLoc, kind: CraftKind, result: CraftResult): void {

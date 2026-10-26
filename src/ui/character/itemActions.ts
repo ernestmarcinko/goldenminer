@@ -8,6 +8,7 @@ import type { Loot } from '../../core/loot';
 import { canUpgrade, soulUpgradeCost } from '../../core/soulUpgrade';
 import type { SoulUpgradeCheck } from '../../core/soulUpgrade';
 import { deriveStats } from '../../core/stats';
+import { boughtIn, stockBand, stockPrice, traderStock } from '../../core/trader';
 import type { CraftKind, DropTarget, GameState, InvResult, ItemLoc, Stats } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
 import { formatNumber } from '../format';
@@ -18,7 +19,7 @@ import type { ClickIntent, ViewLine } from './itemView';
 export type ItemTarget = ItemLoc;
 
 export interface ActionSpec {
-  id: 'equip' | 'unequip' | 'sell' | 'salvage' | 'toStash' | 'toBag' | 'take' | 'run' | 'soulUpgrade' | 'craft';
+  id: 'equip' | 'unequip' | 'sell' | 'salvage' | 'toStash' | 'toBag' | 'take' | 'run' | 'soulUpgrade' | 'craft' | 'buy';
   label: string;
   disabled: boolean;
   /** For 'craft': what it crafts with. */
@@ -111,7 +112,20 @@ function mapActions(state: GameState, target: ItemTarget, item: MapItem): Action
   return [run, move, ...sellSalvage(state, item), ...craftActions(state, target)];
 }
 
+/**
+ * A stock slot's only action. A bought slot keeps it, disabled, so a card open on it doesn't change under the pointer;
+ * so do too little Gold and a full bag.
+ */
+function stockActions(state: GameState, index: number): ActionSpec[] {
+  const item = traderStock(state.seed, stockBand(state))[index];
+  if (item === undefined) return [];
+  const price = stockPrice(item);
+  const disabled = boughtIn(state).includes(index) || state.gold < price || firstEmpty(state.bag) < 0;
+  return [{ id: 'buy', label: `Buy · ${formatNumber(price)} Gold`, disabled }];
+}
+
 export function itemActions(state: GameState, target: ItemTarget): ActionSpec[] {
+  if (target.where === 'stock') return stockActions(state, target.index);
   const item = itemAt(state, target);
   if (item === undefined) return [];
   if (item.type === 'map') return mapActions(state, target, item);
@@ -162,6 +176,8 @@ export function actionForIntent(
   intent: ClickIntent,
 ): ActionSpec | 'card' | 'menu' | undefined {
   const find = (...ids: ActionSpec['id'][]) => actions.find((a) => ids.includes(a.id));
+  // a stock item is only bought, and only from its card
+  if (target.where === 'stock' && intent !== 'card' && intent !== 'menu') return undefined;
   switch (intent) {
     case 'card': return 'card';
     case 'menu': return 'menu';
@@ -184,6 +200,7 @@ export function noShortcutText(state: GameState, target: ItemTarget, intent: Cli
 function shortcutLine(target: ItemTarget, item: Item, mac: boolean): string {
   switch (target.where) {
     case 'worn': return 'Shift+click stash · right-click for actions';
+    case 'stock': return 'Click for its card · right-click to buy';
     case 'gems':
     case 'materials': return 'Shift+click take to bag · right-click for actions';
     case 'bag':
@@ -204,6 +221,9 @@ export function hoverNotes(state: GameState, target: ItemTarget, item: Item, mac
   if (item.type === 'material') return [shortcuts];
   const stats = deriveStats(state);
   const sells = formatNumber(sellPay(item, stats));
+  if (target.where === 'stock' && (item.type === 'gear' || item.type === 'map')) {
+    return [`Costs ${formatNumber(stockPrice(item))} Gold · Sells for ${sells} Gold`, shortcuts];
+  }
   return [`Sells for ${sells} Gold · Salvages into ${materialsText(salvagePay(item, stats))}`, shortcuts];
 }
 
@@ -234,6 +254,7 @@ export function runAction(store: GameStore, target: ItemTarget, action: ActionSp
     case 'take': return store.sendItem(target, 'bag');
     case 'run': return item.type === 'map' ? store.startMap(item.id) : 'invalid';
     case 'soulUpgrade': return store.soulUpgrade(target) === 'ok' ? 'ok' : 'craftRefused';
+    case 'buy': return target.where === 'stock' && store.buyStock(target.index) === 'ok' ? 'ok' : 'invalid';
     case 'craft':
       if (action.kind === undefined) return 'invalid';
       return store.craft(target, action.kind).check === 'ok' ? 'ok' : 'craftRefused';

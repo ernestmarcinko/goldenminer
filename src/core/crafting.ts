@@ -5,7 +5,7 @@ import {
 import { itemAt, sameLoc } from './cells';
 import { trail } from './dropLog';
 import { baseName } from './itemData';
-import { magicName, rareName, rollLines, rollSockets, rollValue, sideCount } from './itemGen';
+import { magicName, rareName, rollLines, rollSockets, rollValue, sideCount, type Gen } from './itemGen';
 import { MAP_MOD_KINDS, MAP_SPECIALS, MOD_SIDE, SLOT_IMPLICIT, isGear, isMap, setOfSlot, statsOf } from './items';
 import type { GearItem, Gem, MapItem, MapMod, MapModKind, MapSpecial, Material, ModLine } from './items';
 import { mapModRange } from './mapMods';
@@ -130,6 +130,8 @@ function mapRuleCheck(map: MapItem, kind: CraftKind): CraftCheck {
 
 /** Whether a craft would go through: the rules first, then whether the player holds enough to pay, then the Souls. */
 export function canCraft(state: GameState, target: ItemLoc, kind: CraftKind): CraftCheck {
+  // the Trader's stock is for sale, not to craft on
+  if (target.where === 'stock') return 'notGear';
   const item = itemAt(state, target);
   if (item !== undefined && isMap(item)) {
     const rule = mapRuleCheck(item, kind);
@@ -232,10 +234,10 @@ function apply(state: GameState, item: GearItem, kind: CraftKind): TemperOutcome
   }
 }
 
-const pickIndex = (state: GameState, length: number): number => Math.floor(nextRandom(state) * length);
+const pickIndex = (state: Gen, length: number): number => Math.floor(nextRandom(state) * length);
 const missingKinds = (map: MapItem): MapModKind[] => MAP_MOD_KINDS.filter((k) => !map.mods.some((m) => m.kind === k));
 
-function rollMapValue(state: GameState, kind: MapModKind, tier: number): number {
+function rollMapValue(state: Gen, kind: MapModKind, tier: number): number {
   const { lo, hi } = mapModRange(kind, tier);
   return lo + pickIndex(state, hi - lo + 1);
 }
@@ -245,8 +247,11 @@ function rerollMapMod(state: GameState, m: MapMod, tier: number): void {
   m.value = rollMapValue(state, m.kind, tier);
 }
 
-/** Rolls `count` new modifiers of kinds the map lacks, and returns only the new ones; lower tiers are likelier. */
-export function rollMapMods(state: GameState, map: MapItem, count: number): MapMod[] {
+/**
+ * Rolls `count` new modifiers of kinds the map lacks, and returns only the new ones; lower tiers are likelier. The
+ * Trader's stock rolls them from a stream of its own.
+ */
+export function rollMapMods(state: Gen, map: MapItem, count: number): MapMod[] {
   const pool = missingKinds(map);
   if (count > pool.length) throw new Error('rollMapMods has no room for another modifier');
   const added: MapMod[] = [];

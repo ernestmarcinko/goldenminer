@@ -10,14 +10,18 @@ export type FindKind = (typeof FIND_KINDS)[number];
 export const HAZARDS = ['gas', 'unstable'] as const;
 export type Hazard = (typeof HAZARDS)[number];
 export interface MetreRoll { feature: FeatureKind | null; amount: number; hardRock: boolean }
-/** Where an item lives: a bag cell, a General cell (any page), a map in a tier list, a Gems or Materials stack, or a worn slot. */
+/**
+ * Where an item lives: a bag cell, a General cell (any page), a map in a tier list, a Gems or Materials stack, a worn
+ * slot, or a slot of the Trader's stock (never saved; nothing moves into or out of it but a buy).
+ */
 export type ItemLoc =
   | { where: 'bag'; index: number }
   | { where: 'stash'; index: number }                   // a General cell, any page
   | { where: 'maps'; tier: number; index: number }      // a map in the Map stash's list for its tier
   | { where: 'gems'; gem: GemType; grade: GemGrade }    // a Gems-tab stack
   | { where: 'materials'; material: Material }          // a Materials-tab stack (virtual, id 0, while its count > 0)
-  | { where: 'worn'; slot: Slot };
+  | { where: 'worn'; slot: Slot }
+  | { where: 'stock'; index: number };
 export type DropTarget = ItemLoc | { where: 'stashTab'; tab: 'general' | 'gems' | 'maps' | 'materials' | 'auto' };
 export const LOOT_ACTIONS = ['keep', 'sell', 'salvage', 'stash'] as const;
 export type LootAction = (typeof LOOT_ACTIONS)[number];

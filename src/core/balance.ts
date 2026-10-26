@@ -45,8 +45,12 @@ export function stashPagePrice(n: number): number {
 }
 // The merchant's gamble costs GAMBLE_GOLD × tier² at the deepest tier reached, so it keeps pace with Gold income.
 export const GAMBLE_GOLD = 300;
-// The Trader's stock: this many slots, each bought at most once a band.
+// The Trader's stock: this many slots, each bought at most once a band of STOCK_BAND_METRES, at TRADER_PRICE_MULT × its
+// sell value; about TRADER_MAP_SHARE of the slots are maps.
 export const STOCK_SIZE = 12;
+export const STOCK_BAND_METRES = 10;
+export const TRADER_PRICE_MULT = 4;
+export const TRADER_MAP_SHARE = 0.25;
 // The item level a gem's value is worked out at, and the first tier each grade is found at.
 export const GEM_GRADE_LEVEL: Readonly<Record<GemGrade, number>> = { tiny: 2, small: 5, big: 8, giant: 12, perfect: 18 };
 export const GEM_GRADE_FROM_TIER: Readonly<Record<GemGrade, number>> = { tiny: 1, small: 4, big: 7, giant: 10, perfect: 15 };

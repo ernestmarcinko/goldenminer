@@ -11,6 +11,10 @@ import {
 } from '../../src/ui/character/itemActions';
 import { gear, gem, stashMap } from '../helpers/items';
 import { lootNoteText } from '../../src/ui/character/itemView';
+import { sellPay } from '../../src/core/loot';
+import { deriveStats } from '../../src/core/stats';
+import { buyStock, stockAt, stockPrice, type StockItem } from '../../src/core/trader';
+import { formatNumber } from '../../src/ui/format';
 import { MAP_TIER_CAP, MATERIAL_STASH_STACK, MAX_ITEM_LEVEL } from '../../src/core/balance';
 
 const bag = (index: number): ItemLoc => ({ where: 'bag', index });
@@ -528,4 +532,61 @@ it("a map's Sell and Salvage run through the store, and a held note of any kind 
     { name: 'Copper ore', rarity: 'material', base: 'copper', outcome: 'held', value: 30 },
     { name: 'Test ring', rarity: 'magic', base: 'ring', outcome: 'held', value: 0 },
   ] as const) expect(lootNoteText(n)).toBe('waiting for space');
+});
+
+it("a stock item's card has one action, Buy, disabled when sold, short of Gold or with a full bag", () => {
+  const s = newGame(11, 0);
+  s.deepest = 419;
+  s.ahead = {};
+  const t: ItemLoc = { where: 'stock', index: 4 };
+  const item = stockAt(s, 4) as StockItem;
+  const price = stockPrice(item);
+  const label = `Buy · ${formatNumber(price)} Gold`;
+  s.gold = price;
+  expect(itemActions(s, t)).toEqual([{ id: 'buy', label, disabled: false }]);
+  s.gold = price - 1;
+  expect(itemActions(s, t)).toEqual([{ id: 'buy', label, disabled: true }]);
+  s.gold = price;
+  const bag = structuredClone(s.bag);
+  for (let i = 0; i < s.bag.length; i++) s.bag[i] = gear(s, 'boots');
+  expect(itemActions(s, t)).toEqual([{ id: 'buy', label, disabled: true }]);
+  s.bag = bag;
+  expect(buyStock(s, 4).result).toBe('ok');
+  s.gold = 10 * price;
+  expect(itemActions(s, t)).toEqual([{ id: 'buy', label, disabled: true }]);
+  expect(itemActions(s, { where: 'stock', index: 12 })).toEqual([]);
+});
+
+it('a stock item takes no shortcut, and its hover card says what it costs and sells for', () => {
+  const s = newGame(11, 0);
+  s.deepest = 419;
+  s.ahead = {};
+  const t: ItemLoc = { where: 'stock', index: 4 };
+  const item = stockAt(s, 4) as StockItem;
+  const actions = itemActions(s, t);
+  for (const intent of ['sell', 'salvage', 'move'] as const) {
+    expect(actionForIntent(actions, t, intent)).toBeUndefined();
+    expect(noShortcutText(s, t, intent)).toBeNull();
+  }
+  expect(actionForIntent(actions, t, 'menu')).toBe('menu');
+  expect(hoverNotes(s, t, item, false)).toEqual([
+    `Costs ${formatNumber(stockPrice(item))} Gold · Sells for ${formatNumber(sellPay(item, deriveStats(s)))} Gold`,
+    'Click for its card · right-click to buy',
+  ]);
+});
+
+it('Buy runs through the store', () => {
+  const store = new GameStore({ storage: new MemoryStorage(), storageAvailable: true, now: () => 0, newSeed: () => 7 });
+  store.load();
+  const s = store.state;
+  s.deepest = 419;
+  s.ahead = {};
+  const t: ItemLoc = { where: 'stock', index: 0 };
+  s.gold = stockPrice(stockAt(s, 0) as StockItem);
+  const [buy] = itemActions(s, t);
+  if (buy === undefined) throw new Error('no buy action');
+  expect(runAction(store, t, buy)).toBe('ok');
+  expect(store.state.gold).toBe(0);
+  expect(runAction(store, t, buy)).toBe('invalid');
+  expect(runAction(store, { where: 'stock', index: 1 }, buy)).toBe('invalid');   // no Gold left
 });

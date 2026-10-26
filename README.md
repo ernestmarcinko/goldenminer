@@ -60,7 +60,7 @@ A dungeon entrance you dig past becomes a map. Maps are items: a found map goes 
 
 ## Merchant
 
-The Merchant tab, beside Mine, Inventory and Log, gambles: pick a slot, pay Gold, and get a random item for it in your bag, rolled at the tier of your deepest metre. Most are normal or magic; a few are rare; legendaries are very rare, and a slot with no legendary gives a rare instead. The price is 300 Gold × the tier², so it grows as you dig deeper, and the loot filter never touches what you buy. A full bag or too little Gold refuses the gamble and changes nothing. The merchant never sells Diamonds or Souls; selling items stays in their cards.
+The Merchant tab, beside Mine, Inventory and Log, gambles: pick a slot, pay Gold, and get a random item for it in your bag, rolled at the tier of your deepest metre. Most are normal or magic; a few are rare; legendaries are very rare, and a slot with no legendary gives a rare instead. The price is 300 Gold × the tier², so it grows as you dig deeper, and the loot filter never touches what you buy. A full bag or too little Gold refuses the gamble and changes nothing. The merchant never sells Diamonds or Souls; selling items stays in their cards. Brannoc the Trader sells 12 items, gear and maps, rolled from the world seed and refreshed every 10 m you dig deeper; they are rolled at the tier of the depth you reached, and never include a legendary. Each costs 4 times what it sells for, goes to your bag untouched by the loot filter, and leaves the stock until the next refresh, when every slot is filled again. Looking at the stock or buying from it never changes what you find.
 
 ## Log
 

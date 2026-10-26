@@ -21,6 +21,8 @@ function refillAhead(state: GameState): void {
 
 const isTabLoc = (loc: ItemLoc): loc is TabLoc => loc.where === 'gems' || loc.where === 'materials';
 const isCellLoc = (loc: ItemLoc): loc is CellLoc => loc.where === 'bag' || loc.where === 'stash';
+// The Trader's stock is only ever bought from, so every move, drop, socket, sale or salvage that touches it is refused.
+const isStock = (loc: DropTarget): loc is Extract<ItemLoc, { where: 'stock' }> => loc.where === 'stock';
 
 function cellsOf(state: GameState, loc: CellLoc): readonly Cell[] {
   switch (loc.where) {
@@ -60,6 +62,7 @@ function fits(item: Item, loc: ItemLoc): InvResult {
     case 'gems': return item.type === 'gem' ? 'ok' : 'gemsOnly';
     case 'materials': return item.type === 'material' ? 'ok' : 'materialsOnly';
     case 'worn': return isGear(item) ? (item.slot === loc.slot ? 'ok' : 'wrongSlot') : 'invalid';
+    case 'stock': return 'invalid';
   }
 }
 
@@ -168,6 +171,7 @@ function moveMap(state: GameState, from: ItemLoc, item: Item, to: CellLoc | Extr
 
 /** Cell to cell: a move, a swap, a stack merge, or a put into or take from a Gems or Materials stack. */
 export function moveItem(state: GameState, from: ItemLoc, to: ItemLoc): InvResult {
+  if (isStock(from) || isStock(to)) return 'invalid';
   const item = itemAt(state, from);
   if (item === undefined) return 'invalid';
   if (sameLoc(from, to)) return 'ok';
@@ -256,6 +260,7 @@ export function unequip(state: GameState, slot: Slot, to?: ItemLoc): InvResult {
 
 /** Sockets one gem from a bag or Gems-tab stack into worn gear, or gear in a bag or General cell. */
 export function socketGem(state: GameState, gem: ItemLoc, into: ItemLoc): InvResult {
+  if (isStock(gem) || isStock(into)) return 'invalid';
   const item = itemAt(state, gem);
   if (item?.type !== 'gem' || gem.where === 'worn') return 'invalid';
   const target = itemAt(state, into);
@@ -310,6 +315,7 @@ function takeStack(state: GameState, from: TabLoc, item: Stack): InvResult {
  * the bag's first empty cell, or up to a bag stack of a Gems or Materials stack.
  */
 export function sendItem(state: GameState, from: ItemLoc, to: 'stash' | 'bag'): InvResult {
+  if (isStock(from)) return 'invalid';
   const item = itemAt(state, from);
   if (item === undefined) return 'invalid';
   if (to === 'stash') {
@@ -351,6 +357,7 @@ function craftDrop(state: GameState, from: ItemLoc, item: MaterialItem, to: Item
 
 /** Every drag-and-drop, however it ends: equip, unequip, socket, craft, move, swap, merge or send to a tab. */
 export function dropItem(state: GameState, from: ItemLoc, to: DropTarget, onCraft?: CraftListener): InvResult {
+  if (isStock(from) || isStock(to)) return 'invalid';
   const item = itemAt(state, from);
   if (item === undefined) return 'invalid';
   if (item.type === 'material' && to.where !== 'stashTab') {

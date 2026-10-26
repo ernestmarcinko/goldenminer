@@ -1,6 +1,7 @@
 import { BAG_SIZE, START_GENERAL_PAGES, STASH_PAGE_SIZE } from './balance';
 import { GEM_GRADES, GEM_TYPES, MATERIALS, setOfSlot } from './items';
 import type { Cell, GemGrade, GemType, Item, Material } from './items';
+import { stockAt } from './trader';
 import type { GameState, ItemLoc } from './types';
 
 const emptyGrid = <T>(size: number): (T | null)[] => Array.from({ length: size }, () => null);
@@ -65,13 +66,17 @@ export function mapTierCount(state: GameState, tier: number): number {
   return state.stash.maps[tier]?.length ?? 0;
 }
 
-/** The item at a location. A Gems or Materials stack is a virtual stack (id 0) while its count is above 0. */
+/**
+ * The item at a location. A Gems or Materials stack is a virtual stack (id 0) while its count is above 0; a bought stock
+ * slot is empty.
+ */
 export function itemAt(state: GameState, loc: ItemLoc): Item | undefined {
   switch (loc.where) {
     case 'bag': return state.bag[loc.index] ?? undefined;
     case 'stash': return state.stash.general[loc.index] ?? undefined;
     case 'maps': return state.stash.maps[loc.tier]?.[loc.index];
     case 'worn': return state.equipped[setOfSlot(loc.slot)][loc.slot];
+    case 'stock': return stockAt(state, loc.index);
     case 'gems': {
       const count = state.stash.gems[loc.gem][loc.grade];
       return count > 0 ? { id: 0, type: 'gem', gem: loc.gem, grade: loc.grade, count } : undefined;
@@ -91,5 +96,6 @@ export function sameLoc(a: ItemLoc, b: ItemLoc): boolean {
     case 'gems': return b.where === 'gems' && a.gem === b.gem && a.grade === b.grade;
     case 'materials': return b.where === 'materials' && a.material === b.material;
     case 'worn': return b.where === 'worn' && a.slot === b.slot;
+    case 'stock': return b.where === 'stock' && a.index === b.index;
   }
 }
