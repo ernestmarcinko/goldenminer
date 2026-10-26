@@ -16,8 +16,8 @@ import { validateState } from '../../src/core/save';
 import type { GameState, LootNote, MapRun, MonsterState, Rank } from '../../src/core/types';
 import { gear, stashMap } from '../helpers/items';
 
-// Spies that call through: which rarity multiplier each item rolled with, and how many gems were rolled.
-const spy = vi.hoisted(() => ({ rarityArgs: [] as number[], gems: 0 }));
+// Spies that call through: which rarity multiplier each item rolled with, and how many gems and runes were rolled.
+const spy = vi.hoisted(() => ({ rarityArgs: [] as number[], gems: 0, runes: 0 }));
 vi.mock('../../src/core/itemGen', async (importActual) => {
   const actual = await importActual<typeof import('../../src/core/itemGen')>();
   return {
@@ -26,7 +26,12 @@ vi.mock('../../src/core/itemGen', async (importActual) => {
       spy.rarityArgs.push(magicFind ?? 1);
       return actual.rollRarity(state, magicFind);
     },
-    rollGem: (...args: Parameters<typeof actual.rollGem>) => { spy.gems += 1; return actual.rollGem(...args); },
+    rollGemOrRune: (...args: Parameters<typeof actual.rollGemOrRune>) => {
+      const rolled = actual.rollGemOrRune(...args);
+      if (rolled.type === 'gem') spy.gems += 1;
+      else spy.runes += 1;
+      return rolled;
+    },
   };
 });
 
@@ -96,6 +101,7 @@ function kill(
   const b = deriveBattleStats(s);
   spy.rarityArgs.length = 0;
   spy.gems = 0;
+  spy.runes = 0;
   // The draws the kill will make, read ahead on a copy: Souls, then the extra-item chance.
   const ahead = { rng: s.rng };
   nextRandom(ahead);
@@ -117,7 +123,7 @@ it('each rank drops its guaranteed items plus one more when the chance draw pass
       // Gem and material notes are on the run too: items rolled with a rarity draw are counted by the spy.
       expect(spy.rarityArgs.length, `${rank} seed ${seed}`).toBe(GUARANTEED[rank] + (chancePasses ? 1 : 0));
       const items = run.loot.filter((n) => n.rarity !== 'material');
-      expect(items.length, `${rank} seed ${seed}`).toBe(spy.rarityArgs.length + spy.gems);
+      expect(items.length, `${rank} seed ${seed}`).toBe(spy.rarityArgs.length + spy.gems + spy.runes);
     }
     expect(seen.pass, rank).toBeGreaterThan(0);
     expect(seen.miss, rank).toBeGreaterThan(0);
@@ -206,7 +212,7 @@ it('a material drop is noted on the run but not counted as an item', () => {
   for (let seed = 1; seed <= 100; seed++) {
     const { run } = kill(seed, 'boss');
     sawMaterial += materialsOf(run).length;
-    expect(run.items, `seed ${seed}`).toBe(spy.rarityArgs.length + spy.gems);
+    expect(run.items, `seed ${seed}`).toBe(spy.rarityArgs.length + spy.gems + spy.runes);
     expect(run.loot.length, `seed ${seed}`).toBe(run.items + materialsOf(run).length);
     expect(dropLines(run), `seed ${seed}`).toBe(run.loot.length);
   }

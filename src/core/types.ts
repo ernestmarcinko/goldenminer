@@ -1,7 +1,8 @@
 import type {
-  Cell, GearItem, GearSet, GemGrade, GemType, Item, MapItem, MapMod, MapModKind, MapRarity, Material, Rarity, Slot,
+  Cell, GearItem, GearSet, GemGrade, GemType, Item, MapItem, MapMod, MapModKind, MapRarity, Material, Rarity, RuneType, Slot,
   StatKey,
 } from './items';
+import type { RuneFlag } from './runes';
 
 export type { MapItem, MapMod, MapRarity };
 export const FEATURE_KINDS = ['goldVein', 'diamondVein', 'chest', 'gem', 'map'] as const;
@@ -20,14 +21,15 @@ export type ItemLoc =
   | { where: 'stash'; index: number }                   // a General cell, any page
   | { where: 'maps'; tier: number; index: number }      // a map in the Map stash's list for its tier
   | { where: 'gems'; gem: GemType; grade: GemGrade }    // a Gems-tab stack
+  | { where: 'runes'; rune: RuneType }                  // a Runes-tab stack
   | { where: 'materials'; material: Material }          // a Materials-tab stack (virtual, id 0, while its count > 0)
   | { where: 'essences'; key: string }                  // an Essences-tab stack, keyed "stat:tier" or "prefix"/"suffix"
   | { where: 'worn'; slot: Slot }
   | { where: 'stock'; index: number };
-export type DropTarget = ItemLoc | { where: 'stashTab'; tab: 'general' | 'gems' | 'maps' | 'materials' | 'essences' | 'auto' };
+export type DropTarget = ItemLoc | { where: 'stashTab'; tab: 'general' | 'gems' | 'runes' | 'maps' | 'materials' | 'essences' | 'auto' };
 export const LOOT_ACTIONS = ['keep', 'sell', 'salvage', 'stash'] as const;
 export type LootAction = (typeof LOOT_ACTIONS)[number];
-export const LOOT_KINDS = ['gear', 'gem', 'map', 'material'] as const;
+export const LOOT_KINDS = ['gear', 'gem', 'rune', 'map', 'material'] as const;
 export type LootKind = (typeof LOOT_KINDS)[number];
 /** An inclusive range; a missing end is open. */
 export interface LootRange { min?: number; max?: number }
@@ -38,7 +40,7 @@ export interface LootRange { min?: number; max?: number }
 export interface LootRule {
   kind: LootKind | 'any'; action: LootAction;
   set?: GearSet; slot?: Slot; rarity?: Rarity; level?: LootRange; modTier?: number; mods?: LootRange;
-  mapMod?: MapModKind; gem?: GemType; grade?: GemGrade; material?: Material;
+  mapMod?: MapModKind; gem?: GemType; grade?: GemGrade; rune?: RuneType; material?: Material;
 }
 export const SHAFT_MOTIONS = ['step', 'smooth', 'off'] as const;
 export type ShaftMotion = (typeof SHAFT_MOTIONS)[number];
@@ -52,7 +54,7 @@ export type LootOutcome = (typeof LOOT_OUTCOMES)[number];
  * note has base 'map' and its map rarity.
  */
 export interface LootNote {
-  name: string; rarity: Rarity | 'gem' | 'material'; base: Slot | GemType | Material | 'map'; outcome: LootOutcome; value: number;
+  name: string; rarity: Rarity | 'gem' | 'rune' | 'material'; base: Slot | GemType | RuneType | Material | 'map'; outcome: LootOutcome; value: number;
 }
 /** Where a logged find came from: a dug metre, a room of a map, or the merchant. */
 export type DropOrigin = { kind: 'metre'; metre: number } | { kind: 'map'; tier: number; room: number } | { kind: 'merchant' };
@@ -64,8 +66,8 @@ export type TrailEvent = (typeof TRAIL_EVENTS)[number];
 export interface TrailStep { event: TrailEvent; gold?: number; materials?: Partial<Record<Material, number>> }
 /** One find in the drop log; its id is the item's (a material find takes its own), and its trail is what became of it. */
 export interface DropEntry {
-  id: number; kind: 'gear' | 'gem' | 'material' | 'map'; name: string; rarity: Rarity | 'gem' | 'material';
-  base: Slot | GemType | Material | 'map';
+  id: number; kind: 'gear' | 'gem' | 'rune' | 'material' | 'map'; name: string; rarity: Rarity | 'gem' | 'rune' | 'material';
+  base: Slot | GemType | RuneType | Material | 'map';
   count: number; origin: DropOrigin; trail: TrailStep[];
 }
 /** One death in a map: `at` is its wall time, `map` the map as it was lost. */
@@ -148,7 +150,7 @@ export interface FindRecord {
 }
 export type InvResult =
   | 'ok' | 'bagFull' | 'stashFull' | 'noSocket' | 'invalid' | 'busy'
-  | 'wrongSlot' | 'gemsOnly' | 'gearOnly' | 'mapsOnly' | 'materialsOnly' | 'essencesOnly' | 'stackFull' | 'craftRefused' | 'mapTierFull';
+  | 'wrongSlot' | 'gemsOnly' | 'runesOnly' | 'gearOnly' | 'mapsOnly' | 'materialsOnly' | 'essencesOnly' | 'stackFull' | 'craftRefused' | 'mapTierFull';
 /** What a craft spends: a material, or Diamonds for the exalt. */
 export type CraftKind = Material | 'diamond';
 /**
@@ -186,6 +188,7 @@ export interface GameState {
   stash: {
     general: (GearItem | null)[];          // STASH_PAGE_SIZE × pages, START_GENERAL_PAGES..MAX_STASH_PAGES pages
     gems: Record<GemType, Record<GemGrade, number>>;   // the Gems tab: counts of 0..GEM_STASH_STACK
+    runes: Record<RuneType, number>;                   // the Runes tab: counts of 0..RUNE_STASH_STACK
     maps: Record<number, MapItem[]>;       // keyed by tier, at most MAP_TIER_CAP each, in the order put in; an emptied tier loses its key
     materials: Record<Material, number>;   // 0..MATERIAL_STASH_STACK each
     essences: Record<string, number>;      // the Essences tab: "stat:tier" for essences, "prefix"/"suffix" for orbs, 0..ESSENCE_STASH_STACK
@@ -205,6 +208,7 @@ export interface GameState {
   deaths: DeathEntry[];                    // the death log, oldest first, at most DEATH_LOG_LIMIT
   merchant: { band: number; bought: number[] };   // the stock band the Trader's slots were bought in, and their indexes
   uniqueRng: number;                       // the uniques' own stream, so state.rng is the same for a player without them
+  runeRng: number;                         // the runes' own stream, so state.rng is the same for a player who finds none
   passives: { allocated: string[] };       // the passive web's allocated node ids, in allocation order
   ascendancy: { points: number; allocated: string[] };   // the permanent tree: unspent points and allocated node ids
   autoMap: { queue: number[] };                          // queued map ids, oldest first, run only while away
@@ -222,6 +226,7 @@ export interface Stats {
   sellMultiplier: number; salvageMultiplier: number;
   hazardSight: number;                     // metres past the face whose hazards show on the minimap (Black Lantern)
   hazardSlow: number;                      // the share of a hazard's slowdown left after ward (Black Lantern)
+  runeFlags: ReadonlySet<RuneFlag>;        // the worn runes' rule-changing flags, read at the point of use
 }
 export type TickEvent =
   | { kind: 'gold'; amount: number }

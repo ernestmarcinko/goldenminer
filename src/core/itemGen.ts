@@ -1,13 +1,14 @@
 import {
   CHEST_BATTLE_CHANCE, CHEST_SECOND_ITEM_CHANCE, DEFAULT_STAT_WEIGHT, MAGIC_LINE_WEIGHTS, MAX_SIDE_LINES, RARE_LINE_WEIGHTS,
-  RARITY_WEIGHTS, SOCKET_WEIGHTS, STAT_WEIGHTS,
+  RARITY_WEIGHTS, RUNE_DROP_CHANCE, SOCKET_WEIGHTS, STAT_WEIGHTS,
 } from './balance';
 import { LEGENDARIES, RARE_FIRST, RARE_SECOND, MOD_WORDS, baseName, gemGradeFor } from './itemData';
 import {
   GEM_TYPES, MOD_SIDE, RARITIES, SLOT_IMPLICIT, setOfSlot, slotsOf, statsOf,
-  type GearItem, type GearSet, type GemItem, type ModLine, type Rarity, type Slot, type StatKey, type StatLine,
+  type GearItem, type GearSet, type GemItem, type ModLine, type Rarity, type RuneItem, type Slot, type StatKey, type StatLine,
 } from './items';
 import { nextRandom, pickWeighted } from './rng';
+import { runeGen, runeWeights } from './runes';
 import { tierCap, tierRange, tierWeights } from './tiers';
 import type { GameState } from './types';
 
@@ -134,6 +135,21 @@ export function rollLegendary(gen: Gen, ilvl: number): GearItem {
 
 export function rollGem(state: Gen, tier: number): GemItem {
   return { id: state.nextId++, type: 'gem', gem: pickUniform(state, GEM_TYPES), grade: gemGradeFor(tier), count: 1 };
+}
+
+/** A rune of `gen`'s stream, its kind picked from the geometric `[512..1]` curve. */
+export function rollRune(state: Gen): RuneItem {
+  return { id: state.nextId++, type: 'rune', rune: pickWeighted(state, runeWeights()), count: 1 };
+}
+
+/**
+ * A gem drop, upgraded to a rune at the static `RUNE_DROP_CHANCE`. The upgrade decision draws from `state.runeRng` only
+ * (never the loot stream), so a player who never finds a rune produces the same `state.rng` a rune-less build would;
+ * only an actual rune draws from `gen` (the gem's own stream) to pick its kind.
+ */
+export function rollGemOrRune(state: GameState, tier: number, gen: Gen = state): GemItem | RuneItem {
+  if (nextRandom(runeGen(state)) < RUNE_DROP_CHANCE) return rollRune(gen);
+  return rollGem(gen, tier);
 }
 
 export function rollChest(state: Gen, ilvl: number): GearItem[] {

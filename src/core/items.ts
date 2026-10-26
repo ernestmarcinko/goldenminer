@@ -10,6 +10,7 @@ export const BATTLE_STATS = ['damage', 'damagePct', 'attackSpeed', 'life', 'armo
   'elementalDamage', 'critMultiplier', 'lifePct', 'armorPct', 'lifeRegen', 'lifeOnKill', 'xpFind'] as const;
 export const GEM_TYPES = ['ruby', 'sapphire', 'emerald', 'amethyst', 'starstone'] as const;
 export const GEM_GRADES = ['tiny', 'small', 'big', 'giant', 'perfect'] as const;
+export const RUNE_TYPES = ['fehu', 'uruz', 'thurisaz', 'ansuz', 'raidho', 'kenaz', 'gebo', 'wunjo', 'hagalaz', 'isa'] as const;
 export const MATERIALS = ['copper', 'tin', 'iron', 'silver', 'mithril', 'starsteel', 'obsidian', 'voidCrystal'] as const;
 /** The highest tier an essence can have; each of the 32 stats has one essence per tier 1..ESSENCE_TIER_MAX. */
 export const ESSENCE_TIER_MAX = 6;
@@ -26,6 +27,7 @@ export type BattleStat = (typeof BATTLE_STATS)[number];
 export type StatKey = MiningStat | BattleStat;
 export type GemType = (typeof GEM_TYPES)[number];
 export type GemGrade = (typeof GEM_GRADES)[number];
+export type RuneType = (typeof RUNE_TYPES)[number];
 export type Material = (typeof MATERIALS)[number];
 export type MapModKind = (typeof MAP_MOD_KINDS)[number];
 export type MapSpecial = (typeof MAP_SPECIALS)[number];
@@ -36,9 +38,14 @@ export interface StatLine { stat: StatKey; value: number }
 export interface ModLine { stat: StatKey; value: number; tier: number; crafted?: true }
 export interface Gem { gem: GemType; grade: GemGrade }
 export interface GemItem extends Gem { id: number; type: 'gem'; count: number }
+/** A rune: an exotic socketable that competes with a gem for the same sockets. */
+export interface Rune { rune: RuneType }
+export interface RuneItem extends Rune { id: number; type: 'rune'; count: number }
+/** What one socket holds: a graded gem or a rune. */
+export type Socketed = Gem | Rune;
 export interface GearItem {
   id: number; type: 'gear'; slot: Slot; name: string; rarity: Rarity; ilvl: number;
-  implicit: StatLine; affixes: ModLine[]; sockets: number; gems: Gem[]; uniqueId?: string;
+  implicit: StatLine; affixes: ModLine[]; sockets: number; gems: Socketed[]; uniqueId?: string;
   /** Set by tempering: the item takes no more crafts. */
   sealed?: true;
 }
@@ -58,9 +65,9 @@ export interface EssenceItem { id: number; type: 'essence'; stat: StatKey; tier:
 export type OrbSide = 'prefix' | 'suffix';
 /** A generic orb: adds a random line on its side in the item's own band. */
 export interface OrbItem { id: number; type: 'orb'; side: OrbSide; count: number }
-export type Item = GearItem | GemItem | MaterialItem | MapItem | EssenceItem | OrbItem;
+export type Item = GearItem | GemItem | RuneItem | MaterialItem | MapItem | EssenceItem | OrbItem;
 /** What stacks in a bag cell and counts up in its stash tab. */
-export type Stack = GemItem | MaterialItem | EssenceItem | OrbItem;
+export type Stack = GemItem | RuneItem | MaterialItem | EssenceItem | OrbItem;
 export type Cell = Item | null;
 
 /** Every stat, in mining then battle order: the set an essence may carry. */
@@ -125,7 +132,7 @@ export function isGear(item: Item): item is GearItem {
   return item.type === 'gear';
 }
 export function isStack(item: Item): item is Stack {
-  return item.type === 'gem' || item.type === 'material' || item.type === 'essence' || item.type === 'orb';
+  return item.type === 'gem' || item.type === 'rune' || item.type === 'material' || item.type === 'essence' || item.type === 'orb';
 }
 export function isMap(item: Item): item is MapItem {
   return item.type === 'map';

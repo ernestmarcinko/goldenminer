@@ -1,14 +1,14 @@
 import { checkAchievements } from './achievements';
 import {
   CRAFT_COST, DEFAULT_STAT_WEIGHT, GEM_STASH_STACK, MAGIC_LINE_WEIGHTS, MAP_CRAFT_SOULS_PER_TIER, MAP_SPECIAL_CHANCE, MAX_CRAFTED_LINES,
-  MAX_SIDE_LINES, MAX_TIER_OVER_CAP, RARE_LINE_WEIGHTS, STAT_WEIGHTS, TEMPER_WEIGHTS,
+  MAX_SIDE_LINES, MAX_TIER_OVER_CAP, RARE_LINE_WEIGHTS, RUNE_STASH_STACK, STAT_WEIGHTS, TEMPER_WEIGHTS,
 } from './balance';
 import { itemAt, sameLoc } from './cells';
 import { trail } from './dropLog';
 import { baseName } from './itemData';
 import { magicName, rollLines, rollModLine, rollSockets, rollValue, sideCount, type Gen } from './itemGen';
 import { MAP_MOD_KINDS, MAP_SPECIALS, MOD_SIDE, SLOT_IMPLICIT, essenceKey, isGear, isMap, setOfSlot, statsOf } from './items';
-import type { GearItem, Gem, MapItem, MapMod, MapModKind, MapSpecial, Material, ModLine, StatKey } from './items';
+import type { GearItem, MapItem, MapMod, MapModKind, MapSpecial, Material, ModLine, StatKey } from './items';
 import { mapModRange } from './mapMods';
 import { fillAhead } from './metres';
 import { nextRandom, pickWeighted } from './rng';
@@ -93,9 +93,17 @@ function ruleCheck(state: GameState, item: GearItem, kind: CraftKind): CraftChec
     case 'iron': return 'wrongRarity';   // retired: Iron is the tier-1 essence ore, not a craft
     case 'silver': return item.rarity === 'rare' ? 'ok' : 'wrongRarity';
     case 'mithril': {
-      // Every socketed gem goes back to its Gems-tab count, so none may pass the cap.
-      const back = (g: Gem): number => item.gems.filter((o) => o.gem === g.gem && o.grade === g.grade).length;
-      return item.gems.some((g) => state.stash.gems[g.gem][g.grade] + back(g) > GEM_STASH_STACK) ? 'gemsFull' : 'ok';
+      // Every socketed gem or rune goes back to its own tab count, so none may pass its cap.
+      for (const s of item.gems) {
+        if ('rune' in s) {
+          const back = item.gems.filter((o) => 'rune' in o && o.rune === s.rune).length;
+          if (state.stash.runes[s.rune] + back > RUNE_STASH_STACK) return 'gemsFull';
+        } else {
+          const back = item.gems.filter((o) => 'gem' in o && o.gem === s.gem && o.grade === s.grade).length;
+          if (state.stash.gems[s.gem][s.grade] + back > GEM_STASH_STACK) return 'gemsFull';
+        }
+      }
+      return 'ok';
     }
     case 'starsteel': return rolled(item).length > 0 ? 'ok' : 'nothingToChange';
     case 'obsidian': return item.affixes.length > 0 ? 'ok' : 'nothingToChange';
@@ -195,7 +203,10 @@ function apply(state: GameState, item: GearItem, kind: CraftKind): TemperOutcome
       reroll(state, item, pickWeighted(state, RARE_LINE_WEIGHTS), MAX_SIDE_LINES);
       return undefined;
     case 'mithril':
-      for (const g of item.gems) state.stash.gems[g.gem][g.grade]++;
+      for (const g of item.gems) {
+        if ('rune' in g) state.stash.runes[g.rune]++;
+        else state.stash.gems[g.gem][g.grade]++;
+      }
       item.gems = [];
       item.sockets = rollSockets(state);
       return undefined;

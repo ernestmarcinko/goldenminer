@@ -5,7 +5,7 @@ import {
 } from './balance';
 import { metreTier } from './bands';
 import { mapTick } from './combat';
-import { rollChest, rollGem, type Gen } from './itemGen';
+import { rollChest, rollGemOrRune, type Gen } from './itemGen';
 import type { Material } from './items';
 import { hazardFactor, materialAmount, metreLayer, pickMaterial } from './layer';
 import { drainOverflow, receiveItem, receiveMaterial } from './loot';
@@ -66,9 +66,13 @@ export function collect(
     loot.push(...addMap(state, mapTier(state, tier), depth));
   } else if (roll.feature === 'chest') {
     state.stats.chestsOpened += 1;
-    for (const item of rollChest(gen, tier)) loot.push(...receiveItem(state, item, origin));
+    // The Gebo rune makes every chest drop one more item.
+    const chests = stats.runeFlags.has('extraChest') ? 2 : 1;
+    for (let c = 0; c < chests; c++) {
+      for (const item of rollChest(gen, tier)) loot.push(...receiveItem(state, item, origin));
+    }
   } else if (roll.feature === 'gem') {
-    loot.push(...receiveItem(state, rollGem(gen, tier), origin));
+    loot.push(...receiveItem(state, rollGemOrRune(state, tier, gen), origin));
   }
   if (loot.length > 0) find.loot = loot;
   logFind(state, find, events);
@@ -126,8 +130,11 @@ function collectBonus(state: GameState, depth: number, stats: Stats, events?: Ti
 
 /** Ticks one metre takes: its hardness, hard rock and any hazard, over dig power (raised by the achievement boost). */
 function ticksForMetre(state: GameState, metre: number, roll: MetreRoll, stats: Stats): number {
-  const hard = hardness(metre) * (roll.hardRock ? HARD_ROCK_MULTIPLIER : 1);
-  const hazard = hazardFactor(metreLayer(state.seed, metre).hazard, stats.hazardWard, stats.hazardSlow);
+  // Thurisaz makes hard rock cost no extra ticks; Kenaz makes hazards cause no slowdown.
+  const hard = hardness(metre) * (roll.hardRock && !stats.runeFlags.has('ignoreHardRock') ? HARD_ROCK_MULTIPLIER : 1);
+  const hazard = stats.runeFlags.has('hazardImmune')
+    ? 1
+    : hazardFactor(metreLayer(state.seed, metre).hazard, stats.hazardWard, stats.hazardSlow);
   const boosted = stats.digPower * achievementBoost(state);
   // The boost never bypasses the dig-power clamp; a non-finite override (a test's Infinity/NaN) is left alone so the
   // tick loop's own guard still turns it into no digging.

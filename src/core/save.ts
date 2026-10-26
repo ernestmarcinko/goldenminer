@@ -4,12 +4,13 @@ import {
   GEM_BAG_STACK, GEM_STASH_STACK, LEVEL_CAP, MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_CRAFTED_LINES,
   MAX_DAMAGE, MAX_HELD, MAX_ITEM_LEVEL, MAX_LIFE, MAX_LOOT_RULES, MAX_MAP_MODS, MAX_PASSIVE_GEM_STACK,
   MAX_PASSIVE_MATERIAL_STACK, MAX_ROOMS, MAX_SIDE_LINES, MAX_SOCKETS, MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MAX_TRAIL_STEPS,
-  MONSTER_BUDGET, PREMIUM_CAP, RUN_LOOT_LIMIT, START_GENERAL_PAGES, STASH_PAGE_SIZE, STOCK_SIZE, stashPagePrice,
+  MONSTER_BUDGET, PREMIUM_CAP, RUN_LOOT_LIMIT, RUNE_BAG_STACK, RUNE_RNG_SALT, RUNE_STASH_STACK, START_GENERAL_PAGES,
+  STASH_PAGE_SIZE, STOCK_SIZE, stashPagePrice,
 } from './balance';
 import { ACHIEVEMENT_IDS } from './achievements';
 import { ASCENDANCY_NODE_BY_ID, ASCENDANCY_NODE_COUNT, ASCENDANCY_START_ID, MAX_ASCENDANCY_PASSIVE_POINTS, ascendancyTotals } from './ascendancy';
 import { metreTier } from './bands';
-import { emptyGemCounts, emptyMaterialCounts, pageCount } from './cells';
+import { emptyGemCounts, emptyMaterialCounts, emptyRuneCounts, pageCount } from './cells';
 import { dungeonIndexAt, dungeonType } from './dungeons';
 import { gemGradeFor, itemName } from './itemData';
 import { sideCount } from './itemGen';
@@ -20,9 +21,9 @@ import { isConnectedWeb, PASSIVE_NODE_BY_ID, START_NODE_ID } from './passives';
 import { emptyLifetimeStats } from './telemetry';
 import {
   BATTLE_STATS, ESSENCE_TIER_MAX, GEAR_SETS, GEM_GRADES, GEM_TYPES, MAP_MOD_KINDS, MAP_SPECIALS, MATERIALS, MINING_STATS,
-  MOD_SIDE, RARITIES, parseEssenceKey, setOfSlot, slotsOf, statsOf,
+  MOD_SIDE, RARITIES, RUNE_TYPES, parseEssenceKey, setOfSlot, slotsOf, statsOf,
 } from './items';
-import type { Cell, GearItem, GearSet, GemItem, GemType, MapItem, MapMod, MapRarity, ModLine, Slot, StatKey } from './items';
+import type { Cell, GearItem, GearSet, GemItem, GemType, MapItem, MapMod, MapRarity, ModLine, RuneItem, RuneType, Slot, StatKey } from './items';
 import { xpToNext } from './levels';
 import { hash2 } from './rng';
 import { isValidSeedText, seedFromText } from './seed';
@@ -33,7 +34,7 @@ import {
   SHAFT_MOTIONS, TRAIL_EVENTS, type DropEntry, type GameState, type LifetimeStats, type LootRule,
 } from './types';
 
-export const SCHEMA_VERSION = 15;
+export const SCHEMA_VERSION = 16;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
@@ -332,6 +333,15 @@ export const MIGRATIONS: Record<number, Migration> = {
     delete next.totals;
     return next;
   },
+  15: (state) => {
+    if (!isObject(state) || !isUint32(state.rng) || !isObject(state.stash)) return state;
+    // Runes start empty and get their own stream, seeded from the loot stream the same way the uniques are.
+    return {
+      ...state,
+      runeRng: hash2(state.rng, RUNE_RNG_SALT),
+      stash: { ...state.stash, runes: emptyRuneCounts() },
+    };
+  },
 };
 
 const ALL_STATS: readonly StatKey[] = [...MINING_STATS, ...BATTLE_STATS];
@@ -397,6 +407,7 @@ const isUint32 = (x: unknown): x is number => isNonNegInt(x) && x <= 4294967295;
 const isUnitRange = (x: unknown): x is number => isNonNegFinite(x) && x < 1;
 const isFeatureKind = (x: unknown): boolean => isIn(FEATURE_KINDS, x);
 const isMaterial = (x: unknown): boolean => isIn(MATERIALS, x);
+const isRuneType = (x: unknown): x is RuneType => isIn(RUNE_TYPES, x);
 
 function isMetreRoll(x: unknown): boolean {
   return (
@@ -407,7 +418,7 @@ function isMetreRoll(x: unknown): boolean {
   );
 }
 
-const ITEM_RARITIES: readonly string[] = [...RARITIES, 'gem'];
+const ITEM_RARITIES: readonly string[] = [...RARITIES, 'gem', 'rune'];
 const ALL_SLOTS: readonly string[] = GEAR_SETS.flatMap((set) => slotsOf(set));
 const isIn = (list: readonly string[], x: unknown): boolean => typeof x === 'string' && list.includes(x);
 const isIdBelow = (x: unknown, nextId: number): x is number => isNonNegInt(x) && x >= 1 && x < nextId;
@@ -430,7 +441,7 @@ const isName = (x: unknown): x is string => typeof x === 'string' && x.length >=
 function isLootPair(rarity: unknown, base: unknown): boolean {
   if (rarity === 'material') return isMaterial(base);
   if (base === 'map') return isIn(MAP_RARITIES, rarity);
-  return isIn(ITEM_RARITIES, rarity) && (isIn(ALL_SLOTS, base) || isIn(GEM_TYPES, base));
+  return isIn(ITEM_RARITIES, rarity) && (isIn(ALL_SLOTS, base) || isIn(GEM_TYPES, base) || isIn(RUNE_TYPES, base));
 }
 
 function isLootNote(x: unknown): boolean {
@@ -465,14 +476,22 @@ function isLineSet(lines: ModLine[], rarity: string): boolean {
   );
 }
 
-// A socketed gem keeps only its type and grade.
+// A socketed slot keeps a graded gem `{ gem, grade }` or a rune `{ rune }`; a shape that mixes the two is refused.
 function isSocketed(x: unknown): boolean {
-  return isObject(x) && isIn(GEM_TYPES, x.gem) && isIn(GEM_GRADES, x.grade);
+  if (!isObject(x)) return false;
+  if (isRuneType(x.rune)) return x.gem === undefined && x.grade === undefined;
+  return isIn(GEM_TYPES, x.gem) && isIn(GEM_GRADES, x.grade) && x.rune === undefined;
 }
 
 function isGemStack(x: unknown, nextId: number, seen: Set<number>): x is GemItem {
   if (!isObject(x) || x.type !== 'gem' || !isSocketed(x)) return false;
   if (!isNonNegInt(x.count) || x.count < 1 || x.count > GEM_BAG_STACK + MAX_PASSIVE_GEM_STACK) return false;
+  return isItemBase(x, nextId, seen, false);
+}
+
+function isRuneStack(x: unknown, nextId: number, seen: Set<number>): x is RuneItem {
+  if (!isObject(x) || x.type !== 'rune' || !isRuneType(x.rune)) return false;
+  if (!isNonNegInt(x.count) || x.count < 1 || x.count > RUNE_BAG_STACK) return false;
   return isItemBase(x, nextId, seen, false);
 }
 
@@ -523,6 +542,7 @@ function isBagItem(x: unknown, nextId: number, seen: Set<number>): boolean {
   switch (x.type) {
     case 'gear': return isGearItem(x, nextId, seen);
     case 'gem': return isGemStack(x, nextId, seen);
+    case 'rune': return isRuneStack(x, nextId, seen);
     case 'material': return isMaterialStack(x, nextId, seen);
     case 'essence': return isEssenceStack(x, nextId, seen);
     case 'orb': return isOrbStack(x, nextId, seen);
@@ -585,6 +605,15 @@ function isGemTab(x: unknown): boolean {
   );
 }
 
+// The Runes tab: exactly one count for each kind, with no grade dimension.
+function isRuneTab(x: unknown): boolean {
+  return (
+    isObject(x) &&
+    Object.keys(x).length === RUNE_TYPES.length &&
+    RUNE_TYPES.every((r) => isNonNegInt(x[r]) && x[r] <= RUNE_STASH_STACK)
+  );
+}
+
 function isMotion(x: unknown): boolean {
   return (
     isObject(x) &&
@@ -598,7 +627,7 @@ const MAX_RULE_LEVEL = MAX_ITEM_LEVEL + MAX_TIER_OVER_CAP;
 // The most modifiers a rule may count: far past what any item holds.
 const MAX_RULE_MODS = 20;
 const LOOT_RULE_KEYS: readonly string[] = [
-  'kind', 'action', 'set', 'slot', 'rarity', 'level', 'modTier', 'mods', 'mapMod', 'gem', 'grade', 'material',
+  'kind', 'action', 'set', 'slot', 'rarity', 'level', 'modTier', 'mods', 'mapMod', 'gem', 'grade', 'rune', 'material',
 ];
 const isUpTo = (x: unknown, max: number): boolean => isNonNegInt(x) && x <= max;
 const isOptional = (x: unknown, check: (x: unknown) => boolean): boolean => x === undefined || check(x);
@@ -619,7 +648,7 @@ function isLootRule(x: unknown): x is LootRule {
     isOptional(x.rarity, (v) => isIn(RARITIES, v)) && isOptional(x.level, (v) => isLootRange(v, MAX_RULE_LEVEL)) &&
     isOptional(x.modTier, (v) => isUpTo(v, MAX_RULE_LEVEL)) && isOptional(x.mods, (v) => isLootRange(v, MAX_RULE_MODS)) &&
     isOptional(x.mapMod, (v) => isIn(MAP_MOD_KINDS, v)) && isOptional(x.gem, (v) => isIn(GEM_TYPES, v)) &&
-    isOptional(x.grade, (v) => isIn(GEM_GRADES, v)) && isOptional(x.material, isMaterial);
+    isOptional(x.grade, (v) => isIn(GEM_GRADES, v)) && isOptional(x.rune, isRuneType) && isOptional(x.material, isMaterial);
   return fields && ruleValid(x as unknown as LootRule);
 }
 
@@ -852,7 +881,7 @@ function isInventory(x: Record<string, unknown>, nextId: number, seen: Set<numbe
   const { general, bought } = stash;
   if (!isPagedTab(general, START_GENERAL_PAGES, (c) => isGearItem(c, nextId, seen))) return false;
   if (!isMapStash(stash.maps, nextId, seen)) return false;
-  if (!isGemTab(stash.gems) || !isMaterialTab(stash.materials) || !isEssencesTab(stash.essences)) return false;
+  if (!isGemTab(stash.gems) || !isRuneTab(stash.runes) || !isMaterialTab(stash.materials) || !isEssencesTab(stash.essences)) return false;
   if (!isObject(bought) || Object.keys(bought).length !== 1 || !isBoughtOf(bought.general, general)) return false;
   // held finds are any kind of item, each as a bag cell would hold it
   if (!Array.isArray(overflow) || overflow.length > MAX_HELD || !overflow.every((o) => isBagItem(o, nextId, seen))) return false;
@@ -879,7 +908,7 @@ function isTrailStep(x: unknown): boolean {
   return materials === undefined || (isObject(materials) && Object.entries(materials).every(([m, n]) => isMaterial(m) && isNonNegFinite(n)));
 }
 
-const ITEM_TYPES: readonly string[] = ['gear', 'gem', 'material', 'map'];
+const ITEM_TYPES: readonly string[] = ['gear', 'gem', 'rune', 'material', 'map'];
 
 function isDropEntry(x: unknown, nextId: number): x is DropEntry {
   if (!isObject(x) || !isIdBelow(x.id, nextId) || !isIn(ITEM_TYPES, x.kind) || !isName(x.name)) return false;
@@ -930,7 +959,7 @@ export function validateState(x: unknown): x is GameState {
   if (!isObject(x.mapTally) || !isNonNegInt(x.mapTally.cleared) || !isNonNegInt(x.mapTally.lost)) return false;
   if (!Array.isArray(x.finds) || x.finds.length > FINDS_LOG_LIMIT || !x.finds.every((f) => isFindRecord(f, nextId))) return false;
   if (typeof x.paused !== 'boolean' || !isDropLog(x.drops, nextId)) return false;
-  if (!isMerchant(x.merchant) || !isUint32(x.uniqueRng)) return false;
+  if (!isMerchant(x.merchant) || !isUint32(x.uniqueRng) || !isUint32(x.runeRng)) return false;
   if (!isOreMarket(x.oreMarket)) return false;
   if (!isAscendancy(x.ascendancy) || !isAutoMap(x.autoMap) || !isLifetime(x.lifetime)) return false;
   if (!isLifetimeStats(x.stats) || !isAchievements(x.achievements)) return false;

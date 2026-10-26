@@ -9,7 +9,7 @@ import { itemAt } from '../../src/core/cells';
 import { newGame } from '../../src/core/newGame';
 import {
   bagHeading, buyLabel, GRADE_HEADERS, gemTabRows, gridCapacity, mapTierCaption, mapTierCells, mapTiers, materialTabCells, pageCells,
-  pickTier, STASH_TABS, tabLabel,
+  pickTier, runeTabCells, STASH_TABS, tabLabel,
 } from '../../src/ui/character/stashView';
 
 function migrated() {
@@ -50,9 +50,10 @@ it('counts above a thousand are shortened', () => {
 
 it('tab labels show the General fill and the Map stash total, and the other tabs just their name', () => {
   const s = migrated();
-  expect(STASH_TABS).toEqual(['general', 'gems', 'maps', 'materials', 'essences']);
+  expect(STASH_TABS).toEqual(['general', 'gems', 'runes', 'maps', 'materials', 'essences']);
   expect(tabLabel(s, 'general')).toBe('General 5 / 120');
   expect(tabLabel(s, 'gems')).toBe('Gems');
+  expect(tabLabel(s, 'runes')).toBe('Runes');
   expect(tabLabel(s, 'maps')).toBe(`Maps ${Object.values(s.stash.maps).flat().length}`);
   expect(tabLabel(s, 'materials')).toBe('Materials');
   expect(tabLabel(s, 'essences')).toBe('Essences');
@@ -88,6 +89,17 @@ it('the Materials tab has one cell per material, in order, with compact counts',
   expect(cells[0]).toEqual({ material: 'copper', label: 'Copper ore', count: 0, text: '' });
   expect(cells[1]).toEqual({ material: 'tin', label: 'Tin ore', count: 7, text: '7' });
   expect(cells[7]).toEqual({ material: 'voidCrystal', label: 'Void crystal', count: 2500, text: '2.5K' });
+});
+
+it('the Runes tab has one cell per kind, in catalogue order, with compact counts', () => {
+  const s = newGame(1, 0);
+  s.stash.runes.fehu = 3;
+  s.stash.runes.isa = 2500;
+  const cells = runeTabCells(s);
+  expect(cells).toHaveLength(10);
+  expect(cells.map((c) => c.rune)).toEqual(['fehu', 'uruz', 'thurisaz', 'ansuz', 'raidho', 'kenaz', 'gebo', 'wunjo', 'hagalaz', 'isa']);
+  expect(cells[0]).toEqual({ rune: 'fehu', label: 'Fehu', count: 3, text: '3' });
+  expect(cells[9]).toEqual({ rune: 'isa', label: 'Isa', count: 2500, text: '2.5K' });
 });
 
 it('the Maps tab has a chip per tier it holds, lowest first, with its count', () => {

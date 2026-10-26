@@ -3,9 +3,9 @@ import fixture3 from '../fixtures/save-schema-3.txt?raw';
 import { MAP_TIER_CAP, STOCK_SIZE } from '../../src/core/balance';
 import { canCraft, craft } from '../../src/core/crafting';
 import { itemAt, sameLoc } from '../../src/core/cells';
-import { dropItem, equip, moveItem, salvage, sell, sendItem, socketGem, unequip } from '../../src/core/inventory';
+import { dropItem, equip, moveItem, salvage, sell, sendItem, socketInto, unequip } from '../../src/core/inventory';
 import { GEM_GRADES, GEM_TYPES, isGear, MINING_SLOTS, BATTLE_SLOTS } from '../../src/core/items';
-import type { Gem, MapItem, Slot } from '../../src/core/items';
+import type { MapItem, Slot, Socketed } from '../../src/core/items';
 import { putMap } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
 import { mulberry32 } from '../../src/core/rng';
@@ -173,25 +173,58 @@ it('a socketed gem is taken from its stack and counts toward stats', () => {
   s.bag[0] = gem(s, 'ruby', { count: 2 });
   s.bag[1] = gem(s, 'emerald');
   const worn: ItemLoc = { where: 'worn', slot: 'pickaxe' };
-  expect(socketGem(s, bag(0), worn)).toBe('ok');
+  expect(socketInto(s, bag(0), worn)).toBe('ok');
   expect(pick.gems).toEqual([{ gem: 'ruby', grade: 'tiny' }]);
   expect(s.bag[0]).toMatchObject({ gem: 'ruby', count: 1 });
   expect(deriveStats(s).goldMultiplier).toBeCloseTo(1.07);
-  expect(socketGem(s, bag(0), worn)).toBe('noSocket');
-  expect(socketGem(s, bag(0), { where: 'worn', slot: 'lamp' })).toBe('invalid');
+  expect(socketInto(s, bag(0), worn)).toBe('noSocket');
+  expect(socketInto(s, bag(0), { where: 'worn', slot: 'lamp' })).toBe('invalid');
   pick.sockets = 2;
-  expect(socketGem(s, bag(0), worn)).toBe('ok');
+  expect(socketInto(s, bag(0), worn)).toBe('ok');
   expect([pick.gems.length, s.bag[0]]).toEqual([2, null]);
-  expect(socketGem(s, bag(1), bag(1))).toBe('invalid');
+  expect(socketInto(s, bag(1), bag(1))).toBe('invalid');
 });
 
 it('a Gems-tab stack sockets one gem at a time', () => {
   const s = newGame(1, 0);
   s.bag[0] = gear(s, 'ring', { sockets: 1 });
   s.stash.gems.sapphire.giant = 2;
-  expect(socketGem(s, stack('sapphire', 'giant'), bag(0))).toBe('ok');
+  expect(socketInto(s, stack('sapphire', 'giant'), bag(0))).toBe('ok');
   expect(s.stash.gems.sapphire.giant).toBe(1);
   expect(s.bag[0]).toMatchObject({ gems: [{ gem: 'sapphire', grade: 'giant' }] });
+});
+
+it('a rune sockets into gear and competes with gems for the same sockets', () => {
+  const s = newGame(1, 0);
+  const pick = gear(s, 'pickaxe', { sockets: 2 });
+  s.equipped.mining.pickaxe = pick;
+  s.bag[0] = { id: s.nextId++, type: 'rune', rune: 'fehu', count: 2 };
+  const worn: ItemLoc = { where: 'worn', slot: 'pickaxe' };
+  expect(socketInto(s, bag(0), worn)).toBe('ok');
+  expect(pick.gems).toEqual([{ rune: 'fehu' }]);
+  expect(s.bag[0]).toMatchObject({ type: 'rune', rune: 'fehu', count: 1 });
+  // a gem fills the second socket; a third socketable is refused
+  s.bag[1] = gem(s, 'ruby');
+  expect(socketInto(s, bag(1), worn)).toBe('ok');
+  s.bag[2] = gem(s, 'emerald');
+  expect(socketInto(s, bag(2), worn)).toBe('noSocket');
+  expect(pick.gems).toEqual([{ rune: 'fehu' }, { gem: 'ruby', grade: 'tiny' }]);
+  expect(s.stats.gemsSocketed).toBe(1);   // the rune is not a gem
+});
+
+it('the Runes tab takes and returns a rune, like the Gems tab', () => {
+  const s = newGame(1, 0);
+  s.bag[0] = { id: s.nextId++, type: 'rune', rune: 'isa', count: 5 };
+  expect(moveItem(s, bag(0), { where: 'runes', rune: 'isa' })).toBe('ok');
+  expect([s.bag[0], s.stash.runes.isa]).toEqual([null, 5]);
+  expect(sendItem(s, { where: 'runes', rune: 'isa' }, 'bag')).toBe('ok');
+  expect(s.stash.runes.isa).toBe(0);
+  expect(s.bag.some((c) => c?.type === 'rune' && c.rune === 'isa')).toBe(true);
+  // only its own slot accepts it
+  s.bag[0] = { id: s.nextId++, type: 'rune', rune: 'fehu', count: 1 };
+  expect(moveItem(s, bag(0), { where: 'runes', rune: 'isa' })).toBe('invalid');
+  expect(dropItem(s, bag(0), { where: 'stashTab', tab: 'runes' })).toBe('ok');
+  expect(s.stash.runes.fehu).toBe(1);
 });
 
 it('dropping on a tab goes to its first free place, with tab checks', () => {
@@ -249,7 +282,9 @@ function gemCounts(s: GameState): Record<string, number> {
     const key = `${g.gem}/${g.grade}`;
     counts[key] = (counts[key] ?? 0) + n;
   };
-  const addSocketed = (g: { gems: Gem[] }): void => { for (const x of g.gems) add(x, 1); };
+  const addSocketed = (g: { gems: Socketed[] }): void => {
+    for (const x of g.gems) if ('gem' in x) add(x, 1);
+  };
   for (const c of s.bag) if (c !== null) { if (isGear(c)) addSocketed(c); else if (c.type === 'gem') add(c, c.count); }
   for (const set of ['mining', 'battle'] as const) for (const g of Object.values(s.equipped[set])) addSocketed(g);
   for (const c of s.stash.general) if (c !== null) addSocketed(c);
@@ -571,7 +606,7 @@ it("the Trader's stock is never moved into, out of, socketed, sold, salvaged, eq
     }
     expect(dropItem(s, { where: 'worn', slot: 'weapon' }, stock)).toBe('invalid');
     expect(unequip(s, 'weapon', stock)).toBe('invalid');
-    expect(socketGem(s, bag(1), stock)).toBe('invalid');
+    expect(socketInto(s, bag(1), stock)).toBe('invalid');
     for (const act of [sell, salvage, equip]) expect(act(s, stock)).toBe('invalid');
     expect(sendItem(s, stock, 'stash')).toBe('invalid');
     expect(sendItem(s, stock, 'bag')).toBe('invalid');

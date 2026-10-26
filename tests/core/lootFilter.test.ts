@@ -170,3 +170,16 @@ it('describes a rule as a sentence', () => {
     .toBe('Keep rare maps, with 3 or more modifiers, with Hardened');
   expect(said({ kind: 'material', action: 'stash' })).toBe('Stash materials');
 });
+
+it('a rune rule matches only its kind and names it', () => {
+  const fehu = { id: s.nextId++, type: 'rune' as const, rune: 'fehu' as const, count: 1 };
+  const isa = { id: s.nextId++, type: 'rune' as const, rune: 'isa' as const, count: 1 };
+  const fehuRule = rule({ kind: 'rune', rune: 'fehu' });
+  expect([ruleMatches(fehuRule, fehu), ruleMatches(fehuRule, isa), ruleMatches(fehuRule, gem(s, 'ruby'))])
+    .toEqual([true, false, false]);
+  expect(ruleMatches(rule({ kind: 'rune', rune: 'fehu', action: 'sell' }), fehu)).toBe(true);
+  expect(describeRule({ kind: 'rune', rune: 'fehu', action: 'sell' })).toBe('Sell Fehu runes');
+  expect(describeRule({ kind: 'rune', action: 'keep' })).toBe('Keep runes');
+  expect(ruleValid({ kind: 'rune', rune: 'fehu', action: 'keep' })).toBe(true);
+  expect(ruleValid({ kind: 'rune', gem: 'ruby', action: 'keep' })).toBe(false);
+});

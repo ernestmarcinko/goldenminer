@@ -1,4 +1,4 @@
-import { ESSENCE_BAG_STACK, GEM_BAG_STACK, MATERIAL_BAG_STACK } from './balance';
+import { ESSENCE_BAG_STACK, GEM_BAG_STACK, MATERIAL_BAG_STACK, RUNE_BAG_STACK } from './balance';
 import { ascendancyTotals } from './ascendancy';
 import type { StatKey } from './items';
 import type { GameState } from './types';
@@ -384,12 +384,12 @@ export function hasKeystone(state: Pick<GameState, 'passives'>, id: KeystoneId):
   return passiveTotals(state).keystones.has(id);
 }
 
-/** What a bag cell holds of a gem, material, essence or orb stack; gems and materials rise with the web. */
-export function stackCaps(state: Pick<GameState, 'passives'>): { gem: number; material: number; essence: number; orb: number } {
+/** What a bag cell holds of a gem, rune, material, essence or orb stack; gems and materials rise with the web. */
+export function stackCaps(state: Pick<GameState, 'passives'>): { gem: number; rune: number; material: number; essence: number; orb: number } {
   const p = passiveTotals(state);
   return {
     gem: GEM_BAG_STACK + p.gemStack, material: MATERIAL_BAG_STACK + p.materialStack,
-    essence: ESSENCE_BAG_STACK, orb: ESSENCE_BAG_STACK,
+    rune: RUNE_BAG_STACK, essence: ESSENCE_BAG_STACK, orb: ESSENCE_BAG_STACK,
   };
 }
 

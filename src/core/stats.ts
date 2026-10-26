@@ -16,6 +16,7 @@ import { metreTier } from './bands';
 import { armorReduction, deriveBattleStats } from './battle';
 import type { FeatureKind, GameState, Stats } from './types';
 import { hasUnique } from './uniques';
+import { runeTotals } from './runes';
 
 export function gemEffect(g: Gem, set: GearSet): StatLine {
   const stat = GEM_EFFECTS[g.gem][set];
@@ -28,7 +29,7 @@ export function itemTotals(item: GearItem): Partial<Record<StatKey, number>> {
   add(item.implicit);
   for (const affix of item.affixes) add(affix);
   const set = setOfSlot(item.slot);
-  for (const g of item.gems) add(gemEffect(g, set));
+  for (const g of item.gems) if ('gem' in g) add(gemEffect(g, set));
   return totals;
 }
 
@@ -79,6 +80,7 @@ const pct = (n: number) => Math.max(0, 1 + n / 100);
 export function deriveStats(state: GameState): Stats {
   const g = gearTotals(state, 'mining');
   const p = passiveTotals(state);
+  const runes = runeTotals(state);
   for (const [stat, value] of Object.entries(p.stats) as [StatKey, number][]) g[stat] += value;
   for (const [stat, value] of Object.entries(ascendancyTotals(state).stats) as [StatKey, number][]) g[stat] += value;
   const ks = p.keystones;
@@ -116,7 +118,6 @@ export function deriveStats(state: GameState): Stats {
     ((BASE_DIG_POWER + (pickLocal?.digPower ?? 0)) * pct(pickLocal?.digPowerPct ?? 0) + g.digPower) * pct(g.digPowerPct),
     1, MAX_DIG_POWER,
   );
-  const autoTicksPerSecond = clamp(BASE_AUTO_TICKS_PER_SECOND * pct(g.autoTickRate), MIN_AUTO_TICKS_PER_SECOND, MAX_AUTO_TICKS_PER_SECOND);
   const ticksPerClick = clamp(BASE_TICKS_PER_CLICK + g.ticksPerClick, 1, MAX_TICKS_PER_CLICK);
   const goldMultiplier = pct(g.goldYield);
   const diamondMultiplier = pct(g.diamondYield);
@@ -124,11 +125,19 @@ export function deriveStats(state: GameState): Stats {
   // Deep Breath digs a quarter slower in exchange for its much longer offline cap.
   let digPowerOut = ks.has('twoWayStreet') ? clamp(digPower * 1.15, 1, MAX_DIG_POWER) : digPower;
   if (ks.has('deepBreath')) digPowerOut = clamp(digPowerOut * 0.75, 1, MAX_DIG_POWER);
+  digPowerOut = clamp(digPowerOut * (runes.mults.digPower ?? 1), 1, MAX_DIG_POWER);
   let goldMultiplierOut = ks.has('prospectorsLuck') ? goldMultiplier * 0.8 : goldMultiplier;
   if (ks.has('oreBaron')) goldMultiplierOut = goldMultiplierOut * 0.5;
+  goldMultiplierOut *= runes.mults.gold ?? 1;
+  const autoTicksBase = clamp(BASE_AUTO_TICKS_PER_SECOND * pct(g.autoTickRate), MIN_AUTO_TICKS_PER_SECOND, MAX_AUTO_TICKS_PER_SECOND);
+  const autoTicksPerSecond = clamp(
+    (ks.has('earthshaker') ? clamp(autoTicksBase * 0.7, MIN_AUTO_TICKS_PER_SECOND, MAX_AUTO_TICKS_PER_SECOND) : autoTicksBase)
+      * (runes.mults.autoTicks ?? 1),
+    MIN_AUTO_TICKS_PER_SECOND, MAX_AUTO_TICKS_PER_SECOND,
+  );
   return {
     digPower: digPowerOut,
-    autoTicksPerSecond: ks.has('earthshaker') ? clamp(autoTicksPerSecond * 0.7, MIN_AUTO_TICKS_PER_SECOND, MAX_AUTO_TICKS_PER_SECOND) : autoTicksPerSecond,
+    autoTicksPerSecond,
     ticksPerClick: ks.has('earthshaker') ? clamp(ticksPerClick * 3, 1, MAX_TICKS_PER_CLICK) : ticksPerClick,
     lampSight: clamp(BASE_LAMP_SIGHT + g.lampSight, 0, MAX_LAMP_SIGHT),
     // Long Voyage doubles the cap past its clamp; Deep Breath triples it.
@@ -149,6 +158,7 @@ export function deriveStats(state: GameState): Stats {
     salvageMultiplier: pct(g.salvageYield),
     hazardSight: hasUnique(state, 'blackLantern') ? BLACK_LANTERN_SIGHT : 0,
     hazardSlow: hasUnique(state, 'blackLantern') ? BLACK_LANTERN_SLOW : 1,
+    runeFlags: runes.flags,
   };
 }
 

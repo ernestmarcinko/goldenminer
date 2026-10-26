@@ -1,6 +1,7 @@
 import { GEM_GRADES } from './items';
 import type { Gem, GemGrade, GemType, GearSet, Item, Material, Slot, StatKey } from './items';
 import { GEM_GRADE_FROM_TIER } from './balance';
+import { RUNE_LABELS } from './runes';
 
 export const BASE_NAMES: Readonly<Record<Slot, readonly [string, string, string, string]>> = {
   pickaxe: ['Copper Pick', 'Iron Pick', 'Steel Pick', 'Mithril Pick'],
@@ -123,6 +124,7 @@ export function itemName(item: Item): string {
   switch (item.type) {
     case 'gear': return item.name;
     case 'gem': return gemName(item);
+    case 'rune': return RUNE_LABELS[item.rune];
     case 'material': return MATERIAL_LABELS[item.material];
     case 'essence': return `T${item.tier} ${STAT_NAMES[item.stat]} essence`;
     case 'orb': return item.side === 'prefix' ? 'Prefix orb' : 'Suffix orb';

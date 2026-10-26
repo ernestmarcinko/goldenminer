@@ -31,6 +31,7 @@
 .gm-log__name[data-tone='rare'] { color: var(--gm-rare); }
 .gm-log__name[data-tone='legendary'] { color: var(--gm-legendary); }
 .gm-log__name[data-tone='gem'] { color: var(--gm-gem); font-weight: 400; }
+.gm-log__name[data-tone='rune'] { color: var(--gm-rune); font-weight: 400; }
 .gm-log__name[data-tone='material'] { color: var(--gm-material); font-weight: 400; }
 .gm-log__name[data-outcome='died'] { color: var(--gm-down); }
 .gm-log__kind, .gm-log__trail, .gm-log__map { font-size: 12px; color: var(--gm-muted); }

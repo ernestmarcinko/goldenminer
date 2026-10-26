@@ -6,6 +6,7 @@ import {
 import { gearTotals, localTotals } from './stats';
 import { passiveTotals } from './passives';
 import { achievementBoost } from './achievements';
+import { runeTotals } from './runes';
 import type { StatKey } from './items';
 import type { Element, GameState } from './types';
 
@@ -24,6 +25,7 @@ const pct = (n: number) => Math.max(0, 1 + n / 100);
 export function deriveBattleStats(state: GameState): BattleStats {
   const g = gearTotals(state, 'battle');
   const p = passiveTotals(state);
+  const runes = runeTotals(state);
   for (const [stat, value] of Object.entries(p.stats) as [StatKey, number][]) g[stat] += value;
   const base = baseDamage(state.level);
   const ks = p.keystones;
@@ -67,15 +69,24 @@ export function deriveBattleStats(state: GameState): BattleStats {
   maxLife = clamp(Math.round(maxLife * pow), 1, MAX_LIFE);
   armor = clamp(Math.round(armor * pow), 0, MAX_DAMAGE);
   if (damageMax < damageMin) damageMax = damageMin;
+  // Runes multiply the derived values, never re-entering the flat gear pool.
+  const dmgMult = runes.mults.damage ?? 1;
+  damageMin = clamp(Math.round(damageMin * dmgMult), 1, MAX_DAMAGE);
+  damageMax = clamp(Math.round(damageMax * dmgMult), 1, MAX_DAMAGE);
+  if (damageMax < damageMin) damageMax = damageMin;
+  soulMultiplier *= runes.mults.souls ?? 1;
+  const critMultiplier = Math.max(1,
+    (ks.has('allOrNothing') ? (CRIT_MULTIPLIER + g.critMultiplier / 100) * 3 : CRIT_MULTIPLIER + g.critMultiplier / 100)
+      * (runes.mults.critMultiplier ?? 1),
+  );
+  const xpMultiplier = pct(g.xpFind) * (runes.mults.xp ?? 1);
   return {
     maxLife,
     damageMin,
     damageMax,
     attacksPerSecond: clamp(BASE_ATTACKS_PER_SECOND * pct(g.attackSpeed), MIN_ATTACKS_PER_SECOND, MAX_ATTACKS_PER_SECOND),
     critChance: clamp(BASE_CRIT_CHANCE + g.critChance, 0, MAX_CRIT_CHANCE) / 100,
-    critMultiplier: ks.has('allOrNothing')
-      ? Math.max(1, (CRIT_MULTIPLIER + g.critMultiplier / 100) * 3)
-      : Math.max(1, CRIT_MULTIPLIER + g.critMultiplier / 100),
+    critMultiplier,
     armor,
     resistAll: clamp(g.resistAll, 0, MAX_RESIST),
     soulMultiplier,
@@ -83,7 +94,7 @@ export function deriveBattleStats(state: GameState): BattleStats {
     elementalDamage: clamp(g.elementalDamage, 0, MAX_DAMAGE),
     lifeRegen: clamp(g.lifeRegen, 0, MAX_LIFE),
     lifeOnKill: clamp(g.lifeOnKill, 0, MAX_LIFE),
-    xpMultiplier: pct(g.xpFind),
+    xpMultiplier,
   };
 }
 

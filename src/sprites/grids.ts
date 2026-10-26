@@ -1,5 +1,6 @@
 export type SpriteName = 'miner' | 'coin' | 'diamond' | 'chest' | 'map' | 'gem' | 'ruby'
   | 'sapphire' | 'emerald' | 'amethyst' | 'starstone'
+  | 'fehu' | 'uruz' | 'thurisaz' | 'ansuz' | 'raidho' | 'kenaz' | 'gebo' | 'wunjo' | 'hagalaz' | 'isa'
   | 'pickaxe' | 'lamphelm' | 'gloves' | 'boots' | 'maul' | 'armor' | 'helm' | 'ring' | 'amulet'
   | 'copper' | 'tin' | 'iron' | 'silver' | 'mithril' | 'starsteel' | 'obsidian' | 'voidCrystal'
   | 'brannoc' | 'mirela' | 'ferrel';
@@ -10,6 +11,8 @@ const GEM = ['............', '....kkkk....', '...kCCcck...', '..kCccccbk..', '..
 // Materials share two shapes, recoloured per material like the gems: a lump of ore, and a shard.
 const ORE = ['............', '............', '.....kkk....', '...kkCCckk..', '..kCCcccbbk.', '.kCccccccbk.', '.kcccccccbbk', '.kccccccbbbk', '..kbcccbbbk.', '...kkbbbkk..', '.....kkk....', '............'];
 const SHARD = ['............', '.......kk...', '......kCbk..', '.....kCcbk..', '....kCccbk..', '...kCccbk...', '...kCcbbk...', '..kCccbk....', '..kCcbbk....', '..kcbbk.....', '...kkk......', '............'];
+// A rune: a carved stone, recoloured per kind in the ember family.
+const RUNE = ['............', '...kkkkkk...', '..kCCCCcck..', '.kCccccccbk.', '.kCccccccbk.', '.kCkkkkkkbk.', '.kCccccccbk.', '.kCccccccbk.', '..kCccccbk..', '...kcccck...', '....kcck....', '.....kk.....'];
 
 export const GRIDS: Record<SpriteName, string[]> = {
   miner: ['......kkkk......', '.....kyyyyk.....', '....kkkyykkk....', '...kllllllllk...', '..kLLLLLLLLLLk..', '...knnnnnnnnk...', '...knkknnkknk...', '...knnnnnnnnk...', '....knwwwwnk....', '..kkkddddddkkk..', '.kdDkDDDDDDkDdk.', 'kdDDkDDggDDkDDdk', 'knnkkDDDDDDkknnk', 'kk..kDDDDDDk..kk', '....kggggggk....', '....kddkkddk....', '....kddk.kddk...', '....kddk.kddk...', '...klllk.klllk..', '...kkkkk.kkkkk..'],
@@ -23,6 +26,16 @@ export const GRIDS: Record<SpriteName, string[]> = {
   emerald: GEM,
   amethyst: GEM,
   starstone: GEM,
+  fehu: RUNE,
+  uruz: RUNE,
+  thurisaz: RUNE,
+  ansuz: RUNE,
+  raidho: RUNE,
+  kenaz: RUNE,
+  gebo: RUNE,
+  wunjo: RUNE,
+  hagalaz: RUNE,
+  isa: RUNE,
   pickaxe: ['....kkkk....', '..kkSSSSkk..', '.kSSkkkkSSk.', 'kSkk.kk.kkSk', 'kk..kWk...kk', '...kWk......', '..kWk.......', '..kWk.......', '.kWk........', '.kWk........', 'kWk.........', 'kk..........'],
   lamphelm: ['............', '....kkkk....', '...kyyyyk...', '..kkkyykkk..', '.kllllllllk.', 'klLLLLLLLLlk', 'klLLLLLLLLlk', 'kllllllllllk', 'kkkkkkkkkkkk', '.k........k.', '............', '............'],
   gloves: ['............', '...k.k.k....', '..kLkLkLk...', '..kLkLkLkk..', '..kLLLLLkLk.', '..kLLLLLLLk.', '..kLLLLLLk..', '..kllllllk..', '..kllllllk..', '...kkkkkk...', '............', '............'],
@@ -129,6 +142,17 @@ export const PALETTE_OVERRIDES: Partial<Record<SpriteName, Record<string, string
   emerald: { C: '#b8f0c8', c: '#3fae6a', b: '#1f6b3d' },
   amethyst: { C: '#e0d0ff', c: '#8a6fe0', b: '#4b3a8a' },
   starstone: { C: '#fff6d0', c: '#e8d27a', b: '#9a7a2a' },
+  // Runes: an ember/orange family, distinct from every gem.
+  fehu: { C: '#ffd9a0', c: '#ff9a3c', b: '#8a3c10' },
+  uruz: { C: '#ffc7a0', c: '#ff7a2e', b: '#8a3008' },
+  thurisaz: { C: '#ffb08a', c: '#ff5a1e', b: '#7a2408' },
+  ansuz: { C: '#ffd0b0', c: '#ff8844', b: '#8a4018' },
+  raidho: { C: '#ffe0a8', c: '#ffa04a', b: '#8a4818' },
+  kenaz: { C: '#ffcaa8', c: '#ff6a2a', b: '#7a2810' },
+  gebo: { C: '#ffdfb8', c: '#ff9050', b: '#8a3c20' },
+  wunjo: { C: '#ffc090', c: '#ff7a38', b: '#8a3008' },
+  hagalaz: { C: '#ffa880', c: '#ff4a1a', b: '#701c08' },
+  isa: { C: '#ffb890', c: '#ff5e2e', b: '#7a2810' },
   copper: { C: '#f2b27a', c: '#d0702e', b: '#8a4418' },
   tin: { C: '#f4f5f6', c: '#c4c9ce', b: '#8a9096' },
   iron: { C: '#9a9ea4', c: '#5e6268', b: '#383b40' },

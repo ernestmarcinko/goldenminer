@@ -7,7 +7,7 @@ import {
   statText, userScrolled,
 } from '../../src/ui/character/itemView';
 import { mapDungeon } from '../../src/ui/run/runView';
-import type { MapItem } from '../../src/core/items';
+import type { MapItem, RuneItem } from '../../src/core/items';
 import { gear, gem } from '../helpers/items';
 
 it('stat text', () => {
@@ -26,6 +26,17 @@ it('kind lines', () => {
   expect(itemKindLine(gem(s, 'ruby', { grade: 'small' }))).toBe('Gem · Small · socket into any gear');
   expect(itemKindLine(gem(s, 'ruby', { grade: 'small', count: 12 }))).toBe('Gem · Small · socket into any gear · 12 in this stack');
   expect(itemKindLine(gem(s, 'ruby', { grade: 'small', count: 1234 }))).toBe('Gem · Small · socket into any gear · 1,234 in this stack');
+});
+
+it('a rune card describes its special stat and a socketed rune lists on gear', () => {
+  const s = newGame(1, 0);
+  const rune: RuneItem = { id: s.nextId++, type: 'rune', rune: 'fehu', count: 1 };
+  expect(itemKindLine(rune)).toBe('Rune · Fehu · socket into any gear');
+  expect(itemKindLine({ ...rune, count: 4 })).toBe('Rune · Fehu · socket into any gear · 4 in this stack');
+  expect(itemLines(rune)[0]).toEqual({ text: 'All Gold found is doubled.', tone: 'special' });
+  expect(itemSprite(rune)).toBe('fehu');
+  const worn = gear(s, 'ring', { sockets: 1, gems: [{ rune: 'fehu' }] });
+  expect(itemLines(worn).some((l) => l.tone === 'special' && l.text.includes('Fehu'))).toBe(true);
 });
 
 it('item lines list the implicit, affixes, gems and empty sockets', () => {

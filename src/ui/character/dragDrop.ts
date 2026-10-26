@@ -1,6 +1,6 @@
 import { BAG_SIZE, MAX_ITEM_LEVEL, STOCK_SIZE } from '../../core/balance';
 import { itemAt, sameLoc } from '../../core/cells';
-import { BATTLE_SLOTS, GEM_GRADES, GEM_TYPES, MATERIALS, MINING_SLOTS, parseEssenceKey } from '../../core/items';
+import { BATTLE_SLOTS, GEM_GRADES, GEM_TYPES, MATERIALS, MINING_SLOTS, RUNE_TYPES, parseEssenceKey } from '../../core/items';
 import type { DropTarget, GameState, ItemLoc } from '../../core/types';
 import { clickIntent } from './itemView';
 import type { ClickIntent, ClickKeys } from './itemView';
@@ -9,7 +9,7 @@ import type { ClickIntent, ClickKeys } from './itemView';
 export const DRAG_THRESHOLD_PX = 5;
 
 const SLOTS = [...MINING_SLOTS, ...BATTLE_SLOTS] as const;
-const DROP_TABS = ['general', 'gems', 'maps', 'materials', 'essences', 'auto'] as const;
+const DROP_TABS = ['general', 'gems', 'runes', 'maps', 'materials', 'essences', 'auto'] as const;
 
 /** The `data-drop` value of a drop target. */
 export function dropAttr(t: DropTarget): string {
@@ -41,6 +41,8 @@ export function parseDrop(attr: string | null): DropTarget | null {
       return mapTier(o.tier) && cellIndex(o.index) ? { where: 'maps', tier: o.tier, index: o.index } : null;
     case 'gems':
       return oneOf(GEM_TYPES, o.gem) && oneOf(GEM_GRADES, o.grade) ? { where: 'gems', gem: o.gem, grade: o.grade } : null;
+    case 'runes':
+      return oneOf(RUNE_TYPES, o.rune) ? { where: 'runes', rune: o.rune } : null;
     case 'materials':
       return oneOf(MATERIALS, o.material) ? { where: 'materials', material: o.material } : null;
     case 'essences':

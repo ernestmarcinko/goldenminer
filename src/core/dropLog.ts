@@ -11,6 +11,7 @@ function snapshot(item: Item): Pick<DropEntry, 'kind' | 'rarity' | 'base' | 'cou
   switch (item.type) {
     case 'gear': return { kind: 'gear', rarity: item.rarity, base: item.slot, count: 1 };
     case 'gem': return { kind: 'gem', rarity: 'gem', base: item.gem, count: item.count };
+    case 'rune': return { kind: 'rune', rarity: 'rune', base: item.rune, count: item.count };
     case 'material': return { kind: 'material', rarity: 'material', base: item.material, count: item.count };
     case 'map': return { kind: 'map', rarity: item.rarity, base: 'map', count: 1 };
     case 'essence':

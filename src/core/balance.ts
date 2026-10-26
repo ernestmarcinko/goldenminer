@@ -56,6 +56,16 @@ export const GEM_GRADE_LEVEL: Readonly<Record<GemGrade, number>> = { tiny: 2, sm
 export const GEM_GRADE_FROM_TIER: Readonly<Record<GemGrade, number>> = { tiny: 1, small: 4, big: 7, giant: 10, perfect: 15 };
 export const GEM_BAG_STACK = 25;
 export const GEM_STASH_STACK = 1_000_000;
+// Runes: a second, exotic socketable. Static drop chance, an exponential kind curve, and their own RNG salt.
+export const RUNE_DROP_CHANCE = 0.005;
+export const RUNE_WEIGHT_BASE = 2;
+export const RUNE_BAG_STACK = 10;
+export const RUNE_STASH_STACK = 1000;
+export const RUNE_SELL_GOLD = 500;
+export const RUNE_RNG_SALT = 0x5e11;
+export const RUNE_SALVAGE_VOID_CRYSTAL = 1;
+// The Isa rune's "attack 20 % slower": the monster interval, multiplied by 1 / 0.8.
+export const SLOW_MONSTERS_INTERVAL = 1.25;
 export const MATERIAL_BAG_STACK = 50;
 export const MATERIAL_STASH_STACK = 1_000_000;
 // Twice the old 20: a migrated catch-all splits into a gear rule and a gem rule, so no old filter overflows.

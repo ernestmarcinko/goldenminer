@@ -2,6 +2,7 @@ import { baseDamage, hardness, MATERIAL_TABLE, TICKS_PER_METRE_AT_PARITY } from 
 import { GEM_GRADE_LABELS, STAT_NAMES, gemName, itemName } from '../../core/itemData';
 import { BATTLE_STATS, MOD_SIDE, isGear, setOfSlot } from '../../core/items';
 import type { GearItem, GemType, Item, MapItem, Material, ModLine, Slot, StatKey } from '../../core/items';
+import { RUNE_DESCRIPTIONS, RUNE_LABELS } from '../../core/runes';
 import { gemEffect, itemTotals, weaponDamage } from '../../core/stats';
 import type { GameState, LootNote, Stats } from '../../core/types';
 import { UNIQUE_LINES, isLegendaryId } from '../../core/uniques';
@@ -79,7 +80,7 @@ export type Tone = 'plain' | 'up' | 'down' | 'gem' | 'muted' | 'special';
 export interface ViewLine { text: string; tone: Tone; tier?: number }
 
 /** An enchanted map takes the gear colour of its rarity; a normal map keeps the map colour. */
-export function rarityOf(item: Item): GearItem['rarity'] | 'gem' | 'material' | 'map' {
+export function rarityOf(item: Item): GearItem['rarity'] | 'gem' | 'rune' | 'material' | 'map' {
   if (item.type === 'map') return item.rarity === 'normal' ? 'map' : item.rarity;
   if (isGear(item)) return item.rarity;
   if (item.type === 'essence' || item.type === 'orb') return 'material';
@@ -101,6 +102,10 @@ export function itemKindLine(item: Item): string {
   if (item.type === 'material') return 'Crafting material';
   if (item.type === 'gem') {
     const base = `Gem · ${GEM_GRADE_LABELS[item.grade]} · socket into any gear`;
+    return item.count > 1 ? `${base} · ${formatNumber(item.count)} in this stack` : base;
+  }
+  if (item.type === 'rune') {
+    const base = `Rune · ${RUNE_LABELS[item.rune]} · socket into any gear`;
     return item.count > 1 ? `${base} · ${formatNumber(item.count)} in this stack` : base;
   }
   if (item.type === 'essence') {
@@ -150,6 +155,12 @@ export function itemLines(item: Item, level?: number): ViewLine[] {
       { text: `In battle gear: ${lineText(gemEffect(item, 'battle'))}`, tone: 'plain' },
     ];
   }
+  if (item.type === 'rune') {
+    return [
+      { text: RUNE_DESCRIPTIONS[item.rune], tone: 'special' },
+      { text: 'Works for the whole character, once per kind, while worn.', tone: 'muted' },
+    ];
+  }
   if (item.type === 'essence') {
     return [
       { text: `Adds or rerolls ${STAT_NAMES[item.stat]} at a tier in T${item.tier}–T${item.tier + 2}.`, tone: 'plain' },
@@ -177,7 +188,10 @@ export function itemLines(item: Item, level?: number): ViewLine[] {
   // A legendary's unique line has no tier; an id this build doesn't know has no line.
   if (item.rarity === 'legendary' && isLegendaryId(item.uniqueId)) lines.push({ text: UNIQUE_LINES[item.uniqueId], tone: 'special' });
   const set = setOfSlot(item.slot);
-  for (const g of item.gems) lines.push({ text: `${gemName(g)}: ${lineText(gemEffect(g, set))}`, tone: 'gem' });
+  for (const g of item.gems) {
+    if ('rune' in g) lines.push({ text: `${RUNE_LABELS[g.rune]}: ${RUNE_DESCRIPTIONS[g.rune]}`, tone: 'special' });
+    else lines.push({ text: `${gemName(g)}: ${lineText(gemEffect(g, set))}`, tone: 'gem' });
+  }
   const empty = item.sockets - item.gems.length;
   if (empty > 0) lines.push({ text: plural(empty, 'empty socket', 'empty sockets'), tone: 'muted' });
   if (item.sealed) lines.push({ text: 'Tempered: it can\'t be crafted any more.', tone: 'muted' });
@@ -386,6 +400,7 @@ export function itemSprite(item: Item): SpriteName {
   switch (item.type) {
     case 'gear': return baseSprite(item.slot);
     case 'gem': return baseSprite(item.gem);
+    case 'rune': return item.rune;
     case 'map': return 'map';
     case 'material': return baseSprite(item.material);
     case 'essence': return 'gem';

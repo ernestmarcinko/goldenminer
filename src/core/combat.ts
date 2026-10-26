@@ -2,19 +2,20 @@ import { checkAchievements } from './achievements';
 import {
   ARMORED_TAKEN, BAND_OF_THE_DEEP_HEAL, BOSS_DROPS, CHAMPION_DROPS, CHAMPION_MAGIC_FIND, COMBAT_LOG_LIMIT, COMBAT_STEP_S,
   DROP_CHANCE, MAP_DROP_BATTLE_CHANCE, MAP_GEM_CHANCE, MAP_MATERIAL_CHANCE, PEACEMAKER_EVERY, ROOM_REGEN_TOTAL,
-  RUN_LOOT_LIMIT, TREASURE_CHESTS, VAMPIRIC_HEAL, WOLF_EYE_DROPS, goldPerKill, soulsPerKill,
+  RUN_LOOT_LIMIT, SLOW_MONSTERS_INTERVAL, TREASURE_CHESTS, VAMPIRIC_HEAL, WOLF_EYE_DROPS, goldPerKill, soulsPerKill,
 } from './balance';
 import { deriveBattleStats, mitigate, type BattleStats } from './battle';
 import { dungeonLayout } from './dungeons';
 import { logDeath, trail } from './dropLog';
 import { gainXp } from './levels';
-import { rollChest, rollGear, rollGem, rollLegendary, rollRarity, type Gen } from './itemGen';
+import { rollChest, rollGear, rollGemOrRune, rollLegendary, rollRarity, type Gen } from './itemGen';
 import { materialAmount, pickMaterial } from './layer';
 import { receiveItem, receiveMaterial } from './loot';
 import { mapEffects } from './mapMods';
 import { monsterState, rankReward } from './monsters';
 import { nextRandom } from './rng';
 import { hasKeystone } from './passives';
+import { runeTotals } from './runes';
 import type {
   CombatLine, GameState, LootNote, MapRun, MonsterState, Rank, RunOutcome, RunResult, Stats, TickEvent,
 } from './types';
@@ -154,7 +155,7 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
       takeDrop(run, receiveItem(state, rollGear(unique, tier, set, rollRarity(unique, magicFind)), origin));
     }
   }
-  if (nextRandom(state) < more(MAP_GEM_CHANCE)) takeDrop(run, receiveItem(state, rollGem(state, tier), origin));
+  if (nextRandom(state) < more(MAP_GEM_CHANCE)) takeDrop(run, receiveItem(state, rollGemOrRune(state, tier), origin));
   // Materials of the map's depth: rankReward chances, each pass drawing its material and then its amount.
   const metre = run.map.metre;
   for (let i = 0; i < rankReward(monster.rank); i++) {
@@ -205,8 +206,10 @@ function strike(state: GameState, run: MapRun, b: BattleStats, events?: TickEven
   // The treasure room: the last regular room's chests, found there before the boss room opens.
   if (run.map.special === 'treasureRoom' && run.room === run.bossRoom - 1) {
     const origin = { kind: 'map', tier: run.map.tier, room: run.room } as const;
-    state.stats.chestsOpened += TREASURE_CHESTS;
-    for (let i = 0; i < TREASURE_CHESTS; i++) {
+    // The Gebo rune makes the treasure room drop one more chest.
+    const chests = runeTotals(state).flags.has('extraChest') ? TREASURE_CHESTS + 1 : TREASURE_CHESTS;
+    state.stats.chestsOpened += chests;
+    for (let i = 0; i < chests; i++) {
       for (const item of rollChest(state, run.map.tier)) takeDrop(run, receiveItem(state, item, origin));
     }
   }
@@ -250,7 +253,9 @@ function combatStep(state: GameState, run: MapRun, b: BattleStats, dt: number, e
 
   const m = run.queue[0];
   if (m === undefined) return b;
-  run.monsterCarry += dt / m.intervalS;
+  // The Isa rune makes monsters attack 20 % slower: their interval stretches by 1 / 0.8.
+  const intervalS = m.intervalS * (runeTotals(state).flags.has('slowMonsters') ? SLOW_MONSTERS_INTERVAL : 1);
+  run.monsterCarry += dt / intervalS;
   while (run.monsterCarry >= 1) {
     run.monsterCarry -= 1;
     const hurt = hasKeystone(state, 'bloodMoney')

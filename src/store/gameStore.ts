@@ -280,7 +280,7 @@ export class GameStore {
   unequip(slot: Slot, to?: ItemLoc): InvResult { return this.act(() => inv.unequip(this._state, slot, to)); }
   moveItem(from: ItemLoc, to: ItemLoc): InvResult { return this.act(() => inv.moveItem(this._state, from, to)); }
   sendItem(from: ItemLoc, to: 'stash' | 'bag'): InvResult { return this.act(() => inv.sendItem(this._state, from, to)); }
-  socketGem(gem: ItemLoc, into: ItemLoc): InvResult { return this.act(() => inv.socketGem(this._state, gem, into)); }
+  socketGem(gem: ItemLoc, into: ItemLoc): InvResult { return this.act(() => inv.socketInto(this._state, gem, into)); }
   sell(from: ItemLoc): InvResult { return this.act(() => inv.sell(this._state, from)); }
   salvage(from: ItemLoc): InvResult { return this.act(() => inv.salvage(this._state, from)); }
   drop(from: ItemLoc, to: DropTarget): InvResult {

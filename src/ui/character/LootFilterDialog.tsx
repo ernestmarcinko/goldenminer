@@ -7,7 +7,7 @@ import type { GameStore } from '../../store/gameStore';
 import { formatNumber } from '../format';
 import { useDialog } from '../useDialog';
 import {
-  GEM_OPTIONS, GRADE_OPTIONS, KIND_OPTIONS, MAP_MOD_OPTIONS, MATERIAL_OPTIONS, SET_OPTIONS, actionOptionsFor, addRow,
+  GEM_OPTIONS, GRADE_OPTIONS, KIND_OPTIONS, MAP_MOD_OPTIONS, MATERIAL_OPTIONS, RUNE_OPTIONS, SET_OPTIONS, actionOptionsFor, addRow,
   boxProblems, boxRejects, boxTextsFor, fieldsFor, levelLabel, moveRow, moveTarget, rarityOptionsFor, removeRow,
   ruleProblems, rowsOf, rulesOf, setRange, slotOptionsFor, storedRules, withKind, withModTier, withPick,
 } from './lootFilterView';
@@ -110,6 +110,8 @@ function RuleFields({ rule, onChange, texts, onText }: {
         return <Pick key={f} caption="Gem" label="Gem" value={rule.gem ?? 'any'} options={GEM_OPTIONS} onChange={(v) => onChange(withPick(rule, 'gem', v))} />;
       case 'grade':
         return <Pick key={f} caption="Grade" label="Grade" value={rule.grade ?? 'any'} options={GRADE_OPTIONS} onChange={(v) => onChange(withPick(rule, 'grade', v))} />;
+      case 'rune':
+        return <Pick key={f} caption="Rune" label="Rune" value={rule.rune ?? 'any'} options={RUNE_OPTIONS} onChange={(v) => onChange(withPick(rule, 'rune', v))} />;
       case 'material':
         return (
           <Pick key={f} caption="Material" label="Material" value={rule.material ?? 'any'} options={MATERIAL_OPTIONS}

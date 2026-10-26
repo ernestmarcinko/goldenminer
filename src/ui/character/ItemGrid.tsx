@@ -29,7 +29,10 @@ function SocketDots({ item }: { item: Item }) {
   if (!isGear(item) || item.sockets === 0) return null;
   const dots = [];
   for (let i = 0; i < Math.min(MAX_DOTS, item.sockets); i++) {
-    dots.push(<span key={i} className="gm-item__dot" data-gem={item.gems[i]?.gem} />);
+    const s = item.gems[i];
+    dots.push(s !== undefined && 'rune' in s
+      ? <span key={i} className="gm-item__dot" data-rune={s.rune} />
+      : <span key={i} className="gm-item__dot" data-gem={s?.gem} />);
   }
   return <span className="gm-item__dots" aria-hidden="true">{dots}</span>;
 }

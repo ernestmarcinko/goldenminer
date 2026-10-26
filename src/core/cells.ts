@@ -1,6 +1,6 @@
 import { BAG_SIZE, START_GENERAL_PAGES, STASH_PAGE_SIZE } from './balance';
-import { GEM_GRADES, GEM_TYPES, MATERIALS, parseEssenceKey, setOfSlot } from './items';
-import type { Cell, GemGrade, GemType, Item, Material } from './items';
+import { GEM_GRADES, GEM_TYPES, MATERIALS, RUNE_TYPES, parseEssenceKey, setOfSlot } from './items';
+import type { Cell, GemGrade, GemType, Item, Material, RuneType } from './items';
 import { stockAt } from './trader';
 import type { GameState, ItemLoc } from './types';
 
@@ -22,6 +22,13 @@ export function emptyMaterialCounts(): Record<Material, number> {
   return counts;
 }
 
+/** The Runes tab starts empty: one zeroed count per kind. */
+export function emptyRuneCounts(): Record<RuneType, number> {
+  const counts = {} as Record<RuneType, number>;
+  for (const r of RUNE_TYPES) counts[r] = 0;
+  return counts;
+}
+
 /** The Essences tab starts empty: keys appear as essences and orbs are bought, and go when their count reaches 0. */
 export function emptyEssenceCounts(): Record<string, number> {
   return {};
@@ -34,6 +41,7 @@ export function emptyInventory(): Pick<GameState, 'equipped' | 'bag' | 'stash' |
     stash: {
       general: emptyGrid(START_GENERAL_PAGES * STASH_PAGE_SIZE),
       gems: emptyGemCounts(),
+      runes: emptyRuneCounts(),
       maps: {},
       materials: emptyMaterialCounts(),
       essences: emptyEssenceCounts(),
@@ -87,6 +95,10 @@ export function itemAt(state: GameState, loc: ItemLoc): Item | undefined {
       const count = state.stash.gems[loc.gem][loc.grade];
       return count > 0 ? { id: 0, type: 'gem', gem: loc.gem, grade: loc.grade, count } : undefined;
     }
+    case 'runes': {
+      const count = state.stash.runes[loc.rune];
+      return count > 0 ? { id: 0, type: 'rune', rune: loc.rune, count } : undefined;
+    }
     case 'materials': {
       const count = state.stash.materials[loc.material];
       return count > 0 ? { id: 0, type: 'material', material: loc.material, count } : undefined;
@@ -108,6 +120,7 @@ export function sameLoc(a: ItemLoc, b: ItemLoc): boolean {
     case 'stash': return b.where === 'stash' && a.index === b.index;
     case 'maps': return b.where === 'maps' && a.tier === b.tier && a.index === b.index;
     case 'gems': return b.where === 'gems' && a.gem === b.gem && a.grade === b.grade;
+    case 'runes': return b.where === 'runes' && a.rune === b.rune;
     case 'materials': return b.where === 'materials' && a.material === b.material;
     case 'essences': return b.where === 'essences' && a.key === b.key;
     case 'worn': return b.where === 'worn' && a.slot === b.slot;

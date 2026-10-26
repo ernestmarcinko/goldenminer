@@ -1,9 +1,9 @@
-import { ESSENCE_BAG_STACK, GEM_BAG_STACK, GEM_STASH_STACK, MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK } from '../../core/balance';
+import { ESSENCE_BAG_STACK, GEM_BAG_STACK, GEM_STASH_STACK, MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, RUNE_BAG_STACK, RUNE_STASH_STACK } from '../../core/balance';
 import { autoMapping } from '../../core/autoMap';
 import { firstEmpty, itemAt, mapTierCount } from '../../core/cells';
 import { MATERIAL_LABELS } from '../../core/itemData';
 import { isGear, MATERIALS } from '../../core/items';
-import type { EssenceItem, GemItem, Item, MapItem, Material, MaterialItem, OrbItem } from '../../core/items';
+import type { EssenceItem, GemItem, Item, MapItem, Material, MaterialItem, OrbItem, RuneItem } from '../../core/items';
 import { salvagePay, sellPay } from '../../core/loot';
 import type { Loot } from '../../core/loot';
 import { canUpgrade, soulUpgradeCostFor } from '../../core/soulUpgrade';
@@ -56,6 +56,13 @@ function craftActions(state: GameState, target: ItemTarget): ActionSpec[] {
 function bagTakesGem(state: GameState, item: GemItem): boolean {
   return firstEmpty(state.bag) >= 0 || state.bag.some(
     (c) => c?.type === 'gem' && c.gem === item.gem && c.grade === item.grade && c.count < GEM_BAG_STACK,
+  );
+}
+
+/** Whether the bag can take at least one rune of this kind: an open cell, or a stack with room. */
+function bagTakesRune(state: GameState, item: RuneItem): boolean {
+  return firstEmpty(state.bag) >= 0 || state.bag.some(
+    (c) => c?.type === 'rune' && c.rune === item.rune && c.count < RUNE_BAG_STACK,
   );
 }
 
@@ -172,10 +179,16 @@ export function itemActions(state: GameState, target: ItemTarget): ActionSpec[] 
       ...craftActions(state, target),
     ];
   }
-  const [sell, salvage] = sellSalvage(state, item, target.where === 'gems');
+  const [sell, salvage] = sellSalvage(state, item, target.where === 'gems' || target.where === 'runes');
   if (item.type === 'gem' && target.where === 'gems') {
     const take: ActionSpec = {
       id: 'take', label: `Take to bag (up to ${formatNumber(GEM_BAG_STACK)})`, disabled: !bagTakesGem(state, item),
+    };
+    return [take, sell, salvage];
+  }
+  if (item.type === 'rune' && target.where === 'runes') {
+    const take: ActionSpec = {
+      id: 'take', label: `Take to bag (up to ${formatNumber(RUNE_BAG_STACK)})`, disabled: !bagTakesRune(state, item),
     };
     return [take, sell, salvage];
   }
@@ -192,11 +205,11 @@ export function itemActions(state: GameState, target: ItemTarget): ActionSpec[] 
       ...craftActions(state, target),
     ];
   }
-  // a gem stack joins its count on the Gems tab, unless that count is at its cap
-  const toGems: ActionSpec = {
-    id: 'toStash', label: 'To Gems tab', disabled: state.stash.gems[item.gem][item.grade] >= GEM_STASH_STACK,
-  };
-  return [sell, salvage, toGems];
+  // a gem or rune stack joins its count on its tab, unless that count is at its cap
+  const toTab: ActionSpec = item.type === 'rune'
+    ? { id: 'toStash', label: 'To Runes tab', disabled: state.stash.runes[item.rune] >= RUNE_STASH_STACK }
+    : { id: 'toStash', label: 'To Gems tab', disabled: state.stash.gems[item.gem][item.grade] >= GEM_STASH_STACK };
+  return [sell, salvage, toTab];
 }
 
 /**
@@ -216,8 +229,8 @@ export function actionForIntent(
     case 'menu': return 'menu';
     case 'sell':
     case 'salvage':
-      // a Gems-tab stack can be huge, so selling or salvaging it always goes through the card
-      return target.where === 'gems' ? 'menu' : find(intent);
+      // a Gems- or Runes-tab stack can be huge, so selling or salvaging it always goes through the card
+      return target.where === 'gems' || target.where === 'runes' ? 'menu' : find(intent);
     case 'move': return find('toStash', 'toBag', 'take');
   }
 }
@@ -238,6 +251,7 @@ function shortcutLine(target: ItemTarget, item: Item, mac: boolean): string {
     case 'worn': return 'Click to pick up · Shift+click stash · right-click for actions';
     case 'stock': return 'Click for its card · right-click to buy';
     case 'gems':
+    case 'runes':
     case 'materials':
     case 'essences': return 'Click to pick up · Shift+click take to bag · right-click for actions';
     case 'bag':
@@ -264,9 +278,9 @@ export function hoverNotes(state: GameState, target: ItemTarget, item: Item, mac
   return [`Sells for ${sells} Gold · Salvages into ${materialsText(salvagePay(item, stats))}`, shortcuts];
 }
 
-/** A note an action card shows under the item's lines: a gem is socketed by dragging it, so its card lists no gear. */
+/** A note an action card shows under the item's lines: a gem or rune is socketed by dragging it, so its card lists no gear. */
 export function menuNote(item: Item): string | null {
-  return item.type === 'gem' ? 'Drag it onto an item with a free socket to socket it.' : null;
+  return item.type === 'gem' || item.type === 'rune' ? 'Drag it onto an item with a free socket to socket it.' : null;
 }
 
 /** Lines a hover card adds under the item's own, which its action card leaves out. */
@@ -340,6 +354,7 @@ export function resultText(r: InvResult, map?: MapItem): string | null {
     case 'noSocket': return 'That item has no open socket.';
     case 'wrongSlot': return "That doesn't fit that slot.";
     case 'gemsOnly': return 'Only gems go in the Gems tab.';
+    case 'runesOnly': return 'Only runes go in the Runes tab.';
     case 'gearOnly': return 'Only gear goes in the General tab.';
     case 'mapsOnly': return 'Only maps go in the Maps tab.';
     case 'materialsOnly': return 'Only materials go in the Materials tab.';

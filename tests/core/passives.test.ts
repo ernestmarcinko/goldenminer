@@ -161,9 +161,9 @@ it('a node refunds only while every other node stays connected to the start', ()
 
 it('Gem Pouch and Ore Cart raise the bag stack caps, Deep Pockets the free pages', () => {
   const s = newGame(1, 0);
-  expect(stackCaps(s)).toEqual({ gem: 25, material: 50, essence: 50, orb: 50 });
+  expect(stackCaps(s)).toEqual({ gem: 25, rune: 10, material: 50, essence: 50, orb: 50 });
   expect(freeStashPages(s)).toBe(0);
   s.passives.allocated = ['gemPouch', 'oreCart', 'deepPockets'];
-  expect(stackCaps(s)).toEqual({ gem: 35, material: 75, essence: 50, orb: 50 });
+  expect(stackCaps(s)).toEqual({ gem: 35, rune: 10, material: 75, essence: 50, orb: 50 });
   expect(freeStashPages(s)).toBe(2);
 });

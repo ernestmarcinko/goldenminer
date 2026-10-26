@@ -80,6 +80,23 @@ function swing(s: GameState, events?: TickEvent[]): void {
 }
 const strikes = (events: TickEvent[]) => events.flatMap((e) => (e.kind === 'strike' ? [e] : []));
 
+it('Isa makes monsters attack 20% slower', () => {
+  const ticksToBite = (runed: boolean): number => {
+    const { s } = started({ intervalS: 1 });
+    if (runed) s.equipped.battle.ring = gear(s, 'ring', { sockets: 1, gems: [{ rune: 'isa' }] });
+    const events: TickEvent[] = [];
+    for (let t = 1; t <= 200; t++) {
+      applyTicks(s, 1, at(s, 10), events);
+      if (events.some((e) => e.kind === 'hurt')) return t;
+    }
+    return -1;
+  };
+  const plain = ticksToBite(false);
+  const slow = ticksToBite(true);
+  expect(plain).toBeGreaterThan(0);
+  expect(slow).toBeGreaterThan(plain);   // the 1.25 s interval stretches the time to the first bite
+});
+
 it('vampiric champions heal what they bite', () => {
   const { s, run, m } = started({ rank: 'champion', mods: ['vampiric'], life: 5_000 });   // wounded, so the heal isn't capped
   run.life = 1_000_000;

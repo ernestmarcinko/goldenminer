@@ -66,6 +66,7 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-item[data-rarity='rare'], .gm-card[data-rarity='rare'], .gm-card__equipped[data-rarity='rare'] { --gm-tone: var(--gm-rare); }
 .gm-item[data-rarity='legendary'], .gm-card[data-rarity='legendary'], .gm-card__equipped[data-rarity='legendary'] { --gm-tone: var(--gm-legendary); }
 .gm-item[data-rarity='gem'], .gm-card[data-rarity='gem'], .gm-card__equipped[data-rarity='gem'] { --gm-tone: var(--gm-gem); }
+.gm-item[data-rarity='rune'], .gm-card[data-rarity='rune'], .gm-card__equipped[data-rarity='rune'] { --gm-tone: var(--gm-rune); }
 .gm-item[data-rarity='normal'], .gm-card[data-rarity='normal'], .gm-card__equipped[data-rarity='normal'] { --gm-tone: var(--gm-normal); }
 .gm-item[data-rarity='material'], .gm-card[data-rarity='material'] { --gm-tone: var(--gm-material); }
 .gm-item { border-color: var(--gm-tone); }
@@ -79,6 +80,8 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-item__dot[data-gem='amethyst'], .gm-gemtab__name[data-gem='amethyst'] { --gm-gem-color: #8a6fe0; }
 .gm-item__dot[data-gem='starstone'], .gm-gemtab__name[data-gem='starstone'] { --gm-gem-color: #e8d27a; }
 .gm-item__dot[data-gem] { background: var(--gm-gem-color); }
+.gm-item__dot[data-rune] { border-color: #0f0d0b; background: var(--gm-rune); }
+.gm-mattab__name[data-rune] { color: var(--gm-rune); }
 .gm-item__count, .gm-item__tier {
   position: absolute; right: 3px; bottom: 1px; font-family: var(--gm-font-mono); font-size: 11px; line-height: 1.2;
   color: var(--gm-text); text-shadow: 0 1px 2px #000; pointer-events: none;

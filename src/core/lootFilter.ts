@@ -1,8 +1,9 @@
 import { MAX_LOOT_RULES } from './balance';
 import { GEM_GRADE_LABELS, MATERIAL_LABELS } from './itemData';
 import { BATTLE_SLOTS, GEAR_SETS, MINING_SLOTS, RARITIES, setOfSlot } from './items';
-import type { GearSet, GemType, Item, Rarity, Slot } from './items';
+import type { GearSet, GemType, Item, Rarity, RuneType, Slot } from './items';
 import { MAP_MOD_LABELS } from './mapMods';
+import { RUNE_LABELS } from './runes';
 import type { LootAction, LootKind, LootRange, LootRule } from './types';
 
 /** No rules: every find is kept, as the game has always done. */
@@ -10,12 +11,13 @@ export const DEFAULT_LOOT_FILTER: readonly LootRule[] = [];
 
 const inRange = (range: LootRange, n: number): boolean => (range.min ?? n) <= n && n <= (range.max ?? n);
 
-// What `level` reads: gear's item level or a map's tier. Gems and materials have none.
+// What `level` reads: gear's item level or a map's tier. Gems, runes and materials have none.
 function levelOf(item: Item): number | undefined {
   switch (item.type) {
     case 'gear': return item.ilvl;
     case 'map': return item.tier;
     case 'gem':
+    case 'rune':
     case 'material':
     case 'essence':
     case 'orb': return undefined;
@@ -28,6 +30,7 @@ function modsOf(item: Item): readonly { tier: number }[] | undefined {
     case 'gear': return item.affixes;
     case 'map': return item.mods;
     case 'gem':
+    case 'rune':
     case 'material':
     case 'essence':
     case 'orb': return undefined;
@@ -52,17 +55,22 @@ export function ruleMatches(rule: LootRule, item: Item): boolean {
   if (rule.mapMod !== undefined && !(item.type === 'map' && item.mods.some((m) => m.kind === rule.mapMod))) return false;
   if (rule.gem !== undefined && !(item.type === 'gem' && item.gem === rule.gem)) return false;
   if (rule.grade !== undefined && !(item.type === 'gem' && item.grade === rule.grade)) return false;
+  if (rule.rune !== undefined && !(item.type === 'rune' && item.rune === rule.rune)) return false;
   return rule.material === undefined || (item.type === 'material' && item.material === rule.material);
 }
 
 const ACTION_WORDS: Readonly<Record<LootAction, string>> = { keep: 'Keep', sell: 'Sell', salvage: 'Salvage', stash: 'Stash' };
-const KIND_WORDS: Readonly<Record<LootKind | 'any', string>> = { gear: 'gear', gem: 'gems', map: 'maps', material: 'materials', any: 'items' };
+const KIND_WORDS: Readonly<Record<LootKind | 'any', string>> = { gear: 'gear', gem: 'gems', rune: 'runes', map: 'maps', material: 'materials', any: 'items' };
 const SLOT_WORDS: Readonly<Record<Slot, string>> = {
   pickaxe: 'pickaxes', lamp: 'lamp helms', gloves: 'gloves', boots: 'boots', weapon: 'weapons', armor: 'armor', helm: 'helms',
   ring: 'rings', amulet: 'amulets',
 };
 const GEM_WORDS: Readonly<Record<GemType, string>> = {
   ruby: 'rubies', sapphire: 'sapphires', emerald: 'emeralds', amethyst: 'amethysts', starstone: 'starstones',
+};
+const RUNE_WORDS: Readonly<Record<RuneType, string>> = {
+  fehu: 'Fehu runes', uruz: 'Uruz runes', thurisaz: 'Thurisaz runes', ansuz: 'Ansuz runes', raidho: 'Raidho runes',
+  kenaz: 'Kenaz runes', gebo: 'Gebo runes', wunjo: 'Wunjo runes', hagalaz: 'Hagalaz runes', isa: 'Isa runes',
 };
 
 // A range in words: `4 to 6`, `4 or more`, `up to 6`, or one number when both ends are it.
@@ -81,6 +89,7 @@ export function describeRule(rule: LootRule): string {
   const grade = rule.grade !== undefined ? GEM_GRADE_LABELS[rule.grade].toLowerCase() : undefined;
   const noun = rule.slot !== undefined ? SLOT_WORDS[rule.slot]
     : rule.gem !== undefined ? GEM_WORDS[rule.gem]
+    : rule.rune !== undefined ? RUNE_WORDS[rule.rune]
     : rule.material !== undefined ? MATERIAL_LABELS[rule.material]
     : grade !== undefined ? 'gems'
     : KIND_WORDS[rule.kind];
@@ -101,7 +110,7 @@ const GEAR_OR_MAP: readonly (LootKind | 'any')[] = ['gear', 'map', 'any'];
 const FIELD_KINDS: Readonly<Record<RuleField, readonly (LootKind | 'any')[]>> = {
   set: ['gear'], slot: ['gear'],
   rarity: GEAR_OR_MAP, level: GEAR_OR_MAP, modTier: GEAR_OR_MAP, mods: GEAR_OR_MAP,
-  mapMod: ['map', 'any'], gem: ['gem', 'any'], grade: ['gem', 'any'], material: ['material', 'any'],
+  mapMod: ['map', 'any'], gem: ['gem', 'any'], grade: ['gem', 'any'], rune: ['rune', 'any'], material: ['material', 'any'],
 };
 
 const isOrdered = (range: LootRange | undefined): boolean =>

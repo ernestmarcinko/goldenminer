@@ -14,6 +14,7 @@ import type { ItemHandlers } from '../character/ItemGrid';
 import { LootFilterDialog } from '../character/LootFilterDialog';
 import { MaterialTab } from '../character/MaterialTab';
 import { PaperDoll } from '../character/PaperDoll';
+import { RuneTab } from '../character/RuneTab';
 import {
   bagHeading, buyLabel, gridCapacity, mapTierCaption, mapTierCells, mapTiers, pageCells, pickTier, STASH_TABS, tabLabel,
 } from '../character/stashView';
@@ -295,6 +296,7 @@ export function InventoryView({ store }: { store: GameStore }) {
             </div>
           )}
           {tab === 'gems' && <GemTab state={state} handlers={handlers} />}
+          {tab === 'runes' && <RuneTab state={state} handlers={handlers} />}
           {tab === 'maps' && <MapsTab state={state} handlers={handlers} tier={shownTier} onTier={showTier} />}
           {tab === 'materials' && <MaterialTab state={state} handlers={handlers} />}
           {tab === 'essences' && <EssenceTab state={state} handlers={handlers} />}

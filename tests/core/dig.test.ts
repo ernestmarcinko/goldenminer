@@ -9,9 +9,10 @@ import { gear } from '../helpers/items';
 import { validateState } from '../../src/core/save';
 import type { GameState, Stats, TickEvent } from '../../src/core/types';
 import type { MapItem } from '../../src/core/items';
-import { BASE_ROLL_CHANCES, FINDS_LOG_LIMIT, TICKS_PER_METRE_AT_PARITY, goldVeinAmount, hardness } from '../../src/core/balance';
+import { BASE_ROLL_CHANCES, FINDS_LOG_LIMIT, RUNE_DROP_CHANCE, TICKS_PER_METRE_AT_PARITY, goldVeinAmount, hardness } from '../../src/core/balance';
 import { metreLayer } from '../../src/core/layer';
 import { rollMetre } from '../../src/core/metres';
+import { nextRandom } from '../../src/core/rng';
 
 const fresh = () => newGame(1, 0);
 const stats = deriveStats(fresh());
@@ -142,6 +143,57 @@ it('hard rock takes 1.5× as long', () => {
   };
   expect(ticksFor(true) / ticksFor(false)).toBeGreaterThan(1.4);
   expect(ticksFor(true) / ticksFor(false)).toBeLessThan(1.6);
+});
+
+it('Thurisaz makes hard rock cost no extra ticks', () => {
+  const ticksFor = (hard: boolean, st: Stats) => {
+    const s = newGame(1, 0);
+    s.ahead[1] = { feature: null, amount: 0, hardRock: hard };
+    let t = 0; while (s.deepest < 1) { applyTicks(s, 1, st); t++; } return t;
+  };
+  const s = newGame(1, 0);
+  s.equipped.mining.lamp = gear(s, 'lamp', { sockets: 1, gems: [{ rune: 'thurisaz' }] });
+  const st = deriveStats(s);
+  expect(st.runeFlags.has('ignoreHardRock')).toBe(true);
+  expect(ticksFor(true, st)).toBe(ticksFor(false, st));
+});
+
+it('Kenaz removes hazard slowdown', () => {
+  const s = newGame(1, 0);
+  const m = firstMetre(1, (mm) => metreLayer(1, mm).hazard === 'gas');
+  s.deepest = m - 1;
+  s.ahead = { [m]: { feature: null, amount: 0, hardRock: false } };
+  const base = deriveStats(s);
+  s.equipped.mining.lamp = gear(s, 'lamp', { sockets: 1, gems: [{ rune: 'kenaz' }] });
+  const kenaz = deriveStats(s);
+  expect(kenaz.runeFlags.has('hazardImmune')).toBe(true);
+  const plain = hardness(m) * TICKS_PER_METRE_AT_PARITY / base.digPower;
+  expect(faceTicksPerMetre(s, base)).toBeCloseTo(plain * 2);
+  expect(faceTicksPerMetre(s, kenaz)).toBeCloseTo(plain);
+});
+
+it('Gebo makes a chest roll twice', () => {
+  const s = newGame(1, 0);
+  s.equipped.mining.lamp = gear(s, 'lamp', { sockets: 1, gems: [{ rune: 'gebo' }] });
+  const st = deriveStats(s);
+  expect(st.runeFlags.has('extraChest')).toBe(true);
+  s.ahead[1] = { feature: 'chest', amount: 0, hardRock: false };
+  while (s.deepest < 1) applyTicks(s, 1, st);
+  const loot = s.finds.find((f) => f.kind === 'chest')?.loot ?? [];
+  expect([2, 4]).toContain(loot.length);   // two chest rolls, each 1 or 2 items
+});
+
+it('a gem feature can drop a rune instead', () => {
+  let drop = 0;
+  for (let r = 0; r < 100_000; r++) {
+    if (nextRandom({ rng: r }) < RUNE_DROP_CHANCE) { drop = r; break; }
+  }
+  const s = newGame(1, 0);
+  s.runeRng = drop;
+  s.ahead[1] = { feature: 'gem', amount: 0, hardRock: false };
+  while (s.deepest < 1) applyTicks(s, 1, deriveStats(s));
+  expect(s.finds.at(-1)?.loot?.[0]).toMatchObject({ rarity: 'rune' });
+  expect(s.stats.gems).toBe(0);   // a rune is not a gem
 });
 
 it('digging only works the face', () => {
@@ -321,13 +373,15 @@ it('a sure ore find still never touches a metre with a feature or a layer vein',
 
 it('without ore find, digging draws exactly what it drew before ore find existed', () => {
   // Pinned before ore find was added: seed 21, chest find 50, dug a tick at a time to 400 m. The RNG stream is what
-  // matters; the tick count moved when the achievement boost (Plan 20) changed the dig speed, without touching the stream.
+  // matters; the tick count moved when the achievement boost (Plan 20) changed the dig speed, without touching the
+  // stream, and again (32406 -> 32417) when a rune dropped in place of a gem (Plan 23) and held back the 'gems'
+  // achievement one level — still without touching the stream.
   const s = newGame(21, 0);
   s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'chestFind', value: 50 }] });
   const st = deriveStats(s);
   expect(st.oreBonusChance).toBe(0);
   while (s.deepest < 400) digClearing(s, 1, st);
-  expect([s.rng, s.deepest, s.finds.length, s.tickCount]).toEqual([3752176977, 400, 201, 32406]);
+  expect([s.rng, s.deepest, s.finds.length, s.tickCount]).toEqual([3752176977, 400, 201, 32417]);
   expect(s.finds.some((f) => f.kind === 'materialVein' && f.bonus === true)).toBe(false);
 });
 
