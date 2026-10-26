@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
-import { eventsForMotion, particlesFromEvents, pruneParticles, shaftFaceOrigin } from '../../src/ui/mine/particles';
+import { eventsForMotion, feedbackToEvents, particlesFromEvents, pruneParticles, shaftFaceOrigin } from '../../src/ui/mine/particles';
+import type { Feedback } from '../../src/store/gameStore';
 import type { TickEvent } from '../../src/core/types';
 
 let id = 0; const next = () => ++id;
@@ -48,4 +49,31 @@ it('floats off drops gold and diamonds, pops off drops finds', () => {
 
 it('the dig face is the middle of the shaft cell one row below the miner', () => {
   expect(shaftFaceOrigin(536)).toEqual({ x: 268, y: 308 });
+});
+
+it('feedbackToEvents expands digs into one dig event each', () => {
+  const fb: Feedback = { gold: 0, diamonds: 0, finds: [], strikes: [], hurt: 0, digs: 3 };
+  expect(feedbackToEvents(fb)).toEqual([{ kind: 'dig' }, { kind: 'dig' }, { kind: 'dig' }]);
+});
+
+it('a dig event becomes a strike particle at the origin, capped at 8', () => {
+  const events: TickEvent[] = Array.from({ length: 12 }, () => ({ kind: 'dig' }) as const);
+  const ps = particlesFromEvents(events, { x: 100, y: 200 }, 0, next);
+  const digs = ps.filter((p) => p.kind === 'dig');
+  expect(digs).toHaveLength(8);
+  expect(digs[0]).toMatchObject({ kind: 'dig', text: '', x: 100, y: 200, bornAt: 0 });
+  expect(digs.every((p) => p.x === 100 && p.y === 200)).toBe(true);
+});
+
+it('a dig strike expires on its short life while other particles keep theirs', () => {
+  const strikes = Array.from({ length: 10 }, (_, i) => ({ id: i, kind: 'dig' as const, text: '', x: 0, y: 0, bornAt: i * 10 }));
+  const kept = pruneParticles(strikes, 300);
+  expect(kept.every((p) => 300 - p.bornAt <= 260)).toBe(true);
+  expect(kept).toHaveLength(strikes.filter((p) => 300 - p.bornAt <= 260).length);
+});
+
+it('floats off drops dig events, independent of pops', () => {
+  const events: TickEvent[] = [{ kind: 'dig' }];
+  expect(eventsForMotion(events, { floats: true, pops: false }).map((e) => e.kind)).toEqual(['dig']);
+  expect(eventsForMotion(events, { floats: false, pops: true })).toEqual([]);
 });

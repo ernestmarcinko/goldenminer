@@ -231,6 +231,7 @@ export type TickEvent =
   | { kind: 'find'; find: FindRecord }
   | { kind: 'strike'; amount: number; crit: boolean }
   | { kind: 'hurt'; amount: number }
+  | { kind: 'dig' }
   | { kind: 'runEnd'; result: RunResult };
 export interface OfflineSummary {
   elapsedMs: number; ticks: number; gold: number; diamonds: number; metres: number; capMs: number;

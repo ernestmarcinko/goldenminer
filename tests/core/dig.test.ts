@@ -3,9 +3,11 @@ import { achievementBoost } from '../../src/core/achievements';
 import { newGame } from '../../src/core/newGame';
 import { deriveStats } from '../../src/core/stats';
 import { applyTicks, digSpeed, faceTicksPerMetre } from '../../src/core/dig';
+import { clickTicks } from '../../src/core/clock';
 import { drainOverflow } from '../../src/core/loot';
+import { startMap } from '../../src/core/maps';
 import { digClearing } from '../helpers/dig';
-import { gear } from '../helpers/items';
+import { gear, stashMap } from '../helpers/items';
 import { validateState } from '../../src/core/save';
 import type { GameState, Stats, TickEvent } from '../../src/core/types';
 import type { MapItem } from '../../src/core/items';
@@ -447,4 +449,64 @@ it('Cartographer finds maps one tier higher, without touching the loot stream', 
   expect(plain.rng).toBe(carto.rng);
   expect(plain.finds[0]?.kind).toBe('map');
   expect(carto.finds[0]?.kind).toBe('map');
+});
+
+it('every digging tick emits exactly one dig event', () => {
+  const s = fresh();
+  s.ahead[1] = { feature: null, amount: 0, hardRock: false };
+  const events: TickEvent[] = [];
+  applyTicks(s, 20, stats, events);   // fewer than the ~25 ticks the first metre takes, so no find
+  expect(s.deepest).toBe(0);
+  expect(events.filter((e) => e.kind === 'dig')).toHaveLength(20);
+});
+
+it('a metre-completing tick emits its dig event alongside its metre and find events', () => {
+  const s = fresh();
+  s.ahead[1] = { feature: 'goldVein', amount: 7, hardRock: false };
+  const events: TickEvent[] = [];
+  while (s.deepest < 1) applyTicks(s, 1, stats, events);
+  const digs = events.filter((e) => e.kind === 'dig');
+  expect(digs.length).toBeGreaterThan(0);
+  expect(events.some((e) => e.kind === 'metre' && e.depth === 1)).toBe(true);
+  expect(events).toContainEqual({ kind: 'gold', amount: 7 });
+});
+
+it('clickTicks emits one dig event per tick it digs', () => {
+  const s = fresh();
+  s.ahead[1] = { feature: null, amount: 0, hardRock: false };
+  const events: TickEvent[] = [];
+  clickTicks(s, stats, events);
+  expect(events.filter((e) => e.kind === 'dig')).toHaveLength(stats.ticksPerClick);
+});
+
+it('map, paused and held-loot ticks emit no dig event', () => {
+  const mapS = fresh();
+  startMap(mapS, stashMap(mapS, 1, 2).id);
+  const mapEvents: TickEvent[] = [];
+  applyTicks(mapS, 5, stats, mapEvents);
+  expect(mapEvents.filter((e) => e.kind === 'dig')).toHaveLength(0);
+
+  const pausedS = fresh();
+  const pausedEvents: TickEvent[] = [];
+  applyTicks(pausedS, 5, stats, pausedEvents, true);
+  expect(pausedEvents.filter((e) => e.kind === 'dig')).toHaveLength(0);
+
+  const heldS = fresh();
+  heldS.bag = heldS.bag.map(() => gear(heldS, 'boots'));
+  heldS.overflow.push(gear(heldS, 'boots'));
+  const heldEvents: TickEvent[] = [];
+  applyTicks(heldS, 5, stats, heldEvents);
+  expect(heldEvents.filter((e) => e.kind === 'dig')).toHaveLength(0);
+});
+
+it('collecting dig events leaves the state byte-identical to a run without them', () => {
+  const withEvents = fresh();
+  const without = fresh();
+  withEvents.ahead[1] = { feature: null, amount: 0, hardRock: false };
+  without.ahead[1] = { feature: null, amount: 0, hardRock: false };
+  const events: TickEvent[] = [];
+  applyTicks(withEvents, 20, stats, events);
+  applyTicks(without, 20, stats);
+  expect(events.filter((e) => e.kind === 'dig')).toHaveLength(20);
+  expect(withEvents).toEqual(without);
 });

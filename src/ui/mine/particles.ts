@@ -5,10 +5,12 @@ import { formatNumber } from '../format';
 import { findMaterial } from './findMaterial';
 import { MINER_ROW, SHAFT_ROW_PX } from './shaftModel';
 
-export type ParticleKind = 'gold' | 'diamond' | FindKind;
+export type ParticleKind = 'gold' | 'diamond' | FindKind | 'dig';
 export interface Particle { id: number; kind: ParticleKind; text: string; x: number; y: number; bornAt: number }
 
 const MAX_FIND_PARTICLES = 3;
+const MAX_STRIKES = 8;
+const STRIKE_MS = 260;
 
 function findText(find: FindRecord): string {
   const { kind, amount } = find;
@@ -30,12 +32,16 @@ export function particlesFromEvents(
 ): Particle[] {
   let gold = 0;
   let diamonds = 0;
+  let digs = 0;
   const out: Particle[] = [];
   const finds: Particle[] = [];
   for (const e of events) {
     if (e.kind === 'gold') gold += e.amount;
     else if (e.kind === 'diamond') diamonds += e.amount;
-    else if (e.kind === 'find' && finds.length < MAX_FIND_PARTICLES) {
+    else if (e.kind === 'dig' && digs < MAX_STRIKES) {
+      digs += 1;
+      out.push({ id: nextId(), kind: 'dig', text: '', x: origin.x, y: origin.y, bornAt: nowMs });
+    } else if (e.kind === 'find' && finds.length < MAX_FIND_PARTICLES) {
       finds.push({
         id: nextId(),
         kind: e.find.kind,
@@ -57,12 +63,13 @@ export function feedbackToEvents(f: Feedback): TickEvent[] {
   const events: TickEvent[] = [];
   if (f.gold > 0) events.push({ kind: 'gold', amount: f.gold });
   if (f.diamonds > 0) events.push({ kind: 'diamond', amount: f.diamonds });
+  events.push(...Array.from({ length: f.digs }, () => ({ kind: 'dig' } as const)));
   for (const find of f.finds) events.push({ kind: 'find', find });
   return events;
 }
 
-export function pruneParticles<T extends { bornAt: number }>(list: T[], nowMs: number, lifeMs = 1300, max = 30): T[] {
-  const alive = list.filter((p) => nowMs - p.bornAt <= lifeMs);
+export function pruneParticles<T extends { bornAt: number; kind?: string }>(list: T[], nowMs: number, lifeMs = 1300, max = 30): T[] {
+  const alive = list.filter((p) => nowMs - p.bornAt <= (p.kind === 'dig' ? STRIKE_MS : lifeMs));
   return alive.length > max ? alive.slice(alive.length - max) : alive;
 }
 

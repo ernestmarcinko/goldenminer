@@ -100,7 +100,16 @@ describe('GameStore', () => {
     const fb = store.drainFeedback();
     expect(fb.gold).toBe(7);
     expect(fb.finds.map((f) => f.kind)).toEqual(['goldVein']);
-    expect(store.drainFeedback()).toEqual({ gold: 0, diamonds: 0, finds: [], strikes: [], hurt: 0 });
+    expect(store.drainFeedback()).toEqual({ gold: 0, diamonds: 0, finds: [], strikes: [], hurt: 0, digs: 0 });
+  });
+
+  it('fold sums dig ticks into feedback.digs and a drain resets it', () => {
+    const { store, now } = make(); store.load();
+    store.state.ahead[1] = { feature: null, amount: 0, hardRock: false };
+    now.t = 5000; store.pump();   // 5 ticks, all digging
+    const fb = store.drainFeedback();
+    expect(fb.digs).toBe(5);
+    expect(store.drainFeedback().digs).toBe(0);
   });
 
   it('never loses an unreadable save when its backup cannot be written', () => {

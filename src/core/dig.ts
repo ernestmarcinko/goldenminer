@@ -211,6 +211,7 @@ function digFace(state: GameState, stats: Stats, events: TickEvent[] | undefined
   const step = 1 / ticksForMetre(state, m, roll, stats);
   if (!(step > 0) || !Number.isFinite(step)) return;
   state.progress += step;
+  events?.push({ kind: 'dig' });
   while (state.progress >= 1) {
     state.progress -= 1;
     const next = state.deepest + 1;

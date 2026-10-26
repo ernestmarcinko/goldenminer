@@ -83,3 +83,19 @@
   background: rgba(15, 13, 11, 0.85); font-size: 12px; color: var(--gm-gold-bright);
   border: var(--gm-edge); box-shadow: var(--gm-bevel);
 }
+
+/* The per-tick mining strike: a swing, two chip sparks and a flash, all short-lived and pruned. */
+.gm-shaft__strike { position: absolute; pointer-events: none; line-height: 0; transform: translate(-50%, -50%); }
+.gm-shaft__swing { display: inline-block; transform-origin: 50% 30%; animation: gm-swing 0.18s ease-out forwards; }
+.gm-shaft__chip {
+  position: absolute; left: 50%; top: 50%; width: 3px; height: 3px; border-radius: 50%;
+  background: var(--gm-gold-bright); box-shadow: 0 0 4px 1px rgba(255, 214, 120, 0.55);
+  animation: gm-chip 0.26s ease-out forwards;
+}
+.gm-shaft__chip--a { --chip-dx: -10px; --chip-dy: -16px; }
+.gm-shaft__chip--b { --chip-dx: 12px; --chip-dy: -13px; background: var(--gm-bone); }
+.gm-shaft__impact {
+  position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 214, 120, 0.55) 0%, rgba(255, 214, 120, 0) 70%);
+  animation: gm-impact 0.15s ease-out forwards;
+}

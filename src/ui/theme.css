@@ -138,10 +138,30 @@ a:hover {
   100% { transform: translate(-50%, calc(-50% - 80px)) scale(1); opacity: 0; }
 }
 
+/* The mine strike: a pickaxe arcing down onto the face, a pair of chip sparks flying out, and an impact flash. */
+@keyframes gm-swing {
+  0% { transform: translate(16px, -24px) rotate(38deg); opacity: 1; }
+  70% { opacity: 1; }
+  100% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+}
+
+@keyframes gm-chip {
+  0% { transform: translate(-50%, -50%); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--chip-dx, 0px)), calc(-50% + var(--chip-dy, 0px))); opacity: 0; }
+}
+
+@keyframes gm-impact {
+  0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0.9; }
+  100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gm-particle,
   .gm-float,
-  .gm-shaft__glow {
+  .gm-shaft__glow,
+  .gm-shaft__swing,
+  .gm-shaft__chip,
+  .gm-shaft__impact {
     animation: none;
   }
 }

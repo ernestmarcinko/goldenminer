@@ -52,6 +52,8 @@ export interface Feedback {
   strikes: { amount: number; crit: boolean }[];
   /** Damage the player took, summed. */
   hurt: number;
+  /** Dig ticks since the last drain, one per tick that advanced the face. */
+  digs: number;
 }
 
 export type Notice =
@@ -70,7 +72,7 @@ interface Deps {
 const MAX_FINDS = 3;
 const MAX_STRIKES = 6;
 const ALL_SLOTS: readonly Slot[] = [...MINING_SLOTS, ...BATTLE_SLOTS];
-const emptyFeedback = (): Feedback => ({ gold: 0, diamonds: 0, finds: [], strikes: [], hurt: 0 });
+const emptyFeedback = (): Feedback => ({ gold: 0, diamonds: 0, finds: [], strikes: [], hurt: 0, digs: 0 });
 
 export class GameStore {
   private _state: GameState;
@@ -251,6 +253,7 @@ export class GameStore {
       else if (e.kind === 'find') fb.finds.push(e.find);
       else if (e.kind === 'strike') fb.strikes.push({ amount: e.amount, crit: e.crit });
       else if (e.kind === 'hurt') fb.hurt += e.amount;
+      else if (e.kind === 'dig') fb.digs += 1;
     }
     if (fb.finds.length > MAX_FINDS) fb.finds = fb.finds.slice(-MAX_FINDS);
     if (fb.strikes.length > MAX_STRIKES) fb.strikes = fb.strikes.slice(-MAX_STRIKES);
