@@ -19,7 +19,7 @@
 
 **Builds on:** Plans 15, 17 and 18 (`dev-ernest`): the level bonus and ascension carry-over (15), the schema-13 baseline (17), and the corrected stats the boost multiplies (18).
 
-**Roadmap:** 15. level cap 100 · 16. the passive-web rework · 17. crafting overhaul and the ore economy · 18. character stats · 19. ascendancy tree expansion · **20. achievements** (this plan) · 21. the wiki.
+**Roadmap:** 15. level cap 100 · 16. the passive-web rework · 17. crafting overhaul and the ore economy · 18. character stats · 19. ascendancy tree expansion · **20. achievements** (this plan) · 21. the wiki · 22. the stats menu.
 
 ## Global Constraints
 

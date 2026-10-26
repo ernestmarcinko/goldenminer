@@ -20,7 +20,7 @@
 
 **Builds on:** Plan 15 (`dev-ernest`).
 
-**Roadmap:** 15. level cap 100 · **16. the passive-web rework** (this plan) · 17. crafting overhaul and the ore economy · 18. character stats · 19. ascendancy tree expansion · 20. achievements · 21. the wiki.
+**Roadmap:** 15. level cap 100 · **16. the passive-web rework** (this plan) · 17. crafting overhaul and the ore economy · 18. character stats · 19. ascendancy tree expansion · 20. achievements · 21. the wiki · 22. the stats menu.
 
 ## Global Constraints
 
