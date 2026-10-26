@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Golden Miner">
+  <rect width="64" height="64" rx="12" fill="#15120f" />
+  <rect x="1.5" y="1.5" width="61" height="61" rx="10.5" fill="none" stroke="#332a1f" stroke-width="3" />
+  <path d="M33 25 26 56" fill="none" stroke="#e8b44a" stroke-width="6" stroke-linecap="round" />
+  <path d="M6 39Q32 2 58 39Q32 20 6 39Z" fill="#e8b44a" />
+</svg>

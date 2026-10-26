@@ -10,8 +10,19 @@ Node 22.12 or newer is required (`nvm install` reads `.nvmrc` and installs Node 
 npm install
 npm run dev      # development server
 npm test         # unit tests
+npm run balance  # the headless pacing report
 npm run build    # production build in dist/
 ```
+
+## Controls
+
+Click the rock in the Mine view to dig. Each click adds a tick, and digging also ticks along by itself; the Pause digging button stops it, and Continue digging starts it again.
+
+- Right-click an item for its action card, which lists every action it offers.
+- Ctrl+click (⌘+click on a Mac) sells it, and Alt+click salvages it.
+- Shift+click moves it between the bag and the stash.
+
+A map runs from the Run action on its card. Once the Surveyor notable is taken, the card's Auto-map action queues the map, and the miner runs the queue while you are away.
 
 ## Digging
 
@@ -81,3 +92,7 @@ The game autosaves every 30 seconds and when the tab is hidden or closed. The Se
 ## The original
 
 The 2013 original lives in `legacy/` (open `legacy/index-dev.html`).
+
+## Credits
+
+The game is set in Metamorphous for headings, Alegreya Sans for text and IBM Plex Mono for numbers, all served from Google Fonts. The item, gem, vein, monster and merchant art is code-drawn placeholder pixel art. Golden Miner is a revival of the 2013 original by anag0, which lives in `legacy/`. The code is under the MIT licence (see [`LICENSE`](LICENSE)).
