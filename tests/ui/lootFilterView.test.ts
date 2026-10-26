@@ -1,9 +1,10 @@
 import { expect, it } from 'vitest';
 import type { LootKind, LootRule } from '../../src/core/types';
+import type { RuleField } from '../../src/ui/character/lootFilterView';
 import { ruleValid } from '../../src/core/lootFilter';
 import {
   ACTION_OPTIONS, GEM_OPTIONS, GRADE_OPTIONS, KIND_OPTIONS, MAP_MOD_LABELS, MAP_MOD_OPTIONS, MATERIAL_OPTIONS, NEW_RULE,
-  RARITY_OPTIONS, SET_OPTIONS, SLOT_OPTIONS, actionOptionsFor, addRow, fieldsFor, levelLabel, moveRow, moveTarget,
+  RARITY_OPTIONS, SET_OPTIONS, SLOT_OPTIONS, actionOptionsFor, addRow, boxProblems, fieldsFor, levelLabel, moveRow, moveTarget,
   rarityOptionsFor, removeRow, ruleProblems, rowsOf, rulesOf, setRange, slotOptionsFor, withKind, withModTier, withPick,
 } from '../../src/ui/character/lootFilterView';
 
@@ -141,4 +142,30 @@ it('keeps a removed rule\'s row empty, so no row moves', () => {
   const full = rowsOf(Array.from({ length: 40 }, () => a));
   expect(addRow(full)).toBe(full);
   expect(addRow(removeRow(full, 3))).toHaveLength(41);
+});
+
+it('shows only fields the kind may set, so every field set at once still makes a rule that can match', () => {
+  const sample: { [F in RuleField]-?: NonNullable<LootRule[F]> } = {
+    set: 'mining', slot: 'pickaxe', rarity: 'rare', level: { min: 1, max: 5 }, modTier: 2, mods: { min: 1 }, mapMod: 'hardened',
+    gem: 'ruby', grade: 'small', material: 'tin',
+  };
+  for (const kind of KINDS) {
+    for (const field of fieldsFor(kind)) {
+      expect(ruleValid({ kind, action: 'keep', [field]: sample[field] }), `${kind} ${field}`).toBe(true);
+    }
+    const every: LootRule = { kind, action: 'keep' };
+    for (const field of fieldsFor(kind)) Object.assign(every, { [field]: sample[field] });
+    expect(ruleValid(every), kind).toBe(true);
+  }
+});
+
+it('says when a number box holds a number it can\'t use, for the boxes the kind shows', () => {
+  const line = 'Use whole numbers; an item level or tier starts at 1.';
+  expect(boxProblems({}, 'gear')).toEqual([]);
+  expect(boxProblems({ 'level.min': '4', 'mods.max': '0', modTier: '' }, 'gear')).toEqual([]);
+  expect(boxProblems({ 'level.min': '0' }, 'gear')).toEqual([line]);
+  expect(boxProblems({ 'mods.max': '1.5' }, 'map')).toEqual([line]);
+  expect(boxProblems({ modTier: '0', 'level.max': '-1' }, 'any')).toEqual([line]);
+  // a box the kind no longer shows says nothing
+  expect(boxProblems({ 'level.min': '0' }, 'gem')).toEqual([]);
 });

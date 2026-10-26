@@ -8,10 +8,10 @@ import { formatNumber } from '../format';
 import { useDialog } from '../useDialog';
 import {
   GEM_OPTIONS, GRADE_OPTIONS, KIND_OPTIONS, MAP_MOD_OPTIONS, MATERIAL_OPTIONS, SET_OPTIONS, actionOptionsFor, addRow,
-  fieldsFor, levelLabel, moveRow, moveTarget, rarityOptionsFor, removeRow, ruleProblems, rowsOf, rulesOf, setRange,
+  boxProblems, boxRejects, fieldsFor, levelLabel, moveRow, moveTarget, rarityOptionsFor, removeRow, ruleProblems, rowsOf, rulesOf, setRange,
   slotOptionsFor, withKind, withModTier, withPick,
 } from './lootFilterView';
-import type { Option, RuleField, RuleRow } from './lootFilterView';
+import type { NumberBox as NumberBoxKey, Option, RuleField, RuleRow } from './lootFilterView';
 
 function Select<T extends string>({ label, value, options, onChange, selectRef }: {
   label: string; value: T; options: readonly Option<T>[]; onChange: (v: T) => void;
@@ -46,26 +46,38 @@ function Pick<T extends string>({ caption, wide = false, ...select }: {
   );
 }
 
-function NumberBox({ label, value, least, onChange }: {
-  label: string; value: number | undefined; least: number; onChange: (text: string) => void;
+type BoxTexts = Readonly<Partial<Record<NumberBoxKey, string>>>;
+
+// A box shows what was typed, even when the rule can't take it, so a refused number stays in sight, marked.
+function NumberBox({ box, label, value, texts, onText }: {
+  box: NumberBoxKey; label: string; value: number | undefined; texts: BoxTexts; onText: (box: NumberBoxKey, text: string) => void;
 }) {
+  const text = texts[box] ?? (value === undefined ? '' : String(value));
   return (
     <input
-      type="number" inputMode="numeric" min={least} step={1} placeholder="any" aria-label={label} className="gm-pick__num"
-      value={value ?? ''} onInput={(e) => onChange(e.currentTarget.value)}
+      type="text" inputMode="numeric" placeholder="any" aria-label={label} className="gm-pick__num"
+      aria-invalid={boxRejects(box, text) || undefined} value={text} onInput={(e) => onText(box, e.currentTarget.value)}
     />
   );
 }
 
 /** The field row for the rule's kind: a select per pick, two number boxes per range, one for the modifier tier. */
-function RuleFields({ rule, onChange }: { rule: LootRule; onChange: (rule: LootRule) => void }) {
-  const range = (field: 'level' | 'mods', caption: string, least: number) => (
+function RuleFields({ rule, onChange, texts, onText }: {
+  rule: LootRule; onChange: (rule: LootRule) => void; texts: BoxTexts; onText: (box: NumberBoxKey, text: string) => void;
+}) {
+  const box = (key: NumberBoxKey, label: string, value: number | undefined, apply: (text: string) => LootRule) => (
+    <NumberBox
+      box={key} label={label} value={value} texts={texts}
+      onText={(k, t) => { onText(k, t); onChange(apply(t)); }}
+    />
+  );
+  const range = (field: 'level' | 'mods', caption: string) => (
     <div key={field} className="gm-pick" data-wide="" role="group" aria-label={caption}>
       <span className="gm-pick__cap">{caption}</span>
       <span className="gm-pick__word">from</span>
-      <NumberBox label={`${caption} from`} value={rule[field]?.min} least={least} onChange={(t) => onChange(setRange(rule, field, 'min', t))} />
+      {box(`${field}.min`, `${caption} from`, rule[field]?.min, (t) => setRange(rule, field, 'min', t))}
       <span className="gm-pick__word">to</span>
-      <NumberBox label={`${caption} to`} value={rule[field]?.max} least={least} onChange={(t) => onChange(setRange(rule, field, 'max', t))} />
+      {box(`${field}.max`, `${caption} to`, rule[field]?.max, (t) => setRange(rule, field, 'max', t))}
     </div>
   );
   const field = (f: RuleField) => {
@@ -79,13 +91,13 @@ function RuleFields({ rule, onChange }: { rule: LootRule; onChange: (rule: LootR
           <Pick key={f} caption="Rarity" label="Rarity" value={rule.rarity ?? 'any'} options={rarityOptionsFor(rule)}
             onChange={(v) => onChange(withPick(rule, 'rarity', v))} />
         );
-      case 'level': return range('level', levelLabel(rule.kind), 1);
-      case 'mods': return range('mods', 'Modifiers', 0);
+      case 'level': return range('level', levelLabel(rule.kind));
+      case 'mods': return range('mods', 'Modifiers');
       case 'modTier':
         return (
           <div key={f} className="gm-pick" data-wide="" role="group" aria-label="A modifier at tier">
             <span className="gm-pick__cap">A modifier at T</span>
-            <NumberBox label="A modifier at tier" value={rule.modTier} least={1} onChange={(t) => onChange(withModTier(rule, t))} />
+            {box('modTier', 'A modifier at tier', rule.modTier, (t) => withModTier(rule, t))}
             <span className="gm-pick__word">or above</span>
           </div>
         );
@@ -120,6 +132,11 @@ export function LootFilterDialog({ store, onClose }: { store: GameStore; onClose
   const [rows, setRows] = useState<readonly RuleRow[]>(() => rowsOf(store.state.settings.lootFilter));
   const [open, setOpen] = useState<number | null>(null);
   const [draft, setDraft] = useState<LootRule | null>(null);
+  // what each number box of the open rule holds as typed; a new draft starts them afresh
+  const [texts, setTexts] = useState<BoxTexts>({});
+  // set by an Add rule refused at the most rules, until the next Add rule: its line in the head never comes and goes
+  // under a click anywhere but Add rule itself
+  const [refusedAdd, setRefusedAdd] = useState(false);
   // a removed row keeps the height it had, so a row under it never slides up under the pointer
   const [removedHeights, setRemovedHeights] = useState<Readonly<Record<number, number>>>({});
   const reveal = useRef<number | null>(null);
@@ -152,19 +169,23 @@ export function LootFilterDialog({ store, onClose }: { store: GameStore; onClose
     if (rule == null || open === i) return;
     setOpen(i);
     setDraft(rule);
+    setTexts({});
     focusAfter.current = '[data-editor-kind]';
   };
   const close = (): void => {
     if (open !== null) focusAfter.current = `[data-row="${open}"] [data-edit]`;
     setOpen(null);
     setDraft(null);
+    setTexts({});
   };
   const add = (): void => {
     const next = addRow(rows);
+    setRefusedAdd(next === rows);
     if (next === rows) return;
     save(next);
     setOpen(next.length - 1);
     setDraft(next[next.length - 1] ?? null);
+    setTexts({});
     reveal.current = next.length - 1;
   };
   const remove = (i: number, e: MouseEvent<HTMLButtonElement>): void => {
@@ -187,18 +208,20 @@ export function LootFilterDialog({ store, onClose }: { store: GameStore; onClose
     reveal.current = to;
   };
 
-  const problems = draft === null ? [] : ruleProblems(draft);
+  const problems = draft === null ? [] : [...ruleProblems(draft), ...boxProblems(texts, draft.kind)];
   const upTo = open === null ? undefined : moveTarget(rows, open, -1);
   const downTo = open === null ? undefined : moveTarget(rows, open, 1);
   return (
     <div className="gm-overlay gm-overlay--top" style={{ zIndex: 10 + depth }}>
       <div ref={dialogRef} className="gm-dialog gm-dialog--rules" role="dialog" aria-modal="true" aria-labelledby="gm-filter-title">
-        <div className="gm-dialog__head">
+        <div className="gm-dialog__head gm-rules__head">
           <h2 id="gm-filter-title" className="gm-dialog__title">Loot filter</h2>
           <div className="gm-rules__head-btns">
-            <button type="button" className="gm-btn" disabled={full} onClick={add}>Add rule</button>
+            {/* aria-disabled, so Enter at the last rule keeps focus here; a refused click says why */}
+            <button type="button" className="gm-btn" aria-disabled={full || undefined} onClick={add}>Add rule</button>
             <button type="button" ref={closeRef} className="gm-btn" onClick={onClose}>Close</button>
           </div>
+          <p className="gm-rules__full" role="status">{refusedAdd ? `${formatNumber(MAX_LOOT_RULES)} rules is the most.` : ''}</p>
         </div>
 
         <div ref={listRef} className="gm-rules__scroll">
@@ -230,7 +253,6 @@ export function LootFilterDialog({ store, onClose }: { store: GameStore; onClose
               )
             ))}
           </div>
-          {full && <p className="gm-muted" role="status">{formatNumber(MAX_LOOT_RULES)} rules is the most.</p>}
         </div>
 
         <section className="gm-rule-editor" aria-label="Rule editor" data-empty={open === null || draft === null ? '' : undefined}>
@@ -280,7 +302,7 @@ export function LootFilterDialog({ store, onClose }: { store: GameStore; onClose
                 <button type="button" className="gm-btn gm-rule-editor__btn" onClick={close}>Cancel</button>
               </div>
               <div className="gm-rule-editor__body">
-                <RuleFields rule={draft} onChange={setDraft} />
+                <RuleFields rule={draft} onChange={setDraft} texts={texts} onText={(box, text) => setTexts((t) => ({ ...t, [box]: text }))} />
                 <div className="gm-rule-editor__problems" role="status">
                   {problems.map((p) => <p key={p}>{p}</p>)}
                 </div>

@@ -154,10 +154,19 @@ button.gm-item:hover { background: #3a2f20; }
 
 /* The loot filter: the dialog sits at the top of the screen, so a row added under the list moves nothing above it. */
 .gm-overlay.gm-overlay--top { align-items: flex-start; }
-.gm-dialog.gm-dialog--rules { max-width: 800px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+/*
+ * Only the list scrolls while everything fits: the head and the editor stay put. On a screen too short for two rows
+ * of list and the whole editor, the dialog scrolls as well; neither scroll moves a thing when a control is used.
+ */
+.gm-dialog.gm-dialog--rules {
+  max-width: 800px; display: flex; flex-direction: column; gap: 12px; overflow: hidden auto; overflow-anchor: none;
+}
+.gm-dialog__head.gm-rules__head { flex-wrap: wrap; row-gap: 0; }
 .gm-rules__head-btns { display: flex; gap: 8px; }
-/* only the list scrolls; the head and the editor stay put */
-.gm-rules__scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-anchor: none; }
+/* a line of its own under the buttons, so Add rule stays where it was when it shows */
+.gm-rules__full { flex-basis: 100%; margin: 0; text-align: right; color: var(--gm-muted); font-size: 14px; line-height: 24px; }
+.gm-rules__full:empty { line-height: 0; }
+.gm-rules__scroll { flex: 1 1 auto; min-height: calc(2 * 57px + 8px); overflow-y: auto; overflow-anchor: none; }
 .gm-rules__intro { margin: 0 0 8px; color: var(--gm-muted); }
 .gm-rules { display: flex; flex-direction: column; }
 .gm-rule {
@@ -193,8 +202,8 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-rule-editor__title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 15px; white-space: nowrap; }
 .gm-rule-editor__none { grid-column: 1 / -1; margin: 0; color: var(--gm-muted); }
 .gm-btn.gm-rule-editor__btn { padding: 8px 12px; }
-/* the fields and the problems under them share one reserve: a map's two rows of fields and two problems are the most */
-.gm-rule-editor__body { display: flex; flex-direction: column; gap: 10px; min-height: calc(2 * 44px + 8px + 10px + 2 * 20px); }
+/* the fields and the problems under them share one reserve: a map's two rows of fields and three problems are the most */
+.gm-rule-editor__body { display: flex; flex-direction: column; gap: 10px; min-height: calc(2 * 44px + 8px + 10px + 3 * 20px); }
 .gm-rule-editor__fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-content: start; }
 .gm-rule-editor__problems { color: var(--gm-down); font-size: 14px; }
 .gm-rule-editor__problems > p { margin: 0; line-height: 20px; }
@@ -216,6 +225,8 @@ button.gm-item:hover { background: #3a2f20; }
   border: 1px solid var(--gm-line); background: var(--gm-panel); color: var(--gm-text); font: inherit;
 }
 .gm-pick__num:focus { outline: none; border-color: var(--gm-gold); }
+/* a number the rule can't take stays as typed, in red, with its problem line under the fields */
+.gm-pick__num[aria-invalid='true'] { border-color: var(--gm-down); color: var(--gm-down); }
 
 @media (max-width: 819px) {
   .gm-rule-editor__head { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; min-height: calc(22px + 2 * 44px + 2 * 6px); }
@@ -224,8 +235,8 @@ button.gm-item:hover { background: #3a2f20; }
   .gm-pick[data-head='action'] { grid-column: span 5; }
   .gm-pick[data-head] > .gm-pick__cap { display: none; }
   .gm-btn.gm-rule-editor__btn { grid-column: span 2; padding: 4px; font-size: 14px; line-height: 1.15; }
-  /* two picks to a row, each range or tier its own: gear's five rows and a problem are the most */
-  .gm-rule-editor__body { min-height: calc(5 * 44px + 4 * 8px + 10px + 20px); }
+  /* two picks to a row, each range or tier its own: gear's five rows and two problems are the most */
+  .gm-rule-editor__body { min-height: calc(5 * 44px + 4 * 8px + 10px + 2 * 20px); }
   .gm-rule-editor__fields { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: row dense; }
   .gm-pick[data-wide] { grid-column: span 2; }
 }

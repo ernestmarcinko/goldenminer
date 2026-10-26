@@ -126,6 +126,26 @@ export function withModTier(rule: LootRule, text: string): LootRule {
   return n === undefined ? rest : { ...rest, modTier: n };
 }
 
+/** The editor's number boxes: each end of the two ranges, and the modifier tier. */
+export type NumberBox = 'level.min' | 'level.max' | 'mods.min' | 'mods.max' | 'modTier';
+const BOX_FIELD: Readonly<Record<NumberBox, RuleField>> = {
+  'level.min': 'level', 'level.max': 'level', 'mods.min': 'mods', 'mods.max': 'mods', modTier: 'modTier',
+};
+const BOX_LEAST: Readonly<Record<NumberBox, number>> = { 'level.min': 1, 'level.max': 1, 'mods.min': 0, 'mods.max': 0, modTier: 1 };
+
+/** Whether a box's text is something the rule can't take: not empty, and not a whole number at or above its least. */
+export const boxRejects = (box: NumberBox, text: string): boolean => text.trim() !== '' && parseCount(text, BOX_LEAST[box]) === undefined;
+
+/**
+ * A line when a box the kind shows holds text the rule can't take. The box keeps what was typed, so the player sees
+ * what was refused; the rule holds no bound there meanwhile.
+ */
+export function boxProblems(texts: Readonly<Partial<Record<NumberBox, string>>>, kind: LootKind | 'any'): string[] {
+  const shown = fieldsFor(kind);
+  const bad = (Object.entries(texts) as [NumberBox, string][]).some(([box, text]) => shown.includes(BOX_FIELD[box]) && boxRejects(box, text));
+  return bad ? ['Use whole numbers; an item level or tier starts at 1.'] : [];
+}
+
 const isOrdered = (range: LootRange | undefined): boolean =>
   range?.min === undefined || range.max === undefined || range.min <= range.max;
 
