@@ -93,8 +93,14 @@ export function Web({
     cancelLeave();
     onHover(id);
   };
-  const leaveNode = (): void => {
+  const leaveNode = (e: React.PointerEvent): void => {
     cancelLeave();
+    // On a mouse or pen the card is read-only and clicks act on the nodes, so it closes at once. A touch tap pins
+    // its card, so the grace period only matters there.
+    if (e.pointerType !== 'touch') {
+      onHover(null);
+      return;
+    }
     leaveTimer.current = window.setTimeout(() => {
       leaveTimer.current = null;
       onHover(null);
