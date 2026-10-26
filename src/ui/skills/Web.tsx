@@ -30,6 +30,12 @@ export function Web({
   nodes, onNode, onHover, focusId, focusNonce, label = 'Passive skill web', cardId, renderCard, onCloseCard,
 }: Props) {
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
+  // Data URIs are built once per node set, not on every pan/zoom render.
+  const iconUris = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const n of nodes) map.set(n.id, iconDataUrl(n.icon.grid, n.icon.palette));
+    return map;
+  }, [nodes]);
   const edges = useMemo(() => {
     const seen = new Set<string>();
     const out: {
@@ -228,7 +234,7 @@ export function Web({
               <rect className="gm-web__halo" x={-24} y={-24} width={48} height={48} />
               <image
                 className="gm-web__icon"
-                href={iconDataUrl(n.icon.grid, n.icon.palette)}
+                href={iconUris.get(n.id) ?? ''}
                 x={-24}
                 y={-24}
                 width={48}
