@@ -4,6 +4,14 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   plugins: [react()],
   base: './',
+  build: {
+    rollupOptions: {
+      input: {
+        main: 'index.html',
+        wiki: 'wiki.html',
+      },
+    },
+  },
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],

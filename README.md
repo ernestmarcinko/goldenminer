@@ -14,6 +14,9 @@ npm run balance  # the headless pacing report
 npm run build    # production build in dist/
 ```
 
+A generated reference wiki ships with the game at `/wiki/` (`wiki.html`, built from the same `src/core/` data the game runs on).
+
+
 ## Controls
 
 Click the rock in the Mine view to dig. Each click adds a tick, and digging also ticks along by itself; the Pause digging button stops it, and Continue digging starts it again.

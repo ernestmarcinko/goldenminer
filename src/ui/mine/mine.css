@@ -31,6 +31,13 @@
   text-transform: uppercase; letter-spacing: 0.06em; text-shadow: var(--gm-text-shadow); box-shadow: var(--gm-bevel);
 }
 .gm-header__settings:hover { border-color: var(--gm-gold); }
+.gm-header__wiki {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 8px 16px; box-sizing: border-box;
+  border: var(--gm-edge); border-radius: 0; background: var(--gm-panel-raised); color: var(--gm-text);
+  font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; text-decoration: none;
+  text-shadow: var(--gm-text-shadow); box-shadow: var(--gm-bevel);
+}
+.gm-header__wiki:hover { border-color: var(--gm-gold); color: var(--gm-gold-bright); }
 .gm-header__depth-now { font-family: var(--gm-font-mono); font-size: 18px; }
 
 .gm-mine { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
