@@ -19,6 +19,8 @@ export interface ItemDrag {
   held: ItemLoc | null;
   /** A touch tap on a target; true when the tap lifted, put back or placed an item. */
   onTap: (tapped: DropTarget, tappedIsItem: boolean) => boolean;
+  /** Picks an item up for click-to-place, with a ghost following the pointer from (`x`, `y`). */
+  pickUp: (loc: ItemLoc, source: HTMLElement, x: number, y: number) => void;
   release: () => void;
 }
 
@@ -67,6 +69,51 @@ export function useItemDrag({ store, onResult }: {
   }, []);
   const release = useCallback(() => setHold(null), [setHold]);
 
+  // A click-held item's ghost follows the pointer, exactly as a dragged item's does.
+  const ghostRef = useRef<HTMLElement | null>(null);
+  const ghostMove = useRef<((e: PointerEvent) => void) | null>(null);
+  const ghostOver = useRef<Element | null>(null);
+  const clearGhost = useCallback((): void => {
+    ghostRef.current?.remove();
+    ghostRef.current = null;
+    if (ghostMove.current !== null) {
+      window.removeEventListener('pointermove', ghostMove.current);
+      ghostMove.current = null;
+    }
+    ghostOver.current?.removeAttribute('data-drop-over');
+    ghostOver.current = null;
+  }, []);
+
+  const pickUp = useCallback((loc: ItemLoc, source: HTMLElement, x: number, y: number): void => {
+    const item = itemAt(store.state, loc);
+    if (item === undefined) return;
+    clearGhost();
+    setHold({ loc, id: item.id });
+    const rect = source.getBoundingClientRect();
+    const grab = { x: x - rect.left, y: y - rect.top };
+    const ghost = makeGhost(source);
+    ghost.style.left = `${rect.left}px`;
+    ghost.style.top = `${rect.top}px`;
+    ghostRef.current = ghost;
+    const move = (ev: PointerEvent): void => {
+      ghost.style.left = `${ev.clientX - grab.x}px`;
+      ghost.style.top = `${ev.clientY - grab.y}px`;
+      const over = targetAt(ev.clientX, ev.clientY)?.el ?? null;
+      if (over !== ghostOver.current) {
+        ghostOver.current?.removeAttribute('data-drop-over');
+        over?.setAttribute('data-drop-over', '');
+        ghostOver.current = over;
+      }
+    };
+    ghostMove.current = move;
+    window.addEventListener('pointermove', move);
+  }, [store, setHold, clearGhost]);
+
+  // The ghost lives only while the clicked item is still held (placed, put back, sold or gone).
+  useEffect(() => {
+    if (held === null) clearGhost();
+  }, [held, clearGhost]);
+
   const drop = useCallback((from: ItemLoc, to: DropTarget): void => {
     const before = store.lastCraft?.id;
     const refused = refusedMap(store.state, from, to);
@@ -81,6 +128,8 @@ export function useItemDrag({ store, onResult }: {
 
   const onPointerDown = useCallback((loc: ItemLoc, e: ReactPointerEvent<HTMLElement>) => {
     if (e.pointerType === 'touch' || e.button !== 0) return;
+    // An item held by a click places on the next press; the press must not start a drag on the destination.
+    if (holdRef.current !== null) return;
     stopPress.current?.();
     swallowClick.current = false;
     const source = e.currentTarget;
@@ -115,6 +164,9 @@ export function useItemDrag({ store, onResult }: {
       if (cancelled) return;
       if (ghost === null) {
         if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < DRAG_THRESHOLD_PX) return;
+        // a real drag takes over from a click-held item
+        clearGhost();
+        if (holdRef.current !== null) setHold(null);
         ghost = makeGhost(source);
         source.setAttribute('data-drag-source', '');
         setDragging(true);
@@ -158,9 +210,10 @@ export function useItemDrag({ store, onResult }: {
     window.addEventListener('pointercancel', onCancel);
     window.addEventListener('keydown', onKey, true);
     stopPress.current = stop;
-  }, [drop]);
+  }, [drop, clearGhost, setHold]);
 
   useEffect(() => () => stopPress.current?.(), []);
+  useEffect(() => () => clearGhost(), [clearGhost]);
 
   const isHeld = held !== null;
   useEffect(() => {
@@ -206,5 +259,5 @@ export function useItemDrag({ store, onResult }: {
     return swallow;
   }, []);
 
-  return { onPointerDown, consumeClick, dragging, held, onTap, release };
+  return { onPointerDown, consumeClick, dragging, held, onTap, pickUp, release };
 }

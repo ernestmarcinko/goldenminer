@@ -101,6 +101,10 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
           handlers.onPick(target, 'card', e.currentTarget);
           return;
         }
+        if (route.kind === 'hold') {
+          drag.pickUp(target, e.currentTarget, e.clientX, e.clientY);
+          return;
+        }
         if (drag.onTap(target, true) && route.kind === 'lift') handlers.onLift(target, e.currentTarget);
       }}
       onContextMenu={(e) => { e.preventDefault(); handlers.onMenu(target, e.currentTarget); }}
