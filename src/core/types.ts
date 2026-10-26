@@ -76,7 +76,7 @@ export interface MonsterState {
   element: Element; life: number; maxLife: number; damage: number; intervalS: number; xp: number;
 }
 export type CombatLine =
-  | { kind: 'hit'; monster: string; amount: number; crit: boolean; click: boolean }
+  | { kind: 'hit'; monster: string; amount: number; crit: boolean }
   | { kind: 'hurt'; monster: string; amount: number }
   | { kind: 'heal'; monster: string; amount: number }
   | { kind: 'kill'; monster: string; xp: number; souls: number }
@@ -160,7 +160,7 @@ export type TickEvent =
   | { kind: 'diamond'; amount: number }
   | { kind: 'metre'; depth: number }
   | { kind: 'find'; find: FindRecord }
-  | { kind: 'strike'; amount: number; crit: boolean; click: boolean }
+  | { kind: 'strike'; amount: number; crit: boolean }
   | { kind: 'hurt'; amount: number }
   | { kind: 'runEnd'; result: RunResult };
 export interface OfflineSummary {

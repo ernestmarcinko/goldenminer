@@ -415,17 +415,15 @@ describe('a migrated save with held loot', () => {
 });
 
 describe('maps', () => {
-  it('a click in a map is a hit, never a dig, and still capped', () => {
+  it('a click in a map does nothing: no strike, no dig', () => {
     const { store } = make(); store.load();
     const map = stashMap(store.state, 1, 2);
     expect(store.startMap(map.id)).toBe('ok');
-    const ticks = store.state.tickCount;
-    const events = store.click();
-    expect(events.some((e) => e.kind === 'strike' && e.click)).toBe(true);
-    expect(store.state.tickCount).toBe(ticks);
-    for (let i = 0; i < 20; i++) store.click();
-    const hits = store.state.activity.kind === 'map' ? store.state.activity.run.log.filter((l) => l.kind === 'hit' && l.click).length : 0;
-    expect(hits).toBeLessThanOrEqual(10);
+    const before = structuredClone(store.state);
+    const version = store.version;
+    for (let i = 0; i < 20; i++) expect(store.click()).toEqual([]);
+    expect(store.state).toEqual(before);
+    expect(store.version).toBe(version);
   });
 
   it('leaving and dismissing', () => {
@@ -464,16 +462,9 @@ describe('maps', () => {
   }
 
   it('keeps only the newest 6 auto strikes', () => {
-    const struck = runEvents(10).flatMap((e) => (e.kind === 'strike' && !e.click ? [{ amount: e.amount, crit: e.crit }] : []));
+    const struck = runEvents(10).flatMap((e) => (e.kind === 'strike' ? [{ amount: e.amount, crit: e.crit }] : []));
     expect(struck.length).toBeGreaterThan(6);
     expect(pumpedRun(10).drainFeedback().strikes).toEqual(struck.slice(-6));
-  });
-
-  it('click strikes stay out of the feedback', () => {
-    const { store } = make(); store.load();
-    store.startMap(stashMap(store.state, 1, 2).id);
-    expect(store.click().some((e) => e.kind === 'strike' && e.click)).toBe(true);
-    expect(store.drainFeedback().strikes).toEqual([]);
   });
 
   it('sums the damage taken and starts again after a drain', () => {

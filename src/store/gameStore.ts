@@ -1,7 +1,6 @@
 import { LONG_GAP_MS, MAX_LOOT_RULES, OFFLINE_SUMMARY_MIN_TICKS } from '../core/balance';
 import { deriveBattleStats, type BattleStats } from '../core/battle';
 import { advance, ClickLimiter, clickTicks } from '../core/clock';
-import { clickHit } from '../core/combat';
 import { craft as coreCraft } from '../core/crafting';
 import * as inv from '../core/inventory';
 import { itemName } from '../core/itemData';
@@ -34,7 +33,7 @@ export interface Feedback {
   gold: number;
   diamonds: number;
   finds: FindRecord[];
-  /** The newest auto strikes of a map; click strikes are not here, the click already showed them. */
+  /** The newest strikes of a map. */
   strikes: { amount: number; crit: boolean }[];
   /** Damage the player took, summed. */
   hurt: number;
@@ -211,7 +210,7 @@ export class GameStore {
       if (e.kind === 'gold') fb.gold += e.amount;
       else if (e.kind === 'diamond') fb.diamonds += e.amount;
       else if (e.kind === 'find') fb.finds.push(e.find);
-      else if (e.kind === 'strike' && !e.click) fb.strikes.push({ amount: e.amount, crit: e.crit });
+      else if (e.kind === 'strike') fb.strikes.push({ amount: e.amount, crit: e.crit });
       else if (e.kind === 'hurt') fb.hurt += e.amount;
     }
     if (fb.finds.length > MAX_FINDS) fb.finds = fb.finds.slice(-MAX_FINDS);
@@ -219,11 +218,11 @@ export class GameStore {
   }
 
   click(): TickEvent[] {
+    // A map's fight is automatic, and digging ticks would fast-forward it: a click there does nothing.
+    if (this._state.activity.kind === 'map') return [];
     if (!this.limiter.tryClick(this.deps.now())) return [];
     const events: TickEvent[] = [];
-    // A map click is one strike; digging ticks would fast-forward the fight.
-    if (this._state.activity.kind === 'map') clickHit(this._state, events);
-    else clickTicks(this._state, this._stats, events);
+    clickTicks(this._state, this._stats, events);
     this.changed();
     return events;
   }

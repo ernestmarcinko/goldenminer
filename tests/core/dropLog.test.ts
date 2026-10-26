@@ -218,6 +218,7 @@ it('a map\'s trail: to bag, enchanted, run, lost; a cleared map stops at run', (
   expect(left.deaths).toEqual([]);
 
   const c = newGame(1, 0);
+  c.level = 5;   // a naked miner clears a tier-1 map from level 5
   addMap(c, 1, 2);
   const cleared = c.bag.find((x): x is MapItem => x?.type === 'map');
   if (cleared === undefined) throw new Error('no map');

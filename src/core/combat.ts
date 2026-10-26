@@ -141,9 +141,7 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
 }
 
 /** One strike at the fighting monster; its damage and crit draw from `gen` (the unique stream for the Peacemaker's second). */
-function strike(
-  state: GameState, run: MapRun, b: BattleStats, click: boolean, events?: TickEvent[], gen: Gen = state,
-): StrikeOutcome {
+function strike(state: GameState, run: MapRun, b: BattleStats, events?: TickEvent[], gen: Gen = state): StrikeOutcome {
   const m = run.queue[0];
   if (m === undefined) return 'fight';
   let physical = b.damageMin + Math.floor(nextRandom(gen) * (b.damageMax - b.damageMin + 1));
@@ -158,8 +156,8 @@ function strike(
   // A hardened map softens the whole hit, after everything else.
   const amount = Math.max(1, Math.round((physical + elemental) * mapEffects(run.map).takenMult));
   m.life -= amount;
-  events?.push({ kind: 'strike', amount, crit, click });
-  logLine(run, { kind: 'hit', monster: m.name, amount, crit, click });
+  events?.push({ kind: 'strike', amount, crit });
+  logLine(run, { kind: 'hit', monster: m.name, amount, crit });
   if (crit && hasUnique(state, 'bandOfTheDeep')) {
     run.life = Math.min(b.maxLife, run.life + Math.round(BAND_OF_THE_DEEP_HEAL * b.maxLife));
   }
@@ -198,10 +196,10 @@ function combatStep(state: GameState, run: MapRun, b: BattleStats, dt: number, e
     run.hitCarry -= 1;
     const level = state.level;
     run.strikes += 1;
-    let outcome = strike(state, run, b, false, events);
+    let outcome = strike(state, run, b, events);
     // The Peacemaker's second strike is drawn from the unique stream and never counts as a strike of its own.
     if (outcome !== 'end' && run.strikes % PEACEMAKER_EVERY === 0 && hasUnique(state, 'peacemaker')) {
-      const again = strike(state, run, state.level !== level ? deriveBattleStats(state) : b, false, events, uniqueGen(state));
+      const again = strike(state, run, state.level !== level ? deriveBattleStats(state) : b, events, uniqueGen(state));
       if (again !== 'fight') outcome = again;
     }
     if (outcome === 'end') return b;
@@ -249,10 +247,4 @@ export function mapTick(state: GameState, stats: Stats, events?: TickEvent[]): v
   for (let i = 0; i < steps && state.activity.kind === 'map'; i++) {
     b = combatStep(state, state.activity.run, b, dt / steps, events);
   }
-}
-
-/** One click strike, at once; a room it clears advances straight away. Does nothing outside a map. */
-export function clickHit(state: GameState, events?: TickEvent[]): void {
-  if (state.activity.kind !== 'map') return;
-  strike(state, state.activity.run, deriveBattleStats(state), true, events);
 }

@@ -11,8 +11,8 @@ const map = (mods: MapMod[], rarity: MapItem['rarity'] = mods.length > 2 ? 'rare
   ({ id: 1, type: 'map', tier: 4, metre: 327, rarity, mods });
 
 it('a map modifier rolls in its tier range', () => {
-  expect(mapModRange('monsterLife', 4)).toEqual({ lo: 25, hi: 29 });
-  expect(mapModRange('weakHealing', 2)).toEqual({ lo: 15, hi: 19 });
+  expect(mapModRange('monsterLife', 4)).toEqual({ lo: 39, hi: 46 });
+  expect(mapModRange('weakHealing', 2)).toEqual({ lo: 22, hi: 28 });
 });
 
 it('rangeOf is the gear tier formula', () => {

@@ -32,6 +32,7 @@ it('a run left going while away finishes offline and digging resumes, the same a
   const mk = () => new GameStore({ storage, storageAvailable: true, now: () => now.t, newSeed: () => 7 });
   const first = mk();
   first.load();
+  first.state.level = 5;   // a naked miner clears a tier-1 map from level 5
   first.startMap(stashMap(first.state, 1, 2).id);
   for (now.t = 250; now.t <= 10_000; now.t += 250) first.pump(); // the run is still going when the tab closes
   expect(first.state.activity.kind).toBe('map');
@@ -41,6 +42,7 @@ it('a run left going while away finishes offline and digging resumes, the same a
   second.load();
 
   const reference = freshWorld(() => 7, 0);
+  reference.level = 5;
   startMap(reference, stashMap(reference, 1, 2).id);
   advance(reference, now.t, deriveStats(reference));
   expect(second.state).toEqual(reference);

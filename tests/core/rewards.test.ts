@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { DROP_CHANCE, MATERIAL_TABLE, MAX_HELD, soulsPerKill } from '../../src/core/balance';
 import { deriveBattleStats } from '../../src/core/battle';
-import { clickHit, onKill, soulsForKill } from '../../src/core/combat';
+import { onKill, soulsForKill } from '../../src/core/combat';
 import { applyTicks } from '../../src/core/dig';
 import { startMap } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
@@ -37,17 +37,18 @@ it('souls per kill round by chance', () => {
   expect(soulsForKill(0.1, 1, 'champion', 1)).toBe(1);   // 0.75: floor 0, 0.1 < 0.75 -> 1
 });
 
-// Clicks, then ticks only while the map still runs: a tick after the final click would dig a metre and pay its Gold.
-function fight(s: GameState, clicks = true): void {
+// Ticks only while the map still runs: a tick after the run would dig a metre and pay its Gold.
+function fight(s: GameState): void {
   const stats = deriveStats(s);
-  while (s.activity.kind === 'map') {
-    if (clicks) clickHit(s);
-    if (s.activity.kind === 'map') applyTicks(s, 1, stats);
-  }
+  while (s.activity.kind === 'map') applyTicks(s, 1, stats);
 }
+
+// A naked miner needs level 5 to clear a tier-1 map on auto strikes.
+const CLEARS_TIER_1 = 5;
 
 function clearTier1(seed: number) {
   const s = newGame(seed, 0);
+  s.level = CLEARS_TIER_1;
   startMap(s, stashMap(s, 1, 2).id);
   fight(s);
   return s;
@@ -64,6 +65,7 @@ it('a cleared tier-1 map pays Souls, 40 Gold and at least the boss and champion 
 
 it('a full bag holds map drops but the fight goes on', () => {
   const s = newGame(1, 0);
+  s.level = CLEARS_TIER_1;
   s.bag = s.bag.map((_, i) => gear(s, i % 2 ? 'weapon' : 'pickaxe'));
   startMap(s, stashMap(s, 1, 2).id);
   fight(s);
@@ -228,7 +230,7 @@ it('with MAX_HELD items already held, a further drop is sold and nothing more is
 it('the offline summary reports maps, levels and Souls as differences from a non-zero start', () => {
   const before = newGame(1, 0);
   before.souls = 7;
-  before.level = 2;
+  before.level = CLEARS_TIER_1;
   before.mapTally = { cleared: 3, lost: 1 };
   const after = structuredClone(before);
   startMap(after, stashMap(after, 1, 2).id);
@@ -238,20 +240,21 @@ it('the offline summary reports maps, levels and Souls as differences from a non
   expect(sum.maps).toEqual({ cleared: 1, lost: 0 });
   expect(sum.souls).toBe(after.souls - 7);
   expect(sum.souls).toBeGreaterThan(0);
-  expect(sum.levels).toBe(after.level - 2);
+  expect(sum.levels).toBe(after.level - CLEARS_TIER_1);
 });
 
 it('the offline summary counts a lost map', () => {
   const before = newGame(1, 0);
   const after = structuredClone(before);
   startMap(after, stashMap(after, 4, 2).id);
-  fight(after, false);
+  fight(after);
   expect(after.lastRun?.outcome).toBe('died');
   expect(summarize(before, after, 600_000, 600, 28_800_000).maps).toEqual({ cleared: 0, lost: 1 });
 });
 
 it('the offline summary notices the bag holding map drops', () => {
   const before = newGame(1, 0);
+  before.level = CLEARS_TIER_1;
   const after = structuredClone(before);
   after.bag = after.bag.map((_, i) => gear(after, i % 2 ? 'weapon' : 'pickaxe'));
   startMap(after, stashMap(after, 1, 2).id);

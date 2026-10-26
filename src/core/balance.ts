@@ -97,6 +97,12 @@ export function monsterLifeBase(tier: number): number {
 export function monsterDamageBase(tier: number): number {
   return 2 + 1.5 * tier ** 1.2;
 }
+// What a map's tier multiplies its monsters' life and damage by (tier 1 first; deeper tiers use the last entry): a new
+// miner wins the first map about 70% of the time, and from tier 3 a map of your gear's level is cleared about 40%.
+export const MAP_MONSTER_SCALE: readonly number[] = [2.1, 2.1, 2.05, 1.8, 1.7, 1.55, 1.4, 1.35, 1.3, 1.25];
+export function mapMonsterScale(tier: number): number {
+  return MAP_MONSTER_SCALE[Math.min(tier, MAP_MONSTER_SCALE.length) - 1] ?? 1;
+}
 export function monsterXp(tier: number): number {
   return Math.round(10 * tier ** 1.5);
 }
@@ -193,12 +199,12 @@ export const STAT_TIERS: Readonly<Record<StatKey, { base: number; step: number }
 
 // A map modifier's tiers work as a gear line's do. Weak healing and hardened are capped once summed.
 export const MAP_MOD_TIERS: Readonly<Record<MapModKind, { base: number; step: number }>> = {
-  monsterLife: { base: 10, step: 5 },
-  monsterDamage: { base: 8, step: 4 },
-  monsterSpeed: { base: 6, step: 3 },
-  bossPower: { base: 15, step: 7 },
-  weakHealing: { base: 10, step: 5 },
-  hardened: { base: 5, step: 3 },
+  monsterLife: { base: 15, step: 8 },
+  monsterDamage: { base: 12, step: 6 },
+  monsterSpeed: { base: 8, step: 4 },
+  bossPower: { base: 20, step: 10 },
+  weakHealing: { base: 15, step: 7 },
+  hardened: { base: 8, step: 4 },
 };
 export const MAP_MOD_CAPS: Readonly<Partial<Record<MapModKind, number>>> = { weakHealing: 90, hardened: 75 };
 // What a map pays for its modifiers: each reward is this share of the sum of their values, in whole percent.

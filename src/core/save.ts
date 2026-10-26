@@ -601,7 +601,11 @@ function isCombatLine(x: unknown): boolean {
   if (!isObject(x)) return false;
   const named = typeof x.monster === 'string' && x.monster.length >= 1 && x.monster.length <= 80;
   switch (x.kind) {
-    case 'hit': return named && isNonNegInt(x.amount) && typeof x.crit === 'boolean' && typeof x.click === 'boolean';
+    case 'hit': {
+      // a hit logged before maps lost their clicks still says whether it was one
+      const click = x.click === undefined || typeof x.click === 'boolean';
+      return named && isNonNegInt(x.amount) && typeof x.crit === 'boolean' && click;
+    }
     case 'hurt':
     case 'heal': return named && isNonNegInt(x.amount);
     case 'kill': return named && isNonNegInt(x.xp) && isNonNegInt(x.souls);

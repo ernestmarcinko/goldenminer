@@ -101,13 +101,13 @@ export function roomTrack(run: MapRun, bossName: string): RoomRow[] {
   return rows;
 }
 
-export type LineTone = 'plain' | 'click' | 'crit' | 'hurt' | 'gain' | 'level' | 'drop';
+export type LineTone = 'plain' | 'crit' | 'hurt' | 'gain' | 'level' | 'drop';
 
 export function combatLineText(line: CombatLine): { text: string; tone: LineTone } {
   switch (line.kind) {
     case 'hit': {
-      const text = `You hit ${line.monster} for ${formatNumber(line.amount)}${line.crit ? ' (crit)' : ''}${line.click ? ' (click)' : ''}`;
-      return { text, tone: line.crit ? 'crit' : line.click ? 'click' : 'plain' };
+      const text = `You hit ${line.monster} for ${formatNumber(line.amount)}${line.crit ? ' (crit)' : ''}`;
+      return { text, tone: line.crit ? 'crit' : 'plain' };
     }
     case 'hurt': return { text: `${line.monster} hits you for ${formatNumber(line.amount)}`, tone: 'hurt' };
     case 'heal': return { text: `${line.monster} heals ${formatNumber(line.amount)}`, tone: 'hurt' };

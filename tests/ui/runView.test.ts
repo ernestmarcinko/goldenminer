@@ -40,10 +40,8 @@ it('the room track follows the run\'s boss room', () => {
 });
 
 it('combat log lines in words', () => {
-  expect(combatLineText({ kind: 'hit', monster: 'Drowned Digger', amount: 41, crit: false, click: true })).toEqual({ text: 'You hit Drowned Digger for 41 (click)', tone: 'click' });
-  expect(combatLineText({ kind: 'hit', monster: 'Drowned Digger', amount: 62, crit: true, click: false })).toEqual({ text: 'You hit Drowned Digger for 62 (crit)', tone: 'crit' });
-  expect(combatLineText({ kind: 'hit', monster: 'Drowned Digger', amount: 80, crit: true, click: true })).toEqual({ text: 'You hit Drowned Digger for 80 (crit) (click)', tone: 'crit' });
-  expect(combatLineText({ kind: 'hit', monster: 'Drowned Digger', amount: 38, crit: false, click: false })).toEqual({ text: 'You hit Drowned Digger for 38', tone: 'plain' });
+  expect(combatLineText({ kind: 'hit', monster: 'Drowned Digger', amount: 62, crit: true })).toEqual({ text: 'You hit Drowned Digger for 62 (crit)', tone: 'crit' });
+  expect(combatLineText({ kind: 'hit', monster: 'Drowned Digger', amount: 38, crit: false })).toEqual({ text: 'You hit Drowned Digger for 38', tone: 'plain' });
   expect(combatLineText({ kind: 'hurt', monster: 'Drowned Digger', amount: 21 })).toEqual({ text: 'Drowned Digger hits you for 21', tone: 'hurt' });
   expect(combatLineText({ kind: 'heal', monster: 'Drowned Digger', amount: 7 })).toEqual({ text: 'Drowned Digger heals 7', tone: 'hurt' });
   expect(combatLineText({ kind: 'kill', monster: 'Bog Leech', xp: 1210, souls: 0 })).toEqual({ text: 'Bog Leech dies: +1,210 XP', tone: 'gain' });
