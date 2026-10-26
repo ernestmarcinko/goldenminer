@@ -136,32 +136,31 @@
 .gm-web__node {
   cursor: pointer;
 }
-/* The side colour drives both the allocated outline and the bright core dot. */
+/* The side colour drives the allocated icon's glow. */
 .gm-web__node[data-side='mining'] { color: var(--gm-skills-mining); --gm-node-fill: var(--gm-skills-mining-fill); }
 .gm-web__node[data-side='battle'] { color: var(--gm-skills-battle); --gm-node-fill: var(--gm-skills-battle-fill); }
 .gm-web__node[data-side='hybrid'] { color: var(--gm-skills-hybrid); --gm-node-fill: var(--gm-skills-hybrid-fill); }
 .gm-web__node[data-side='start'] { color: var(--gm-skills-start); --gm-node-fill: var(--gm-panel-raised); }
-.gm-web__shape {
-  stroke-width: 2.5;
-  stroke: var(--gm-skills-off);
-  fill: var(--gm-ground);
+.gm-web__icon {
+  image-rendering: pixelated;
 }
-.gm-web__node[data-allocated='true'] .gm-web__shape {
-  stroke: currentColor;
-  fill: var(--gm-node-fill);
-  stroke-width: 4;
-  filter: drop-shadow(0 0 6px currentColor);
+.gm-web__halo {
+  fill: transparent;
+  stroke: none;
 }
-.gm-web__node[data-allocated='true'] .gm-web__core {
-  fill: currentColor;
+/* Allocated: the frame's accent already glows, so just a soft side-coloured drop shadow. */
+.gm-web__node[data-allocated='true'] .gm-web__icon {
+  filter: drop-shadow(0 0 5px currentColor);
 }
-/* A node you can take now: a dashed gold outline and a soft pulse. */
-.gm-web__node[data-allocatable='true'] .gm-web__shape {
+/* Unallocated: dim the icon but keep the frame readable. */
+.gm-web__node[data-allocated='false'] .gm-web__icon {
+  filter: brightness(0.7);
+}
+/* A node you can take now: a dashed gold halo and a soft pulse. */
+.gm-web__node[data-allocatable='true'] .gm-web__halo {
   stroke: var(--gm-gold-bright);
-  stroke-width: 3;
-  stroke-dasharray: 6 4;
-}
-.gm-web__node[data-allocatable='true'] .gm-web__hit {
+  stroke-width: 2;
+  stroke-dasharray: 5 3;
   fill: rgba(245, 207, 122, 0.08);
   animation: gm-web-pulse 2.4s ease-in-out infinite;
 }
@@ -169,31 +168,26 @@
   fill: rgba(255, 138, 122, 0.1);
 }
 /* Staged for allocation: waiting for the one confirm. */
-.gm-web__node[data-staged='true'] .gm-web__shape {
+.gm-web__node[data-staged='true'] .gm-web__halo {
   stroke: var(--gm-gold-bright);
-  fill: var(--gm-skills-mining-fill);
-  stroke-width: 4;
-  stroke-dasharray: none;
-  filter: drop-shadow(0 0 7px var(--gm-gold-bright));
+  stroke-width: 3;
+  fill: rgba(245, 207, 122, 0.15);
 }
-.gm-web__node[data-staged='true'] .gm-web__core { fill: var(--gm-gold-bright); }
 /* Marked for refund: waiting for the one confirm. */
-.gm-web__node[data-refunding='true'] .gm-web__shape {
+.gm-web__node[data-refunding='true'] .gm-web__halo {
   stroke: var(--gm-down);
-  fill: var(--gm-skills-battle-fill);
-  stroke-width: 4;
-  stroke-dasharray: 5 3;
-  filter: drop-shadow(0 0 6px var(--gm-down));
+  stroke-width: 3;
+  stroke-dasharray: 4 3;
+  fill: rgba(255, 138, 122, 0.12);
 }
-.gm-web__node[data-refunding='true'] .gm-web__core { fill: var(--gm-down); }
 .gm-web__edge[data-refunding='true'] {
   stroke: var(--gm-down);
   stroke-dasharray: 5 3;
 }
-.gm-web__node:hover .gm-web__shape {
+.gm-web__node:hover .gm-web__icon {
   filter: brightness(1.35);
 }
-.gm-web__node[data-allocated='true']:hover .gm-web__shape {
+.gm-web__node[data-allocated='true']:hover .gm-web__icon {
   filter: brightness(1.35) drop-shadow(0 0 8px currentColor);
 }
 
@@ -201,7 +195,7 @@
   50% { opacity: 0.35; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .gm-web__node[data-allocatable='true'] .gm-web__hit { animation: none; }
+  .gm-web__node[data-allocatable='true'] .gm-web__halo { animation: none; }
 }
 
 .gm-web__controls {
@@ -260,6 +254,12 @@
   align-items: flex-start;
   flex-wrap: wrap;
   min-height: 44px;
+}
+/* The icon-and-name row shared by the skill and ascendancy cards. */
+.gm-node-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .gm-skills__card {
   flex: 1 1 280px;

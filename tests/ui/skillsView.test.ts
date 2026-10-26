@@ -2,6 +2,7 @@ import { expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
 import { PASSIVE_NODE_BY_ID, START_NODE_ID } from '../../src/core/passives';
 import { allocate } from '../../src/core/respec';
+import { ascendancyVMs } from '../../src/ui/ascend/ascensionView';
 import {
   nodeVMs, pointsLine, pruneStaged, refundAffordable, refundLine, refundTotalLine, resetLine, searchNodes,
 } from '../../src/ui/skills/skillsView';
@@ -99,4 +100,43 @@ it('search finds a node by name or effect', () => {
   const s = newGame(1, 0);
   expect(searchNodes(s, 'vein sense')).toContain('veinSense');
   expect(searchNodes(s, 'earthshaker')).toContain('earthshaker');
+});
+
+it('every passive VM carries a composed 24 × 24 icon with a palette and id', () => {
+  const s = newGame(1, 0);
+  s.level = 3;
+  const vms = nodeVMs(s);
+  expect(vms.length).toBeGreaterThan(0);
+  for (const vm of vms) {
+    expect(vm.icon.id.length).toBeGreaterThan(0);
+    expect(vm.icon.grid).toHaveLength(24);
+    for (const row of vm.icon.grid) expect(row).toHaveLength(24);
+    expect(Object.keys(vm.icon.palette).length).toBeGreaterThan(0);
+  }
+});
+
+it('the passive start, an allocated keystone and a small node map to the right icons', () => {
+  const s = newGame(1, 0);
+  s.level = 3;
+  const vms = nodeVMs(s);
+  const start = vms.find((n) => n.id === START_NODE_ID);
+  expect(start?.icon.id).toBe('miner');
+  const earthshaker = vms.find((n) => n.id === 'earthshaker');
+  expect(earthshaker?.icon.id).toBe('earthshaker');
+  const digPower = vms.find((n) => n.kind === 'small' && n.icon.id === 'digPower');
+  expect(digPower?.icon.id).toBe('digPower');
+});
+
+it('every ascendancy VM carries a composed 24 × 24 icon', () => {
+  const s = newGame(1, 0);
+  const vms = ascendancyVMs(s);
+  expect(vms.length).toBeGreaterThan(0);
+  for (const vm of vms) {
+    expect(vm.icon.id.length).toBeGreaterThan(0);
+    expect(vm.icon.grid).toHaveLength(24);
+    for (const row of vm.icon.grid) expect(row).toHaveLength(24);
+    expect(Object.keys(vm.icon.palette).length).toBeGreaterThan(0);
+  }
+  const start = vms.find((n) => n.id === 'minerReborn');
+  expect(start?.icon.id).toBe('minerReborn');
 });

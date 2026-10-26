@@ -4,6 +4,7 @@ import {
   type PassiveKind, type PassiveNode, type PassiveSide,
 } from '../../core/passives';
 import { refundPrice } from '../../core/respec';
+import { composeIcon, iconForPassive, type IconGlyphId } from '../../core/skillIcons';
 import type { GameState } from '../../core/types';
 import { statText } from '../character/itemView';
 import { formatNumber, plural } from '../format';
@@ -31,6 +32,8 @@ export interface SkillNodeVM {
   staged: boolean;
   /** Marked for refund, not yet confirmed. */
   refunding: boolean;
+  /** The composed 24 × 24 pixel icon for the node, drawn on the web and in the card. */
+  icon: { id: IconGlyphId; grid: string[]; palette: Record<string, string> };
 }
 
 export interface NodeVMOptions {
@@ -61,6 +64,8 @@ export function nodeVMs(state: GameState, options: NodeVMOptions = {}): SkillNod
     const isStaged = staged.includes(n.id);
     const isRefunding = refunding.includes(n.id);
     const remaining = state.passives.allocated.filter((id) => id !== n.id && !marked.has(id));
+    const glyph = iconForPassive(n);
+    const frameKind = n.kind === 'start' ? 'start' : n.kind === 'keystone' ? 'keystone' : n.kind === 'notable' ? 'notable' : 'small';
     return {
       id: n.id,
       name: n.name,
@@ -79,6 +84,7 @@ export function nodeVMs(state: GameState, options: NodeVMOptions = {}): SkillNod
         && isConnectedWeb(remaining),
       staged: isStaged,
       refunding: isRefunding,
+      icon: composeIcon(frameKind, glyph, n.side),
     };
   });
 }
