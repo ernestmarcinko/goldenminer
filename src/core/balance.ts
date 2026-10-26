@@ -72,16 +72,20 @@ export const MAX_TIER_OVER_CAP = 2;
 // The highest item level an item, gem or map tier can have; a save holding more is refused.
 export const MAX_ITEM_LEVEL = 100_000;
 
-export const LEVEL_CAP = 60;
+export const LEVEL_CAP = 100;
 // XP to leave level L is XP_PER_LEVEL × L^XP_EXPONENT, times a late-game ramp that leaves the tuned early levels alone:
-// 1× up to XP_RAMP_START, rising to XP_RAMP_MULT by XP_RAMP_FULL. Plan 13 tunes the ramp, not the early curve.
+// 1× up to XP_RAMP_START, rising to XP_RAMP_MULT by XP_RAMP_FULL, then to XP_RAMP_CAP by the cap.
 export const XP_PER_LEVEL = 100;
 export const XP_EXPONENT = 1.5;
 export const XP_RAMP_START = 10;
 export const XP_RAMP_FULL = 30;
 export const XP_RAMP_MULT = 1.5;
-// Ascendancy: the depth each point costs, and the map tier auto-mapping reaches before the tree extends it.
+export const XP_RAMP_CAP = 4.5;
+// Ascendancy: the depth each point costs, the level that unlocks ascension, and how many levels above it earn a
+// bonus point (from the second ascension on).
 export const ASCEND_DEPTH_PER_POINT = 250;
+export const ASCEND_LEVEL = 60;
+export const ASCEND_LEVEL_STEP = 10;
 export const AUTO_MAP_BASE_TIER = 3;
 export const COMBAT_LOG_LIMIT = 20;
 export const RUN_LOOT_LIMIT = 30;

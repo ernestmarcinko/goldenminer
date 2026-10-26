@@ -14,7 +14,7 @@ import { deriveBattleStats } from '../../src/core/battle';
 import { deriveStats } from '../../src/core/stats';
 import { xpToNext } from '../../src/core/levels';
 import { seedFromText } from '../../src/core/seed';
-import { LEVEL_CAP, MAX_LOOT_RULES } from '../../src/core/balance';
+import { ASCEND_LEVEL, MAX_LOOT_RULES } from '../../src/core/balance';
 import { ascendancyPoints, ASCENDANCY_NODE_BY_ID, ASCENDANCY_START_ID } from '../../src/core/ascendancy';
 import type { MapItem } from '../../src/core/items';
 import type { LootRule, TickEvent } from '../../src/core/types';
@@ -712,23 +712,23 @@ describe('passive web intents', () => {
 });
 
 describe('ascension intent', () => {
-  it('refuses below the cap and resets the store at it', () => {
+  it('refuses below the ascend level and resets the store at it', () => {
     const { store } = make();
     store.load();
-    store.state.level = LEVEL_CAP - 1;
+    store.state.level = ASCEND_LEVEL - 1;
     store.state.deepest = 1000;
     const v = store.version;
     expect(store.ascend()).toBe('notReady');
     expect(store.version).toBe(v);
-    expect(store.state.level).toBe(LEVEL_CAP - 1);
+    expect(store.state.level).toBe(ASCEND_LEVEL - 1);
     expect(store.state.deepest).toBe(1000);
 
-    store.state.level = LEVEL_CAP;
+    store.state.level = ASCEND_LEVEL;
     expect(store.ascend()).toBe('ok');
     expect(store.version).toBe(v + 1);
     expect(store.state.level).toBe(1);
     expect(store.state.deepest).toBe(0);
-    expect(store.state.ascendancy.points).toBe(ascendancyPoints(1000));
+    expect(store.state.ascendancy.points).toBe(ascendancyPoints(1000, ASCEND_LEVEL, 0));
     expect(store.stats).toEqual(deriveStats(store.state));
     expect(store.battle).toEqual(deriveBattleStats(store.state));
   });

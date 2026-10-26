@@ -1,22 +1,24 @@
 import { ascendancyPoints, ascendancyTotals } from './ascendancy';
-import { GUARANTEED_FIRST_MAP_METRE, LEVEL_CAP } from './balance';
+import { ASCEND_LEVEL, GUARANTEED_FIRST_MAP_METRE } from './balance';
 import { emptyInventory } from './cells';
 import { fillAhead } from './metres';
 import { deriveStats } from './stats';
 import type { GameState } from './types';
 
 /**
- * At the level cap, trades the whole run for permanent ascendancy points and starts again at the tree's starting depth.
+ * From the ascend level, trades the whole run for permanent ascendancy points and starts again at the tree's starting
+ * depth. Points scale with depth and, from the second ascension on, with how far past the ascend level the miner got.
  * Keeps the tree, the auto-map queue, lifetime stats, settings, the world and both RNG streams.
  */
 export function ascend(state: GameState): 'ok' | 'notReady' {
-  if (state.level < LEVEL_CAP) return 'notReady';
+  if (state.level < ASCEND_LEVEL) return 'notReady';
 
   const deepest = state.deepest;
   const startingDepth = ascendancyTotals(state).startingDepth;
+  const points = ascendancyPoints(deepest, state.level, state.lifetime.ascensions);
   state.lifetime.ascensions += 1;
   state.lifetime.deepest = Math.max(state.lifetime.deepest, deepest);
-  state.ascendancy.points += ascendancyPoints(deepest);
+  state.ascendancy.points += points;
 
   state.level = 1;
   state.xp = 0;

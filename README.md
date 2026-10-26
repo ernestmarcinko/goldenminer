@@ -76,7 +76,7 @@ Every level gives one point, and the Skills tab spends them on a passive web: th
 
 ## Ascension
 
-The Surveyor notable in the passive web unlocks auto-mapping: queue a map from its card, and while you are away the miner runs your queued maps back to back, up to tier 3 plus the ascendancy tree's extra tiers, instead of digging. At level 60 the Ascend tab lets the miner sacrifice the whole run (level, web, gear, bags, stash, Gold, Diamonds, Souls and depth) for ascendancy points that scale with the deepest depth reached: the square root of the depth divided by 250 m, rounded down. The points are permanent and go into a small tree of their own, spent on starting depth, passive points, auto-map tiers, offline cap, yield and find that make every later run faster; ascending keeps the tree, the queue, your lifetime best and your settings.
+The Surveyor notable in the passive web unlocks auto-mapping: queue a map from its card, and while you are away the miner runs your queued maps back to back, up to tier 3 plus the ascendancy tree's extra tiers, instead of digging. From level 60 the Ascend tab lets the miner sacrifice the whole run (level, web, gear, bags, stash, Gold, Diamonds, Souls and depth) for ascendancy points that scale with how far the run went: the square root of the depth divided by 250 m, rounded down, plus — from the second ascension on — one point for every 10 levels past 60, up to +4 at the level-100 cap. The points are permanent and go into a small tree of their own, spent on starting depth, passive points, auto-map tiers, offline cap, yield and find that make every later run faster; ascending keeps the tree, the queue, your lifetime best and your settings.
 
 ## Merchant
 
@@ -96,7 +96,7 @@ The 2013 original lives in `legacy/` (open `legacy/index-dev.html`).
 
 ## Balance
 
-`npm run balance` plays a reference week headlessly through the real tick, map, passive, auto-map and ascension code: four fifteen-minute check-ins a day, offline digging between, the best drop worn, and points spent towards Surveyor. On the seeded reference run the first map arrives within a minute, auto-mapping unlocks at level 30, the level cap lands at about 5.3 simulated days, the deepest depth is still climbing a day later (4,587 m at the cap; frontier map tier 19 → 22), and the cap is worth 4 ascendancy points. The model assumes perfect drops and no crafting, so a human's week is a little longer.
+`npm run balance` plays a reference run headlessly through the real tick, map, passive, auto-map and ascension code: four fifteen-minute check-ins a day, offline digging between, the best drop worn, and points spent towards Surveyor. On the seeded reference run the first map arrives within a minute, auto-mapping unlocks at level 30, and the level-100 cap lands at about 14.5 simulated days; the deepest depth is still climbing a day later (10,095 m at the cap; frontier map tier 38 → 40), the cap is worth 6 ascendancy points, and a second run's level bonus is +4. The model assumes perfect drops and no crafting, so a human's run is a little longer.
 
 ## Credits
 

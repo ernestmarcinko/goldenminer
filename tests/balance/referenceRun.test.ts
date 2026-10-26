@@ -1,8 +1,8 @@
 import { expect, it } from 'vitest';
 import { runReference } from '../../src/core/sim';
 
-it('the reference week reaches the pacing targets', () => {
-  const report = runReference({ seed: 12345, days: 8 });
+it('the reference run reaches the pacing targets', () => {
+  const report = runReference({ seed: 12345, days: 24 });
   console.log(JSON.stringify(report, null, 2));
 
   expect(report.firstMapSec).toBeGreaterThan(0);
@@ -13,11 +13,14 @@ it('the reference week reaches the pacing targets', () => {
   // day 3–4 estimate, which assumes a human's inventory, deaths and reading; the upper bound still guards the week.
   expect(report.autoMapDay).toBeGreaterThanOrEqual(1.5);
   expect(report.autoMapDay).toBeLessThanOrEqual(4.5);
-  expect(report.capDay).toBeGreaterThanOrEqual(4);
-  expect(report.capDay).toBeLessThanOrEqual(8);
+  // The level-100 cap is the target; the reference run reaches it inside two to three weeks.
+  expect(report.capDay).toBeGreaterThanOrEqual(14);
+  expect(report.capDay).toBeLessThanOrEqual(21);
   expect(report.frontierTierAfterDay).toBeGreaterThanOrEqual(report.frontierTierAtCap);
   expect(report.ascensionPointsAtCap).toBeGreaterThanOrEqual(1);
+  // The second run's level bonus: +1 point per 10 levels past 60, so +4 at level 100.
+  expect(report.levelBonusSecondRun).toBe(4);
 
-  const again = runReference({ seed: 12345, days: 8 });
+  const again = runReference({ seed: 12345, days: 24 });
   expect(again).toEqual(report);
 }, 600_000);

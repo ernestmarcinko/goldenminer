@@ -360,7 +360,7 @@ it('rejects impossible maps, runs and levels', () => {
   const run = (s: GameState) => (s.activity.kind === 'map' ? s.activity.run : null);
   const first = (s: GameState) => run(s)?.queue[0];
   const cases: [string, (s: GameState) => void][] = [
-    ['level 61', (s) => { s.level = 61; }],
+    ['level 101', (s) => { s.level = 101; }],
     ['xp past the next level', (s) => { s.xp = 100; }],
     ['negative souls', (s) => { s.souls = -1; }],
     ['an empty room', (s) => { run(s)?.queue.splice(0); }],
@@ -451,7 +451,7 @@ it('accepts the legal extremes of maps, runs and levels', () => {
 
 it('rejects xp at the level cap', () => {
   const s = running();
-  s.level = 60;
+  s.level = 100;
   s.xp = 1;
   expect(decodes(s)).toBe(false);
 });

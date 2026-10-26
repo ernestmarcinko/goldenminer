@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { LEVEL_CAP } from '../../core/balance';
+import { ASCEND_LEVEL } from '../../core/balance';
 import type { GameStore } from '../../store/gameStore';
 import { Web } from '../skills/Web';
 import { NodeIcon } from '../skills/SkillIcon';
@@ -15,7 +15,7 @@ const ALLOCATE_TEXT: Readonly<Record<string, string>> = {
   invalid: "That node doesn't exist.",
 };
 
-/** The ascendancy tree: hover a node for its card, click an allocatable one to spend a point, and ascend at the cap. */
+/** The ascendancy tree: hover a node for its card, click an allocatable one to spend a point, and ascend at level 60. */
 export function AscensionView({ store }: { store: GameStore }) {
   const { state, version } = useGame(store);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -41,7 +41,7 @@ export function AscensionView({ store }: { store: GameStore }) {
     // A node that cannot be allocated closes any pinned card and says why.
     setPinnedId(null);
     if (vm.allocated) setMessage(`${vm.name} is already allocated.`);
-    else if (state.ascendancy.points === 0) setMessage('No ascendancy points — ascend at level 60 to earn them.');
+    else if (state.ascendancy.points === 0) setMessage(`No ascendancy points — ascend at level ${ASCEND_LEVEL} to earn them.`);
     else setMessage('Allocate next to an allocated node first.');
   };
 
@@ -63,11 +63,14 @@ export function AscensionView({ store }: { store: GameStore }) {
         <span className="gm-ascend__points">{ascendancyPointsLine(state)}</span>
       </div>
       {state.ascendancy.points === 0 && (
-        <p className="gm-ascend__hint">No ascendancy points yet — ascend at level 60 to earn them.</p>
+        <p className="gm-ascend__hint">No ascendancy points yet — ascend at level {ASCEND_LEVEL} to earn them.</p>
       )}
       <div className="gm-ascend__bar">
         <span className="gm-ascend__preview">{pointsPreview(state)}</span>
-        {state.level >= LEVEL_CAP ? (
+        {state.lifetime.ascensions >= 1 && state.level >= ASCEND_LEVEL && (
+          <span className="gm-muted">Level higher for more points.</span>
+        )}
+        {state.level >= ASCEND_LEVEL ? (
           <button
             type="button"
             className={armed ? 'gm-btn gm-btn--danger' : 'gm-btn gm-btn--primary'}

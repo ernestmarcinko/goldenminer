@@ -37,14 +37,25 @@ it('links are symmetric, ids unique, and the start never links to itself', () =>
 });
 
 it('points come from the deepest depth as a square root', () => {
-  expect(ascendancyPoints(0)).toBe(0);
-  expect(ascendancyPoints(249)).toBe(0);
-  expect(ascendancyPoints(250)).toBe(1);
-  expect(ascendancyPoints(1000)).toBe(2);
-  expect(ascendancyPoints(2250)).toBe(3);
-  expect(ascendancyPoints(-1)).toBe(0);
-  expect(ascendancyPoints(Number.NaN)).toBe(0);
-  expect(ascendancyPoints(Number.POSITIVE_INFINITY)).toBe(0);
+  expect(ascendancyPoints(0, 60, 0)).toBe(0);
+  expect(ascendancyPoints(249, 60, 0)).toBe(0);
+  expect(ascendancyPoints(250, 60, 0)).toBe(1);
+  expect(ascendancyPoints(1000, 60, 0)).toBe(2);
+  expect(ascendancyPoints(2250, 60, 0)).toBe(3);
+  expect(ascendancyPoints(-1, 60, 0)).toBe(0);
+  expect(ascendancyPoints(Number.NaN, 60, 0)).toBe(0);
+  expect(ascendancyPoints(Number.POSITIVE_INFINITY, 60, 0)).toBe(0);
+});
+
+it('the level bonus only applies from the second ascension on', () => {
+  // The first ascension has no level bonus, whatever the level.
+  expect(ascendancyPoints(1000, 60, 0)).toBe(2);
+  expect(ascendancyPoints(1000, 100, 0)).toBe(2);
+  // From the second ascension, every 10 levels past 60 add a point.
+  expect(ascendancyPoints(1000, 60, 1)).toBe(2);
+  expect(ascendancyPoints(1000, 70, 1)).toBe(3);
+  expect(ascendancyPoints(1000, 99, 1)).toBe(5);
+  expect(ascendancyPoints(1000, 100, 1)).toBe(6);
 });
 
 it('allocation spends a point, follows adjacency, and never refunds', () => {

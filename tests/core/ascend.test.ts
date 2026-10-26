@@ -3,7 +3,7 @@ import { ascend } from '../../src/core/ascend';
 import {
   ASCENDANCY_NODE_BY_ID, ASCENDANCY_NODES, ASCENDANCY_START_ID, ascendancyPoints, ascendancyTotals,
 } from '../../src/core/ascendancy';
-import { GUARANTEED_FIRST_MAP_METRE, LEVEL_CAP } from '../../src/core/balance';
+import { ASCEND_LEVEL, GUARANTEED_FIRST_MAP_METRE } from '../../src/core/balance';
 import { emptyInventory } from '../../src/core/cells';
 import { startMap } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
@@ -37,9 +37,9 @@ function pathTo(target: string): string[] {
   return path;
 }
 
-it('cannot ascend below the level cap', () => {
+it('cannot ascend below the ascend level', () => {
   const s = fresh();
-  s.level = LEVEL_CAP - 1;
+  s.level = ASCEND_LEVEL - 1;
   const before = structuredClone(s);
   expect(ascend(s)).toBe('notReady');
   expect(s).toEqual(before);
@@ -47,12 +47,12 @@ it('cannot ascend below the level cap', () => {
 
 it('at the cap it grants points for the deepest depth and resets the run', () => {
   const s = fresh();
-  s.level = LEVEL_CAP;
+  s.level = ASCEND_LEVEL;
   s.deepest = 1000;
   s.xp = 0;
   expect(ascend(s)).toBe('ok');
   expect(s.lifetime).toEqual({ ascensions: 1, deepest: 1000 });
-  expect(s.ascendancy.points).toBe(ascendancyPoints(1000));
+  expect(s.ascendancy.points).toBe(ascendancyPoints(1000, ASCEND_LEVEL, 0));
   expect(s.level).toBe(1);
   expect(s.xp).toBe(0);
   expect(s.passives.allocated).toEqual([]);
@@ -64,7 +64,7 @@ it('at the cap it grants points for the deepest depth and resets the run', () =>
 
 it('rebuilds every run field from scratch', () => {
   const s = fresh();
-  s.level = LEVEL_CAP;
+  s.level = ASCEND_LEVEL;
   s.xp = 4321;
   s.deepest = 1000;
   s.progress = 0.75;
@@ -124,7 +124,7 @@ it('rebuilds every run field from scratch', () => {
 
 it('keeps the world, the RNG streams, settings, the tree, the auto-map queue and lifetime', () => {
   const s = newGame(11, 1234, { seedText: 'kept-world', lootSeed: 99 });
-  s.level = LEVEL_CAP;
+  s.level = ASCEND_LEVEL;
   s.deepest = 2500;
   s.worldGen = 1;
   s.rng = 12345;
@@ -170,7 +170,7 @@ it('starts the next run at the tree\'s starting depth, with the new-run guarante
   s.ascendancy.allocated = pathTo(depthNode.id);
   const startingDepth = ascendancyTotals(s).startingDepth;
   expect(startingDepth).toBeGreaterThan(0);
-  s.level = LEVEL_CAP;
+  s.level = ASCEND_LEVEL;
   s.deepest = 5000;
   expect(ascend(s)).toBe('ok');
   expect(s.deepest).toBe(startingDepth);
@@ -180,24 +180,24 @@ it('starts the next run at the tree\'s starting depth, with the new-run guarante
 
 it('a second ascension keeps the first tree and accumulates points', () => {
   const s = fresh();
-  s.level = LEVEL_CAP;
+  s.level = ASCEND_LEVEL;
   s.deepest = 1000;
   expect(ascend(s)).toBe('ok');
   const first = s.ascendancy.points;
-  expect(first).toBe(ascendancyPoints(1000));
+  expect(first).toBe(ascendancyPoints(1000, ASCEND_LEVEL, 0));
   s.ascendancy.allocated = ['wealthSmall1'];
-  s.level = LEVEL_CAP;
+  s.level = ASCEND_LEVEL;
   s.deepest = 3000;
   expect(ascend(s)).toBe('ok');
   expect(s.lifetime.ascensions).toBe(2);
   expect(s.lifetime.deepest).toBe(3000);
-  expect(s.ascendancy.points).toBe(first + ascendancyPoints(3000));
+  expect(s.ascendancy.points).toBe(first + ascendancyPoints(3000, ASCEND_LEVEL, 1));
   expect(s.ascendancy.allocated).toEqual(['wealthSmall1']);
 });
 
 it('leaves both RNG streams alone', () => {
   const s = fresh();
-  s.level = LEVEL_CAP;
+  s.level = ASCEND_LEVEL;
   s.deepest = 1500;
   const rng = s.rng;
   const uniqueRng = s.uniqueRng;

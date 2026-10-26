@@ -1,4 +1,4 @@
-import { ASCEND_DEPTH_PER_POINT } from './balance';
+import { ASCEND_DEPTH_PER_POINT, ASCEND_LEVEL, ASCEND_LEVEL_STEP } from './balance';
 import type { StatKey } from './items';
 import type { GameState } from './types';
 
@@ -169,10 +169,12 @@ export const ASCENDANCY_NODE_BY_ID: ReadonlyMap<string, AscendancyNode> = new Ma
 
 export const ASCENDANCY_NODE_COUNT = ASCENDANCY_NODES.length;
 
-/** The points a run's deepest depth is worth: one per ASCEND_DEPTH_PER_POINT metres, taken as a square root. */
-export function ascendancyPoints(deepest: number): number {
+/** The points a run is worth: the depth term, plus a level bonus from the second ascension on. */
+export function ascendancyPoints(deepest: number, level: number, priorAscensions: number): number {
   if (!Number.isFinite(deepest) || deepest < 0) return 0;
-  return Math.floor(Math.sqrt(deepest / ASCEND_DEPTH_PER_POINT));
+  const depth = Math.floor(Math.sqrt(deepest / ASCEND_DEPTH_PER_POINT));
+  const bonus = priorAscensions >= 1 ? Math.max(0, Math.floor((level - ASCEND_LEVEL) / ASCEND_LEVEL_STEP)) : 0;
+  return depth + bonus;
 }
 
 export interface AscendancyTotals {

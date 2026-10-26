@@ -1,4 +1,5 @@
 import { ascendancyPoints } from './ascendancy';
+import { ascend } from './ascend';
 import { autoMapMaxTier, autoMapping, queueForAutoMap } from './autoMap';
 import { LEVEL_CAP } from './balance';
 import { clickTicks } from './clock';
@@ -22,6 +23,8 @@ export interface SimReport {
   firstMapSec: number; autoMapLevel: number; autoMapDay: number; capDay: number;
   deepestAtCap: number; frontierTierAtCap: number; frontierTierAfterDay: number;
   ascensionPointsAtCap: number;
+  /** The level bonus a second run earns at the cap: the points above the depth term (0 if the second cap wasn't reached). */
+  levelBonusSecondRun: number;
   /** The day each level was first reached, for reading the curve. */
   levelDays: Record<number, number>;
   clears: Record<number, number>; losses: Record<number, number>;
@@ -162,18 +165,13 @@ function queueStashedMaps(state: GameState): void {
 }
 
 /**
- * Plays the reference week headlessly through the real tick, map and passive functions: four fifteen-minute check-ins
- * a day (65 % of each spent playing), offline digging capped per gap, the best drop worn, and points spent towards
- * Surveyor so it lands at level 30. Pure and deterministic for a given seed and options.
+ * Plays one run of the reference schedule headlessly through the real tick, map and passive functions: four fifteen-
+ * minute check-ins a day (65 % of each spent playing), offline digging capped per gap, the best drop worn, and points
+ * spent towards Surveyor so it lands at level 30. `state` is mutated in place and must be a fresh run.
  */
-export function runReference(options: SimOptions = {}): SimReport {
-  const seed = options.seed ?? 12345;
-  const days = options.days ?? 8;
-  const clickRate = options.clickRate ?? 2;
-  const activeMinutes = Math.max(0, Math.min(CHECK_IN_MINUTES, Math.round(CHECK_IN_MINUTES * (options.activeEfficiency ?? 0.65))));
-  const totalMinutes = Math.max(0, Math.round(days * MINUTES_PER_DAY));
-  const state = newGame(seed, 0);
+function simulateRun(state: GameState, days: number, clickRate: number, activeMinutes: number): RunMeasurements {
   const passivePolicy: PassivePolicy = { nextSide: 'battle', lastPathLevel: -1 };
+  const totalMinutes = Math.max(0, Math.round(days * MINUTES_PER_DAY));
 
   let frontier = 1;
   let firstMapSec = -1;
@@ -275,9 +273,56 @@ export function runReference(options: SimOptions = {}): SimReport {
     deepestAtCap,
     frontierTierAtCap,
     frontierTierAfterDay: frontier,
-    ascensionPointsAtCap: ascendancyPoints(deepestAtCap),
     levelDays,
     clears,
     losses,
+    capReached: capMinute >= 0,
+  };
+}
+
+interface RunMeasurements {
+  firstMapSec: number; autoMapLevel: number; autoMapDay: number; capDay: number;
+  deepestAtCap: number; frontierTierAtCap: number; frontierTierAfterDay: number;
+  levelDays: Record<number, number>; clears: Record<number, number>; losses: Record<number, number>;
+  capReached: boolean;
+}
+
+/**
+ * Plays the reference schedule headlessly: four fifteen-minute check-ins a day, offline digging between, the best drop
+ * worn, and points spent towards Surveyor. The first run reaches the level cap; then a second run, after ascending,
+ * measures the level bonus. Pure and deterministic for a given seed and options.
+ */
+export function runReference(options: SimOptions = {}): SimReport {
+  const seed = options.seed ?? 12345;
+  const days = options.days ?? 24;
+  const clickRate = options.clickRate ?? 2;
+  const activeMinutes = Math.max(0, Math.min(CHECK_IN_MINUTES, Math.round(CHECK_IN_MINUTES * (options.activeEfficiency ?? 0.65))));
+  const state = newGame(seed, 0);
+
+  const first = simulateRun(state, days, clickRate, activeMinutes);
+
+  let levelBonusSecondRun = 0;
+  if (first.capReached) {
+    ascend(state);
+    const second = simulateRun(state, days, clickRate, activeMinutes);
+    if (second.capReached) {
+      levelBonusSecondRun = ascendancyPoints(second.deepestAtCap, LEVEL_CAP, 1)
+        - ascendancyPoints(second.deepestAtCap, LEVEL_CAP, 0);
+    }
+  }
+
+  return {
+    firstMapSec: first.firstMapSec,
+    autoMapLevel: first.autoMapLevel,
+    autoMapDay: first.autoMapDay,
+    capDay: first.capDay,
+    deepestAtCap: first.deepestAtCap,
+    frontierTierAtCap: first.frontierTierAtCap,
+    frontierTierAfterDay: first.frontierTierAfterDay,
+    ascensionPointsAtCap: ascendancyPoints(first.deepestAtCap, LEVEL_CAP, 0),
+    levelBonusSecondRun,
+    levelDays: first.levelDays,
+    clears: first.clears,
+    losses: first.losses,
   };
 }

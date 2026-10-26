@@ -147,7 +147,7 @@ const plainMap = (id: number, tier: number, metre = 1): MapItem => ({ id, type: 
 
 it('xp bar', () => {
   expect(xpBar(1, 50)).toEqual({ label: 'Level 1', text: '50 / 100 XP', pct: 0.5 });
-  expect(xpBar(60, 0)).toEqual({ label: 'Level 60', text: 'Max level', pct: 1 });
+  expect(xpBar(100, 0)).toEqual({ label: 'Level 100', text: 'Max level', pct: 1 });
   expect(xpBar(30, 1234).text).toBe('1,234 / 24,648 XP');
   expect(xpBar(1, 0)).toEqual({ label: 'Level 1', text: '0 / 100 XP', pct: 0 });
   // the last xp below a level stays short of a full bar

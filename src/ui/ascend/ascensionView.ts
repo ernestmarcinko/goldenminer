@@ -2,7 +2,7 @@ import {
   ASCENDANCY_NODES, ASCENDANCY_START_ID, ascendancyPoints, canAllocateAscendancy,
   type AscendancyEffect,
 } from '../../core/ascendancy';
-import { LEVEL_CAP } from '../../core/balance';
+import { ASCEND_LEVEL } from '../../core/balance';
 import { composeIcon, iconForAscendancy } from '../../core/skillIcons';
 import type { GameState } from '../../core/types';
 import { statText } from '../character/itemView';
@@ -59,11 +59,14 @@ export function ascendancyPointsLine(state: GameState): string {
 
 /** The ascend button's label: what it would pay, or what level unlocks it. */
 export function ascendLine(state: GameState): string {
-  if (state.level < LEVEL_CAP) return `Reach level ${formatNumber(LEVEL_CAP)} to ascend`;
-  return `Ascend for ${plural(ascendancyPoints(state.deepest), 'point', 'points')}`;
+  if (state.level < ASCEND_LEVEL) return `Reach level ${formatNumber(ASCEND_LEVEL)} to ascend`;
+  return `Ascend for ${plural(ascendancyPoints(state.deepest, state.level, state.lifetime.ascensions), 'point', 'points')}`;
 }
 
-/** The points the current deepest depth would be worth on ascending. */
+/** The points the current depth and level would be worth on ascending. */
 export function pointsPreview(state: GameState): string {
-  return `Deepest ${formatNumber(state.deepest)} m → ${formatNumber(ascendancyPoints(state.deepest))} points`;
+  const points = ascendancyPoints(state.deepest, state.level, state.lifetime.ascensions);
+  const depth = `Deepest ${formatNumber(state.deepest)} m`;
+  const level = state.lifetime.ascensions >= 1 ? ` · level ${formatNumber(state.level)}` : '';
+  return `${depth}${level} → ${formatNumber(points)} points`;
 }
