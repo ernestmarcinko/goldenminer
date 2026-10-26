@@ -265,7 +265,7 @@ export function ItemCard({
       <div className="gm-card__kind">{kind}</div>
       <div className="gm-card__lines"><Lines lines={lines} /></div>
       {note !== null && <div className="gm-card__note">{note}</div>}
-      {compare !== null && compare.lines.length > 0 && (
+      {compare !== null && compare.lines.length > 0 && !beside && (
         <div className="gm-card__compare">
           <div className="gm-card__kind">{compare.title}</div>
           <Lines lines={compare.lines} />
@@ -352,7 +352,15 @@ export function ItemCard({
       style={{ left }}
     >
       {card}
-      <div className="gm-card gm-card--equipped" data-rarity={rarityOf(worn)}><EquippedContent worn={worn} /></div>
+      <div className="gm-cardpair__side">
+        <div className="gm-card gm-card--equipped" data-rarity={rarityOf(worn)}><EquippedContent worn={worn} /></div>
+        {compare !== null && compare.lines.length > 0 && (
+          <div className="gm-card gm-card--compare">
+            <div className="gm-card__kind">{compare.title}</div>
+            <Lines lines={compare.lines} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

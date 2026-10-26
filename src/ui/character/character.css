@@ -94,7 +94,7 @@ button.gm-item:hover { background: #3a2f20; }
 }
 .gm-card[role='dialog'] { pointer-events: auto; }
 /* a pinned card takes its own clicks, which close it, so none reaches (and sells, with Ctrl) an item hidden under it */
-.gm-card[data-pinned], .gm-cardpair[data-pinned], .gm-cardpair[data-pinned] > .gm-card { pointer-events: auto; }
+.gm-card[data-pinned], .gm-cardpair[data-pinned], .gm-cardpair[data-pinned] .gm-card { pointer-events: auto; }
 /* a placed action card taller than the screen (given a max-height) scrolls inside, and never the page */
 .gm-card[role='dialog']:not(.gm-card--inline) { overflow-y: auto; overscroll-behavior: contain; }
 /* the card moves itself after a craft; nothing that scrolls may also move to follow it (scroll anchoring) */
@@ -106,8 +106,11 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-card__craft { padding-top: 6px; }
 /* a hover card and the worn item's card, side by side as one placed pair */
 .gm-cardpair { position: fixed; z-index: 9; display: flex; align-items: flex-start; gap: 8px; pointer-events: none; }
-.gm-cardpair > .gm-card { position: static; }
+.gm-cardpair > .gm-card, .gm-cardpair__side > .gm-card { position: static; }
+/* the worn item's card and, under it, the "if equipped instead" lines as their own card */
+.gm-cardpair__side { display: flex; flex-direction: column; gap: 8px; flex: none; }
 .gm-card--equipped { opacity: 0.92; border-color: var(--gm-line); }
+.gm-card--compare { opacity: 0.95; border-color: var(--gm-line); }
 .gm-card__equipped { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px solid var(--gm-line); }
 .gm-card__name { font-family: var(--gm-font-display); font-weight: 400; font-size: 15px; color: var(--gm-tone, var(--gm-normal)); }
 .gm-card__kind { font-size: 12px; color: var(--gm-muted); }
