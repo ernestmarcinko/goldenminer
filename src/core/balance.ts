@@ -1,4 +1,4 @@
-import type { GemGrade, MapModKind, MapRarity, Material, Rarity, StatKey } from './items';
+import type { GemGrade, MapModKind, MapRarity, Material, OrbFamily, OrbTier, Rarity, StatKey } from './items';
 import type { CraftKind, FeatureKind, Hazard, Stats, TemperOutcome } from './types';
 
 export const BASE_DIG_POWER = 10;
@@ -262,31 +262,51 @@ export const CHEST_SECOND_ITEM_CHANCE = 0.2;
 export const CHEST_BATTLE_CHANCE = 0.2;
 
 // A craft costs base + floor(level / per) of its material, or base alone when per is 0. Gear's level is its ilvl, a
-// map's its tier.
-export const CRAFT_COST: Readonly<Record<CraftKind, { base: number; per: number }>> = {
+// map's its tier. Starsteel and Obsidian are retired as crafts (they are orb currency, Plan 27), so they have no entry.
+export const CRAFT_COST: Readonly<Partial<Record<CraftKind, { base: number; per: number }>>> = {
   copper: { base: 1, per: 2 }, tin: { base: 1, per: 2 }, iron: { base: 1, per: 2 },
-  silver: { base: 1, per: 4 }, mithril: { base: 1, per: 4 }, starsteel: { base: 1, per: 4 },
+  silver: { base: 1, per: 4 }, mithril: { base: 1, per: 4 },
   diamond: { base: 1, per: 3 },
-  obsidian: { base: 1, per: 0 }, voidCrystal: { base: 1, per: 0 },
+  voidCrystal: { base: 1, per: 0 },
 };
 
-// The crafting overhaul (Plan 17): essences, orbs and the ore economy. Copper and Tin stay the cheap base crafts
-// (normal → magic, reroll magic); the other six ores buy tiered essences and exchange for each other.
-export const ESSENCE_BAG_STACK = 50;
-export const ESSENCE_STASH_STACK = 1_000_000;
-// The ore a tier-t essence is bought with, for t = 1..6; Copper and Tin are the base crafts, never a recipe.
-const ORE_FOR_TIER: readonly (Material | undefined)[] = [undefined, 'iron', 'silver', 'mithril', 'starsteel', 'obsidian', 'voidCrystal'];
-export function oreForTier(tier: number): Material | undefined {
-  return ORE_FOR_TIER[tier];
+// The crafting rebalance (Plan 27): the 15-orb catalogue replaces essences and the old two orbs. Copper, Tin, Silver,
+// Mithril and Diamond stay the cheap base crafts; Void crystal still tempers; Iron, Mithril and Void crystal buy the
+// orbs below, and the ore exchange turns any ore into whichever an orb costs.
+export const ORB_BAG_STACK = 50;
+export const ORB_STASH_STACK = 1_000_000;
+
+/** The ore and cost of each orb family and tier: Minor in Iron, Normal in Mithril, Greater in Void crystal. */
+export const ORB_COSTS: Readonly<Record<OrbFamily, Readonly<Record<OrbTier, { ore: Material; cost: number }>>>> = {
+  craft: { minor: { ore: 'iron', cost: 2 }, normal: { ore: 'mithril', cost: 3 }, greater: { ore: 'voidCrystal', cost: 4 } },
+  removal: { minor: { ore: 'iron', cost: 2 }, normal: { ore: 'mithril', cost: 4 }, greater: { ore: 'voidCrystal', cost: 6 } },
+  scattering: { minor: { ore: 'iron', cost: 3 }, normal: { ore: 'mithril', cost: 6 }, greater: { ore: 'voidCrystal', cost: 9 } },
+};
+
+/** The ore an orb of a family and tier is bought with. */
+export function orbOre(family: OrbFamily, tier: OrbTier): Material {
+  return ORB_COSTS[family][tier].ore;
 }
-/** An essence of tier `tier` rolls its stat in tiers `[tier, tier + 2]`. */
-export function essenceBand(tier: number): readonly [number, number] {
-  return [tier, tier + 2];
+
+/** What an orb of a family and tier costs, in units of its ore. */
+export function orbCost(family: OrbFamily, tier: OrbTier): number {
+  return ORB_COSTS[family][tier].cost;
 }
-/** What a tier-t essence costs, in units of its own ore: 1 Iron … 13 Void crystal (a gentle Fibonacci ramp). */
-export const ESSENCE_COST: readonly number[] = [0, 1, 2, 3, 5, 8, 13];
-/** A prefix or suffix orb costs this much Iron ore, the tier-1 essence ore. */
-export const ORB_COST = 2;
+
+/**
+ * The tier band a craft orb rolls its added or rerolled line in, for an item whose cap is `cap` (C): Minor `[1, ⌊C/3⌋]`,
+ * Normal `[⌊C/3⌋+1, ⌊2C/3⌋]`, Greater `[⌊2C/3⌋+1, C + MAX_TIER_OVER_CAP]`, each end clamped to at least 1.
+ */
+export function orbTierBand(tier: OrbTier, cap: number): [number, number] {
+  const c = Math.max(1, cap);
+  const third = Math.floor(c / 3);
+  const twoThirds = Math.floor((2 * c) / 3);
+  switch (tier) {
+    case 'minor': return [1, Math.max(1, third)];
+    case 'normal': return [Math.max(1, third + 1), Math.max(1, twoThirds)];
+    case 'greater': return [Math.max(1, twoThirds + 1), c + MAX_TIER_OVER_CAP];
+  }
+}
 // Ore exchange: adjacent rungs, up 4 : 1 and down 1 : 3.
 export const EXCHANGE_UP = 4;
 export const EXCHANGE_DOWN = 3;

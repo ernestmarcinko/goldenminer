@@ -7,15 +7,15 @@ import { advance, ClickLimiter, clickTicks } from '../core/clock';
 import { craft as coreCraft, targetedCraft as coreTargetedCraft } from '../core/crafting';
 import * as inv from '../core/inventory';
 import { itemName } from '../core/itemData';
-import { BATTLE_SLOTS, MINING_SLOTS, setOfSlot } from '../core/items';
-import type { GearItem, Material, OrbSide, Slot, StatKey } from '../core/items';
+import { BATTLE_SLOTS, MINING_SLOTS, orbKey, orbName, setOfSlot } from '../core/items';
+import type { GearItem, Material, OrbFamily, OrbSide, OrbTier, Slot } from '../core/items';
 import { drainOverflow } from '../core/loot';
 import { ruleValid } from '../core/lootFilter';
 import { leaveMap as coreLeaveMap, startMap as coreStartMap } from '../core/maps';
 import { gamble as coreGamble, type GambleResult } from '../core/merchant';
 import { isValidCharacterName, randomCharacterName } from '../core/names';
 import { newGame } from '../core/newGame';
-import { buyEssence as coreBuyEssence, buyOrb as coreBuyOrb, tradeOres as coreTradeOres, type MarketResult } from '../core/oreMarket';
+import { buyOrb as coreBuyOrb, tradeOres as coreTradeOres, type MarketResult } from '../core/oreMarket';
 import {
   allocate as coreAllocate, allocateMany as coreAllocateMany, refund as coreRefund, refundMany as coreRefundMany,
   resetWeb as coreResetWeb,
@@ -32,12 +32,17 @@ import type {
   OfflineSummary, Stats, TargetedCraft, TemperOutcome, TickEvent,
 } from '../core/types';
 import { BACKUP_PREFIX, SAVE_KEY, type StorageLike } from './storage';
+import type { SpriteName } from '../sprites/atlas';
+import { itemSprite, orbSprite } from '../ui/character/itemView';
 
 /** Gear just worn into a slot that was empty; `id` counts up so the UI can tell one from the next. */
 export interface EquipNotice { id: number; slot: Slot; name: string; rarity: GearItem['rarity'] }
 
 /** The newest craft, refused or not, for the crafting message; `id` counts up so the UI can tell one from the next. */
 export interface CraftNotice { id: number; target: ItemLoc; kind: CraftKind; check: CraftCheck; temper?: TemperOutcome }
+
+/** The newest successful vendor buy, for the fly-in animation; `id` counts up so React re-triggers it. */
+export interface BuyNotice { id: number; key: string; name: string; sprite: SpriteName; from: 'refiner' | 'trader' }
 
 export interface Feedback {
   gold: number;
@@ -80,6 +85,8 @@ export class GameStore {
   private _lastCraft: CraftNotice | null = null;
   private craftCount = 0;
   private _lastGamble: GearItem | null = null;
+  private _lastBuy: BuyNotice | null = null;
+  private buyCount = 0;
   private feedback: Feedback = emptyFeedback();
   private readonly listeners = new Set<() => void>();
   private limiter = new ClickLimiter();
@@ -104,6 +111,8 @@ export class GameStore {
   get lastCraft(): CraftNotice | null { return this._lastCraft; }
   /** The newest item bought from the merchant, for its "You got" panel. */
   get lastGamble(): GearItem | null { return this._lastGamble; }
+  /** The newest vendor buy, for the fly-in animation. */
+  get lastBuy(): BuyNotice | null { return this._lastBuy; }
   /** Whether live ticks dig: the player's Pause always holds, the view pause only while the tab is on screen. */
   get digPaused(): boolean { return this._state.paused || (this.viewPaused && !this.hidden); }
 
@@ -144,6 +153,7 @@ export class GameStore {
     this._equipNotice = null;
     this._lastCraft = null;
     this._lastGamble = null;
+    this._lastBuy = null;
     this._stats = deriveStats(state);
     this._battle = deriveBattleStats(state);
   }
@@ -328,17 +338,16 @@ export class GameStore {
     return result;
   }
 
-  /** Buys an essence from the Refiner; only an 'ok' changes anything. */
-  buyEssence(stat: StatKey, tier: number): MarketResult {
-    const result = coreBuyEssence(this._state, stat, tier);
-    if (result === 'ok') this.changed();
-    return result;
-  }
-
-  /** Buys an orb from the Refiner; only an 'ok' changes anything. */
-  buyOrb(side: OrbSide): MarketResult {
-    const result = coreBuyOrb(this._state, side);
-    if (result === 'ok') this.changed();
+  /** Buys an orb from the Refiner; only an 'ok' changes anything, and records the buy for the fly-in animation. */
+  buyOrb(family: OrbFamily, side: OrbSide | undefined, tier: OrbTier): MarketResult {
+    const result = coreBuyOrb(this._state, family, side, tier);
+    if (result === 'ok') {
+      this._lastBuy = {
+        id: ++this.buyCount, key: orbKey(family, side, tier),
+        name: orbName({ id: 0, type: 'orb', family, side, tier, count: 1 }), sprite: orbSprite(family, side, tier), from: 'refiner',
+      };
+      this.changed();
+    }
     return result;
   }
 
@@ -367,10 +376,17 @@ export class GameStore {
     return outcome;
   }
 
-  /** Buys a slot of the Trader's stock; only an 'ok' changes anything. */
+  /** Buys a slot of the Trader's stock; only an 'ok' changes anything, and records the buy for the fly-in animation. */
   buyStock(index: number): BuyResult {
-    const { result } = coreBuyStock(this._state, index);
-    if (result === 'ok') this.changed();
+    const { result, item } = coreBuyStock(this._state, index);
+    if (result === 'ok') {
+      if (item !== undefined) {
+        this._lastBuy = {
+          id: ++this.buyCount, key: String(item.id), name: itemName(item), sprite: itemSprite(item), from: 'trader',
+        };
+      }
+      this.changed();
+    }
     return result;
   }
 

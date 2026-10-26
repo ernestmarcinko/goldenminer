@@ -1,13 +1,13 @@
 import { BAG_SIZE, MAP_TIER_CAP, stashPagePrice, STASH_PAGE_SIZE } from '../../core/balance';
 import { filledCount, mapStashCount, mapTierCount, mapTiers as stashTiers, pageCount } from '../../core/cells';
-import { GEM_GRADES, GEM_TYPES, MATERIALS, RUNE_TYPES, parseEssenceKey } from '../../core/items';
+import { GEM_GRADES, GEM_TYPES, MATERIALS, RUNE_TYPES, orbName, parseOrbKey } from '../../core/items';
 import type { GemGrade, GemType, MapItem, Material, RuneType } from '../../core/items';
-import { GEM_GRADE_LABELS, GEM_LABELS, MATERIAL_LABELS, STAT_NAMES } from '../../core/itemData';
+import { GEM_GRADE_LABELS, GEM_LABELS, MATERIAL_LABELS } from '../../core/itemData';
 import { RUNE_LABELS } from '../../core/runes';
 import type { GameState, ItemLoc } from '../../core/types';
 import { formatCompact, formatNumber } from '../format';
 
-export const STASH_TABS = ['general', 'gems', 'runes', 'maps', 'materials', 'essences'] as const;
+export const STASH_TABS = ['general', 'gems', 'runes', 'maps', 'materials', 'orbs'] as const;
 export type StashTab = (typeof STASH_TABS)[number];
 
 export const GRADE_HEADERS: readonly string[] = GEM_GRADES.map((g) => GEM_GRADE_LABELS[g]);
@@ -19,7 +19,7 @@ export function tabLabel(state: GameState, tab: StashTab): string {
     case 'runes': return 'Runes';
     case 'maps': return `Maps ${formatNumber(mapStashCount(state))}`;
     case 'materials': return 'Materials';
-    case 'essences': return 'Essences';
+    case 'orbs': return 'Orbs';
   }
 }
 
@@ -114,18 +114,15 @@ export function runeTabCells(state: GameState): RuneCell[] {
   });
 }
 
-export interface EssenceCell { key: string; label: string; count: number; text: string }
+export interface OrbCell { key: string; label: string; count: number; text: string }
 
-/** The Essences tab's held stacks, keyed "stat:tier" or "prefix"/"suffix", sorted by key. */
-export function essenceTabCells(state: GameState): EssenceCell[] {
-  return Object.entries(state.stash.essences)
+/** The Orbs tab's held stacks, keyed by orbKey(family, side?, tier), sorted by key. */
+export function orbTabCells(state: GameState): OrbCell[] {
+  return Object.entries(state.stash.orbs)
     .filter(([, n]) => n > 0)
     .map(([key, count]) => {
-      const parsed = parseEssenceKey(key);
-      const label = parsed === undefined ? key
-        : parsed === 'prefix' ? 'Prefix orb'
-          : parsed === 'suffix' ? 'Suffix orb'
-            : `T${parsed.tier} ${STAT_NAMES[parsed.stat]} essence`;
+      const parsed = parseOrbKey(key);
+      const label = parsed === undefined ? key : orbName({ id: 0, type: 'orb', family: parsed.family, side: parsed.side, tier: parsed.tier, count: 0 });
       return { key, label, count, text: formatCompact(count) };
     })
     .sort((a, b) => a.key.localeCompare(b.key));

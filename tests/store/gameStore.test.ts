@@ -355,11 +355,11 @@ describe('crafting', () => {
     expect(store.drop({ where: 'bag', index: 1 }, { where: 'bag', index: 0 })).toBe('craftRefused');
     expect(store.version).toBe(v);
     expect(store.lastCraft).toMatchObject({ id: 1, kind: 'tin', check: 'wrongRarity' });
-    s.bag[1] = { id: s.nextId++, type: 'material', material: 'obsidian', count: 5 };
+    s.bag[1] = { id: s.nextId++, type: 'material', material: 'mithril', count: 5 };
     s.bag[0] = gear(s, 'pickaxe', { rarity: 'rare', affixes: [{ stat: 'goldYield', value: 4 }] });
     expect(store.drop({ where: 'bag', index: 1 }, { where: 'bag', index: 0 })).toBe('ok');
     expect(store.version).toBe(v + 1);
-    expect(store.lastCraft).toMatchObject({ id: 2, kind: 'obsidian', check: 'ok' });
+    expect(store.lastCraft).toMatchObject({ id: 2, kind: 'mithril', check: 'ok' });
     expect(store.importSave(store.exportSave()).ok).toBe(true);
     expect(store.lastCraft).toBeNull();
   });

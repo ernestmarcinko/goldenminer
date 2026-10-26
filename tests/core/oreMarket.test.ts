@@ -1,21 +1,35 @@
 import { describe, expect, it } from 'vitest';
 import { applyTicks } from '../../src/core/dig';
-import { PREMIUM_CAP, PREMIUM_DECAY_KEEP, PREMIUM_STEP, essenceBand, oreForTier } from '../../src/core/balance';
-import { buyEssence, buyOrb, costOf, decayPremiums, emptyPremium, tradeOres } from '../../src/core/oreMarket';
+import { ORB_COSTS, PREMIUM_CAP, PREMIUM_DECAY_KEEP, PREMIUM_STEP, orbCost, orbOre, orbTierBand } from '../../src/core/balance';
+import { buyOrb, costOf, decayPremiums, emptyPremium, tradeOres } from '../../src/core/oreMarket';
+import { ORBS } from '../../src/core/items';
 import { newGame } from '../../src/core/newGame';
 import { validateState } from '../../src/core/save';
 import { deriveStats } from '../../src/core/stats';
 import type { GameState } from '../../src/core/types';
 
-describe('oreForTier and the essence band', () => {
-  it('maps tiers 1..6 to the deep ores, Copper and Tin aside', () => {
-    expect([1, 2, 3, 4, 5, 6].map(oreForTier)).toEqual(['iron', 'silver', 'mithril', 'starsteel', 'obsidian', 'voidCrystal']);
-    expect(oreForTier(0)).toBeUndefined();
-    expect(oreForTier(7)).toBeUndefined();
+describe('the orb catalogue and bands', () => {
+  it('has exactly 15 orbs with 15 unique names', () => {
+    expect(ORBS).toHaveLength(15);
+    expect(new Set(ORBS.map((o) => o.name)).size).toBe(15);
   });
 
-  it('an essence of tier T rolls in [T, T+2]', () => {
-    expect(essenceBand(4)).toEqual([4, 6]);
+  it('orbTierBand splits a cap into thirds', () => {
+    expect(orbTierBand('minor', 9)).toEqual([1, 3]);
+    expect(orbTierBand('normal', 9)).toEqual([4, 6]);
+    expect(orbTierBand('greater', 9)).toEqual([7, 11]);
+    expect(orbTierBand('minor', 1)).toEqual([1, 1]);
+    expect(orbTierBand('greater', 1)).toEqual([1, 3]);
+  });
+
+  it('orb costs: craft ×2/3/4, removal ×2/4/6, scattering ×3/6/9; Minor Iron, Normal Mithril, Greater Void crystal', () => {
+    expect(ORB_COSTS).toEqual({
+      craft: { minor: { ore: 'iron', cost: 2 }, normal: { ore: 'mithril', cost: 3 }, greater: { ore: 'voidCrystal', cost: 4 } },
+      removal: { minor: { ore: 'iron', cost: 2 }, normal: { ore: 'mithril', cost: 4 }, greater: { ore: 'voidCrystal', cost: 6 } },
+      scattering: { minor: { ore: 'iron', cost: 3 }, normal: { ore: 'mithril', cost: 6 }, greater: { ore: 'voidCrystal', cost: 9 } },
+    });
+    expect(orbOre('craft', 'minor')).toBe('iron');
+    expect(orbCost('scattering', 'greater')).toBe(9);
   });
 
   it('an empty premium starts every ore at 0', () => {
@@ -107,50 +121,44 @@ describe('the premium', () => {
   });
 });
 
-describe('buying essences and orbs', () => {
-  it('spends the recipe ore and never draws from state.rng', () => {
+describe('buying orbs', () => {
+  it('spends the right ore for a family and tier, and never draws from state.rng', () => {
     const s = newGame(1, 0);
     s.stash.materials.iron = 10;
     const { rng, uniqueRng } = s;
-    expect(buyEssence(s, 'digPower', 1)).toBe('ok');        // 1 Iron
-    expect(s.stash.materials.iron).toBe(9);
-    expect(s.bag[0]).toMatchObject({ type: 'essence', stat: 'digPower', tier: 1, count: 1 });
+    expect(buyOrb(s, 'craft', 'prefix', 'minor')).toBe('ok');   // 2 Iron
+    expect(s.stash.materials.iron).toBe(8);
+    expect(s.bag[0]).toMatchObject({ type: 'orb', family: 'craft', side: 'prefix', tier: 'minor', count: 1 });
     expect([s.rng, s.uniqueRng]).toEqual([rng, uniqueRng]);
     expect(validateState(s)).toBe(true);
   });
 
-  it('a tier-6 essence costs its ore, and refuses when short', () => {
+  it('a Greater scattering orb costs 9 Void crystal, and refuses when short', () => {
     const s = newGame(1, 0);
-    expect(buyEssence(s, 'damage', 6)).toBe('short');
-    s.stash.materials.voidCrystal = 13;
-    expect(buyEssence(s, 'damage', 6)).toBe('ok');
+    expect(buyOrb(s, 'scattering', undefined, 'greater')).toBe('short');
+    s.stash.materials.voidCrystal = 9;
+    expect(buyOrb(s, 'scattering', undefined, 'greater')).toBe('ok');
     expect(s.stash.materials.voidCrystal).toBe(0);
-    expect(s.bag[0]).toMatchObject({ type: 'essence', stat: 'damage', tier: 6, count: 1 });
-  });
-
-  it('rejects a bad tier', () => {
-    const s = newGame(1, 0);
-    expect(buyEssence(s, 'damage', 0)).toBe('invalid');
-    expect(buyEssence(s, 'damage', 7)).toBe('invalid');
-    expect(buyEssence(s, 'damage', 2.5)).toBe('invalid');
-  });
-
-  it('buys orbs for ORB_COST Iron, topping up an existing stack', () => {
-    const s = newGame(1, 0);
-    s.stash.materials.iron = 4;
-    expect(buyOrb(s, 'prefix')).toBe('ok');
-    expect(buyOrb(s, 'prefix')).toBe('ok');
-    expect(s.stash.materials.iron).toBe(0);
-    expect(s.bag[0]).toMatchObject({ type: 'orb', side: 'prefix', count: 2 });
+    expect(s.bag[0]).toMatchObject({ type: 'orb', family: 'scattering', tier: 'greater', count: 1 });
     expect(validateState(s)).toBe(true);
   });
 
-  it('a full bag puts the bought item in the Essences tab', () => {
+  it('buys orbs into an existing stack', () => {
+    const s = newGame(1, 0);
+    s.stash.materials.iron = 4;
+    expect(buyOrb(s, 'craft', 'prefix', 'minor')).toBe('ok');
+    expect(buyOrb(s, 'craft', 'prefix', 'minor')).toBe('ok');
+    expect(s.stash.materials.iron).toBe(0);
+    expect(s.bag[0]).toMatchObject({ type: 'orb', family: 'craft', side: 'prefix', tier: 'minor', count: 2 });
+    expect(validateState(s)).toBe(true);
+  });
+
+  it('a full bag puts the bought orb in the Orbs tab', () => {
     const s = newGame(1, 0);
     for (let i = 0; i < s.bag.length; i++) s.bag[i] = { id: s.nextId++, type: 'material', material: 'copper', count: 1 };
     s.stash.materials.iron = 10;
-    expect(buyOrb(s, 'suffix')).toBe('ok');
-    expect(s.stash.essences.suffix).toBe(1);
+    expect(buyOrb(s, 'removal', 'suffix', 'minor')).toBe('ok');
+    expect(s.stash.orbs['removal:suffix:minor']).toBe(1);
     expect(validateState(s)).toBe(true);
   });
 });

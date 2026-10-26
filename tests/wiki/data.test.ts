@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { ACHIEVEMENTS, ACHIEVEMENT_BOOST, FAMILY_LABELS } from '../../src/core/achievements';
 import { ASCENDANCY_NODES } from '../../src/core/ascendancy';
 import {
-  CRAFT_COST, ESSENCE_COST, EXCHANGE_DOWN, EXCHANGE_UP, MAP_MOD_CAPS, MAP_MOD_TIERS, MATERIAL_TABLE, ORB_COST,
-  PREMIUM_CAP, PREMIUM_DECAY_KEEP, PREMIUM_STEP, oreForTier,
+  CRAFT_COST, EXCHANGE_DOWN, EXCHANGE_UP, MAP_MOD_CAPS, MAP_MOD_TIERS, MATERIAL_TABLE, ORB_COSTS,
+  PREMIUM_CAP, PREMIUM_DECAY_KEEP, PREMIUM_STEP, orbCost, orbOre,
 } from '../../src/core/balance';
 import { LEGENDARIES, MATERIAL_LABELS, STAT_NAMES } from '../../src/core/itemData';
-import { ESSENCE_TIER_MAX, MAP_MOD_KINDS, MAP_SPECIALS, MATERIALS } from '../../src/core/items';
+import { MAP_MOD_KINDS, MAP_SPECIALS, MATERIALS, ORBS } from '../../src/core/items';
 import { MAP_MOD_LABELS, MAP_SPECIAL_TEXT, mapModRange } from '../../src/core/mapMods';
 import { newGame } from '../../src/core/newGame';
 import { PASSIVE_NODES } from '../../src/core/passives';
@@ -14,7 +14,7 @@ import { deriveCharacterSheet } from '../../src/core/stats';
 import { UNIQUE_LINES } from '../../src/core/uniques';
 
 import { achievementBoostPercent, achievementFamilies, achievementTotal } from '../../src/wiki/data/achievements';
-import { craftCosts, essenceRecipes, materialRows, oreExchange, orePremium } from '../../src/wiki/data/materials';
+import { craftCosts, materialRows, orbRecipes, oreExchange, orePremium } from '../../src/wiki/data/materials';
 import { MAP_MOD_TIERS_SHOWN, mapModRows, mapSpecialRows } from '../../src/wiki/data/maps';
 import { ascendancyNodes, keystoneNodes, notableNodes, smallNodes } from '../../src/wiki/data/skills';
 import { freshCharacterSheet } from '../../src/wiki/data/stats';
@@ -27,26 +27,27 @@ describe('materials', () => {
     })));
   });
 
-  it('the essence recipes match oreForTier and ESSENCE_COST', () => {
-    const expected = [];
-    for (let tier = 1; tier <= ESSENCE_TIER_MAX; tier++) {
-      const ore = oreForTier(tier);
-      expected.push({ tier, ore, oreLabel: ore === undefined ? '—' : MATERIAL_LABELS[ore], cost: ESSENCE_COST[tier] ?? 0 });
-    }
-    expect(essenceRecipes()).toEqual(expected);
+  it('the orb recipes match ORBS and ORB_COSTS', () => {
+    const expected = ORBS.map((o) => {
+      const ore = orbOre(o.family, o.tier);
+      return { family: o.family, side: o.side, tier: o.tier, name: o.name, ore, oreLabel: MATERIAL_LABELS[ore], cost: orbCost(o.family, o.tier) };
+    });
+    expect(orbRecipes()).toEqual(expected);
   });
 
   it('the craft costs match CRAFT_COST', () => {
     const kinds = Object.keys(CRAFT_COST) as (keyof typeof CRAFT_COST)[];
     expect(craftCosts().map((r) => r.kind)).toEqual(kinds);
     for (const row of craftCosts()) {
-      expect(row.base).toBe(CRAFT_COST[row.kind].base);
-      expect(row.per).toBe(CRAFT_COST[row.kind].per);
+      const cost = CRAFT_COST[row.kind];
+      if (cost === undefined) throw new Error('missing craft cost');
+      expect(row.base).toBe(cost.base);
+      expect(row.per).toBe(cost.per);
     }
   });
 
   it('the exchange and premium constants match the core', () => {
-    expect(oreExchange).toEqual({ up: EXCHANGE_UP, down: EXCHANGE_DOWN, orbCost: ORB_COST });
+    expect(oreExchange).toEqual({ up: EXCHANGE_UP, down: EXCHANGE_DOWN });
     expect(orePremium).toEqual({ step: PREMIUM_STEP, cap: PREMIUM_CAP, decayKeep: PREMIUM_DECAY_KEEP });
   });
 });

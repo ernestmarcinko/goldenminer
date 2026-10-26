@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import {
-  ASCEND_DEPTH_PER_POINT, ASCEND_LEVEL, ASCEND_LEVEL_STEP, BAG_SIZE, BASE_OFFLINE_CAP_MS, ESSENCE_BAG_STACK,
+  ASCEND_DEPTH_PER_POINT, ASCEND_LEVEL, ASCEND_LEVEL_STEP, BAG_SIZE, BASE_OFFLINE_CAP_MS, ORB_BAG_STACK,
   GAMBLE_GOLD, GEM_BAG_STACK, HAZARD_START_METRE, LEVEL_CAP, MAP_CRAFT_SOULS_PER_TIER, MAP_TIER_CAP, MATERIAL_BAG_STACK,
   MAX_CRAFTED_LINES, MAX_ITEM_LEVEL, MAX_LAMP_SIGHT, MAX_MAP_MODS, MAX_OFFLINE_CAP_MS, MAX_SIDE_LINES, MAX_SOCKETS,
   MAX_STASH_PAGES, MIN_OFFLINE_CAP_MS, RESET_WEB_DIAMONDS, RESPEC_GOLD_BASE, SOUL_UPGRADE_BASE, STASH_PAGE_SIZE,
@@ -9,7 +9,7 @@ import {
 import { ABYSS_BAND_HEIGHT, ABYSS_START, bandAt } from '../core/bands';
 import { BASE_NAMES, GEM_GRADE_LABELS, GEM_LABELS, RARE_FIRST, RARE_SECOND, STAT_NAMES } from '../core/itemData';
 import {
-  BATTLE_SLOTS, ESSENCE_TIER_MAX, GEM_GRADES, GEM_TYPES, MINING_SLOTS, RARITIES, type StatKey,
+  BATTLE_SLOTS, GEM_GRADES, GEM_TYPES, MINING_SLOTS, RARITIES, type StatKey,
 } from '../core/items';
 import type { AscendancyNode } from '../core/ascendancy';
 import type { SheetRow } from '../core/stats';
@@ -18,7 +18,7 @@ import { formatDuration, formatNumber, formatRate } from '../ui/format';
 import { achievementBoostPercent, achievementFamilies, achievementTotal } from './data/achievements';
 import { AFFIX_TIERS_SHOWN, affixTables, type AffixRow } from './data/affixes';
 import { MAP_MOD_TIERS_SHOWN, mapModRows, mapSpecialRows } from './data/maps';
-import { craftCosts, essenceRecipes, materialRows, oreExchange, orePremium } from './data/materials';
+import { craftCosts, materialRows, orbRecipes, oreExchange, orePremium } from './data/materials';
 import { ascendancyNodes, keystoneNodes, notableNodes, smallNodes } from './data/skills';
 import { freshCharacterSheet } from './data/stats';
 import { uniqueRows } from './data/uniques';
@@ -27,7 +27,7 @@ import { uniqueRows } from './data/uniques';
 
 const AFFIXES = affixTables();
 const MATERIALS = materialRows();
-const ESSENCE_RECIPES = essenceRecipes();
+const ORB_RECIPES = orbRecipes();
 const CRAFTS = craftCosts();
 const UNIQUES = uniqueRows();
 const KEYSTONES = keystoneNodes();
@@ -369,15 +369,16 @@ export function WikiApp() {
             </Table>
             <p>
               Copper makes a normal item magic and Tin rerolls a magic item&apos;s lines; Silver rerolls a rare item&apos;s.
-              Iron is retired as a craft — it is the tier-1 essence ore. Mithril rerolls sockets, Starsteel rerolls line
-              values within their tiers, Obsidian removes a random line, and Diamonds add a line to a rare item. A Void
-              crystal tempers a magic or rare item (or map): it may add a crafted line above its usual tiers, raise every
-              line a tier, do nothing, or ruin it to tier 1 — and the item is then sealed.
+              Iron, Starsteel and Obsidian are retired as crafts — they are orb currency at the Refiner. Mithril rerolls
+              sockets, and Diamonds add a line to a rare item. A Void crystal tempers a magic or rare item (or map): it may
+              add a crafted line above its usual tiers, raise every line a tier, do nothing, or ruin it to tier 1 — and the
+              item is then sealed.
             </p>
             <p>
-              Essences add or reroll one chosen stat at a tier in <code>[tier, tier + 2]</code>; a prefix or suffix orb adds
-              a random line on its side. Battle gear can be raised one item level with Souls (costing {SOUL_UPGRADE_BASE} ×
-              ilvl² each), and enchanting a map also spends {MAP_CRAFT_SOULS_PER_TIER} Souls per tier.
+              Crafting orbs add or reroll a prefix or suffix in a tier band; removal orbs take a band-scoped line away; a
+              scattering orb rerolls every rolled value, keeping the best. Battle gear can be raised one item level with
+              Souls (costing {SOUL_UPGRADE_BASE} × ilvl² each), and enchanting a map also spends {MAP_CRAFT_SOULS_PER_TIER}{' '}
+              Souls per tier.
             </p>
           </Section>
 
@@ -398,14 +399,15 @@ export function WikiApp() {
                 ))}
               </tbody>
             </Table>
-            <p>At the Refiner, ore buys tiered essences (tier 1 uses Copper and Tin for the base crafts instead):</p>
+            <p>At the Refiner, ore buys the 15 orbs of the catalogue (Minor in Iron, Normal in Mithril, Greater in Void crystal):</p>
             <Table>
               <thead>
-                <tr><th className="wiki__num">Tier</th><th>Ore</th><th className="wiki__num">Cost</th></tr>
+                <tr><th>Orb</th><th className="wiki__num">Tier</th><th>Ore</th><th className="wiki__num">Cost</th></tr>
               </thead>
               <tbody>
-                {ESSENCE_RECIPES.map((r) => (
-                  <tr key={r.tier}>
+                {ORB_RECIPES.map((r) => (
+                  <tr key={r.name}>
+                    <td>{r.name}</td>
                     <td className="wiki__num">{r.tier}</td>
                     <td>{r.oreLabel}</td>
                     <td className="wiki__num">{r.cost}</td>
@@ -415,10 +417,9 @@ export function WikiApp() {
             </Table>
             <p>
               Ore exchanges between adjacent rungs of the ladder: up the ladder {oreExchange.up} of one ore becomes 1 of the
-              next, and down the ladder 1 becomes {oreExchange.down} of the one below. A prefix or suffix orb costs{' '}
-              {oreExchange.orbCost} Iron. Buying into an ore adds {orePremium.step} to its premium (capped at{' '}
-              {orePremium.cap}); the premium eases back toward 0 over time, so each ore stays cheapest when you buy it
-              slowly.
+              next, and down the ladder 1 becomes {oreExchange.down} of the one below. Buying into an ore adds{' '}
+              {orePremium.step} to its premium (capped at {orePremium.cap}); the premium eases back toward 0 over time, so
+              each ore stays cheapest when you buy it slowly.
             </p>
           </Section>
 
@@ -588,7 +589,7 @@ export function WikiApp() {
               <strong>Brannoc the Trader</strong> sells {STOCK_SIZE} items — gear and maps, never a legendary — rolled from
               the world seed and refreshed every {STOCK_BAND_METRES} m you dig deeper, at {TRADER_PRICE_MULT}× their sell
               value. <strong>Old Mirela</strong> gambles: pay {GAMBLE_GOLD} Gold × tier² at your deepest metre for a random
-              item, most often normal or magic. <strong>The Refiner</strong> trades ore for essences and orbs and exchanges
+              item, most often normal or magic. <strong>The Refiner</strong> trades ore for the orb catalogue and exchanges
               ore between rungs, with the decaying premium (see <a href="#ores">Ores and the market</a>).
             </p>
           </Section>
@@ -619,11 +620,11 @@ export function WikiApp() {
                   { label: 'Prefixes + suffixes per item', value: `${MAX_SIDE_LINES} + ${MAX_SIDE_LINES}` },
                   { label: 'Crafted lines per item', value: `${MAX_CRAFTED_LINES}` },
                   { label: 'Sockets per item', value: `${MAX_SOCKETS}` },
-                  { label: 'Essence tiers', value: `1–${ESSENCE_TIER_MAX}` },
+                  { label: 'Orb catalogue', value: '15 orbs · 3 families × 3 tiers' },
                   { label: 'Maps kept per tier', value: `${MAP_TIER_CAP}` },
                   { label: 'Map modifiers per map', value: `${MAX_MAP_MODS}` },
                   { label: 'Max lamp sight', value: `${MAX_LAMP_SIGHT} m` },
-                  { label: 'Gem / material / essence bag stack', value: `${GEM_BAG_STACK} / ${MATERIAL_BAG_STACK} / ${ESSENCE_BAG_STACK}` },
+                  { label: 'Gem / material / orb bag stack', value: `${GEM_BAG_STACK} / ${MATERIAL_BAG_STACK} / ${ORB_BAG_STACK}` },
                   { label: 'Max item level', value: formatNumber(MAX_ITEM_LEVEL) },
                 ].map((row) => (
                   <tr key={row.label}>

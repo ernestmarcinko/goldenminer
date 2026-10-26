@@ -1,9 +1,9 @@
-import { ESSENCE_BAG_STACK, GEM_BAG_STACK, GEM_STASH_STACK, MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, RUNE_BAG_STACK, RUNE_STASH_STACK } from '../../core/balance';
+import { GEM_BAG_STACK, GEM_STASH_STACK, MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, ORB_BAG_STACK, RUNE_BAG_STACK, RUNE_STASH_STACK } from '../../core/balance';
 import { autoMapping } from '../../core/autoMap';
 import { firstEmpty, itemAt, mapTierCount } from '../../core/cells';
 import { MATERIAL_LABELS } from '../../core/itemData';
 import { isGear, MATERIALS } from '../../core/items';
-import type { EssenceItem, GemItem, Item, MapItem, Material, MaterialItem, OrbItem, RuneItem } from '../../core/items';
+import type { GemItem, Item, MapItem, Material, MaterialItem, OrbItem, RuneItem } from '../../core/items';
 import { salvagePay, sellPay } from '../../core/loot';
 import type { Loot } from '../../core/loot';
 import { canUpgrade, soulUpgradeCostFor } from '../../core/soulUpgrade';
@@ -106,23 +106,21 @@ function materialActions(state: GameState, target: ItemTarget, item: MaterialIte
   return [{ id: 'toStash', label: 'To Materials tab', disabled: full }];
 }
 
-/** Whether the bag can take at least one essence or orb of this kind: an open cell, or a stack with room. */
-function bagTakesEssence(state: GameState, item: EssenceItem | OrbItem): boolean {
+/** Whether the bag can take at least one orb of this kind: an open cell, or a stack with room. */
+function bagTakesOrb(state: GameState, item: OrbItem): boolean {
   return firstEmpty(state.bag) >= 0 || state.bag.some((c) => c !== null && (
-    item.type === 'essence'
-      ? c.type === 'essence' && c.stat === item.stat && c.tier === item.tier && c.count < ESSENCE_BAG_STACK
-      : c.type === 'orb' && c.side === item.side && c.count < ESSENCE_BAG_STACK
+    c.type === 'orb' && c.family === item.family && c.side === item.side && c.tier === item.tier && c.count < ORB_BAG_STACK
   ));
 }
 
-/** An essence or orb joins its Essences-tab count; a tab stack comes back to the bag. */
-function essenceActions(state: GameState, target: ItemTarget, item: EssenceItem | OrbItem): ActionSpec[] {
-  if (target.where === 'essences') {
+/** An orb joins its Orbs-tab count; a tab stack comes back to the bag. */
+function orbActions(state: GameState, target: ItemTarget, item: OrbItem): ActionSpec[] {
+  if (target.where === 'orbs') {
     return [{
-      id: 'take', label: `Take to bag (up to ${formatNumber(ESSENCE_BAG_STACK)})`, disabled: !bagTakesEssence(state, item),
+      id: 'take', label: `Take to bag (up to ${formatNumber(ORB_BAG_STACK)})`, disabled: !bagTakesOrb(state, item),
     }];
   }
-  return [{ id: 'toStash', label: 'To Essences tab', disabled: false }];
+  return [{ id: 'toStash', label: 'To Orbs tab', disabled: false }];
 }
 
 /** The sell and salvage actions, labelled with what sell bonus and salvage yield will pay; `all` for a Gems-tab stack. */
@@ -169,7 +167,7 @@ export function itemActions(state: GameState, target: ItemTarget): ActionSpec[] 
   if (item === undefined) return [];
   if (item.type === 'map') return mapActions(state, target, item);
   if (item.type === 'material') return materialActions(state, target, item);
-  if (item.type === 'essence' || item.type === 'orb') return essenceActions(state, target, item);
+  if (item.type === 'orb') return orbActions(state, target, item);
   const bagFull = firstEmpty(state.bag) < 0;
   const generalFull = firstEmpty(state.stash.general) < 0;
   if (target.where === 'worn') {
@@ -240,8 +238,8 @@ export function noShortcutText(state: GameState, target: ItemTarget, intent: Cli
   if (intent !== 'sell' && intent !== 'salvage') return null;
   if (target.where === 'worn') return 'Unequip it first to sell or salvage it.';
   return itemAt(state, target)?.type === 'material' ? 'Materials can\'t be sold or salvaged.'
-    : itemAt(state, target)?.type === 'essence' || itemAt(state, target)?.type === 'orb'
-      ? 'Essences and orbs can\'t be sold or salvaged.'
+    : itemAt(state, target)?.type === 'orb'
+      ? 'Orbs can\'t be sold or salvaged.'
       : null;
 }
 
@@ -253,7 +251,7 @@ function shortcutLine(target: ItemTarget, item: Item, mac: boolean): string {
     case 'gems':
     case 'runes':
     case 'materials':
-    case 'essences': return 'Click to pick up · Shift+click take to bag · right-click for actions';
+    case 'orbs': return 'Click to pick up · Shift+click take to bag · right-click for actions';
     case 'bag':
     case 'stash':
     case 'maps':
@@ -269,7 +267,7 @@ function shortcutLine(target: ItemTarget, item: Item, mac: boolean): string {
  */
 export function hoverNotes(state: GameState, target: ItemTarget, item: Item, mac: boolean): string[] {
   const shortcuts = shortcutLine(target, item, mac);
-  if (item.type === 'material' || item.type === 'essence' || item.type === 'orb') return [shortcuts];
+  if (item.type === 'material' || item.type === 'orb') return [shortcuts];
   const stats = deriveStats(state);
   const sells = formatNumber(sellPay(item, stats));
   if (target.where === 'stock' && (item.type === 'gear' || item.type === 'map')) {
@@ -358,7 +356,7 @@ export function resultText(r: InvResult, map?: MapItem): string | null {
     case 'gearOnly': return 'Only gear goes in the General tab.';
     case 'mapsOnly': return 'Only maps go in the Maps tab.';
     case 'materialsOnly': return 'Only materials go in the Materials tab.';
-    case 'essencesOnly': return 'Only essences and orbs go in the Essences tab.';
+    case 'orbsOnly': return 'Only orbs go in the Orbs tab.';
     case 'busy': return 'Leave the current map first.';
     case 'stackFull': return 'That stack is full.';
     case 'craftRefused': return "That craft didn't work.";

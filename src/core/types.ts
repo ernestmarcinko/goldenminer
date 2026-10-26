@@ -1,6 +1,5 @@
 import type {
-  Cell, GearItem, GearSet, GemGrade, GemType, Item, MapItem, MapMod, MapModKind, MapRarity, Material, Rarity, RuneType, Slot,
-  StatKey,
+  Cell, GearItem, GearSet, GemGrade, GemType, Item, MapItem, MapMod, MapModKind, MapRarity, Material, OrbTier, Rarity, RuneType, Slot,
 } from './items';
 import type { RuneFlag } from './runes';
 
@@ -23,10 +22,10 @@ export type ItemLoc =
   | { where: 'gems'; gem: GemType; grade: GemGrade }    // a Gems-tab stack
   | { where: 'runes'; rune: RuneType }                  // a Runes-tab stack
   | { where: 'materials'; material: Material }          // a Materials-tab stack (virtual, id 0, while its count > 0)
-  | { where: 'essences'; key: string }                  // an Essences-tab stack, keyed "stat:tier" or "prefix"/"suffix"
+  | { where: 'orbs'; key: string }                     // an Orbs-tab stack, keyed by orbKey(family, side?, tier)
   | { where: 'worn'; slot: Slot }
   | { where: 'stock'; index: number };
-export type DropTarget = ItemLoc | { where: 'stashTab'; tab: 'general' | 'gems' | 'runes' | 'maps' | 'materials' | 'essences' | 'auto' };
+export type DropTarget = ItemLoc | { where: 'stashTab'; tab: 'general' | 'gems' | 'runes' | 'maps' | 'materials' | 'orbs' | 'auto' };
 export const LOOT_ACTIONS = ['keep', 'sell', 'salvage', 'stash'] as const;
 export type LootAction = (typeof LOOT_ACTIONS)[number];
 export const LOOT_KINDS = ['gear', 'gem', 'rune', 'map', 'material'] as const;
@@ -150,21 +149,17 @@ export interface FindRecord {
 }
 export type InvResult =
   | 'ok' | 'bagFull' | 'stashFull' | 'noSocket' | 'invalid' | 'busy'
-  | 'wrongSlot' | 'gemsOnly' | 'runesOnly' | 'gearOnly' | 'mapsOnly' | 'materialsOnly' | 'essencesOnly' | 'stackFull' | 'craftRefused' | 'mapTierFull';
+  | 'wrongSlot' | 'gemsOnly' | 'runesOnly' | 'gearOnly' | 'mapsOnly' | 'materialsOnly' | 'orbsOnly' | 'stackFull' | 'craftRefused' | 'mapTierFull';
 /** What a craft spends: a material, or Diamonds for the exalt. */
 export type CraftKind = Material | 'diamond';
 /**
- * A targeted craft on gear: add a chosen prefix or suffix (an orb), add a chosen stat (an essence), reroll a chosen
- * affix (a matching essence, or the side's orb), or remove a chosen affix (Obsidian, which keeps its random-remove
- * meaning for the plain craft). `tier` is an essence's tier; an orb reroll uses the item's own band instead.
+ * A targeted craft on gear: add or reroll a prefix or suffix (a craft orb), remove a random band-scoped prefix or suffix
+ * (a removal orb), or scatter every rolled line's value (a scattering orb). `tier` is the orb's tier, which sets the
+ * band; `index` names the affix a reroll keeps the stat of.
  */
 export type TargetedCraft =
-  | { kind: 'addPrefix' }
-  | { kind: 'addSuffix' }
-  | { kind: 'addStat'; stat: StatKey; tier: number }
-  | { kind: 'rerollAffix'; index: number; tier: number }
-  | { kind: 'rerollOrb'; index: number }
-  | { kind: 'removeAffix'; index: number };
+  | { kind: 'addPrefix' | 'addSuffix' | 'removePrefix' | 'removeSuffix' | 'scatter'; tier: OrbTier }
+  | { kind: 'rerollPrefix' | 'rerollSuffix'; index: number; tier: OrbTier };
 export type CraftCheck =
   | 'ok' | 'notGear' | 'legendary' | 'sealed' | 'wrongRarity' | 'noRoom' | 'nothingToChange' | 'short' | 'gemsFull'
   | 'notForMaps' | 'noSouls' | 'noSuchAffix';
@@ -192,7 +187,7 @@ export interface GameState {
     runes: Record<RuneType, number>;                   // the Runes tab: counts of 0..RUNE_STASH_STACK
     maps: Record<number, MapItem[]>;       // keyed by tier, at most MAP_TIER_CAP each, in the order put in; an emptied tier loses its key
     materials: Record<Material, number>;   // 0..MATERIAL_STASH_STACK each
-    essences: Record<string, number>;      // the Essences tab: "stat:tier" for essences, "prefix"/"suffix" for orbs, 0..ESSENCE_STASH_STACK
+    orbs: Record<string, number>;         // the Orbs tab: orbKey(family, side?, tier), 0..ORB_STASH_STACK
     bought: { general: number };           // General pages bought with Gold; free pages never count
   };
   oreMarket: { premium: Record<Material, number> };   // the Refiner's per-ore premium, 0..PREMIUM_CAP, decayed by ticks

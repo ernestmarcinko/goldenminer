@@ -1,7 +1,7 @@
 import { baseDamage, hardness, MATERIAL_TABLE, TICKS_PER_METRE_AT_PARITY } from '../../core/balance';
-import { GEM_GRADE_LABELS, STAT_NAMES, gemName, itemName } from '../../core/itemData';
-import { BATTLE_STATS, MOD_SIDE, isGear, setOfSlot } from '../../core/items';
-import type { GearItem, GemType, Item, MapItem, Material, ModLine, Slot, StatKey } from '../../core/items';
+import { GEM_GRADE_LABELS, gemName, itemName } from '../../core/itemData';
+import { BATTLE_STATS, MOD_SIDE, isGear, orbName, setOfSlot } from '../../core/items';
+import type { GearItem, GemType, Item, MapItem, Material, ModLine, OrbFamily, OrbSide, OrbTier, Slot, StatKey } from '../../core/items';
 import { RUNE_DESCRIPTIONS, RUNE_LABELS } from '../../core/runes';
 import { gemEffect, itemTotals, weaponDamage } from '../../core/stats';
 import type { GameState, LootNote, Stats } from '../../core/types';
@@ -83,7 +83,7 @@ export interface ViewLine { text: string; tone: Tone; tier?: number }
 export function rarityOf(item: Item): GearItem['rarity'] | 'gem' | 'rune' | 'material' | 'map' {
   if (item.type === 'map') return item.rarity === 'normal' ? 'map' : item.rarity;
   if (isGear(item)) return item.rarity;
-  if (item.type === 'essence' || item.type === 'orb') return 'material';
+  if (item.type === 'orb') return 'material';
   return item.type;
 }
 
@@ -108,12 +108,8 @@ export function itemKindLine(item: Item): string {
     const base = `Rune · ${RUNE_LABELS[item.rune]} · socket into any gear`;
     return item.count > 1 ? `${base} · ${formatNumber(item.count)} in this stack` : base;
   }
-  if (item.type === 'essence') {
-    const base = `Essence · ${STAT_NAMES[item.stat]} · tier ${formatNumber(item.tier)}`;
-    return item.count > 1 ? `${base} · ${formatNumber(item.count)} in this stack` : base;
-  }
   if (item.type === 'orb') {
-    const base = item.side === 'prefix' ? 'Prefix orb' : 'Suffix orb';
+    const base = orbName(item);
     return item.count > 1 ? `${base} · ${formatNumber(item.count)} in this stack` : base;
   }
   const base = gearKindBase(item);
@@ -161,16 +157,16 @@ export function itemLines(item: Item, level?: number): ViewLine[] {
       { text: 'Works for the whole character, once per kind, while worn.', tone: 'muted' },
     ];
   }
-  if (item.type === 'essence') {
-    return [
-      { text: `Adds or rerolls ${STAT_NAMES[item.stat]} at a tier in T${item.tier}–T${item.tier + 2}.`, tone: 'plain' },
-      { text: 'Kept for crafting. Use its Craft action on gear, or the Refiner.', tone: 'muted' },
-    ];
-  }
   if (item.type === 'orb') {
-    const side = item.side === 'prefix' ? 'prefix' : 'suffix';
+    const tier = item.tier === 'minor' ? 'low' : item.tier === 'normal' ? 'middle' : 'high';
+    const bestOf = item.tier === 'minor' ? 1 : item.tier === 'normal' ? 2 : 3;
+    const effect = item.family === 'craft'
+      ? `Adds a random ${item.side}, or rerolls a chosen ${item.side}, in the ${tier} tier band.`
+      : item.family === 'removal'
+        ? `Removes one random ${item.side} ${item.tier === 'normal' ? 'at any tier' : `in the ${tier} tier band`}.`
+        : `Rerolls every rolled value, keeping the best of ${bestOf}.`;
     return [
-      { text: `Adds a random ${side} in the item's own tier band.`, tone: 'plain' },
+      { text: effect, tone: 'plain' },
       { text: 'Kept for crafting. Use its Craft action on gear, or the Refiner.', tone: 'muted' },
     ];
   }
@@ -396,6 +392,17 @@ export function baseSprite(base: Slot | GemType | Material): SpriteName {
   return base in SLOT_SPRITES ? SLOT_SPRITES[base as Slot] : (base as GemType | Material);
 }
 
+/** The sprite of an orb: one per family, side and tier, recoloured by the tier. */
+export function orbSprite(family: OrbFamily, side: OrbSide | undefined, tier: OrbTier): SpriteName {
+  const base = family === 'craft'
+    ? (side === 'prefix' ? 'orbPrefix' : 'orbSuffix')
+    : family === 'removal'
+      ? (side === 'prefix' ? 'orbSeverance' : 'orbUnmaking')
+      : 'orbScatter';
+  const suffix = tier === 'minor' ? 'Minor' : tier === 'normal' ? 'Normal' : 'Greater';
+  return `${base}${suffix}` as SpriteName;
+}
+
 export function itemSprite(item: Item): SpriteName {
   switch (item.type) {
     case 'gear': return baseSprite(item.slot);
@@ -403,8 +410,7 @@ export function itemSprite(item: Item): SpriteName {
     case 'rune': return item.rune;
     case 'map': return 'map';
     case 'material': return baseSprite(item.material);
-    case 'essence': return 'gem';
-    case 'orb': return 'diamond';
+    case 'orb': return orbSprite(item.family, item.side, item.tier);
   }
 }
 

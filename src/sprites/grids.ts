@@ -3,7 +3,12 @@ export type SpriteName = 'miner' | 'coin' | 'diamond' | 'chest' | 'map' | 'gem' 
   | 'fehu' | 'uruz' | 'thurisaz' | 'ansuz' | 'raidho' | 'kenaz' | 'gebo' | 'wunjo' | 'hagalaz' | 'isa'
   | 'pickaxe' | 'lamphelm' | 'gloves' | 'boots' | 'maul' | 'armor' | 'helm' | 'ring' | 'amulet'
   | 'copper' | 'tin' | 'iron' | 'silver' | 'mithril' | 'starsteel' | 'obsidian' | 'voidCrystal'
-  | 'brannoc' | 'mirela' | 'ferrel';
+  | 'brannoc' | 'mirela' | 'ferrel'
+  | 'orbPrefixMinor' | 'orbPrefixNormal' | 'orbPrefixGreater'
+  | 'orbSuffixMinor' | 'orbSuffixNormal' | 'orbSuffixGreater'
+  | 'orbSeveranceMinor' | 'orbSeveranceNormal' | 'orbSeveranceGreater'
+  | 'orbUnmakingMinor' | 'orbUnmakingNormal' | 'orbUnmakingGreater'
+  | 'orbScatterMinor' | 'orbScatterNormal' | 'orbScatterGreater';
 
 export const PALETTE: Record<string, string> = { k: '#1b1410', w: '#8a5a32', W: '#b07a45', s: '#9aa4ad', S: '#d5dde3', g: '#e8b44a', G: '#f5d68a', o: '#b8741c', r: '#c8453a', R: '#ff8a7a', b: '#3f6fc8', c: '#7fd3e8', C: '#c9f1fa', l: '#6b4429', L: '#9a6a40', y: '#ffe08a', p: '#d9c39a', P: '#a88d5c', v: '#8a6fe0', n: '#e0b08a', d: '#3b3550', D: '#5a5278', m: '#5f8a6a', M: '#8fb89a' };
 
@@ -13,6 +18,108 @@ const ORE = ['............', '............', '.....kkk....', '...kkCCckk..', '..
 const SHARD = ['............', '.......kk...', '......kCbk..', '.....kCcbk..', '....kCccbk..', '...kCccbk...', '...kCcbbk...', '..kCccbk....', '..kCcbbk....', '..kcbbk.....', '...kkk......', '............'];
 // A rune: a carved stone, recoloured per kind in the ember family.
 const RUNE = ['............', '...kkkkkk...', '..kCCCCcck..', '.kCccccccbk.', '.kCccccccbk.', '.kCkkkkkkbk.', '.kCccccccbk.', '.kCccccccbk.', '..kCccccbk..', '...kcccck...', '....kcck....', '.....kk.....'];
+
+// The 15 crafting orbs share one 12×12 silhouette (outline `k`, a `C` highlight rim, a `c` body and a `b` shadow),
+// with a per-family glyph drawn in light grey `S` over the middle, and the fill recoloured per tier via overrides.
+const ORB_BASE = [
+  '............',
+  '....kkkk....',
+  '..kkCCCCkk..',
+  '.kCccccccCk.',
+  '.kCccccccCk.',
+  'kCccccccccbk',
+  'kCccccccccbk',
+  '.kCccccccbk.',
+  '.kCccccccbk.',
+  '..kcccccbk..',
+  '...kbbbbk...',
+  '....kkkk....',
+];
+// An up chevron: the craft-prefix orb.
+const ORB_PREFIX = [
+  '............',
+  '............',
+  '............',
+  '.....SS.....',
+  '....S..S....',
+  '...S....S...',
+  '..S......S..',
+  '.S........S.',
+  '............',
+  '............',
+  '............',
+  '............',
+];
+// A down chevron: the craft-suffix orb.
+const ORB_SUFFIX = [
+  '............',
+  '............',
+  '............',
+  '.S........S.',
+  '..S......S..',
+  '...S....S...',
+  '....S..S....',
+  '.....SS.....',
+  '............',
+  '............',
+  '............',
+  '............',
+];
+// A slash: the removal orbs.
+const ORB_SLASH = [
+  '............',
+  '............',
+  '............',
+  '.........SS.',
+  '........SS..',
+  '.......SS...',
+  '......SS....',
+  '.....SS.....',
+  '....SS......',
+  '...SS.......',
+  '............',
+  '............',
+];
+// A burst: the scattering orbs.
+const ORB_BURST = [
+  '............',
+  '............',
+  '.....SS.....',
+  '.....SS.....',
+  '..SS.SS.SS..',
+  '....SSSS....',
+  '..SS.SS.SS..',
+  '.....SS.....',
+  '.....SS.....',
+  '............',
+  '............',
+  '............',
+];
+
+/** Lays a family glyph over the shared orb silhouette. */
+function orbGrid(glyph: string[]): string[] {
+  return ORB_BASE.map((row, y) => [...row].map((ch, x) => (glyph[y]?.[x] !== undefined && glyph[y][x] !== '.' ? glyph[y][x] : ch)).join(''));
+}
+
+/** The tier recolours: Minor iron-grey, Normal mithril-blue, Greater void-purple. */
+const ORB_TIER_COLOURS: Readonly<Record<'Minor' | 'Normal' | 'Greater', Record<string, string>>> = {
+  Minor: { C: '#9a9ea4', c: '#5e6268', b: '#383b40' },
+  Normal: { C: '#b8f2e6', c: '#3fb8a4', b: '#1f6e62' },
+  Greater: { C: '#e4c8ff', c: '#9a4fe0', b: '#4e2286' },
+};
+
+/** The 15 orb sprites and their tier recolours, in catalogue order. */
+export const ORB_SPRITES: readonly { name: SpriteName; grid: string[]; colours: Record<string, string> }[] = (
+  [
+    ['orbPrefix', ORB_PREFIX], ['orbSuffix', ORB_SUFFIX],
+    ['orbSeverance', ORB_SLASH], ['orbUnmaking', ORB_SLASH], ['orbScatter', ORB_BURST],
+  ] as const
+).flatMap(([base, glyph]) =>
+  (['Minor', 'Normal', 'Greater'] as const).map((tier) => ({
+    name: `${base}${tier}` as SpriteName,
+    grid: orbGrid(glyph as string[]),
+    colours: ORB_TIER_COLOURS[tier],
+  })));
 
 export const GRIDS: Record<SpriteName, string[]> = {
   miner: ['......kkkk......', '.....kyyyyk.....', '....kkkyykkk....', '...kllllllllk...', '..kLLLLLLLLLLk..', '...knnnnnnnnk...', '...knkknnkknk...', '...knnnnnnnnk...', '....knwwwwnk....', '..kkkddddddkkk..', '.kdDkDDDDDDkDdk.', 'kdDDkDDggDDkDDdk', 'knnkkDDDDDDkknnk', 'kk..kDDDDDDk..kk', '....kggggggk....', '....kddkkddk....', '....kddk.kddk...', '....kddk.kddk...', '...klllk.klllk..', '...kkkkk.kkkkk..'],
@@ -134,6 +241,11 @@ export const GRIDS: Record<SpriteName, string[]> = {
     '................',
     '................',
   ],
+  orbPrefixMinor: orbGrid(ORB_PREFIX), orbPrefixNormal: orbGrid(ORB_PREFIX), orbPrefixGreater: orbGrid(ORB_PREFIX),
+  orbSuffixMinor: orbGrid(ORB_SUFFIX), orbSuffixNormal: orbGrid(ORB_SUFFIX), orbSuffixGreater: orbGrid(ORB_SUFFIX),
+  orbSeveranceMinor: orbGrid(ORB_SLASH), orbSeveranceNormal: orbGrid(ORB_SLASH), orbSeveranceGreater: orbGrid(ORB_SLASH),
+  orbUnmakingMinor: orbGrid(ORB_SLASH), orbUnmakingNormal: orbGrid(ORB_SLASH), orbUnmakingGreater: orbGrid(ORB_SLASH),
+  orbScatterMinor: orbGrid(ORB_BURST), orbScatterNormal: orbGrid(ORB_BURST), orbScatterGreater: orbGrid(ORB_BURST),
 };
 
 export const PALETTE_OVERRIDES: Partial<Record<SpriteName, Record<string, string>>> = {
@@ -161,4 +273,5 @@ export const PALETTE_OVERRIDES: Partial<Record<SpriteName, Record<string, string
   starsteel: { C: '#eef5ff', c: '#a8c8f0', b: '#5a7aa8' },
   obsidian: { C: '#6a6478', c: '#2a2630', b: '#141118' },
   voidCrystal: { C: '#e4c8ff', c: '#9a4fe0', b: '#4e2286' },
+  ...Object.fromEntries(ORB_SPRITES.map((s) => [s.name, s.colours])) as Partial<Record<SpriteName, Record<string, string>>>,
 };

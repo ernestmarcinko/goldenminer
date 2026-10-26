@@ -1,9 +1,9 @@
 import {
-  ESSENCE_BAG_STACK, ESSENCE_COST, ESSENCE_STASH_STACK, EXCHANGE_DOWN, EXCHANGE_UP, ORB_COST, PREMIUM_CAP,
-  PREMIUM_DECAY_KEEP, PREMIUM_STEP, oreForTier,
+  EXCHANGE_DOWN, EXCHANGE_UP, ORB_BAG_STACK, ORB_STASH_STACK, PREMIUM_CAP,
+  PREMIUM_DECAY_KEEP, PREMIUM_STEP, orbCost, orbOre,
 } from './balance';
 import { firstEmpty } from './cells';
-import { ESSENCE_TIER_MAX, MATERIALS, essenceKey, type EssenceItem, type Material, type OrbItem, type OrbSide, type StatKey } from './items';
+import { MATERIALS, orbKey, type Material, type OrbFamily, type OrbItem, type OrbSide, type OrbTier } from './items';
 import { stashMaterials } from './loot';
 import type { GameState } from './types';
 
@@ -78,52 +78,30 @@ export function tradeOres(state: GameState, from: Material, to: Material, amount
   return 'ok';
 }
 
-/** The Essences-tab key of an essence or orb. */
-function tabKey(item: EssenceItem | OrbItem): string {
-  return item.type === 'essence' ? essenceKey(item.stat, item.tier) : item.side;
-}
-
-/** Puts one bought essence or orb into the bag (topping a stack, then an empty cell), then the Essences tab. */
-function stowStack(state: GameState, item: EssenceItem | OrbItem): void {
-  const same = (c: EssenceItem | OrbItem): boolean =>
-    item.type === 'essence' ? c.type === 'essence' && c.stat === item.stat && c.tier === item.tier
-      : c.type === 'orb' && c.side === item.side;
+/** Puts one bought orb into the bag (topping a stack, then an empty cell), then the Orbs tab. */
+function stowOrb(state: GameState, family: OrbFamily, side: OrbSide | undefined, tier: OrbTier): void {
+  const same = (c: OrbItem): boolean => c.family === family && c.side === side && c.tier === tier;
   for (const c of state.bag) {
-    if (c !== null && (c.type === 'essence' || c.type === 'orb') && same(c) && c.count < ESSENCE_BAG_STACK) {
+    if (c !== null && c.type === 'orb' && same(c) && c.count < ORB_BAG_STACK) {
       c.count += 1;
       return;
     }
   }
   const empty = firstEmpty(state.bag);
   if (empty >= 0) {
-    state.bag[empty] = { ...item, id: state.nextId++, count: 1 };
+    state.bag[empty] = { id: state.nextId++, type: 'orb', family, side, tier, count: 1 };
     return;
   }
-  const key = tabKey(item);
-  state.stash.essences[key] = Math.min(ESSENCE_STASH_STACK, (state.stash.essences[key] ?? 0) + 1);
+  const key = orbKey(family, side, tier);
+  state.stash.orbs[key] = Math.min(ORB_STASH_STACK, (state.stash.orbs[key] ?? 0) + 1);
 }
 
-/** The fixed recipe: a tier-t essence of `stat` costs ESSENCE_COST[t] of its ore. Buying never draws from state.rng. */
-export function essencePrice(tier: number): number {
-  return ESSENCE_COST[tier] ?? 0;
-}
-
-/** Buys one essence of `stat` at `tier`, paying its ore; adds it to the bag or the Essences tab. */
-export function buyEssence(state: GameState, stat: StatKey, tier: number): MarketResult {
-  if (!Number.isInteger(tier) || tier < 1 || tier > ESSENCE_TIER_MAX) return 'invalid';
-  const ore = oreForTier(tier);
-  if (ore === undefined) return 'invalid';
-  const cost = essencePrice(tier);
+/** Buys one orb of `family`/`side`/`tier`, paying its ore; adds it to the bag or the Orbs tab. Buying never draws from state.rng. */
+export function buyOrb(state: GameState, family: OrbFamily, side: OrbSide | undefined, tier: OrbTier): MarketResult {
+  const ore = orbOre(family, tier);
+  const cost = orbCost(family, tier);
   if (heldMaterial(state, ore) < cost) return 'short';
   spendMaterial(state, ore, cost);
-  stowStack(state, { id: state.nextId++, type: 'essence', stat, tier, count: 1 });
-  return 'ok';
-}
-
-/** Buys one orb of `side`, paying ORB_COST Iron; adds it to the bag or the Essences tab. */
-export function buyOrb(state: GameState, side: OrbSide): MarketResult {
-  if (heldMaterial(state, 'iron') < ORB_COST) return 'short';
-  spendMaterial(state, 'iron', ORB_COST);
-  stowStack(state, { id: state.nextId++, type: 'orb', side, count: 1 });
+  stowOrb(state, family, side, tier);
   return 'ok';
 }

@@ -1,12 +1,11 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { firstEmpty } from '../../core/cells';
 import { itemName } from '../../core/itemData';
-import { MATERIAL_LABELS, STAT_NAMES } from '../../core/itemData';
-import { oreForTier } from '../../core/balance';
-import type { GearSet, Material, OrbSide, StatKey } from '../../core/items';
+import { MATERIAL_LABELS } from '../../core/itemData';
+import type { GearSet } from '../../core/items';
 import { gamblePrice, gambleTier, type GambleResult } from '../../core/merchant';
 import type { BuyResult } from '../../core/trader';
-import type { GameStore } from '../../store/gameStore';
+import type { GameStore, BuyNotice } from '../../store/gameStore';
 import { Sprite } from '../../sprites/Sprite';
 import { EmptyTarget, ItemButton } from '../character/ItemGrid';
 import { baseSprite } from '../character/itemView';
@@ -16,8 +15,9 @@ import { formatNumber } from '../format';
 import { clickedThroughCard } from '../platform';
 import { useGame } from '../useGame';
 import {
-  buyLabel, buyRefusalHolds, buyResultText, essenceOffersForTier, essenceTiers, exchangeOffers, gambleResultText,
+  buyLabel, buyRefusalHolds, buyResultText, exchangeOffers, gambleResultText,
   gambledLine, gambleSlots, MERCHANTS, orbOffers, refinerResultText, stockCaption, stockTiles,
+  type OrbOffer,
 } from './merchantView';
 import '../character/character.css';
 import './merchant.css';
@@ -40,8 +40,8 @@ export function MerchantView({ store }: { store: GameStore }) {
   const { state } = useGame(store);
   const [refused, setRefused] = useState<GambleResult>('ok');
   const [buyRefused, setBuyRefused] = useState<{ index: number; result: BuyResult } | null>(null);
-  const [refineTier, setRefineTier] = useState(1);
   const [refineRefused, setRefineRefused] = useState<string | null>(null);
+  const [fly, setFly] = useState<BuyNotice | null>(null);
   const traderRef = useRef<HTMLHeadingElement>(null);
   const drag = useItemDrag({ store, onResult: (text) => say(text) });
   const { handlers, message, say, cards, tapCard, tapWhere } = useItemInteractions({
@@ -55,6 +55,19 @@ export function MerchantView({ store }: { store: GameStore }) {
     say(null);
     setBuyRefused({ index, result: store.buyStock(index) });
   };
+  const buyOrb = (o: OrbOffer): void => {
+    say(null);
+    const result = store.buyOrb(o.family, o.side, o.tier);
+    setRefineRefused(result === 'ok' ? `Bought ${o.name}` : refinerResultText(result));
+  };
+  // a successful buy shows its sprite flying into the bag for a moment, then clears
+  useEffect(() => {
+    const last = store.lastBuy;
+    if (last === null) return;
+    setFly(last);
+    const timer = setTimeout(() => setFly(null), 450);
+    return () => clearTimeout(timer);
+  }, [store.lastBuy]);
   return (
     <div className="gm-merchant">
       <div className="gm-merchant__head">
@@ -162,69 +175,35 @@ export function MerchantView({ store }: { store: GameStore }) {
             <Sprite name={MERCHANTS.refiner.sprite} scale={4} label={MERCHANTS.refiner.name} />
             <div>
               <h3 className="gm-merchant__name">{MERCHANTS.refiner.name}</h3>
-              <div className="gm-merchant__caption gm-small gm-muted">Trade ores for essences and orbs, or for each other</div>
+              <div className="gm-merchant__caption gm-small gm-muted">Trade ores for orbs, or for each other</div>
             </div>
           </div>
           <p className="gm-merchant__text gm-small gm-muted">
-            Essences add or reroll a chosen stat at its tier; orbs add a chosen side. Prices are fixed, but buying into
-            an ore raises its premium for a while, so bulk-buying gets dearer and then eases.
+            Craft orbs add or reroll a prefix or suffix in a tier band; removal orbs take a band-scoped line away;
+            scattering orbs reroll every value. Prices are fixed, but buying into an ore raises its premium for a while.
           </p>
-          <section className="gm-merchant__group">
-            <h4 className="gm-merchant__group-title">Orbs</h4>
-            <ul className="gm-refiner__orbs">
-              {orbOffers(state).map((o) => (
-                <li key={o.side} className="gm-merchant__slot">
-                  <span className="gm-merchant__label">{o.label}</span>
-                  <button
-                    type="button"
-                    className="gm-btn gm-merchant__gamble"
-                    aria-disabled={!o.affordable || undefined}
-                    aria-label={`Buy ${o.label} · ${formatNumber(o.cost)} Iron`}
-                    onClick={(e) => { if (!clickedThroughCard(e)) { say(null); setRefineRefused(refinerResultText(store.buyOrb(o.side))); } }}
-                  >
-                    <PriceLabel text={`Buy · ${formatNumber(o.cost)} Iron`} />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-          <section className="gm-merchant__group">
-            <h4 className="gm-merchant__group-title">Essences</h4>
-            <div className="gm-refiner__tiers" role="group" aria-label="Essence tiers">
-              {essenceTiers(state).map((t) => (
-                <button
-                  key={t.tier}
-                  type="button"
-                  className="gm-stash__page"
-                  aria-pressed={t.tier === refineTier}
-                  aria-disabled={!t.affordable || undefined}
-                  onClick={() => { setRefineTier(t.tier); say(null); }}
-                >
-                  T{t.tier} · {t.oreLabel} ×{formatNumber(t.cost)}
-                </button>
-              ))}
-            </div>
-            <ul className="gm-refiner__essences">
-              {essenceOffersForTier(state, refineTier).map((o) => {
-                const ore = oreForTier(o.tier);
-                const oreLabel = ore === undefined ? '' : MATERIAL_LABELS[ore];
-                return (
-                  <li key={o.stat} className="gm-merchant__slot">
-                    <span className="gm-merchant__label">{STAT_NAMES[o.stat]}</span>
+          {orbOffers(state).map((group) => (
+            <section key={group.family} className="gm-merchant__group">
+              <h4 className="gm-merchant__group-title">{group.title}</h4>
+              <ul className="gm-refiner__orbs">
+                {group.offers.map((o) => (
+                  <li key={o.name} className="gm-merchant__slot gm-refiner__orb">
+                    <Sprite name={o.sprite} scale={3} label={o.name} />
+                    <span className="gm-merchant__label">{o.name}</span>
                     <button
                       type="button"
                       className="gm-btn gm-merchant__gamble"
                       aria-disabled={!o.affordable || undefined}
-                      aria-label={`Buy T${o.tier} ${STAT_NAMES[o.stat]} essence · ${formatNumber(o.cost)} ${oreLabel}`}
-                      onClick={(e) => { if (!clickedThroughCard(e)) { say(null); setRefineRefused(refinerResultText(store.buyEssence(o.stat, o.tier))); } }}
+                      aria-label={`Buy ${o.name} · ${formatNumber(o.cost)} ${o.oreLabel}`}
+                      onClick={(e) => { if (!clickedThroughCard(e)) buyOrb(o); }}
                     >
-                      <PriceLabel text={`Buy · ${formatNumber(o.cost)} ${oreLabel}`} />
+                      <PriceLabel text={`Buy · ${formatNumber(o.cost)} ${o.oreLabel}`} />
                     </button>
                   </li>
-                );
-              })}
-            </ul>
-          </section>
+                ))}
+              </ul>
+            </section>
+          ))}
           <section className="gm-merchant__group">
             <h4 className="gm-merchant__group-title">Ore exchange</h4>
             <ul className="gm-refiner__exchange">
@@ -246,9 +225,14 @@ export function MerchantView({ store }: { store: GameStore }) {
               ))}
             </ul>
           </section>
-          <div className="gm-merchant__status" role="status">{refineRefused}</div>
+          <div className={`gm-merchant__status${fly !== null ? ' gm-merchant__status--flash' : ''}`} role="status">{refineRefused}</div>
         </section>
       </div>
+      {fly !== null && (
+        <div key={fly.id} className="gm-buy-fly" aria-hidden="true">
+          <Sprite name={fly.sprite} scale={3} />
+        </div>
+      )}
       <p className="gm-merchant__text gm-small gm-muted">
         The merchants never sell Diamonds or Souls. Selling items stays in their cards.
       </p>

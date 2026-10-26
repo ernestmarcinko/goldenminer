@@ -1,5 +1,5 @@
 import { BAG_SIZE, START_GENERAL_PAGES, STASH_PAGE_SIZE } from './balance';
-import { GEM_GRADES, GEM_TYPES, MATERIALS, RUNE_TYPES, parseEssenceKey, setOfSlot } from './items';
+import { GEM_GRADES, GEM_TYPES, MATERIALS, RUNE_TYPES, parseOrbKey, setOfSlot } from './items';
 import type { Cell, GemGrade, GemType, Item, Material, RuneType } from './items';
 import { stockAt } from './trader';
 import type { GameState, ItemLoc } from './types';
@@ -29,8 +29,8 @@ export function emptyRuneCounts(): Record<RuneType, number> {
   return counts;
 }
 
-/** The Essences tab starts empty: keys appear as essences and orbs are bought, and go when their count reaches 0. */
-export function emptyEssenceCounts(): Record<string, number> {
+/** The Orbs tab starts empty: keys appear as orbs are bought, and go when their count reaches 0. */
+export function emptyOrbCounts(): Record<string, number> {
   return {};
 }
 
@@ -44,7 +44,7 @@ export function emptyInventory(): Pick<GameState, 'equipped' | 'bag' | 'stash' |
       runes: emptyRuneCounts(),
       maps: {},
       materials: emptyMaterialCounts(),
-      essences: emptyEssenceCounts(),
+      orbs: emptyOrbCounts(),
       bought: { general: 0 },
     },
     overflow: [],
@@ -103,13 +103,11 @@ export function itemAt(state: GameState, loc: ItemLoc): Item | undefined {
       const count = state.stash.materials[loc.material];
       return count > 0 ? { id: 0, type: 'material', material: loc.material, count } : undefined;
     }
-    case 'essences': {
-      const count = state.stash.essences[loc.key];
-      const parsed = parseEssenceKey(loc.key);
+    case 'orbs': {
+      const count = state.stash.orbs[loc.key];
+      const parsed = parseOrbKey(loc.key);
       if (count === undefined || count <= 0 || parsed === undefined) return undefined;
-      return parsed === 'prefix' || parsed === 'suffix'
-        ? { id: 0, type: 'orb', side: parsed, count }
-        : { id: 0, type: 'essence', stat: parsed.stat, tier: parsed.tier, count };
+      return { id: 0, type: 'orb', family: parsed.family, side: parsed.side, tier: parsed.tier, count };
     }
   }
 }
@@ -122,7 +120,7 @@ export function sameLoc(a: ItemLoc, b: ItemLoc): boolean {
     case 'gems': return b.where === 'gems' && a.gem === b.gem && a.grade === b.grade;
     case 'runes': return b.where === 'runes' && a.rune === b.rune;
     case 'materials': return b.where === 'materials' && a.material === b.material;
-    case 'essences': return b.where === 'essences' && a.key === b.key;
+    case 'orbs': return b.where === 'orbs' && a.key === b.key;
     case 'worn': return b.where === 'worn' && a.slot === b.slot;
     case 'stock': return b.where === 'stock' && a.index === b.index;
   }

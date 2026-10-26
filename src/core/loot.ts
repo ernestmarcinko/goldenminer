@@ -10,7 +10,7 @@ import { isStack, MATERIALS } from './items';
 import { ruleMatches } from './lootFilter';
 import { putMap } from './maps';
 import { stackCaps } from './passives';
-import type { Cell, EssenceItem, GearItem, Gem, GemItem, Item, MapItem, Material, MaterialItem, OrbItem, RuneItem, Stack } from './items';
+import type { Cell, GearItem, Gem, GemItem, Item, MapItem, Material, MaterialItem, OrbItem, RuneItem, Stack } from './items';
 import { deriveStats } from './stats';
 import { countGem, countOre } from './telemetry';
 import type { DropOrigin, GameState, LootAction, LootNote, LootOutcome, LootRule, Stats, TrailStep } from './types';
@@ -71,7 +71,6 @@ export function salvageYield(item: Item): Partial<Record<Material, number>> {
     }
     case 'material':
       return out;
-    case 'essence':
     case 'orb':
       return out;
   }
@@ -117,8 +116,7 @@ function note(item: Item, outcome: LootOutcome, value = 0): LootNote {
     case 'rune': return { name: itemName(item), rarity: 'rune', base: item.rune, outcome, value };
     case 'map': return { name: itemName(item), rarity: item.rarity, base: 'map', outcome, value };
     case 'material': return { name: itemName(item), rarity: 'material', base: item.material, outcome, value };
-    case 'essence':
-    case 'orb': throw new Error('essences and orbs are never looted');
+    case 'orb': throw new Error('orbs are never looted');
   }
 }
 
@@ -158,8 +156,7 @@ type StackKind =
   | Pick<GemItem, 'type' | 'gem' | 'grade'>
   | Pick<RuneItem, 'type' | 'rune'>
   | Pick<MaterialItem, 'type' | 'material'>
-  | Pick<EssenceItem, 'type' | 'stat' | 'tier'>
-  | Pick<OrbItem, 'type' | 'side'>;
+  | Pick<OrbItem, 'type' | 'family' | 'side' | 'tier'>;
 
 const bagCap = (state: GameState, kind: StackKind): number => {
   const caps = stackCaps(state);
@@ -167,7 +164,6 @@ const bagCap = (state: GameState, kind: StackKind): number => {
     case 'gem': return caps.gem;
     case 'rune': return caps.rune;
     case 'material': return caps.material;
-    case 'essence': return caps.essence;
     case 'orb': return caps.orb;
   }
 };
@@ -177,8 +173,7 @@ function sameKind(kind: StackKind, c: Cell): c is Stack {
     case 'gem': return c?.type === 'gem' && c.gem === kind.gem && c.grade === kind.grade;
     case 'rune': return c?.type === 'rune' && c.rune === kind.rune;
     case 'material': return c?.type === 'material' && c.material === kind.material;
-    case 'essence': return c?.type === 'essence' && c.stat === kind.stat && c.tier === kind.tier;
-    case 'orb': return c?.type === 'orb' && c.side === kind.side;
+    case 'orb': return c?.type === 'orb' && c.family === kind.family && c.side === kind.side && c.tier === kind.tier;
   }
 }
 
@@ -261,7 +256,6 @@ function stashFind(state: GameState, item: Item): Fate | null {
       const n = units(stashMaterials(state, { [item.material]: item.count }));
       return n > 0 ? stashed(n) : null;
     }
-    case 'essence':
     case 'orb': return null;
   }
 }
@@ -272,9 +266,9 @@ function stashFind(state: GameState, item: Item): Fate | null {
  */
 function applyFilter(state: GameState, item: Item): Fate | null {
   const action = lootAction(state.settings.lootFilter, item);
-  // materials are crafting currency: only keep and stash rules match them; essences and orbs are never looted
+  // materials are crafting currency: only keep and stash rules match them; orbs are never looted
   if (item.type === 'material') return action === 'stash' ? stashFind(state, item) : null;
-  if (item.type === 'essence' || item.type === 'orb') return null;
+  if (item.type === 'orb') return null;
   switch (action) {
     case 'keep': return null;
     case 'stash': return stashFind(state, item);
@@ -398,7 +392,6 @@ function unhold(state: GameState, item: Item): boolean {
     case 'gem':
     case 'rune':
     case 'material':
-    case 'essence':
     case 'orb':
       item.count = stackIntoBag(state, item, item.count, 1, (n) => ({ ...item, count: n }));
       return item.count === 0;

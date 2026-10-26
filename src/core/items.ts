@@ -12,8 +12,6 @@ export const GEM_TYPES = ['ruby', 'sapphire', 'emerald', 'amethyst', 'starstone'
 export const GEM_GRADES = ['tiny', 'small', 'big', 'giant', 'perfect'] as const;
 export const RUNE_TYPES = ['fehu', 'uruz', 'thurisaz', 'ansuz', 'raidho', 'kenaz', 'gebo', 'wunjo', 'hagalaz', 'isa'] as const;
 export const MATERIALS = ['copper', 'tin', 'iron', 'silver', 'mithril', 'starsteel', 'obsidian', 'voidCrystal'] as const;
-/** The highest tier an essence can have; each of the 32 stats has one essence per tier 1..ESSENCE_TIER_MAX. */
-export const ESSENCE_TIER_MAX = 6;
 export const MAP_MOD_KINDS = ['monsterLife', 'monsterDamage', 'monsterSpeed', 'bossPower', 'weakHealing', 'hardened'] as const;
 export const MAP_SPECIALS = ['bossLegendary', 'treasureRoom', 'championPacks', 'doubleMaterials', 'tripleSouls', 'secondBoss'] as const;
 
@@ -59,35 +57,77 @@ export interface MapItem {
   /** At most one, outside `mods`: never counted toward the six, and no enchant removes it. */
   special?: MapSpecial;
 }
-/** A crafting essence: adds or rerolls its exact stat at a tier in `[tier, tier + 2]`, capped by the item. */
-export interface EssenceItem { id: number; type: 'essence'; stat: StatKey; tier: number; count: number }
-/** The side a generic orb aims at. */
+/** The side a craft or removal orb aims at; a scattering orb has no side. */
 export type OrbSide = 'prefix' | 'suffix';
-/** A generic orb: adds a random line on its side in the item's own band. */
-export interface OrbItem { id: number; type: 'orb'; side: OrbSide; count: number }
-export type Item = GearItem | GemItem | RuneItem | MaterialItem | MapItem | EssenceItem | OrbItem;
+/** The three orb families: craft (add/reroll a line), removal (remove a line), scattering (reroll every value). */
+export type OrbFamily = 'craft' | 'removal' | 'scattering';
+/** The three orb tiers: each prices in a different ore and rolls a wider band than the one below. */
+export type OrbTier = 'minor' | 'normal' | 'greater';
+export const ORB_FAMILIES = ['craft', 'removal', 'scattering'] as const;
+export const ORB_TIERS = ['minor', 'normal', 'greater'] as const;
+export const ORB_SIDES = ['prefix', 'suffix'] as const;
+
+/**
+ * A crafting orb: a craft orb adds or rerolls a line on its side in a tier band, a removal orb removes a band-scoped
+ * line on its side, and a scattering orb rerolls every rolled line's value, keeping the best of 1/2/3 by tier.
+ */
+export interface OrbItem { id: number; type: 'orb'; family: OrbFamily; side?: OrbSide; tier: OrbTier; count: number }
+export type Item = GearItem | GemItem | RuneItem | MaterialItem | MapItem | OrbItem;
 /** What stacks in a bag cell and counts up in its stash tab. */
-export type Stack = GemItem | RuneItem | MaterialItem | EssenceItem | OrbItem;
+export type Stack = GemItem | RuneItem | MaterialItem | OrbItem;
 export type Cell = Item | null;
 
-/** Every stat, in mining then battle order: the set an essence may carry. */
+/** Every stat, in mining then battle order. */
 export const ALL_STATS: readonly StatKey[] = [...MINING_STATS, ...BATTLE_STATS];
 
-/** The Essences-tab key for an essence: `"stat:tier"`. */
-export function essenceKey(stat: StatKey, tier: number): string {
-  return `${stat}:${tier}`;
+/** One orb in the catalogue: its family, side (absent for scattering), tier and unique name. */
+export interface OrbDef { family: OrbFamily; side?: OrbSide; tier: OrbTier; name: string }
+
+/** The 15-orb catalogue: three families × three tiers, each with a unique name. */
+export const ORBS: readonly OrbDef[] = [
+  { family: 'craft', side: 'prefix', tier: 'minor', name: 'Minor Orb of Prefixes' },
+  { family: 'craft', side: 'prefix', tier: 'normal', name: 'Normal Orb of Prefixes' },
+  { family: 'craft', side: 'prefix', tier: 'greater', name: 'Greater Orb of Prefixes' },
+  { family: 'craft', side: 'suffix', tier: 'minor', name: 'Minor Orb of Suffixes' },
+  { family: 'craft', side: 'suffix', tier: 'normal', name: 'Normal Orb of Suffixes' },
+  { family: 'craft', side: 'suffix', tier: 'greater', name: 'Greater Orb of Suffixes' },
+  { family: 'removal', side: 'prefix', tier: 'minor', name: 'Minor Orb of Severance' },
+  { family: 'removal', side: 'prefix', tier: 'normal', name: 'Normal Orb of Severance' },
+  { family: 'removal', side: 'prefix', tier: 'greater', name: 'Greater Orb of Severance' },
+  { family: 'removal', side: 'suffix', tier: 'minor', name: 'Minor Orb of Unmaking' },
+  { family: 'removal', side: 'suffix', tier: 'normal', name: 'Normal Orb of Unmaking' },
+  { family: 'removal', side: 'suffix', tier: 'greater', name: 'Greater Orb of Unmaking' },
+  { family: 'scattering', tier: 'minor', name: 'Minor Scattering Orb' },
+  { family: 'scattering', tier: 'normal', name: 'Normal Scattering Orb' },
+  { family: 'scattering', tier: 'greater', name: 'Greater Scattering Orb' },
+];
+
+/** The catalogue's unique name for an orb. */
+export function orbName(item: OrbItem): string {
+  return ORBS.find((o) => o.family === item.family && o.side === item.side && o.tier === item.tier)?.name ?? `${item.tier} orb`;
 }
 
-/** Reads an Essences-tab key back: `"stat:tier"` for an essence, `"prefix"`/`"suffix"` for an orb. */
-export function parseEssenceKey(key: string): { stat: StatKey; tier: number } | OrbSide | undefined {
-  if (key === 'prefix' || key === 'suffix') return key;
-  const i = key.lastIndexOf(':');
-  if (i <= 0 || i === key.length - 1) return undefined;
-  const stat = key.slice(0, i);
-  const tier = Number(key.slice(i + 1));
-  if (!(ALL_STATS as readonly string[]).includes(stat)) return undefined;
-  if (!Number.isInteger(tier) || tier < 1 || tier > ESSENCE_TIER_MAX) return undefined;
-  return { stat: stat as StatKey, tier };
+const isOrbTier = (x: string): x is OrbTier => (ORB_TIERS as readonly string[]).includes(x);
+const isOrbSide = (x: string): x is OrbSide => (ORB_SIDES as readonly string[]).includes(x);
+
+/** The Orbs-tab key for an orb: `"craft:prefix:minor"`, or `"scattering:greater"` with no side. */
+export function orbKey(family: OrbFamily, side: OrbSide | undefined, tier: OrbTier): string {
+  return side === undefined ? `${family}:${tier}` : `${family}:${side}:${tier}`;
+}
+
+/** Reads an Orbs-tab key back to its family, side (if any) and tier. */
+export function parseOrbKey(key: string): { family: OrbFamily; side?: OrbSide; tier: OrbTier } | undefined {
+  const parts = key.split(':');
+  if (parts.length === 2 && parts[0] === 'scattering' && isOrbTier(parts[1] ?? '')) {
+    return { family: 'scattering', tier: parts[1] as OrbTier };
+  }
+  if (
+    parts.length === 3 && (parts[0] === 'craft' || parts[0] === 'removal') &&
+    isOrbSide(parts[1] ?? '') && isOrbTier(parts[2] ?? '')
+  ) {
+    return { family: parts[0] as OrbFamily, side: parts[1] as OrbSide, tier: parts[2] as OrbTier };
+  }
+  return undefined;
 }
 
 export const SLOT_IMPLICIT: Readonly<Record<Slot, StatKey>> = {
@@ -132,7 +172,7 @@ export function isGear(item: Item): item is GearItem {
   return item.type === 'gear';
 }
 export function isStack(item: Item): item is Stack {
-  return item.type === 'gem' || item.type === 'rune' || item.type === 'material' || item.type === 'essence' || item.type === 'orb';
+  return item.type === 'gem' || item.type === 'rune' || item.type === 'material' || item.type === 'orb';
 }
 export function isMap(item: Item): item is MapItem {
   return item.type === 'map';

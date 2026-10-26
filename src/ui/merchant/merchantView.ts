@@ -1,14 +1,14 @@
-import { ESSENCE_COST, EXCHANGE_DOWN, EXCHANGE_UP, ORB_COST, STOCK_BAND_METRES, STOCK_SIZE, oreForTier } from '../../core/balance';
+import { EXCHANGE_DOWN, EXCHANGE_UP, STOCK_BAND_METRES, STOCK_SIZE, orbCost, orbOre } from '../../core/balance';
 import { firstEmpty } from '../../core/cells';
-import { MATERIAL_LABELS, STAT_NAMES, itemName } from '../../core/itemData';
-import { ALL_STATS, BATTLE_SLOTS, MATERIALS, MINING_SLOTS, type GearItem, type GearSet, type Material, type OrbSide, type Slot, type StatKey } from '../../core/items';
+import { MATERIAL_LABELS, itemName } from '../../core/itemData';
+import { BATTLE_SLOTS, MATERIALS, MINING_SLOTS, ORBS, type GearItem, type GearSet, type Material, type OrbFamily, type OrbSide, type OrbTier, type Slot } from '../../core/items';
 import { costOf, heldMaterial, type MarketResult } from '../../core/oreMarket';
 import { gamblePrice, type GambleResult } from '../../core/merchant';
 import { stockAt, stockBand, stockPrice, type BuyResult, type StockItem } from '../../core/trader';
 import type { GameState } from '../../core/types';
 import type { SpriteName } from '../../sprites/atlas';
 import { formatNumber } from '../format';
-import { SLOT_LABELS, gearKindBase, rarityOf } from '../character/itemView';
+import { SLOT_LABELS, gearKindBase, orbSprite, rarityOf } from '../character/itemView';
 
 /** The three merchants: the same names and looks in every world. */
 export const MERCHANTS: Readonly<Record<'trader' | 'gambler' | 'refiner', { name: string; sprite: SpriteName }>> = {
@@ -17,42 +17,34 @@ export const MERCHANTS: Readonly<Record<'trader' | 'gambler' | 'refiner', { name
   refiner: { name: 'Ferrel the Refiner', sprite: 'ferrel' },
 };
 
-/** The Refiner's fixed essence tier ladder: the ore each tier costs and how much of it. */
-export interface EssenceTier { tier: number; ore: Material; oreLabel: string; cost: number; held: number; affordable: boolean }
-export interface EssenceOffer { stat: StatKey; tier: number; cost: number; affordable: boolean }
-export interface OrbOffer { side: OrbSide; label: string; cost: number; affordable: boolean }
+/** One orb for sale at the Refiner: its name, sprite and fixed ore cost. */
+export interface OrbOffer {
+  family: OrbFamily; side: OrbSide | undefined; tier: OrbTier;
+  name: string; sprite: SpriteName; cost: number; ore: Material; oreLabel: string; affordable: boolean;
+}
+export interface OrbGroup { family: OrbFamily; title: string; offers: OrbOffer[] }
 export interface ExchangeOffer {
   from: Material; to: Material; amount: number; base: number; cost: number; affordable: boolean; up: boolean;
 }
 
-/** The six essence tiers, cheapest first. */
-export function essenceTiers(state: GameState): EssenceTier[] {
-  const out: EssenceTier[] = [];
-  for (let tier = 1; tier <= 6; tier++) {
-    const ore = oreForTier(tier);
-    if (ore === undefined) continue;
-    const cost = ESSENCE_COST[tier] ?? 0;
-    const held = heldMaterial(state, ore);
-    out.push({ tier, ore, oreLabel: MATERIAL_LABELS[ore], cost, held, affordable: held >= cost });
-  }
-  return out;
-}
+const ORB_GROUP_TITLES: Readonly<Record<OrbFamily, string>> = {
+  craft: 'Craft orbs', removal: 'Removal orbs', scattering: 'Scattering orbs',
+};
 
-/** The essences on sale at one tier: one per stat, all at that tier's price. */
-export function essenceOffersForTier(state: GameState, tier: number): EssenceOffer[] {
-  const ore = oreForTier(tier);
-  const cost = ESSENCE_COST[tier] ?? 0;
-  const affordable = ore !== undefined && heldMaterial(state, ore) >= cost;
-  return ALL_STATS.map((stat) => ({ stat, tier, cost, affordable }));
-}
-
-/** The two orbs, each ORB_COST Iron. */
-export function orbOffers(state: GameState): OrbOffer[] {
-  const affordable = heldMaterial(state, 'iron') >= ORB_COST;
-  return [
-    { side: 'prefix', label: 'Prefix orb', cost: ORB_COST, affordable },
-    { side: 'suffix', label: 'Suffix orb', cost: ORB_COST, affordable },
-  ];
+/** The 15 orbs in three groups — craft, removal, scattering — each tile with its sprite, name and ore cost. */
+export function orbOffers(state: GameState): OrbGroup[] {
+  return (['craft', 'removal', 'scattering'] as const).map((family): OrbGroup => ({
+    family,
+    title: ORB_GROUP_TITLES[family],
+    offers: ORBS.filter((o) => o.family === family).map((o): OrbOffer => {
+      const ore = orbOre(o.family, o.tier);
+      const cost = orbCost(o.family, o.tier);
+      return {
+        family: o.family, side: o.side, tier: o.tier, name: o.name, sprite: orbSprite(o.family, o.side, o.tier),
+        cost, ore, oreLabel: MATERIAL_LABELS[ore], affordable: heldMaterial(state, ore) >= cost,
+      };
+    }),
+  }));
 }
 
 /** The adjacent ore exchanges, up-ladder and down-ladder, with their premium-scaled costs. */
@@ -73,11 +65,6 @@ export function exchangeOffers(state: GameState): ExchangeOffer[] {
     offers.push({ from, to, amount: EXCHANGE_DOWN, base: 1, cost, affordable: heldMaterial(state, from) >= cost, up: false });
   }
   return offers;
-}
-
-/** The label of an essence offer: its stat name and tier. */
-export function essenceOfferLabel(stat: StatKey, tier: number): string {
-  return `T${tier} ${STAT_NAMES[stat]} essence`;
 }
 
 /** Why a Refiner buy or exchange was refused; null for an 'ok'. */

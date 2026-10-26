@@ -32,7 +32,7 @@ it('counts bag stacks and the Materials tab together, and Diamonds from the purs
   s.stash.materials.silver = 4;
   s.diamonds = 1;
   const opts = craftOptions(s, bag(0));
-  expect(opts.map((o) => o.kind)).toEqual(['silver', 'mithril', 'starsteel', 'obsidian', 'voidCrystal', 'diamond']);
+  expect(opts.map((o) => o.kind)).toEqual(['silver', 'mithril', 'voidCrystal', 'diamond']);
   expect(opts.find((o) => o.kind === 'silver')).toMatchObject({ have: 7, cost: 2, enabled: true });
   expect(opts.find((o) => o.kind === 'diamond')).toMatchObject({ have: 1, cost: 2, enabled: false });
 });
@@ -67,13 +67,11 @@ it('a non-gear item has no crafts', () => {
 it('every craft label', () => {
   expect(craftLabel('copper', 3, 0, 'gear')).toBe('Copper ore ×3: make it magic');
   expect(craftLabel('tin', 2, 0, 'gear')).toBe('Tin ore ×2: reroll its modifiers');
-  expect(craftLabel('iron', 2, 0, 'gear')).toBe('Iron ore ×2: add a modifier');
   expect(craftLabel('silver', 2, 0, 'gear')).toBe('Silver ore ×2: reroll its modifiers');
   expect(craftLabel('mithril', 2, 0, 'gear')).toBe('Mithril ×2: reroll its sockets');
-  expect(craftLabel('starsteel', 2, 0, 'gear')).toBe('Starsteel ×2: reroll its values');
-  expect(craftLabel('obsidian', 1, 0, 'gear')).toBe('Obsidian shard ×1: remove a modifier');
   expect(craftLabel('voidCrystal', 1, 0, 'gear')).toBe('Void crystal ×1: temper it (risky)');
   expect(craftLabel('diamond', 1200, 0, 'gear')).toBe('Diamonds ×1,200: add a modifier');
+  for (const kind of ['iron', 'starsteel', 'obsidian'] as const) expect(() => craftLabel(kind, 1, 0, 'gear')).toThrow();
 });
 
 it('every craft result text', () => {
@@ -132,9 +130,9 @@ it('a magic map offers Obsidian and Void crystal; a rare one Silver too', () => 
   s.bag[0] = map(s, 'magic', mods(2));
   s.bag[1] = map(s, 'rare', mods(4));
   s.bag[2] = map(s, 'rare', mods(6));
-  expect(craftOptions(s, bag(0)).map((o) => o.kind)).toEqual(['obsidian', 'voidCrystal']);
-  expect(craftOptions(s, bag(1)).map((o) => o.kind)).toEqual(['silver', 'obsidian', 'voidCrystal']);
-  expect(craftOptions(s, bag(2)).map((o) => o.kind)).toEqual(['silver', 'obsidian', 'voidCrystal']);
+  expect(craftOptions(s, bag(0)).map((o) => o.kind)).toEqual(['voidCrystal']);
+  expect(craftOptions(s, bag(1)).map((o) => o.kind)).toEqual(['silver', 'voidCrystal']);
+  expect(craftOptions(s, bag(2)).map((o) => o.kind)).toEqual(['silver', 'voidCrystal']);
   expect(craftOptions(s, bag(1)).every((o) => o.souls === 20 && o.enabled)).toBe(true);
 });
 
@@ -148,11 +146,9 @@ it('a sealed map offers nothing', () => {
 
 it('every map craft label', () => {
   expect(craftLabel('copper', 3, 20, 'map')).toBe('Copper ore ×3 + 20 Souls: enchant it');
-  expect(craftLabel('iron', 3, 20, 'map')).toBe('Iron ore ×3 + 20 Souls: add a modifier');
   expect(craftLabel('silver', 2, 20, 'map')).toBe('Silver ore ×2 + 20 Souls: reroll its modifiers');
-  expect(craftLabel('obsidian', 1, 20, 'map')).toBe('Obsidian shard ×1 + 20 Souls: remove a modifier');
   expect(craftLabel('voidCrystal', 1, 1500, 'map')).toBe('Void crystal ×1 + 1,500 Souls: temper it (risky)');
-  for (const kind of ['tin', 'mithril', 'starsteel', 'diamond'] as const) expect(() => craftLabel(kind, 1, 20, 'map')).toThrow();
+  for (const kind of ['tin', 'iron', 'mithril', 'starsteel', 'obsidian', 'diamond'] as const) expect(() => craftLabel(kind, 1, 20, 'map')).toThrow();
 });
 
 it('every map craft result text, and the new refusals', () => {

@@ -1,16 +1,15 @@
 import { itemAt } from '../../core/cells';
-import { canCraft, canTargetedCraft, craftCost, held, heldEssence, heldOrb, mapCraftSouls } from '../../core/crafting';
+import { canCraft, canTargetedCraft, craftCost, held, heldOrbKind, mapCraftSouls } from '../../core/crafting';
 import { MATERIAL_LABELS, STAT_NAMES } from '../../core/itemData';
-import { ESSENCE_TIER_MAX, MOD_SIDE, SLOT_IMPLICIT, isGear, isMap, setOfSlot, statsOf } from '../../core/items';
-import type { StatKey } from '../../core/items';
+import { MOD_SIDE, ORBS, isGear, isMap } from '../../core/items';
 import type { CraftCheck, CraftKind, CraftResult, GameState, ItemLoc, TargetedCraft, TemperOutcome } from '../../core/types';
 import { formatNumber } from '../format';
 
 /** `souls`: what the craft also spends from the Souls, 0 for gear. */
 export interface CraftOption { kind: CraftKind; label: string; cost: number; souls: number; have: number; enabled: boolean }
 
-// Iron is retired from crafting (it is the tier-1 essence ore): it is never offered, on gear or maps.
-const CRAFT_KINDS: readonly CraftKind[] = ['copper', 'tin', 'silver', 'mithril', 'starsteel', 'obsidian', 'voidCrystal', 'diamond'];
+// Starsteel and Obsidian are retired from crafting (they are orb currency, Plan 27): they are never offered, on gear or maps.
+const CRAFT_KINDS: readonly CraftKind[] = ['copper', 'tin', 'silver', 'mithril', 'voidCrystal', 'diamond'];
 
 /**
  * Checks that refuse a craft for what the item is; the others (short of material or Souls, Gems tab full) list it
@@ -20,16 +19,14 @@ const RULE_REFUSALS: ReadonlySet<CraftCheck> = new Set<CraftCheck>(
   ['notGear', 'legendary', 'sealed', 'wrongRarity', 'noRoom', 'nothingToChange', 'notForMaps'],
 );
 
-const CRAFT_EFFECTS: Readonly<Record<CraftKind, string>> = {
-  copper: 'make it magic', tin: 'reroll its modifiers', iron: 'add a modifier', silver: 'reroll its modifiers',
-  mithril: 'reroll its sockets', starsteel: 'reroll its values', obsidian: 'remove a modifier',
-  voidCrystal: 'temper it (risky)', diamond: 'add a modifier',
+const CRAFT_EFFECTS: Readonly<Partial<Record<CraftKind, string>>> = {
+  copper: 'make it magic', tin: 'reroll its modifiers', silver: 'reroll its modifiers',
+  mithril: 'reroll its sockets', voidCrystal: 'temper it (risky)', diamond: 'add a modifier',
 };
 
-// null: every map refuses that material, so a map never offers it.
-const MAP_CRAFT_EFFECTS: Readonly<Record<CraftKind, string | null>> = {
-  copper: 'enchant it', tin: null, iron: 'add a modifier', silver: 'reroll its modifiers', mithril: null, starsteel: null,
-  obsidian: 'remove a modifier', voidCrystal: 'temper it (risky)', diamond: null,
+// A material absent from the map list does nothing to a map, so a map never offers it.
+const MAP_CRAFT_EFFECTS: Readonly<Partial<Record<CraftKind, string>>> = {
+  copper: 'enchant it', silver: 'reroll its modifiers', voidCrystal: 'temper it (risky)',
 };
 
 export type CraftTarget = 'gear' | 'map';
@@ -42,9 +39,13 @@ export function craftTargetAt(state: GameState, target: ItemLoc): CraftTarget {
 
 export function craftLabel(kind: CraftKind, cost: number, souls: number, target: CraftTarget): string {
   const name = kind === 'diamond' ? 'Diamonds' : MATERIAL_LABELS[kind];
-  if (target === 'gear') return `${name} ×${formatNumber(cost)}: ${CRAFT_EFFECTS[kind]}`;
+  if (target === 'gear') {
+    const effect = CRAFT_EFFECTS[kind];
+    if (effect === undefined) throw new Error(`${kind} does nothing to gear`);
+    return `${name} ×${formatNumber(cost)}: ${effect}`;
+  }
   const effect = MAP_CRAFT_EFFECTS[kind];
-  if (effect === null) throw new Error(`${kind} does nothing to a map`);
+  if (effect === undefined) throw new Error(`${kind} does nothing to a map`);
   return `${name} ×${formatNumber(cost)} + ${formatNumber(souls)} Souls: ${effect}`;
 }
 
@@ -108,24 +109,19 @@ export interface TargetedOption { key: string; label: string; enabled: boolean; 
 /** The stable slot key of a targeted craft, so the card keeps its button under the pointer. */
 export function targetedKey(t: TargetedCraft): string {
   switch (t.kind) {
-    case 'addPrefix': return 'addPrefix';
-    case 'addSuffix': return 'addSuffix';
-    case 'addStat': return `addStat:${t.stat}:${t.tier}`;
-    case 'rerollAffix': return `rerollAffix:${t.index}:${t.tier}`;
-    case 'rerollOrb': return `rerollOrb:${t.index}`;
-    case 'removeAffix': return `removeAffix:${t.index}`;
+    case 'addPrefix': return `addPrefix:${t.tier}`;
+    case 'addSuffix': return `addSuffix:${t.tier}`;
+    case 'rerollPrefix': return `rerollPrefix:${t.index}:${t.tier}`;
+    case 'rerollSuffix': return `rerollSuffix:${t.index}:${t.tier}`;
+    case 'removePrefix': return `removePrefix:${t.tier}`;
+    case 'removeSuffix': return `removeSuffix:${t.tier}`;
+    case 'scatter': return `scatter:${t.tier}`;
   }
 }
 
-/** The best tier the player holds an essence of `stat` at, or 0. */
-function bestEssenceTier(state: GameState, stat: StatKey): number {
-  for (let t = ESSENCE_TIER_MAX; t >= 1; t--) if (heldEssence(state, stat, t) >= 1) return t;
-  return 0;
-}
-
 /**
- * The targeted crafts an item's card offers: the two orbs, an "Add {stat}" per essence the player holds for a stat the
- * item lacks, and a reroll and remove for each of its affixes. Each is greyed out when it has no room or no budget.
+ * The targeted crafts an item's card offers: for each orb kind the player holds, the add/reroll (a craft orb), remove
+ * (a removal orb) or scatter (a scattering orb) it does. Each is greyed out when it has no room or no budget.
  */
 export function targetedCraftOptions(state: GameState, target: ItemLoc): TargetedOption[] {
   const item = itemAt(state, target);
@@ -135,23 +131,32 @@ export function targetedCraftOptions(state: GameState, target: ItemLoc): Targete
   const labelled = (targeted: TargetedCraft, label: string): void => {
     out.push({ targeted, key: targetedKey(targeted), label, enabled: canTargetedCraft(state, target, targeted) === 'ok' });
   };
-  labelled({ kind: 'addPrefix' }, 'Add a prefix (Prefix orb)');
-  labelled({ kind: 'addSuffix' }, 'Add a suffix (Suffix orb)');
-  const implicit = SLOT_IMPLICIT[item.slot];
-  for (const stat of statsOf(setOfSlot(item.slot))) {
-    if (stat === implicit || item.affixes.some((l) => l.stat === stat)) continue;
-    const tier = bestEssenceTier(state, stat);
-    if (tier === 0) continue;   // no essence of this stat: nothing to add with
-    labelled({ kind: 'addStat', stat, tier }, `Add ${STAT_NAMES[stat]} (T${tier} essence)`);
-  }
-  item.affixes.forEach((l, index) => {
-    const tier = bestEssenceTier(state, l.stat);
-    if (tier > 0) {
-      labelled({ kind: 'rerollAffix', index, tier }, `Reroll ${STAT_NAMES[l.stat]} (T${tier} essence)`);
-    } else {
-      labelled({ kind: 'rerollOrb', index }, `Reroll ${STAT_NAMES[l.stat]} (${MOD_SIDE[l.stat]} orb)`);
+  for (const orb of ORBS) {
+    if (heldOrbKind(state, orb.family, orb.side, orb.tier) < 1) continue;
+    if (orb.family === 'scattering') {
+      labelled({ kind: 'scatter', tier: orb.tier }, `Reroll every value (${orb.name})`);
+      continue;
     }
-    labelled({ kind: 'removeAffix', index }, `Remove ${STAT_NAMES[l.stat]} (Obsidian ×${formatNumber(craftCost('obsidian', item.ilvl))})`);
-  });
+    const side = orb.side;
+    if (side === undefined) continue;
+    if (orb.family === 'craft') {
+      labelled(
+        side === 'prefix' ? { kind: 'addPrefix', tier: orb.tier } : { kind: 'addSuffix', tier: orb.tier },
+        `Add a ${side} (${orb.name})`,
+      );
+      item.affixes.forEach((l, index) => {
+        if (l.crafted === true || MOD_SIDE[l.stat] !== side) return;
+        labelled(
+          side === 'prefix' ? { kind: 'rerollPrefix', index, tier: orb.tier } : { kind: 'rerollSuffix', index, tier: orb.tier },
+          `Reroll ${STAT_NAMES[l.stat]} (${orb.name})`,
+        );
+      });
+    } else {
+      labelled(
+        side === 'prefix' ? { kind: 'removePrefix', tier: orb.tier } : { kind: 'removeSuffix', tier: orb.tier },
+        `Remove a random ${side} (${orb.name})`,
+      );
+    }
+  }
   return out;
 }

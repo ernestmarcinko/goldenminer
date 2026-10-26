@@ -59,11 +59,9 @@ describe('rolls', () => {
       expect([...seen].sort(), kind).toEqual([...MAP_SPECIALS].sort());
     }
 
-    // A map that has one keeps it through every enchant, Obsidian and every temper outcome too.
+    // A map that has one keeps it through every enchant and every temper outcome too.
     const kept: [CraftKind, (s: GameState) => MapItem][] = [
       ...ENCHANTS.filter(([k]) => k !== 'voidCrystal').map(([k, make]) => [k, (s: GameState) => make(s, { special: 'secondBoss' })] as [CraftKind, (s: GameState) => MapItem]),
-      ['obsidian', (s) => mapOf(s, { rarity: 'magic', mods: [mod('monsterLife')], special: 'secondBoss' })],
-      ['obsidian', (s) => mapOf(s, { rarity: 'rare', mods: [mod('monsterLife'), mod('hardened'), mod('bossPower')], special: 'secondBoss' })],
     ];
     for (const [kind, make] of kept) {
       for (let rng = 1; rng <= 300; rng++) {

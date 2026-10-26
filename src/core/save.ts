@@ -1,10 +1,10 @@
 import { compressToBase64, decompressFromBase64 } from 'lz-string';
 import {
-  BAG_SIZE, COMBAT_LOG_LIMIT, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, ESSENCE_BAG_STACK, ESSENCE_STASH_STACK, FINDS_LOG_LIMIT,
+  BAG_SIZE, COMBAT_LOG_LIMIT, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, FINDS_LOG_LIMIT,
   GEM_BAG_STACK, GEM_STASH_STACK, LEVEL_CAP, MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_CRAFTED_LINES,
   MAX_DAMAGE, MAX_HELD, MAX_ITEM_LEVEL, MAX_LIFE, MAX_LOOT_RULES, MAX_MAP_MODS, MAX_PASSIVE_GEM_STACK,
   MAX_PASSIVE_MATERIAL_STACK, MAX_ROOMS, MAX_SIDE_LINES, MAX_SOCKETS, MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MAX_TRAIL_STEPS,
-  MONSTER_BUDGET, PREMIUM_CAP, RUN_LOOT_LIMIT, RUNE_BAG_STACK, RUNE_RNG_SALT, RUNE_STASH_STACK, START_GENERAL_PAGES,
+  MONSTER_BUDGET, ORB_BAG_STACK, ORB_STASH_STACK, PREMIUM_CAP, RUN_LOOT_LIMIT, RUNE_BAG_STACK, RUNE_RNG_SALT, RUNE_STASH_STACK, START_GENERAL_PAGES,
   STASH_PAGE_SIZE, STOCK_SIZE, stashPagePrice,
 } from './balance';
 import { ACHIEVEMENT_IDS } from './achievements';
@@ -21,10 +21,10 @@ import { emptyPremium } from './oreMarket';
 import { isConnectedWeb, PASSIVE_NODE_BY_ID, START_NODE_ID } from './passives';
 import { emptyLifetimeStats } from './telemetry';
 import {
-  BATTLE_STATS, ESSENCE_TIER_MAX, GEAR_SETS, GEM_GRADES, GEM_TYPES, MAP_MOD_KINDS, MAP_SPECIALS, MATERIALS, MINING_STATS,
-  MOD_SIDE, RARITIES, RUNE_TYPES, parseEssenceKey, setOfSlot, slotsOf, statsOf,
+  BATTLE_STATS, GEAR_SETS, GEM_GRADES, GEM_TYPES, MAP_MOD_KINDS, MAP_SPECIALS, MATERIALS, MINING_STATS,
+  MOD_SIDE, ORB_FAMILIES, ORB_SIDES, ORB_TIERS, RARITIES, RUNE_TYPES, orbKey, parseOrbKey, setOfSlot, slotsOf, statsOf,
 } from './items';
-import type { Cell, GearItem, GearSet, GemItem, GemType, MapItem, MapMod, MapRarity, ModLine, RuneItem, RuneType, Slot, StatKey } from './items';
+import type { Cell, GearItem, GearSet, GemItem, GemType, MapItem, MapMod, MapRarity, Material, ModLine, OrbItem, RuneItem, RuneType, Slot, StatKey } from './items';
 import { xpToNext } from './levels';
 import { hash2 } from './rng';
 import { isValidSeedText, seedFromText } from './seed';
@@ -35,7 +35,7 @@ import {
   SHAFT_MOTIONS, TRAIL_EVENTS, type DropEntry, type GameState, type LifetimeStats, type LootRule,
 } from './types';
 
-export const SCHEMA_VERSION = 18;
+export const SCHEMA_VERSION = 19;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
@@ -49,6 +49,10 @@ const OLD_BAG_SIZE = 24;
 const OLD_GENERAL_SIZE = 60;
 const OLD_MAPS_KEPT = 200;
 const OLD_MAP_PAGES = 1;
+
+// Plan 17's essence refund (migration 18): a tier-t essence cost OLD_ESSENCE_COST[t] of OLD_ESSENCE_ORE[t].
+const OLD_ESSENCE_ORE: readonly (Material | undefined)[] = [undefined, 'iron', 'silver', 'mithril', 'starsteel', 'obsidian', 'voidCrystal'];
+const OLD_ESSENCE_COST: readonly number[] = [0, 1, 2, 3, 5, 8, 13];
 
 export const MIGRATIONS: Record<number, Migration> = {
   1: (state) => {
@@ -355,6 +359,49 @@ export const MIGRATIONS: Record<number, Migration> = {
     // disconnected tail drops off and its points return (points are derived from level, so nothing else is lost).
     return { ...state, passives: { allocated: prunePassives(state.passives.allocated as string[]) } };
   },
+  18: (state) => {
+    if (!isObject(state) || !isObject(state.stash) || !Array.isArray(state.bag) || !isObject(state.stash.materials)) return state;
+    const stash = state.stash as Record<string, unknown>;
+    const materials = { ...(stash.materials as Record<string, unknown>) };
+    const orbs: Record<string, number> = {};
+    const addOrb = (key: string, n: number): void => { orbs[key] = (orbs[key] ?? 0) + n; };
+    // A held essence refunds its buying ore into the Materials tab; an old orb becomes a Minor craft orb.
+    const refund = (tier: number, n: number): void => {
+      const ore = OLD_ESSENCE_ORE[tier];
+      if (ore === undefined) return;
+      const cur = typeof materials[ore] === 'number' ? materials[ore] : 0;
+      materials[ore] = cur + (OLD_ESSENCE_COST[tier] ?? 0) * n;
+    };
+    // The old Essences tab, keyed "stat:tier" for essences and "prefix"/"suffix" for orbs, re-keys as the Orbs tab.
+    const essences = isObject(stash.essences) ? stash.essences : {};
+    for (const [key, n] of Object.entries(essences)) {
+      if (!isNonNegInt(n)) continue;
+      if (key === 'prefix') addOrb(orbKey('craft', 'prefix', 'minor'), n);
+      else if (key === 'suffix') addOrb(orbKey('craft', 'suffix', 'minor'), n);
+      else {
+        const i = key.lastIndexOf(':');
+        const tier = Number(key.slice(i + 1));
+        if (i > 0 && Number.isInteger(tier) && tier >= 1 && tier <= 6) refund(tier, n);
+      }
+    }
+    // A bag or held cell: an essence refunds to ore (the cell empties), an old two-side orb becomes a Minor craft orb.
+    const migrateCell = (cell: unknown): unknown => {
+      if (!isObject(cell)) return cell;
+      if (cell.type === 'essence' && isNonNegInt(cell.tier) && isNonNegInt(cell.count)) {
+        refund(cell.tier, cell.count);
+        return null;
+      }
+      if (cell.type === 'orb' && (cell.side === 'prefix' || cell.side === 'suffix') && isNonNegInt(cell.count)) {
+        return { ...cell, family: 'craft', tier: 'minor' };
+      }
+      return cell;
+    };
+    const bag = state.bag.map(migrateCell);
+    const overflow = Array.isArray(state.overflow) ? state.overflow.map(migrateCell) : state.overflow;
+    const nextStash: Record<string, unknown> = { ...stash, materials, orbs };
+    delete nextStash.essences;
+    return { ...state, bag, overflow, stash: nextStash };
+  },
 };
 
 // The passive web the Plan-25 graph leaves connected to the start, in allocation order.
@@ -527,16 +574,11 @@ function isMaterialStack(x: unknown, nextId: number, seen: Set<number>): boolean
   return isItemBase(x, nextId, seen, false);
 }
 
-function isEssenceStack(x: unknown, nextId: number, seen: Set<number>): boolean {
-  if (!isObject(x) || x.type !== 'essence' || !isIn(ALL_STATS, x.stat)) return false;
-  if (!isNonNegInt(x.tier) || x.tier < 1 || x.tier > ESSENCE_TIER_MAX) return false;
-  if (!isNonNegInt(x.count) || x.count < 1 || x.count > ESSENCE_BAG_STACK) return false;
-  return isItemBase(x, nextId, seen, false);
-}
-
-function isOrbStack(x: unknown, nextId: number, seen: Set<number>): boolean {
-  if (!isObject(x) || x.type !== 'orb' || (x.side !== 'prefix' && x.side !== 'suffix')) return false;
-  if (!isNonNegInt(x.count) || x.count < 1 || x.count > ESSENCE_BAG_STACK) return false;
+function isOrbStack(x: unknown, nextId: number, seen: Set<number>): x is OrbItem {
+  if (!isObject(x) || x.type !== 'orb' || !isIn(ORB_FAMILIES, x.family) || !isIn(ORB_TIERS, x.tier)) return false;
+  const sideOk = x.family === 'scattering' ? x.side === undefined : isIn(ORB_SIDES, x.side);
+  if (!sideOk) return false;
+  if (!isNonNegInt(x.count) || x.count < 1 || x.count > ORB_BAG_STACK) return false;
   return isItemBase(x, nextId, seen, false);
 }
 
@@ -570,7 +612,6 @@ function isBagItem(x: unknown, nextId: number, seen: Set<number>): boolean {
     case 'gem': return isGemStack(x, nextId, seen);
     case 'rune': return isRuneStack(x, nextId, seen);
     case 'material': return isMaterialStack(x, nextId, seen);
-    case 'essence': return isEssenceStack(x, nextId, seen);
     case 'orb': return isOrbStack(x, nextId, seen);
     case 'map': return isMapItem(x, nextId, seen);
     default: return false;
@@ -605,11 +646,11 @@ function isMaterialTab(x: unknown): boolean {
   );
 }
 
-// The Essences tab: a sparse map keyed "stat:tier" or "prefix"/"suffix", each count within the cap.
-function isEssencesTab(x: unknown): boolean {
+// The Orbs tab: a sparse map keyed by orbKey(family, side?, tier), each count within the cap.
+function isOrbsTab(x: unknown): boolean {
   return (
     isObject(x) &&
-    Object.entries(x).every(([key, n]) => parseEssenceKey(key) !== undefined && isNonNegInt(n) && n <= ESSENCE_STASH_STACK)
+    Object.entries(x).every(([key, n]) => parseOrbKey(key) !== undefined && isNonNegInt(n) && n <= ORB_STASH_STACK)
   );
 }
 
@@ -907,7 +948,7 @@ function isInventory(x: Record<string, unknown>, nextId: number, seen: Set<numbe
   const { general, bought } = stash;
   if (!isPagedTab(general, START_GENERAL_PAGES, (c) => isGearItem(c, nextId, seen))) return false;
   if (!isMapStash(stash.maps, nextId, seen)) return false;
-  if (!isGemTab(stash.gems) || !isRuneTab(stash.runes) || !isMaterialTab(stash.materials) || !isEssencesTab(stash.essences)) return false;
+  if (!isGemTab(stash.gems) || !isRuneTab(stash.runes) || !isMaterialTab(stash.materials) || !isOrbsTab(stash.orbs)) return false;
   if (!isObject(bought) || Object.keys(bought).length !== 1 || !isBoughtOf(bought.general, general)) return false;
   // held finds are any kind of item, each as a bag cell would hold it
   if (!Array.isArray(overflow) || overflow.length > MAX_HELD || !overflow.every((o) => isBagItem(o, nextId, seen))) return false;

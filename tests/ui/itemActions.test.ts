@@ -450,7 +450,7 @@ it('a map card lists Run this map, the move, Sell and Salvage, then its enchants
     ['run', 'Run this map'], ['toBag', 'To bag'], ['sell', 'Sell (+600 Gold)'], ['salvage', 'Salvage (+2 Copper ore, +1 Tin ore)'],
   ]);
   expect(tab.slice(4).map((a) => [a.id, a.kind, a.disabled])).toEqual([
-    ['craft', 'obsidian', true], ['craft', 'voidCrystal', true],
+    ['craft', 'voidCrystal', true],
   ]);
   s.souls = 19;
   expect(itemActions(s, bag(0))[4]).toMatchObject({ kind: 'copper', disabled: true });

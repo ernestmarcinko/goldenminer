@@ -1,14 +1,14 @@
 import { checkAchievements } from './achievements';
 import {
   CRAFT_COST, DEFAULT_STAT_WEIGHT, GEM_STASH_STACK, MAGIC_LINE_WEIGHTS, MAP_CRAFT_SOULS_PER_TIER, MAP_SPECIAL_CHANCE, MAX_CRAFTED_LINES,
-  MAX_SIDE_LINES, MAX_TIER_OVER_CAP, RARE_LINE_WEIGHTS, RUNE_STASH_STACK, STAT_WEIGHTS, TEMPER_WEIGHTS,
+  MAX_SIDE_LINES, MAX_TIER_OVER_CAP, RARE_LINE_WEIGHTS, RUNE_STASH_STACK, STAT_WEIGHTS, TEMPER_WEIGHTS, orbTierBand,
 } from './balance';
 import { itemAt, sameLoc } from './cells';
 import { trail } from './dropLog';
 import { baseName } from './itemData';
-import { magicName, rollLines, rollModLine, rollSockets, rollValue, sideCount, type Gen } from './itemGen';
-import { MAP_MOD_KINDS, MAP_SPECIALS, MOD_SIDE, SLOT_IMPLICIT, essenceKey, isGear, isMap, setOfSlot, statsOf } from './items';
-import type { GearItem, MapItem, MapMod, MapModKind, MapSpecial, Material, ModLine, StatKey } from './items';
+import { magicName, rollLines, rollSockets, rollValue, sideCount, type Gen } from './itemGen';
+import { MAP_MOD_KINDS, MAP_SPECIALS, MOD_SIDE, SLOT_IMPLICIT, isGear, isMap, orbKey, setOfSlot, statsOf } from './items';
+import type { GearItem, MapItem, MapMod, MapModKind, MapSpecial, Material, ModLine, OrbFamily, OrbSide, OrbTier, StatKey } from './items';
 import { mapModRange } from './mapMods';
 import { fillAhead } from './metres';
 import { nextRandom, pickWeighted } from './rng';
@@ -22,8 +22,9 @@ type MaterialLoc = Extract<ItemLoc, { where: 'bag' | 'materials' }>;
 
 /** A craft's material cost at a level: gear's ilvl, or a map's tier. */
 export function craftCost(kind: CraftKind, level: number): number {
-  const { base, per } = CRAFT_COST[kind];
-  return per === 0 ? base : base + Math.floor(level / per);
+  const cost = CRAFT_COST[kind];
+  if (cost === undefined) throw new Error(`${kind} is retired and never crafts`);
+  return cost.per === 0 ? cost.base : cost.base + Math.floor(level / cost.per);
 }
 
 /** The Souls enchanting a map spends, on top of its material. */
@@ -90,7 +91,7 @@ function ruleCheck(state: GameState, item: GearItem, kind: CraftKind): CraftChec
   switch (kind) {
     case 'copper': return item.rarity === 'normal' ? 'ok' : 'wrongRarity';
     case 'tin': return item.rarity === 'magic' ? 'ok' : 'wrongRarity';
-    case 'iron': return 'wrongRarity';   // retired: Iron is the tier-1 essence ore, not a craft
+    case 'iron': return 'wrongRarity';   // retired: Iron is the Minor orb's ore, not a craft
     case 'silver': return item.rarity === 'rare' ? 'ok' : 'wrongRarity';
     case 'mithril': {
       // Every socketed gem or rune goes back to its own tab count, so none may pass its cap.
@@ -105,8 +106,8 @@ function ruleCheck(state: GameState, item: GearItem, kind: CraftKind): CraftChec
       }
       return 'ok';
     }
-    case 'starsteel': return rolled(item).length > 0 ? 'ok' : 'nothingToChange';
-    case 'obsidian': return item.affixes.length > 0 ? 'ok' : 'nothingToChange';
+    case 'starsteel': return 'wrongRarity';   // retired: removal orbs cover it now (Plan 27)
+    case 'obsidian': return 'wrongRarity';    // retired: scattering orbs cover it now (Plan 27)
     case 'voidCrystal': return item.rarity === 'magic' || item.rarity === 'rare' ? 'ok' : 'wrongRarity';
     case 'diamond':
       if (item.rarity !== 'rare') return 'wrongRarity';
@@ -126,7 +127,7 @@ function mapRuleCheck(map: MapItem, kind: CraftKind): CraftCheck {
       return 'notForMaps';
     case 'copper': return map.rarity === 'normal' ? 'ok' : 'wrongRarity';
     case 'silver': return map.rarity === 'rare' ? 'ok' : 'wrongRarity';
-    case 'obsidian': return map.mods.length > 0 ? 'ok' : 'nothingToChange';
+    case 'obsidian': return 'notForMaps';   // retired: removal orbs cover it now (Plan 27)
     case 'voidCrystal': return map.rarity === 'magic' || map.rarity === 'rare' ? 'ok' : 'wrongRarity';
   }
 }
@@ -211,19 +212,9 @@ function apply(state: GameState, item: GearItem, kind: CraftKind): TemperOutcome
       item.sockets = rollSockets(state);
       return undefined;
     case 'starsteel':
-      for (const l of rolled(item)) rerollIn(state, l, l.tier);
-      return undefined;
+      throw new Error('starsteel no longer crafts; ruleCheck refuses it');
     case 'obsidian':
-      item.affixes.splice(Math.floor(nextRandom(state) * item.affixes.length), 1);
-      // A magic item is named by its lines, so the name follows them; a rare's name is its own. A magic item left with
-      // no lines is a normal one again, under its base name, so Copper works on it.
-      if (item.rarity === 'magic' && item.affixes.length === 0) {
-        item.rarity = 'normal';
-        item.name = baseName(item.slot, item.ilvl);
-      } else if (item.rarity === 'magic') {
-        item.name = magicName(item.slot, item.ilvl, item.affixes);
-      }
-      return undefined;
+      throw new Error('obsidian no longer crafts; ruleCheck refuses it');
     case 'voidCrystal':
       return temper(state, item);
     case 'diamond':
@@ -317,10 +308,7 @@ function applyToMap(state: GameState, map: MapItem, kind: CraftKind): TemperOutc
       rollSpecial(state, map);
       return undefined;
     case 'obsidian':
-      map.mods.splice(pickIndex(state, map.mods.length), 1);
-      // A magic map with no modifiers is a normal one again, so Copper works on it; a rare stays rare, as gear does.
-      if (map.rarity === 'magic' && map.mods.length === 0) map.rarity = 'normal';
-      return undefined;
+      throw new Error('obsidian no longer enchants maps; mapRuleCheck refuses it');
     case 'voidCrystal':
       return temperMap(state, map);
     case 'tin':
@@ -366,68 +354,75 @@ export function craft(state: GameState, target: ItemLoc, kind: CraftKind, from?:
   return outcome === undefined ? { check } : { check, temper: outcome };
 }
 
-// ---- Targeted crafting (Plan 17): essences and orbs ----
+// ---- Targeted crafting (Plan 27): the orb catalogue ----
 
-/** How many essences of one stat and tier the player holds: every bag stack and the Essences tab. */
-export function heldEssence(state: GameState, stat: StatKey, tier: number): number {
-  let n = state.stash.essences[essenceKey(stat, tier)] ?? 0;
-  for (const c of state.bag) if (c?.type === 'essence' && c.stat === stat && c.tier === tier) n += c.count;
+/** How many orbs of one kind the player holds: every bag stack and the Orbs tab. */
+export function heldOrbKind(state: GameState, family: OrbFamily, side: OrbSide | undefined, tier: OrbTier): number {
+  let n = state.stash.orbs[orbKey(family, side, tier)] ?? 0;
+  for (const c of state.bag) if (c?.type === 'orb' && c.family === family && c.side === side && c.tier === tier) n += c.count;
   return n;
 }
 
-/** How many orbs of one side the player holds: every bag stack and the Essences tab. */
-export function heldOrb(state: GameState, side: 'prefix' | 'suffix'): number {
-  let n = state.stash.essences[side] ?? 0;
-  for (const c of state.bag) if (c?.type === 'orb' && c.side === side) n += c.count;
-  return n;
-}
-
-/** Spends one essence from the bag stacks first, then the Essences tab. */
-function payEssence(state: GameState, stat: StatKey, tier: number): void {
+/** Spends one orb of a kind from the bag stacks first, then the Orbs tab. */
+function payOrbKind(state: GameState, family: OrbFamily, side: OrbSide | undefined, tier: OrbTier): void {
   for (let i = 0; i < state.bag.length; i++) {
     const c = state.bag[i];
-    if (c?.type !== 'essence' || c.stat !== stat || c.tier !== tier) continue;
+    if (c?.type !== 'orb' || c.family !== family || c.side !== side || c.tier !== tier) continue;
     c.count -= 1;
     if (c.count <= 0) state.bag[i] = null;
     return;
   }
-  const key = essenceKey(stat, tier);
-  const next = (state.stash.essences[key] ?? 0) - 1;
-  if (next <= 0) delete state.stash.essences[key];
-  else state.stash.essences[key] = next;
+  const key = orbKey(family, side, tier);
+  const next = (state.stash.orbs[key] ?? 0) - 1;
+  if (next <= 0) delete state.stash.orbs[key];
+  else state.stash.orbs[key] = next;
 }
 
-/** Spends one orb from the bag stacks first, then the Essences tab. */
-function payOrb(state: GameState, side: 'prefix' | 'suffix'): void {
-  for (let i = 0; i < state.bag.length; i++) {
-    const c = state.bag[i];
-    if (c?.type !== 'orb' || c.side !== side) continue;
-    c.count -= 1;
-    if (c.count <= 0) state.bag[i] = null;
-    return;
+/** The side a targeted kind aims at. */
+function sideOf(kind: 'addPrefix' | 'addSuffix' | 'rerollPrefix' | 'rerollSuffix' | 'removePrefix' | 'removeSuffix'): OrbSide {
+  return kind.endsWith('Prefix') ? 'prefix' : 'suffix';
+}
+
+/** Whether a removal orb of `tier` may remove a line at `lineTier`, for an item whose cap is `cap`. */
+function removalInScope(tier: OrbTier, lineTier: number, cap: number): boolean {
+  const c = Math.max(1, cap);
+  const third = Math.floor(c / 3);
+  const twoThirds = Math.floor((2 * c) / 3);
+  switch (tier) {
+    case 'minor': return lineTier <= third;
+    case 'normal': return true;
+    case 'greater': return lineTier >= twoThirds + 1;
   }
-  const next = (state.stash.essences[side] ?? 0) - 1;
-  if (next <= 0) delete state.stash.essences[side];
-  else state.stash.essences[side] = next;
 }
 
-/** A random line on one side, from the stats of that side the item lacks, in the item's usual tier band. */
-function rollSideLine(state: GameState, item: GearItem, side: 'prefix' | 'suffix'): ModLine {
+/** The orb a targeted action spends. */
+function orbOfAction(action: TargetedCraft): { family: OrbFamily; side: OrbSide | undefined; tier: OrbTier } {
+  switch (action.kind) {
+    case 'addPrefix':
+    case 'rerollPrefix': return { family: 'craft', side: 'prefix', tier: action.tier };
+    case 'addSuffix':
+    case 'rerollSuffix': return { family: 'craft', side: 'suffix', tier: action.tier };
+    case 'removePrefix': return { family: 'removal', side: 'prefix', tier: action.tier };
+    case 'removeSuffix': return { family: 'removal', side: 'suffix', tier: action.tier };
+    case 'scatter': return { family: 'scattering', side: undefined, tier: action.tier };
+  }
+}
+
+/** A line of `stat` rolled at a tier uniform in the orb's band for the item. */
+function rollLineBand(state: GameState, stat: StatKey, tier: OrbTier, ilvl: number): ModLine {
+  const [lo, hi] = orbTierBand(tier, tierCap(ilvl));
+  const chosen = lo + pickIndex(state, hi - lo + 1);
+  return { stat, value: rollValue(state, stat, chosen), tier: chosen };
+}
+
+/** A random line on one side, from the stats of that side the item lacks, rolled in the orb's band. */
+function rollSideLineBand(state: GameState, item: GearItem, side: OrbSide, tier: OrbTier): ModLine {
   const implicit = SLOT_IMPLICIT[item.slot];
   const pool = statsOf(setOfSlot(item.slot)).filter(
     (s) => s !== implicit && MOD_SIDE[s] === side && !item.affixes.some((l) => l.stat === s),
   );
   const stat = pickWeighted(state, pool.map((s) => [s, STAT_WEIGHTS[s] ?? DEFAULT_STAT_WEIGHT] as const));
-  return rollModLine(state, stat, tierCap(item.ilvl));
-}
-
-/** A line of `stat` at a tier in `[tier, tier + 2]`, clamped to the item's cap. */
-function rollEssenceLine(state: GameState, item: GearItem, stat: StatKey, tier: number): ModLine {
-  const cap = tierCap(item.ilvl);
-  const lo = Math.max(1, Math.min(tier, cap));
-  const hi = Math.min(tier + 2, cap);
-  const chosen = lo + pickIndex(state, hi - lo + 1);
-  return { stat, value: rollValue(state, stat, chosen), tier: chosen };
+  return rollLineBand(state, stat, tier, item.ilvl);
 }
 
 /** The rules alone: sealed, legendary, then the item's rarity and the action's own. */
@@ -438,72 +433,69 @@ function targetedRuleCheck(state: GameState, item: GearItem, action: TargetedCra
   switch (action.kind) {
     case 'addPrefix': return sideCount(item.affixes, 'prefix') < sideRoom(item) ? 'ok' : 'noRoom';
     case 'addSuffix': return sideCount(item.affixes, 'suffix') < sideRoom(item) ? 'ok' : 'noRoom';
-    case 'addStat': {
-      if (action.stat === SLOT_IMPLICIT[item.slot]) return 'noRoom';
-      if (!statsOf(setOfSlot(item.slot)).includes(action.stat)) return 'noRoom';
-      if (item.affixes.some((l) => l.stat === action.stat)) return 'noRoom';
-      return sideCount(item.affixes, MOD_SIDE[action.stat]) < sideRoom(item) ? 'ok' : 'noRoom';
+    case 'rerollPrefix':
+    case 'rerollSuffix': {
+      const l = item.affixes[action.index];
+      if (l === undefined || l.crafted === true || MOD_SIDE[l.stat] !== sideOf(action.kind)) return 'noSuchAffix';
+      return 'ok';
     }
-    case 'rerollAffix':
-    case 'rerollOrb':
-    case 'removeAffix':
-      return item.affixes[action.index] === undefined ? 'noSuchAffix' : 'ok';
+    case 'removePrefix':
+    case 'removeSuffix': {
+      const cap = tierCap(item.ilvl);
+      const side = sideOf(action.kind);
+      const inScope = rolled(item).some((l) => MOD_SIDE[l.stat] === side && removalInScope(action.tier, l.tier, cap));
+      return inScope ? 'ok' : 'nothingToChange';
+    }
+    case 'scatter':
+      return rolled(item).length > 0 ? 'ok' : 'nothingToChange';
   }
 }
 
-/** Whether a targeted craft would go through: the rules first, then whether the player holds its essence, orb or Obsidian. */
+/** Whether a targeted craft would go through: the rules first, then whether the player holds its orb. */
 export function canTargetedCraft(state: GameState, target: ItemLoc, action: TargetedCraft): CraftCheck {
   if (target.where === 'stock') return 'notGear';
   const item = itemAt(state, target);
   if (item === undefined || !isGear(item)) return 'notGear';
   const rule = targetedRuleCheck(state, item, action);
   if (rule !== 'ok') return rule;
-  switch (action.kind) {
-    case 'addPrefix': return heldOrb(state, 'prefix') >= 1 ? 'ok' : 'short';
-    case 'addSuffix': return heldOrb(state, 'suffix') >= 1 ? 'ok' : 'short';
-    case 'addStat': return heldEssence(state, action.stat, action.tier) >= 1 ? 'ok' : 'short';
-    case 'rerollAffix': {
-      const l = item.affixes[action.index];
-      if (l === undefined) return 'noSuchAffix';
-      return heldEssence(state, l.stat, action.tier) >= 1 ? 'ok' : 'short';
-    }
-    case 'rerollOrb': {
-      const l = item.affixes[action.index];
-      if (l === undefined) return 'noSuchAffix';
-      return heldOrb(state, MOD_SIDE[l.stat]) >= 1 ? 'ok' : 'short';
-    }
-    case 'removeAffix':
-      return held(state, 'obsidian') >= craftCost('obsidian', item.ilvl) ? 'ok' : 'short';
-  }
+  const orb = orbOfAction(action);
+  return heldOrbKind(state, orb.family, orb.side, orb.tier) >= 1 ? 'ok' : 'short';
 }
 
 /** The targeted craft's effect on an item that passed its rules. */
 function applyTargeted(state: GameState, item: GearItem, action: TargetedCraft): void {
   switch (action.kind) {
-    case 'addPrefix': item.affixes.push(rollSideLine(state, item, 'prefix')); break;
-    case 'addSuffix': item.affixes.push(rollSideLine(state, item, 'suffix')); break;
-    case 'addStat': item.affixes.push(rollEssenceLine(state, item, action.stat, action.tier)); break;
-    case 'rerollAffix': {
+    case 'addPrefix': item.affixes.push(rollSideLineBand(state, item, 'prefix', action.tier)); break;
+    case 'addSuffix': item.affixes.push(rollSideLineBand(state, item, 'suffix', action.tier)); break;
+    case 'rerollPrefix':
+    case 'rerollSuffix': {
       const l = item.affixes[action.index];
       if (l !== undefined) {
-        const rolled = rollEssenceLine(state, item, l.stat, action.tier);
+        const rolled = rollLineBand(state, l.stat, action.tier, item.ilvl);
         l.tier = rolled.tier;
         l.value = rolled.value;
       }
       break;
     }
-    case 'rerollOrb': {
-      const l = item.affixes[action.index];
-      if (l !== undefined) {
-        const rolled = rollModLine(state, l.stat, tierCap(item.ilvl));
-        l.tier = rolled.tier;
-        l.value = rolled.value;
+    case 'removePrefix':
+    case 'removeSuffix': {
+      const side = sideOf(action.kind);
+      const cap = tierCap(item.ilvl);
+      const inScope = item.affixes.map((l, i) => [l, i] as const)
+        .filter(([l]) => l.crafted !== true && MOD_SIDE[l.stat] === side && removalInScope(action.tier, l.tier, cap));
+      const chosen = inScope[pickIndex(state, inScope.length)];
+      if (chosen !== undefined) item.affixes.splice(chosen[1], 1);
+      break;
+    }
+    case 'scatter': {
+      const rolls = action.tier === 'minor' ? 1 : action.tier === 'normal' ? 2 : 3;
+      for (const l of rolled(item)) {
+        let best = l.value;
+        for (let i = 0; i < rolls; i++) best = Math.max(best, rollValue(state, l.stat, l.tier));
+        l.value = best;
       }
       break;
     }
-    case 'removeAffix':
-      item.affixes.splice(action.index, 1);
-      break;
   }
   // A magic item is named by its lines; one left with none is normal again, under its base name.
   if (item.rarity === 'magic') {
@@ -516,29 +508,15 @@ function applyTargeted(state: GameState, item: GearItem, action: TargetedCraft):
   }
 }
 
-/** What a targeted craft spends: its essence, orb, or Obsidian (for a chosen remove). */
-function payFor(state: GameState, item: GearItem, action: TargetedCraft): void {
-  switch (action.kind) {
-    case 'addPrefix': payOrb(state, 'prefix'); return;
-    case 'addSuffix': payOrb(state, 'suffix'); return;
-    case 'addStat': payEssence(state, action.stat, action.tier); return;
-    case 'rerollAffix': {
-      const l = item.affixes[action.index];
-      if (l !== undefined) payEssence(state, l.stat, action.tier);
-      return;
-    }
-    case 'rerollOrb': {
-      const l = item.affixes[action.index];
-      if (l !== undefined) payOrb(state, MOD_SIDE[l.stat]);
-      return;
-    }
-    case 'removeAffix': pay(state, 'obsidian', craftCost('obsidian', item.ilvl)); return;
-  }
+/** What a targeted craft spends: the orb its kind uses. */
+function payFor(state: GameState, action: TargetedCraft): void {
+  const orb = orbOfAction(action);
+  payOrbKind(state, orb.family, orb.side, orb.tier);
 }
 
 /**
- * Crafts a targeted affix on the gear at `target`. Only an 'ok' pays: the essence or orb first (bag stacks, then the
- * Essences tab), or Obsidian for a chosen remove. A refusal changes nothing.
+ * Crafts a targeted change on the gear at `target`. Only an 'ok' pays: the orb first (bag stacks, then the Orbs tab).
+ * A refusal changes nothing.
  */
 export function targetedCraft(state: GameState, target: ItemLoc, action: TargetedCraft): CraftResult {
   const check = canTargetedCraft(state, target, action);
@@ -546,7 +524,7 @@ export function targetedCraft(state: GameState, target: ItemLoc, action: Targete
   const item = itemAt(state, target);
   if (item === undefined || !isGear(item)) return { check: 'notGear' };
   applyTargeted(state, item, action);
-  payFor(state, item, action);
+  payFor(state, action);
   trail(state, item.id, { event: 'crafted' });
   state.stats.itemsCrafted += 1;
   checkAchievements(state, 'craft');

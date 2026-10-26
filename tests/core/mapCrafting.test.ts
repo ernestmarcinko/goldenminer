@@ -153,35 +153,12 @@ describe('every rule', () => {
     expect([...counts].sort()).toEqual([4, 5, 6]);
   });
 
-  it('Obsidian removes one modifier from a rare map, which stays rare', () => {
+  it('Obsidian is retired on maps: it refuses every map enchant', () => {
     const s = withMap((s) => rare(s));
-    const before = structuredClone(at(s, 0).mods);
-    expect(craft(s, bagLoc(0), 'obsidian')).toEqual({ check: 'ok' });
-    expect(at(s, 0).rarity).toBe('rare');
-    expect(at(s, 0).mods).toHaveLength(2);
-    for (const m of at(s, 0).mods) expect(before).toContainEqual(m);
-    expect(s.stash.materials.obsidian).toBe(99);
-  });
-
-  it('Obsidian taking a rare map\'s last modifier leaves it rare', () => {
-    const s = withMap((s) => rare(s, [mod('bossPower', 3)]));
-    expect(craft(s, bagLoc(0), 'obsidian')).toEqual({ check: 'ok' });
-    expect([at(s, 0).rarity, at(s, 0).mods]).toEqual(['rare', []]);
+    const before = snap(s);
+    expect(craft(s, bagLoc(0), 'obsidian')).toEqual({ check: 'notForMaps' });
+    expect(snap(s)).toEqual(before);
     expect(validateState(s)).toBe(true);
-  });
-
-  it('Obsidian keeps a 2-modifier magic map magic, and its last modifier makes it normal, for Copper', () => {
-    const s = withMap((s) => magic(s, [mod('monsterLife', 2), mod('weakHealing', 1)]));
-    const before = identity(at(s, 0));
-    expect(craft(s, bagLoc(0), 'obsidian')).toEqual({ check: 'ok' });
-    expect(at(s, 0).rarity).toBe('magic');
-    expect(at(s, 0).mods).toHaveLength(1);
-    expect(craft(s, bagLoc(0), 'obsidian')).toEqual({ check: 'ok' });
-    expect([at(s, 0).rarity, at(s, 0).mods]).toEqual(['normal', []]);
-    expect(identity(at(s, 0))).toEqual(before);
-    expect(validateState(s)).toBe(true);
-    expect(canCraft(s, bagLoc(0), 'copper')).toBe('ok');
-    expect(canCraft(s, bagLoc(0), 'obsidian')).toBe('nothingToChange');
   });
 });
 
@@ -273,7 +250,7 @@ describe('temper', () => {
 describe('refusals change nothing', () => {
   const normal = (s: GameState) => mapOf(s);
   const cases: [string, (s: GameState) => MapItem, CraftKind, string][] = [
-    ...(['tin', 'iron', 'mithril', 'starsteel', 'diamond'] as const).flatMap((k) =>
+    ...(['tin', 'iron', 'mithril', 'starsteel', 'obsidian', 'diamond'] as const).flatMap((k) =>
       [['normal', normal], ['magic', magic], ['rare', rare]].map(([r, m]): [string, (s: GameState) => MapItem, CraftKind, string] =>
         [`${k} on a ${r as string} map`, m as (s: GameState) => MapItem, k, 'notForMaps'])),
     ['copper on magic', magic, 'copper', 'wrongRarity'],
@@ -281,8 +258,6 @@ describe('refusals change nothing', () => {
     ['silver on normal', normal, 'silver', 'wrongRarity'],
     ['silver on magic', magic, 'silver', 'wrongRarity'],
     ['void crystal on normal', normal, 'voidCrystal', 'wrongRarity'],
-    ['obsidian on normal', normal, 'obsidian', 'nothingToChange'],
-    ['obsidian on a rare with none', (s) => rare(s, []), 'obsidian', 'nothingToChange'],
     ['tin on a sealed map', (s) => ({ ...rare(s), sealed: true }), 'tin', 'sealed'],
     ['obsidian on a sealed map', (s) => ({ ...rare(s), sealed: true }), 'obsidian', 'sealed'],
   ];
@@ -352,8 +327,8 @@ describe('dragging a material onto a map', () => {
     expect(dropItem(s, bagLoc(4), mapsLoc(6))).toBe('ok');
     expect(s.stash.maps[6]?.[0]?.rarity).toBe('magic');
     expect(count(s, 4)).toBe(1);
-    expect(dropItem(s, { where: 'materials', material: 'obsidian' }, mapsLoc(6))).toBe('ok');
-    expect(s.stash.materials.obsidian).toBe(99);
+    expect(dropItem(s, { where: 'materials', material: 'voidCrystal' }, mapsLoc(6))).toBe('ok');
+    expect(s.stash.materials.voidCrystal).toBe(99);
     expect(validateState(s)).toBe(true);
   });
 
@@ -422,7 +397,7 @@ describe('random craft chains on maps', () => {
       }
       if (map.special !== undefined) specials++;
     }
-    expect([...seen].sort()).toEqual(['notForMaps', 'nothingToChange', 'ok', 'sealed', 'wrongRarity']);
+    expect([...seen].sort()).toEqual(['notForMaps', 'ok', 'sealed', 'wrongRarity']);
     expect(specials).toBeGreaterThan(0);   // the chains roll specials too, and stay valid with them
   });
 });

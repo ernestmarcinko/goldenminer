@@ -6,7 +6,7 @@ import { buyStock, stockBand, stockPrice, traderStock } from '../../src/core/tra
 import type { GameState } from '../../src/core/types';
 import { rarityOf } from '../../src/ui/character/itemView';
 import {
-  buyLabel, buyRefusalHolds, buyResultText, essenceOffersForTier, essenceTiers, exchangeOffers, gambleResultText,
+  buyLabel, buyRefusalHolds, buyResultText, exchangeOffers, gambleResultText,
   gambleSlots, gambledLine, MERCHANTS, orbOffers, refinerResultText, stockCaption, stockTiles,
 } from '../../src/ui/merchant/merchantView';
 import { gear } from '../helpers/items';
@@ -123,30 +123,26 @@ describe('the Trader', () => {
 });
 
 describe('the Refiner', () => {
-  it('lists six essence tiers, cheapest ore first, none affordable with no ore held', () => {
+  it('sells the 15 orbs in three groups, each tile with its sprite, name and ore cost', () => {
     const s = newGame(1, 0);
-    expect(essenceTiers(s).map((t) => [t.tier, t.ore, t.cost])).toEqual([
-      [1, 'iron', 1], [2, 'silver', 2], [3, 'mithril', 3], [4, 'starsteel', 5], [5, 'obsidian', 8], [6, 'voidCrystal', 13],
+    const groups = orbOffers(s);
+    expect(groups.map((g) => g.family)).toEqual(['craft', 'removal', 'scattering']);
+    expect(groups.map((g) => g.title)).toEqual(['Craft orbs', 'Removal orbs', 'Scattering orbs']);
+    expect(groups.flatMap((g) => g.offers)).toHaveLength(15);
+    const craft = groups[0]?.offers ?? [];
+    expect(craft.map((o) => [o.tier, o.side, o.cost, o.ore])).toEqual([
+      ['minor', 'prefix', 2, 'iron'], ['normal', 'prefix', 3, 'mithril'], ['greater', 'prefix', 4, 'voidCrystal'],
+      ['minor', 'suffix', 2, 'iron'], ['normal', 'suffix', 3, 'mithril'], ['greater', 'suffix', 4, 'voidCrystal'],
     ]);
-    expect(essenceTiers(s).every((t) => !t.affordable)).toBe(true);
-  });
-
-  it('offers one essence per stat at a tier, all at that tier\'s price', () => {
-    const s = newGame(1, 0);
-    expect(essenceOffersForTier(s, 3)).toHaveLength(32);
-    expect(essenceOffersForTier(s, 3).every((o) => o.tier === 3 && o.cost === 3 && !o.affordable)).toBe(true);
-    s.stash.materials.mithril = 3;
-    expect(essenceOffersForTier(s, 3).every((o) => o.affordable)).toBe(true);
-  });
-
-  it('sells the two orbs for ORB_COST Iron', () => {
-    const s = newGame(1, 0);
-    expect(orbOffers(s)).toEqual([
-      { side: 'prefix', label: 'Prefix orb', cost: 2, affordable: false },
-      { side: 'suffix', label: 'Suffix orb', cost: 2, affordable: false },
+    expect(craft.map((o) => o.name)).toEqual([
+      'Minor Orb of Prefixes', 'Normal Orb of Prefixes', 'Greater Orb of Prefixes',
+      'Minor Orb of Suffixes', 'Normal Orb of Suffixes', 'Greater Orb of Suffixes',
     ]);
-    s.stash.materials.iron = 2;
-    expect(orbOffers(s).every((o) => o.affordable)).toBe(true);
+    expect(craft[0]?.sprite).toBe('orbPrefixMinor');
+    expect(groups[2]?.offers.map((o) => o.sprite)).toEqual(['orbScatterMinor', 'orbScatterNormal', 'orbScatterGreater']);
+    expect(groups.flatMap((g) => g.offers).every((o) => !o.affordable)).toBe(true);
+    s.stash.materials.iron = 3;
+    expect(orbOffers(s).flatMap((g) => g.offers).filter((o) => o.ore === 'iron').every((o) => o.affordable)).toBe(true);
   });
 
   it('the exchange panel shows the premium-raised cost', () => {

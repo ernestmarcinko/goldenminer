@@ -19,7 +19,6 @@ function levelOf(item: Item): number | undefined {
     case 'gem':
     case 'rune':
     case 'material':
-    case 'essence':
     case 'orb': return undefined;
   }
 }
@@ -32,7 +31,6 @@ function modsOf(item: Item): readonly { tier: number }[] | undefined {
     case 'gem':
     case 'rune':
     case 'material':
-    case 'essence':
     case 'orb': return undefined;
   }
 }

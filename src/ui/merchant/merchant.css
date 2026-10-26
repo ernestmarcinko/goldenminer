@@ -87,11 +87,30 @@
 
 /* The Refiner spans the two merchants' row, stacked below them */
 .gm-refiner { grid-column: 1 / -1; }
-.gm-refiner__orbs, .gm-refiner__essences, .gm-refiner__exchange {
+.gm-refiner__orbs, .gm-refiner__exchange {
   list-style: none; margin: 0; padding: 0; display: grid; gap: 8px;
   grid-template-columns: repeat(auto-fill, minmax(max(120px, (100% - 56px) / 8), 1fr));
 }
 .gm-refiner__tiers { display: flex; flex-wrap: wrap; gap: 8px; }
 .gm-refiner__tiers .gm-stash__page[aria-disabled='true'] { opacity: 0.55; }
+/* An orb tile: the sprite above its name, so the graphic leads. */
+.gm-refiner__orb { align-items: center; text-align: center; }
+.gm-refiner__orb .gm-merchant__label { min-height: 2.6em; }
+
+/* The buy fly-in: the bought sprite rises and fades from the merchant toward the bag. */
+.gm-buy-fly {
+  position: fixed; left: 50%; top: 42%; pointer-events: none; z-index: 60;
+  animation: gm-buy-fly 420ms ease-out forwards;
+}
+@keyframes gm-buy-fly {
+  0% { opacity: 0; transform: translate(-50%, 0) scale(0.5); }
+  18% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -160px) scale(1.15); }
+}
+.gm-merchant__status--flash { animation: gm-cost-flash 420ms ease-out; }
+@keyframes gm-cost-flash {
+  0%, 100% { color: var(--gm-down); }
+  30% { color: var(--gm-gold-bright); }
+}
 
 

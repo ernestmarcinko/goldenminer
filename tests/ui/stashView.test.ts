@@ -50,13 +50,13 @@ it('counts above a thousand are shortened', () => {
 
 it('tab labels show the General fill and the Map stash total, and the other tabs just their name', () => {
   const s = migrated();
-  expect(STASH_TABS).toEqual(['general', 'gems', 'runes', 'maps', 'materials', 'essences']);
+  expect(STASH_TABS).toEqual(['general', 'gems', 'runes', 'maps', 'materials', 'orbs']);
   expect(tabLabel(s, 'general')).toBe('General 5 / 120');
   expect(tabLabel(s, 'gems')).toBe('Gems');
   expect(tabLabel(s, 'runes')).toBe('Runes');
   expect(tabLabel(s, 'maps')).toBe(`Maps ${Object.values(s.stash.maps).flat().length}`);
   expect(tabLabel(s, 'materials')).toBe('Materials');
-  expect(tabLabel(s, 'essences')).toBe('Essences');
+  expect(tabLabel(s, 'orbs')).toBe('Orbs');
   const fresh = newGame(1, 0);
   expect(tabLabel(fresh, 'general')).toBe('General 0 / 120');
   expect(tabLabel(fresh, 'maps')).toBe('Maps 0');

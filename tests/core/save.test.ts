@@ -51,8 +51,8 @@ it('a character name round-trips through save and load', () => {
   expect(r.state.characterName).toBe('Gorvash');
 });
 
-it('a schema-16 save migrates to 18 with a generated name', () => {
-  expect(SCHEMA_VERSION).toBe(18);
+it('a schema-16 save migrates to 19 with a generated name', () => {
+  expect(SCHEMA_VERSION).toBe(19);
   const state16 = { ...newGame(12345, 0) };
   delete (state16 as Partial<GameState>).characterName;
   const r = decodeSave(raw({ schema: 16, savedAt: 0, state: state16 }));
@@ -94,6 +94,31 @@ it('a schema-17 save with no passives is byte-identical after load', () => {
   expect(r.ok).toBe(true);
   if (!r.ok) return;
   expect(r.state).toEqual(s);
+});
+
+it('a schema-18 save refunds its essences to ore and its old orbs to Minor craft orbs', () => {
+  const s = newGame(1, 0);
+  const state18 = structuredClone(s) as unknown as Record<string, unknown>;
+  state18.nextId = 2000;
+  const stash18 = state18.stash as Record<string, unknown>;
+  delete stash18.orbs;
+  stash18.essences = { 'goldYield:2': 2, prefix: 5, suffix: 1 };
+  const bag = state18.bag as unknown[];
+  bag[0] = { id: 1001, type: 'essence', stat: 'digPower', tier: 1, count: 3 };   // refunds 3 × 1 Iron
+  bag[1] = { id: 1002, type: 'orb', side: 'prefix', count: 2 };                 // becomes a Minor Orb of Prefixes
+  const r = decodeSave(raw({ schema: 18, savedAt: 0, state: state18 }));
+  if (!r.ok) throw new Error(r.reason);
+  const st = r.state;
+  // essences refunded into the Materials tab: goldYield:2 ×2 → 2 × 2 Silver; digPower:1 ×3 → 3 × 1 Iron.
+  expect(st.stash.materials.silver).toBe(4);
+  expect(st.stash.materials.iron).toBe(3);
+  // old orbs became Minor craft orbs: 5 + 2 prefixes in the Orbs tab, 1 suffix; the essence cell emptied.
+  expect(st.stash.orbs['craft:prefix:minor']).toBe(5);
+  expect(st.stash.orbs['craft:suffix:minor']).toBe(1);
+  expect(st.bag[0]).toBeNull();
+  expect(st.bag[1]).toMatchObject({ type: 'orb', family: 'craft', side: 'prefix', tier: 'minor', count: 2 });
+  expect((st.stash as Record<string, unknown>).essences).toBeUndefined();
+  expect(validateState(st)).toBe(true);
 });
 
 it('rejects a missing, empty, over-long or control-character name', () => {
@@ -1001,10 +1026,10 @@ it('the schema-9 fixture migrates its rules, gains an empty bought record and a 
   expect(run?.strikes).toBe(0);
   expect(run?.saved).toBeUndefined();
   expect(run).toEqual({ ...old.activity.run, strikes: 0 });
-  const { essences: _ess9, runes: _runes9, ...stash9 } = s.stash;
+  const { orbs: _orbs9, runes: _runes9, ...stash9 } = s.stash;
   expect([s.bag, s.equipped, stash9, s.overflow, s.drops, s.deaths, s.lastRun, s.gold, s.deepest])
     .toEqual([old.bag, old.equipped, old.stash, old.overflow, old.drops, old.deaths, old.lastRun, old.gold, old.deepest]);
-  expect(s.stash.essences).toEqual({});
+  expect(s.stash.orbs).toEqual({});
   expect(s.stash.runes).toEqual(emptyRuneCounts());
   expect(s.oreMarket.premium).toEqual(emptyMaterialCounts());
   // the run in progress plays on to its end
@@ -1119,7 +1144,7 @@ it('a schema-10 save gains an empty passive web and keeps everything else', () =
     passives: _passives, ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, oreMarket: _oreMarket,
     stats: _stats, achievements: _achievements, lastWallAt: _lastWallAt, runeRng: _runeRng, characterName: _characterName, ...rest
   } = r.state;
-  const { essences: _ess10, runes: _runes10, ...restStash } = r.state.stash;
+  const { orbs: _orbs10, runes: _runes10, ...restStash } = r.state.stash;
   expect({ ...rest, stash: restStash }).toEqual(raw);   // nothing else changes
   expect(r.state.characterName).toBe(defaultCharacterName(r.state.seed));
   expect(r.state.oreMarket.premium).toEqual(emptyMaterialCounts());
@@ -1239,23 +1264,23 @@ it('a schema-11 save gains an empty ascendancy, auto-map and lifetime record', (
     ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, oreMarket: _oreMarket, stats: _stats,
     achievements: _achievements, lastWallAt: _lastWallAt, runeRng: _runeRng, characterName: _characterName, ...rest
   } = r.state;
-  const { essences: _ess11, runes: _runes11, ...restStash } = r.state.stash;
+  const { orbs: _orbs11, runes: _runes11, ...restStash } = r.state.stash;
   expect({ ...rest, stash: restStash }).toEqual(raw);   // nothing else changes
   expect(r.state.characterName).toBe(defaultCharacterName(r.state.seed));
   expect(r.state.oreMarket.premium).toEqual(emptyMaterialCounts());
   expect(r.state.stash.runes).toEqual(emptyRuneCounts());
 });
 
-it('a schema-12 save gains a zeroed ore market and an empty essence tab', () => {
+it('a schema-12 save gains a zeroed ore market and an empty orbs tab', () => {
   const s = newGame(1, 0);
   const asV12 = structuredClone(s) as unknown as Record<string, unknown>;
   delete asV12.oreMarket;
   const stash12 = asV12.stash as Record<string, unknown>;
-  delete stash12.essences;
+  delete stash12.orbs;
   const r = decodeSave(raw({ schema: 12, savedAt: 0, state: asV12 }));
   if (!r.ok) throw new Error(`schema-12 save rejected: ${r.reason}`);
   expect(r.state.oreMarket.premium).toEqual(emptyMaterialCounts());
-  expect(r.state.stash.essences).toEqual({});
+  expect(r.state.stash.orbs).toEqual({});
   expect(r.state.stash.runes).toEqual(emptyRuneCounts());
   expect(r.state.runeRng).toBe(hash2(s.rng, RUNE_RNG_SALT));   // seeded from the loot stream, as the migration does
   const { runeRng: _migratedRune, ...migrated } = r.state;

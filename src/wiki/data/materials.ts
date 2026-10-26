@@ -1,9 +1,9 @@
 import {
-  CRAFT_COST, ESSENCE_COST, EXCHANGE_DOWN, EXCHANGE_UP, MATERIAL_TABLE, ORB_COST, PREMIUM_CAP, PREMIUM_DECAY_KEEP,
-  PREMIUM_STEP, oreForTier,
+  CRAFT_COST, EXCHANGE_DOWN, EXCHANGE_UP, MATERIAL_TABLE, PREMIUM_CAP, PREMIUM_DECAY_KEEP,
+  PREMIUM_STEP, orbCost, orbOre,
 } from '../../core/balance';
 import { MATERIAL_LABELS } from '../../core/itemData';
-import { ESSENCE_TIER_MAX, MATERIALS, type Material } from '../../core/items';
+import { MATERIALS, ORBS, type Material, type OrbFamily, type OrbSide, type OrbTier } from '../../core/items';
 import type { CraftKind } from '../../core/types';
 
 /** One ore: its depth, its weight in the material layer, and how many a vein gives. */
@@ -25,26 +25,19 @@ export function materialRows(): MaterialRow[] {
   }));
 }
 
-/** A tier-t essence's recipe: which ore buys it and at what cost. Tier 1's ore is never a recipe (Copper/Tin craft). */
-export interface EssenceRecipeRow {
-  tier: number;
-  ore: Material | undefined;
-  oreLabel: string;
-  cost: number;
+/** One orb's recipe: its family, side (absent for scattering), tier, name and the ore that buys it. */
+export interface OrbRecipeRow {
+  family: OrbFamily; side: OrbSide | undefined; tier: OrbTier; name: string; ore: Material; oreLabel: string; cost: number;
 }
 
-export function essenceRecipes(): EssenceRecipeRow[] {
-  const rows: EssenceRecipeRow[] = [];
-  for (let tier = 1; tier <= ESSENCE_TIER_MAX; tier++) {
-    const ore = oreForTier(tier);
-    rows.push({
-      tier,
-      ore,
-      oreLabel: ore === undefined ? '—' : MATERIAL_LABELS[ore],
-      cost: ESSENCE_COST[tier] ?? 0,
-    });
-  }
-  return rows;
+export function orbRecipes(): OrbRecipeRow[] {
+  return ORBS.map((o) => {
+    const ore = orbOre(o.family, o.tier);
+    return {
+      family: o.family, side: o.side, tier: o.tier, name: o.name,
+      ore, oreLabel: MATERIAL_LABELS[ore], cost: orbCost(o.family, o.tier),
+    };
+  });
 }
 
 /** The material crafts: a cost of `base + floor(level / per)` of the material, or `base` alone when `per` is 0. */
@@ -58,16 +51,17 @@ export interface CraftCostRow {
 const CRAFT_LABELS: Readonly<Record<CraftKind, string>> = { ...MATERIAL_LABELS, diamond: 'Diamonds' };
 
 export function craftCosts(): CraftCostRow[] {
-  return (Object.keys(CRAFT_COST) as CraftKind[]).map((kind) => ({
-    kind,
-    label: CRAFT_LABELS[kind],
-    base: CRAFT_COST[kind].base,
-    per: CRAFT_COST[kind].per,
-  }));
+  const rows: CraftCostRow[] = [];
+  for (const kind of Object.keys(CRAFT_COST) as CraftKind[]) {
+    const cost = CRAFT_COST[kind];
+    if (cost === undefined) continue;
+    rows.push({ kind, label: CRAFT_LABELS[kind], base: cost.base, per: cost.per });
+  }
+  return rows;
 }
 
-/** The Refiner's ore exchange: up the ladder 4 : 1, down the ladder 1 : 3, and an orb's Iron cost. */
-export const oreExchange = { up: EXCHANGE_UP, down: EXCHANGE_DOWN, orbCost: ORB_COST };
+/** The Refiner's ore exchange: up the ladder 4 : 1, down the ladder 1 : 3. */
+export const oreExchange = { up: EXCHANGE_UP, down: EXCHANGE_DOWN };
 
 /** The decaying premium: each buy adds `step` (capped), and each tick multiplies what is left by `decayKeep`. */
 export const orePremium = { step: PREMIUM_STEP, cap: PREMIUM_CAP, decayKeep: PREMIUM_DECAY_KEEP };
