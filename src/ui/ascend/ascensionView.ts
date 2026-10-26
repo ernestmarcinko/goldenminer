@@ -41,6 +41,8 @@ export function ascendancyVMs(state: GameState): SkillNodeVM[] {
       // A node only looks takeable when there is an ascendancy point to spend on it.
       allocatable: state.ascendancy.points > 0 && canAllocateAscendancy(state, n.id),
       refundable: false,
+      staged: false,
+      refunding: false,
     };
   });
 }

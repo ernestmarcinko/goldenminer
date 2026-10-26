@@ -2,7 +2,13 @@ import { expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
 import { PASSIVE_NODE_BY_ID, START_NODE_ID } from '../../src/core/passives';
 import { allocate } from '../../src/core/respec';
-import { nodeVMs, pointsLine, refundLine, resetLine, searchNodes } from '../../src/ui/skills/skillsView';
+import {
+  nodeVMs, pointsLine, pruneStaged, refundAffordable, refundLine, refundTotalLine, resetLine, searchNodes,
+} from '../../src/ui/skills/skillsView';
+
+const start = PASSIVE_NODE_BY_ID.get(START_NODE_ID)!;
+const ring1 = start.links[0]!;
+const ring2 = PASSIVE_NODE_BY_ID.get(ring1)!.links.find((l) => l !== START_NODE_ID)!;
 
 it('the view model marks the start allocated and the first ring allocatable', () => {
   const s = newGame(1, 0);
@@ -30,6 +36,45 @@ it('allocating a first-ring node opens the next ring', () => {
   const after = nodeVMs(s);
   expect(after.find((n) => n.id === ring.id)?.allocated).toBe(true);
   expect(after.some((n) => n.allocatable)).toBe(true);
+});
+
+it('staged nodes open the next ring before they are confirmed', () => {
+  const s = newGame(1, 0);
+  s.level = 3;   // two points
+  const staged = nodeVMs(s, { staged: [ring1] });
+  expect(staged.find((n) => n.id === ring1)?.staged).toBe(true);
+  expect(staged.find((n) => n.id === ring1)?.allocated).toBe(false);
+  expect(staged.find((n) => n.id === ring2)?.allocatable).toBe(true);
+});
+
+it('refund mode offers only nodes whose removal leaves the web connected', () => {
+  const s = newGame(1, 0);
+  s.level = 5;
+  allocate(s, ring1);
+  allocate(s, ring2);
+  const vms = nodeVMs(s, { mode: 'refund' });
+  expect(vms.find((n) => n.id === ring2)?.refundable).toBe(true);
+  expect(vms.find((n) => n.id === ring1)?.refundable).toBe(false);
+  const withChild = nodeVMs(s, { mode: 'refund', refund: [ring2] });
+  expect(withChild.find((n) => n.id === ring1)?.refundable).toBe(true);
+  expect(withChild.find((n) => n.id === ring2)?.refunding).toBe(true);
+});
+
+it('pruneStaged drops dependants when their parent is unstaged', () => {
+  expect(pruneStaged([], [ring1, ring2])).toEqual([ring1, ring2]);
+  expect(pruneStaged([], [ring2])).toEqual([]);
+  expect(pruneStaged([ring1], [ring2])).toEqual([ring2]);
+});
+
+it('the staged refund names its nodes and Gold price', () => {
+  const s = newGame(1, 0);
+  s.level = 10;
+  s.gold = 2000;
+  expect(refundTotalLine(s, [])).toBe('No nodes marked for refund');
+  expect(refundTotalLine(s, [ring1, ring2])).toBe('Refund 2 nodes for 2,000 Gold');
+  expect(refundAffordable(s, [ring1, ring2])).toBe(true);
+  s.gold = 1999;
+  expect(refundAffordable(s, [ring1, ring2])).toBe(false);
 });
 
 it('the points line says how many are left', () => {

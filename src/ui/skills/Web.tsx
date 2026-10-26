@@ -20,17 +20,21 @@ interface Props {
   /** The node whose card shows (hovered or pinned), and a renderer for that card. */
   cardId?: string | null;
   renderCard?: (node: SkillNodeVM) => ReactNode;
+  /** Called when the panel background is pressed, so a pinned card can close. */
+  onCloseCard?: () => void;
 }
 
 interface View { scale: number; x: number; y: number }
 
 /** The passive web as an SVG: edges and nodes, with drag-to-pan and wheel or button zoom. */
-export function Web({ nodes, onNode, onHover, focusId, focusNonce, label = 'Passive skill web', cardId, renderCard }: Props) {
+export function Web({
+  nodes, onNode, onHover, focusId, focusNonce, label = 'Passive skill web', cardId, renderCard, onCloseCard,
+}: Props) {
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
   const edges = useMemo(() => {
     const seen = new Set<string>();
     const out: {
-      x1: number; y1: number; x2: number; y2: number; side: SkillNodeVM['side']; allocated: boolean;
+      x1: number; y1: number; x2: number; y2: number; side: SkillNodeVM['side']; lit: boolean; refunding: boolean;
     }[] = [];
     for (const n of nodes) {
       for (const l of n.links) {
@@ -39,7 +43,11 @@ export function Web({ nodes, onNode, onHover, focusId, focusNonce, label = 'Pass
         const key = n.id < l ? `${n.id}|${l}` : `${l}|${n.id}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        out.push({ x1: n.x, y1: n.y, x2: m.x, y2: m.y, side: n.side, allocated: n.allocated && m.allocated });
+        out.push({
+          x1: n.x, y1: n.y, x2: m.x, y2: m.y, side: n.side,
+          lit: (n.allocated || n.staged) && (m.allocated || m.staged),
+          refunding: n.refunding || m.refunding,
+        });
       }
     }
     return out;
@@ -142,6 +150,7 @@ export function Web({ nodes, onNode, onHover, focusId, focusNonce, label = 'Pass
   };
 
   const onPointerDown = (e: React.PointerEvent): void => {
+    onCloseCard?.();
     drag.current = { x: e.clientX, y: e.clientY, ox: view.x, oy: view.y };
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
   };
@@ -184,7 +193,8 @@ export function Web({ nodes, onNode, onHover, focusId, focusNonce, label = 'Pass
               key={i}
               className="gm-web__edge"
               data-side={e.side}
-              data-allocated={e.allocated || undefined}
+              data-allocated={e.lit || undefined}
+              data-refunding={e.refunding || undefined}
               x1={e.x1}
               y1={e.y1}
               x2={e.x2}
@@ -203,6 +213,8 @@ export function Web({ nodes, onNode, onHover, focusId, focusNonce, label = 'Pass
                 data-kind={n.kind}
                 data-allocatable={n.allocatable || undefined}
                 data-refundable={n.refundable || undefined}
+                data-staged={n.staged || undefined}
+                data-refunding={n.refunding || undefined}
                 transform={`translate(${n.x} ${n.y})`}
                 onPointerDown={(e) => e.stopPropagation()}
                 onPointerEnter={() => enterNode(n.id)}
@@ -216,7 +228,9 @@ export function Web({ nodes, onNode, onHover, focusId, focusNonce, label = 'Pass
                 ) : (
                   <circle className="gm-web__shape" r={r} />
                 )}
-                {n.allocated && <circle className="gm-web__core" r={Math.max(3, Math.round(size * 0.16))} />}
+                {(n.allocated || n.staged || n.refunding) && (
+                  <circle className="gm-web__core" r={Math.max(3, Math.round(size * 0.16))} />
+                )}
                 <title>{n.name}</title>
               </g>
             );

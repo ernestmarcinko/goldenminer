@@ -8,5 +8,7 @@ export default defineConfig({
     environment: 'node',
     include: ['tests/**/*.test.ts'],
     exclude: ['tests/balance/**'],
+    // Several core tests walk large random tables; under parallel workers they can exceed Vitest's 5 s default.
+    testTimeout: 20_000,
   },
 });

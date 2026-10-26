@@ -1,8 +1,8 @@
 import { expect, it } from 'vitest';
 import { RESET_WEB_DIAMONDS, STASH_PAGE_SIZE } from '../../src/core/balance';
 import { newGame } from '../../src/core/newGame';
-import { PASSIVE_NODE_BY_ID, START_NODE_ID } from '../../src/core/passives';
-import { allocate, refund, refundPrice, resetWeb } from '../../src/core/respec';
+import { PASSIVE_NODE_BY_ID, START_NODE_ID, pointsToSpend } from '../../src/core/passives';
+import { allocate, allocateMany, refund, refundMany, refundPrice, resetWeb } from '../../src/core/respec';
 import { gear } from '../helpers/items';
 
 const start = PASSIVE_NODE_BY_ID.get(START_NODE_ID)!;
@@ -66,6 +66,73 @@ it('refund spends Gold, only on a leaf', () => {
   expect(refund(s, 'veinSense')).toBe('notAllocated');
   s.gold = 0;
   expect(refund(s, ring1)).toBe('noGold');
+});
+
+it('allocateMany spends the points for a whole valid path at once', () => {
+  const s = newGame(1, 0);
+  s.level = 4;   // 3 points
+  expect(allocateMany(s, [ring1, ring2])).toBe('ok');
+  expect(s.passives.allocated).toEqual([ring1, ring2]);
+  expect(pointsToSpend(s)).toBe(1);
+});
+
+it('allocateMany refuses the whole sequence if any step is invalid', () => {
+  const s = newGame(1, 0);
+  s.level = 4;
+  expect(allocateMany(s, [ring2, ring1])).toBe('notAdjacent');   // wrong order
+  expect(s.passives.allocated).toEqual([]);
+  expect(allocateMany(s, [ring1, ring1])).toBe('invalid');       // duplicate
+  expect(allocateMany(s, [ring1, 'notANode'])).toBe('invalid');
+  s.level = 2;                                                   // one point, two nodes
+  expect(allocateMany(s, [ring1, ring2])).toBe('noPoints');
+  expect(s.passives.allocated).toEqual([]);
+});
+
+it('refundMany refunds a path together, one price each', () => {
+  const s = newGame(1, 0);
+  s.level = 10;
+  s.gold = 5000;
+  allocate(s, ring1);
+  allocate(s, ring2);
+  expect(refundMany(s, [ring1])).toBe('notLeaf');
+  expect(refundMany(s, [ring1, ring2])).toBe('ok');
+  expect(s.passives.allocated).toEqual([]);
+  expect(s.gold).toBe(5000 - 2 * refundPrice(10));
+});
+
+it('refundMany is order-independent and refuses a set it cannot pay for', () => {
+  const s = newGame(1, 0);
+  s.level = 10;
+  s.gold = 5000;
+  allocate(s, ring1);
+  allocate(s, ring2);
+  expect(refundMany(s, [ring2, ring1])).toBe('ok');
+  expect(s.passives.allocated).toEqual([]);
+
+  const t = newGame(1, 0);
+  t.level = 10;
+  t.gold = refundPrice(10) * 2 - 1;
+  allocate(t, ring1);
+  allocate(t, ring2);
+  expect(refundMany(t, [ring1, ring2])).toBe('noGold');
+  expect(t.passives.allocated).toEqual([ring1, ring2]);
+  expect(t.gold).toBe(refundPrice(10) * 2 - 1);
+});
+
+it('refundMany removes Deep Pockets pages, and refuses while they hold an item', () => {
+  const s = newGame(1, 0);
+  s.level = 20;
+  s.gold = 100_000;
+  const before = s.stash.general.length;
+  const path = pathTo('deepPockets');
+  expect(allocateMany(s, path)).toBe('ok');
+  expect(s.stash.general.length).toBe(before + 2 * STASH_PAGE_SIZE);
+  s.stash.general[s.stash.general.length - 1] = gear(s, 'pickaxe');
+  expect(refundMany(s, path)).toBe('occupied');
+  expect(s.stash.general.length).toBe(before + 2 * STASH_PAGE_SIZE);
+  s.stash.general[s.stash.general.length - 1] = null;
+  expect(refundMany(s, path)).toBe('ok');
+  expect(s.stash.general.length).toBe(before);
 });
 
 it('a full reset spends Diamonds and empties the web', () => {

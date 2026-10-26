@@ -29,19 +29,19 @@ export function AscensionView({ store }: { store: GameStore }) {
   const pick = (id: string): void => {
     const vm = byId.get(id);
     if (vm === undefined) return;
-    setPinnedId(id);
     setMessage(null);
     setArmed(false);
     if (vm.allocatable) {
+      setPinnedId(id);
       const r = store.allocateAscendancy(id);
       setMessage(r === 'ok' ? `Allocated ${vm.name}.` : ALLOCATE_TEXT[r] ?? 'Refused.');
-    } else if (vm.allocated) {
-      setMessage(`${vm.name} is already allocated.`);
-    } else if (state.ascendancy.points === 0) {
-      setMessage('No ascendancy points — ascend at level 60 to earn them.');
-    } else {
-      setMessage('Allocate next to an allocated node first.');
+      return;
     }
+    // A node that cannot be allocated closes any pinned card and says why.
+    setPinnedId(null);
+    if (vm.allocated) setMessage(`${vm.name} is already allocated.`);
+    else if (state.ascendancy.points === 0) setMessage('No ascendancy points — ascend at level 60 to earn them.');
+    else setMessage('Allocate next to an allocated node first.');
   };
 
   const ascendNow = (): void => {
@@ -87,6 +87,7 @@ export function AscensionView({ store }: { store: GameStore }) {
         nodes={vms}
         onNode={pick}
         onHover={(id) => setHoveredId(id)}
+        onCloseCard={() => setPinnedId(null)}
         focusId={null}
         focusNonce={0}
         label="Ascendancy tree"

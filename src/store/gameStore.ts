@@ -14,7 +14,10 @@ import { ruleValid } from '../core/lootFilter';
 import { leaveMap as coreLeaveMap, startMap as coreStartMap } from '../core/maps';
 import { gamble as coreGamble, type GambleResult } from '../core/merchant';
 import { newGame } from '../core/newGame';
-import { allocate as coreAllocate, refund as coreRefund, resetWeb as coreResetWeb } from '../core/respec';
+import {
+  allocate as coreAllocate, allocateMany as coreAllocateMany, refund as coreRefund, refundMany as coreRefundMany,
+  resetWeb as coreResetWeb,
+} from '../core/respec';
 import { soulUpgrade as coreSoulUpgrade, type SoulUpgradeCheck } from '../core/soulUpgrade';
 import { buyStashPage as coreBuyStashPage } from '../core/stashPages';
 import { decodeSave, encodeSave, type DecodeResult } from '../core/save';
@@ -340,9 +343,23 @@ export class GameStore {
     return result;
   }
 
+  /** Allocates a staged sequence of passive nodes; only an 'ok' changes anything. */
+  allocateMany(ids: readonly string[]): ReturnType<typeof coreAllocateMany> {
+    const result = coreAllocateMany(this._state, ids);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
   /** Refunds a passive node for Gold; only an 'ok' changes anything. */
   refund(id: string): ReturnType<typeof coreRefund> {
     const result = coreRefund(this._state, id);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
+  /** Refunds a staged set of passive nodes for Gold; only an 'ok' changes anything. */
+  refundMany(ids: readonly string[]): ReturnType<typeof coreRefundMany> {
+    const result = coreRefundMany(this._state, ids);
     if (result === 'ok') this.changed();
     return result;
   }

@@ -6,6 +6,7 @@ import { compressToBase64 } from 'lz-string';
 import fixture5 from '../fixtures/save-schema-5.txt?raw';
 import { newGame } from '../../src/core/newGame';
 import { PASSIVE_NODE_BY_ID, START_NODE_ID } from '../../src/core/passives';
+import { refundPrice } from '../../src/core/respec';
 import { startMap } from '../../src/core/maps';
 import { advance } from '../../src/core/clock';
 import { freshWorld } from '../../src/core/seed';
@@ -684,6 +685,18 @@ describe('passive web intents', () => {
     expect(store.state.passives.allocated).toEqual([ring1]);
     expect(store.resetWeb()).toBe('ok');
     expect(store.state.passives.allocated).toEqual([]);
+  });
+
+  it('allocateMany and refundMany apply a staged set in one step', () => {
+    const { store } = make();
+    store.load();
+    store.state.level = 5;
+    store.state.gold = 5000;
+    expect(store.allocateMany([ring1, ring2])).toBe('ok');
+    expect(store.state.passives.allocated).toEqual([ring1, ring2]);
+    expect(store.refundMany([ring1, ring2])).toBe('ok');
+    expect(store.state.passives.allocated).toEqual([]);
+    expect(store.state.gold).toBe(5000 - 2 * refundPrice(5));
   });
 
   it('an allocation persists across a save and a load', () => {

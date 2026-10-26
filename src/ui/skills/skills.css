@@ -53,6 +53,23 @@
   outline-offset: 2px;
 }
 
+.gm-skills__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--gm-line);
+  background: var(--gm-panel);
+}
+.gm-skills__actions > span:first-child {
+  flex: 1 1 200px;
+}
+.gm-skills__actions--refund {
+  border-color: var(--gm-down);
+}
+
 .gm-skills__legend {
   display: flex;
   gap: 18px;
@@ -149,7 +166,29 @@
   animation: gm-web-pulse 2.4s ease-in-out infinite;
 }
 .gm-web__node[data-refundable='true'] .gm-web__hit {
-  fill: rgba(245, 207, 122, 0.08);
+  fill: rgba(255, 138, 122, 0.1);
+}
+/* Staged for allocation: waiting for the one confirm. */
+.gm-web__node[data-staged='true'] .gm-web__shape {
+  stroke: var(--gm-gold-bright);
+  fill: var(--gm-skills-mining-fill);
+  stroke-width: 4;
+  stroke-dasharray: none;
+  filter: drop-shadow(0 0 7px var(--gm-gold-bright));
+}
+.gm-web__node[data-staged='true'] .gm-web__core { fill: var(--gm-gold-bright); }
+/* Marked for refund: waiting for the one confirm. */
+.gm-web__node[data-refunding='true'] .gm-web__shape {
+  stroke: var(--gm-down);
+  fill: var(--gm-skills-battle-fill);
+  stroke-width: 4;
+  stroke-dasharray: 5 3;
+  filter: drop-shadow(0 0 6px var(--gm-down));
+}
+.gm-web__node[data-refunding='true'] .gm-web__core { fill: var(--gm-down); }
+.gm-web__edge[data-refunding='true'] {
+  stroke: var(--gm-down);
+  stroke-dasharray: 5 3;
 }
 .gm-web__node:hover .gm-web__shape {
   filter: brightness(1.35);
