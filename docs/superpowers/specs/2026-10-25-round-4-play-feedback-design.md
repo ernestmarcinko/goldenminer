@@ -1,7 +1,7 @@
 # Golden Miner, round 4: pausing, one Inventory view, logs, merchants, harder maps
 
 - **Date:** 2026-10-25
-- **Status:** the decisions are Ernest's (2026-10-25). Plan 10's content proposals (§9–§12) get confirmed before Plan 10 is built.
+- **Status:** the decisions are Ernest's (2026-10-25). Plan 10's proposals (§9–§12) were approved as written on 2026-10-26.
 - **Amends:** the main spec, round 2 and round 3 (`2026-10-24-round-3-economy-inventory-crafting-design.md`). Where they disagree, this document wins.
 - **Mockups:** https://claude.ai/artifact/WntzjRci7LNrLL9hWjyAKR, board "Round 4".
 - **Built so far:** Plans 1–8 (Plan 8 merged as PR #8).
@@ -231,6 +231,14 @@ Each legendary gains one unique line that no other item can roll, a line that ch
 - **Actions:** keep, sell, salvage, or stash to the matching tab.
 - **Order:** rules run top to bottom, and the first match wins.
 - **The default filter** matches what today's game does.
+
+## 12a. Added for Plan 10 (decided 2026-10-26)
+- **Long gaps count as being away.** If more than 5 minutes pass between two live ticks (the computer slept, or the tab was frozen), that stretch is dug as offline time, unless the player pressed Pause, even when a non-Mine view was showing.
+- **Clicks while paused.** Clicking the rock still digs while paused (kept).
+- **Early maps stay gentle (decided 2026-10-26).** Tiers 1–2 aim at about 70 % clears and are winnable without clicking; the 40 % target applies from tier 3.
+- **No clicking in maps (decided 2026-10-26).** Map combat is automatic; clicking in a map does nothing. A real combat system is a later plan.
+- **The Trader never stocks legendaries (decided 2026-10-26).** They come from drops, gambling and the boss-legendary special.
+- **From Plan 9's final review:** a cell that fills under a still pointer, from empty to an item, shows that item's hover card, so a following shortcut never acts blind.
 
 ## 13. Left to the builder
 - Exact layouts, following the Round 4 board.
