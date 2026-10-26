@@ -54,12 +54,13 @@ it('armor and resistance soften hits', () => {
 });
 
 it('xp levels the miner up to the cap', () => {
-  expect([1, 2, 10, 59].map(xpToNext)).toEqual([100, 283, 3162, 45_319]);
+  // Levels 1–10 keep the tuned early curve; from level 10 the Plan 13 late ramp raises each level's cost by up to half.
+  expect([1, 2, 10, 59].map(xpToNext)).toEqual([100, 283, 3162, 67_978]);
   expect(xpToNext(60)).toBe(0);
   const s = newGame(1, 0);
   expect(gainXp(s, 383)).toBe(2);
   expect([s.level, s.xp]).toEqual([3, 0]);
-  s.level = 59; s.xp = 45_000;
+  s.level = 59; s.xp = 67_000;
   expect(gainXp(s, 1_000)).toBe(1);
   expect([s.level, s.xp]).toEqual([60, 0]);
   expect(gainXp(s, 5_000)).toBe(0);

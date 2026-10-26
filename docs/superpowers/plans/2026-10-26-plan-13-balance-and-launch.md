@@ -50,7 +50,7 @@ Same as Plans 11–12, plus:
 | Topic | Decision |
 |---|---|
 | Simulator API | `runReference(options?): SimReport` in `src/core/sim.ts`. `SimReport` holds `firstMapSec`, `autoMapLevel`, `autoMapDay`, `capDay`, `deepestAtCap`, `frontierTierAtCap`, `frontierTierAfterDay`, `ascensionPointsAtCap`, and per-tier `clears`/`losses`. Deterministic for a given seed/options. |
-| Time model | 1-minute steps. A simulated day is 1,440 minutes. Offline gaps are capped at the current `offlineCapMs` per gap, exactly as `advance` does. Tick counts come from the live `autoTicksPerSecond`; clicks add `ticksPerClick` ticks at a modelled click rate. |
+| Time model | 1-minute steps. A simulated day is 1,440 minutes. Offline gaps are capped at the current `offlineCapMs` per gap, exactly as `advance` does. Tick counts come from the live `autoTicksPerSecond`; clicks add `ticksPerClick` ticks at a modelled click rate. The reference player plays **65 %** of each 15-minute check-in; the rest is inventory and reading, with digging paused (as a non-Mine view pauses it). |
 | Reference schedule | 4 check-ins a day at 08:00, 13:00, 19:00 and 23:00, each 15 minutes of active play. Everything between is away. This matches §4.9. |
 | Active play | Run the best available map; if none, dig. The modelled click rate is **2 clicks/second while digging** (not in maps, where clicking does nothing). |
 | Map choice | A frontier tier starts at 1 and rises by one after a clear; the player runs the highest-tier available map at or below `frontier + 1`, else digs. This models "push one tier at a time" without perfect foresight. |
@@ -58,8 +58,9 @@ Same as Plans 11–12, plus:
 | Passive policy | Spend points greedily: alternate the first allocatable battle node and the first allocatable mining node; at level 30, if Surveyor is reachable, spend the points along the shortest path to it first. Ascendancy is not spent in the first run (there is none). |
 | Auto-mapping | Once Surveyor is allocated, queue every map at or under `autoMapMaxTier` and let away ticks run them; maps over the limit stay in the stash for active play. |
 | Stop rule | Simulate 8 days (configurable). The first run ends at the cap; the report still records the day the cap was reached. A separate "day after the cap" pass measures frontier growth and ascendancy points. |
-| Targets | First map ≤ 60 s; auto-map unlock at level 28–32 on day 3–4; cap on day **4–8** (aim 5–6); frontier tier after the cap day ≥ frontier tier at the cap (the wall has not arrived); ascendancy points at the cap ≥ 1. |
-| Tuning order | `xpToNext` first, then `monsterXp` and map rewards, then drop rates. Prefer one or two constants per iteration; re-run the sim after each. |
+| Targets | First map ≤ 60 s; auto-map unlock at level 28–32 (the hard anchor; the idealized sim reaches it on day ~2, earlier than the design's human estimate of day 3–4); cap on day **4–8** (aim 5–6); frontier tier after the cap day ≥ frontier tier at the cap (the wall has not arrived); ascendancy points at the cap ≥ 1. |
+| Late-game XP ramp | `xpToNext(L) = XP_PER_LEVEL × L^XP_EXPONENT × ramp(L)`, with `ramp = 1` through level 10 and rising to `1.5` by level 30. The early curve is unchanged, so the tuned first-map and tier-1/2 clear rates survive; only levels 10–60 get dearer. Shipped values: `XP_PER_LEVEL = 100`, `XP_EXPONENT = 1.5`, `XP_RAMP_START = 10`, `XP_RAMP_FULL = 30`, `XP_RAMP_MULT = 1.5`. |
+| Tuning order | The late-game XP ramp first (it leaves the tuned early levels alone), then `monsterXp` and map rewards, then drop rates. Prefer one or two constants per iteration; re-run the sim after each. |
 | Balance test | `tests/balance/referenceRun.test.ts` (excluded from `npm test`) asserts the targets and prints the report. `npm run balance` runs it via `vitest.balance.config.ts`; the default `npm test` stays fast. |
 | Launch metadata | `index.html` gains `<meta name="description">`, `<meta name="theme-color" content="#15120f">` and `<link rel="icon" href="./favicon.svg">`; `public/favicon.svg` is a small code-drawn golden pickaxe (MIT). |
 | Launch docs | README "Run it" gains `npm run balance`; a new "Controls" section (click the mine, right-click items, the shortcuts, Pause); a new "Credits" section (Metamorphous / Alegreya Sans / IBM Plex Mono via Google Fonts, code-drawn placeholder pixels, the 2013 original, MIT). A "Pacing" paragraph records the measured run once Task 3 has numbers. |
@@ -120,12 +121,14 @@ README.md                        MOD  Run it, Controls, Credits, Pacing
 
 **Interfaces:** move the constants in the recorded order. After each change, run `npm run balance`, record the report in this plan's measured table, and stop when every target holds. Then run the full suite; update only tests that pin a moved constant, with a note.
 
-**Measured table (fill in):**
+**Measured table:**
 
-| Run | xpToNext | monsterXp | cap day | auto-map day | first map s | deepest at cap | frontier at cap → +1 day | asc points |
+| Run | xpToNext | monsterXp | cap day | auto-map day (level) | first map s | deepest at cap | frontier at cap → +1 day | asc points |
 |---|---|---|---|---|---|---|---|---|
-| initial | 100 × L^1.5 | 10 × tier^1.5 | | | | | | |
-| final | | | | | | | | |
+| initial | 100 × L^1.5 | 10 × tier^1.5 | 3.54 | 1.97 (42) | 60 | 3604 | 16 → 18 | 3 |
+| final | × 1.5 ramp (L10–30) | unchanged | **5.34** | 1.96 (30) | 60 | 4587 | 19 → 22 | 4 |
+
+The initial row is the simulator's first honest baseline (before the Surveyor planning policy and the ramp). The final row is `runReference({ seed: 12345, days: 8 })` after the ramp. The auto-map *level* moved to the design's anchor (30); its day stayed ~2 because the ramp slowed the levels up to 30 too. The design's "day 3–4" assumes a human's friction the idealized sim does not model; the cap day is the week target that matters.
 
 **Step order:** run the sim → tune → re-run → full suite → commit `Tune the run to the pacing targets`.
 

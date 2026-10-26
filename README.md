@@ -93,6 +93,10 @@ The game autosaves every 30 seconds and when the tab is hidden or closed. The Se
 
 The 2013 original lives in `legacy/` (open `legacy/index-dev.html`).
 
+## Balance
+
+`npm run balance` plays a reference week headlessly through the real tick, map, passive, auto-map and ascension code: four fifteen-minute check-ins a day, offline digging between, the best drop worn, and points spent towards Surveyor. On the seeded reference run the first map arrives within a minute, auto-mapping unlocks at level 30, the level cap lands at about 5.3 simulated days, the deepest depth is still climbing a day later (4,587 m at the cap; frontier map tier 19 → 22), and the cap is worth 4 ascendancy points. The model assumes perfect drops and no crafting, so a human's week is a little longer.
+
 ## Credits
 
 The game is set in Metamorphous for headings, Alegreya Sans for text and IBM Plex Mono for numbers, all served from Google Fonts. The item, gem, vein, monster and merchant art is code-drawn placeholder pixel art. Golden Miner is a revival of the 2013 original by anag0, which lives in `legacy/`. The code is under the MIT licence (see [`LICENSE`](LICENSE)).

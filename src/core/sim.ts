@@ -12,12 +12,18 @@ import { allocate } from './respec';
 import { deriveStats } from './stats';
 import type { GameState, TickEvent } from './types';
 
-export interface SimOptions { seed?: number; days?: number; clickRate?: number }
+export interface SimOptions {
+  seed?: number; days?: number; clickRate?: number;
+  /** The share of each 15-minute check-in spent playing; the rest is inventory and reading, with digging paused. */
+  activeEfficiency?: number;
+}
 
 export interface SimReport {
   firstMapSec: number; autoMapLevel: number; autoMapDay: number; capDay: number;
   deepestAtCap: number; frontierTierAtCap: number; frontierTierAfterDay: number;
   ascensionPointsAtCap: number;
+  /** The day each level was first reached, for reading the curve. */
+  levelDays: Record<number, number>;
   clears: Record<number, number>; losses: Record<number, number>;
 }
 
@@ -26,7 +32,7 @@ const MINUTES_PER_DAY = 1440;
 const CHECK_IN_STARTS = [480, 780, 1140, 1380] as const;
 const CHECK_IN_MINUTES = 15;
 const MINUTE_TICKS = 60;
-const MAX_FRONTIER = 20;
+const MAX_FRONTIER = 100;
 const SURVEYOR_ID = 'surveyor';
 const RARITY_SCORE: Readonly<Record<Rarity, number>> = { normal: 1, magic: 1.5, rare: 2, legendary: 2.5 };
 
@@ -89,20 +95,27 @@ function nextSurveyorNode(state: GameState): string | undefined {
   return path.find((id) => id !== START_NODE_ID && !state.passives.allocated.includes(id));
 }
 
-interface PassivePolicy { nextSide: 'battle' | 'mining' }
+interface PassivePolicy { nextSide: 'battle' | 'mining'; lastPathLevel: number }
+
+/** The level the reference player plans to take Surveyor at, and the level they start saving the path for it. */
+const SURVEYOR_LEVEL = 30;
+const SURVEYOR_PATH = 13;
 
 /**
- * Spends every point: at level 30, along the path to Surveyor first; otherwise alternating the first allocatable
- * battle node and the first allocatable mining node. Returns whether Surveyor is allocated after the spend.
+ * Spends every point. From the level that leaves one point per level-up for the thirteen-node path to Surveyor, it
+ * takes one path node a level, so Surveyor lands at about level 30; the rest of each level's points alternate the
+ * first allocatable battle node and the first allocatable mining node. Returns whether Surveyor is allocated.
  */
 function spendPassives(state: GameState, policy: PassivePolicy): boolean {
   let surveyorAllocated = state.passives.allocated.includes(SURVEYOR_ID);
   let spent = true;
   while (pointsToSpend(state) > 0 && spent) {
     spent = false;
-    if (state.level >= 30 && !state.passives.allocated.includes(SURVEYOR_ID)) {
+    const path = SURVEYOR_LEVEL - SURVEYOR_PATH + 1;
+    if (state.level >= path && !state.passives.allocated.includes(SURVEYOR_ID) && policy.lastPathLevel < state.level) {
       const next = nextSurveyorNode(state);
       if (next !== undefined && allocate(state, next) === 'ok') {
+        policy.lastPathLevel = state.level;
         if (next === SURVEYOR_ID) surveyorAllocated = true;
         spent = true;
         continue;
@@ -150,16 +163,17 @@ function queueStashedMaps(state: GameState): void {
 
 /**
  * Plays the reference week headlessly through the real tick, map and passive functions: four fifteen-minute check-ins
- * a day, offline digging capped per gap, the best drop worn, and points spent towards Surveyor at level 30. Pure and
- * deterministic for a given seed and options.
+ * a day (65 % of each spent playing), offline digging capped per gap, the best drop worn, and points spent towards
+ * Surveyor so it lands at level 30. Pure and deterministic for a given seed and options.
  */
 export function runReference(options: SimOptions = {}): SimReport {
   const seed = options.seed ?? 12345;
   const days = options.days ?? 8;
   const clickRate = options.clickRate ?? 2;
+  const activeMinutes = Math.max(0, Math.min(CHECK_IN_MINUTES, Math.round(CHECK_IN_MINUTES * (options.activeEfficiency ?? 0.65))));
   const totalMinutes = Math.max(0, Math.round(days * MINUTES_PER_DAY));
   const state = newGame(seed, 0);
-  const passivePolicy: PassivePolicy = { nextSide: 'battle' };
+  const passivePolicy: PassivePolicy = { nextSide: 'battle', lastPathLevel: -1 };
 
   let frontier = 1;
   let firstMapSec = -1;
@@ -169,6 +183,7 @@ export function runReference(options: SimOptions = {}): SimReport {
   let capMinute = -1;
   let deepestAtCap = -1;
   let frontierTierAtCap = -1;
+  const levelDays: Record<number, number> = { 1: 0 };
   const clears: Record<number, number> = {};
   const losses: Record<number, number> = {};
 
@@ -189,10 +204,11 @@ export function runReference(options: SimOptions = {}): SimReport {
     queueStashedMaps(state);
 
     const minuteOfDay = (minute - 1) % MINUTES_PER_DAY;
-    const active = CHECK_IN_STARTS.some((start) => minuteOfDay >= start && minuteOfDay < start + CHECK_IN_MINUTES);
+    const inCheckIn = CHECK_IN_STARTS.some((start) => minuteOfDay >= start && minuteOfDay < start + CHECK_IN_MINUTES);
+    const active = CHECK_IN_STARTS.some((start) => minuteOfDay >= start && minuteOfDay < start + activeMinutes);
     const events: TickEvent[] = [];
 
-    if (!active) {
+    if (!inCheckIn) {
       if (!inAwayGap) {
         inAwayGap = true;
         awayGapTicks = 0;
@@ -204,7 +220,7 @@ export function runReference(options: SimOptions = {}): SimReport {
         applyTicks(state, ticks, stats, events, state.paused, true);
         awayGapTicks += ticks;
       }
-    } else {
+    } else if (active) {
       inAwayGap = false;
       const stats = deriveStats(state);
       if (state.activity.kind !== 'map') {
@@ -217,6 +233,9 @@ export function runReference(options: SimOptions = {}): SimReport {
         const clicks = Math.max(0, Math.round(clickRate * 60));
         for (let i = 0; i < clicks; i++) clickTicks(state, stats, events);
       }
+    } else {
+      // The rest of the check-in is inventory and reading: the game is on another view, so digging waits.
+      inAwayGap = false;
     }
 
     // Every runEnd is counted: away auto-mapping can finish several maps in one minute, where state.lastRun would keep
@@ -234,6 +253,9 @@ export function runReference(options: SimOptions = {}): SimReport {
     }
     // The find log is the source of truth if a map was logged outside this minute's event batch.
     if (firstMapSec < 0 && state.finds.some((find) => find.kind === 'map')) firstMapSec = minute * 60;
+    for (let level = 2; level <= state.level; level++) {
+      if (levelDays[level] === undefined) levelDays[level] = minute / MINUTES_PER_DAY;
+    }
 
     if (capMinute < 0 && state.level >= LEVEL_CAP) {
       capMinute = minute;
@@ -254,6 +276,7 @@ export function runReference(options: SimOptions = {}): SimReport {
     frontierTierAtCap,
     frontierTierAfterDay: frontier,
     ascensionPointsAtCap: ascendancyPoints(deepestAtCap),
+    levelDays,
     clears,
     losses,
   };

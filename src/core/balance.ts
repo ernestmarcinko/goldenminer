@@ -73,6 +73,13 @@ export const MAX_TIER_OVER_CAP = 2;
 export const MAX_ITEM_LEVEL = 100_000;
 
 export const LEVEL_CAP = 60;
+// XP to leave level L is XP_PER_LEVEL × L^XP_EXPONENT, times a late-game ramp that leaves the tuned early levels alone:
+// 1× up to XP_RAMP_START, rising to XP_RAMP_MULT by XP_RAMP_FULL. Plan 13 tunes the ramp, not the early curve.
+export const XP_PER_LEVEL = 100;
+export const XP_EXPONENT = 1.5;
+export const XP_RAMP_START = 10;
+export const XP_RAMP_FULL = 30;
+export const XP_RAMP_MULT = 1.5;
 // Ascendancy: the depth each point costs, and the map tier auto-mapping reaches before the tree extends it.
 export const ASCEND_DEPTH_PER_POINT = 250;
 export const AUTO_MAP_BASE_TIER = 3;
