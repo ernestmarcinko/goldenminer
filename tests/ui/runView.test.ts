@@ -32,6 +32,12 @@ it('the room track', () => {
   expect(roomTrack(run(6, 1), 'The Drowned Foreman').at(-1)).toEqual({ label: 'Boss', note: 'The Drowned Foreman', state: 'now' });
 });
 
+it('the room track names both bosses on a second-boss map', () => {
+  const r = run(6, 1);
+  r.map.special = 'secondBoss';
+  expect(roomTrack(r, 'Grub King').at(-1)).toEqual({ label: 'Bosses', note: 'Grub King and its Twin', state: 'now' });
+});
+
 it('the room track follows the run\'s boss room', () => {
   const rows = roomTrack(run(8, 1, 8), 'Grub King');
   expect(rows.map((r) => r.label)).toEqual(['Room 1', 'Room 2', 'Room 3', 'Room 4', 'Room 5', 'Room 6', 'Room 7', 'Boss']);

@@ -102,7 +102,11 @@ export function roomTrack(run: MapRun, bossName: string): RoomRow[] {
     else if (room === run.room) rows.push({ label: `Room ${room}`, note: `${formatNumber(run.queue.length)} left`, state: 'now' });
     else rows.push({ label: `Room ${room}`, note: '', state: 'next' });
   }
-  rows.push({ label: 'Boss', note: bossName, state: run.room >= run.bossRoom ? 'now' : 'next' });
+  const twin = run.map.special === 'secondBoss';
+  rows.push({
+    label: twin ? 'Bosses' : 'Boss', note: twin ? `${bossName} and its Twin` : bossName,
+    state: run.room >= run.bossRoom ? 'now' : 'next',
+  });
   return rows;
 }
 
