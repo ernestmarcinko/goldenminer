@@ -1,6 +1,14 @@
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { BAG_SIZE, STOCK_SIZE } from '../../src/core/balance';
+import { itemName } from '../../src/core/itemData';
 import { newGame } from '../../src/core/newGame';
-import { gambleResultText, gambleSlots, gambledLine } from '../../src/ui/merchant/merchantView';
+import { buyStock, stockBand, stockPrice, traderStock } from '../../src/core/trader';
+import type { GameState } from '../../src/core/types';
+import { rarityOf } from '../../src/ui/character/itemView';
+import {
+  buyLabel, buyRefusalHolds, buyResultText, gambleResultText, gambleSlots, gambledLine, MERCHANTS, stockCaption,
+  stockTiles,
+} from '../../src/ui/merchant/merchantView';
 import { gear } from '../helpers/items';
 
 it('lists the mining slots, then the battle slots, with their price and whether you can pay it', () => {
@@ -33,4 +41,82 @@ it('describes the gambled item', () => {
   const s = newGame(1, 0);
   expect(gambledLine(gear(s, 'gloves', { rarity: 'rare', ilvl: 7 }))).toBe('Rare gloves · item level 7 · now in your bag');
   expect(gambledLine(gear(s, 'lamp', { rarity: 'normal', ilvl: 1_200 }))).toBe('Normal lamp helm · item level 1,200 · now in your bag');
+});
+
+describe('the Trader', () => {
+  /** A miner at 430 m with Gold to spend; the metres it rolled ahead lie above the new depth, so they go. */
+  function at430(): GameState {
+    const s = newGame(11, 0);
+    s.deepest = 430;
+    s.ahead = {};
+    s.gold = 10_000_000;
+    return s;
+  }
+
+  it('names both merchants, whatever the world', () => {
+    expect(MERCHANTS.trader).toEqual({ name: 'Brannoc the Trader', sprite: 'brannoc' });
+    expect(MERCHANTS.gambler).toEqual({ name: 'Old Mirela', sprite: 'mirela' });
+  });
+
+  it('says when the stock is next rolled', () => {
+    expect(stockCaption(at430())).toBe('New stock every 10 m dug · next at 440 m');
+    const s = at430();
+    s.deepest = 0;
+    expect(stockCaption(s)).toBe('New stock every 10 m dug · next at 10 m');
+  });
+
+  it('shows a tile per slot, a bought one as Sold', () => {
+    const s = at430();
+    const tiles = stockTiles(s);
+    expect(tiles).toHaveLength(STOCK_SIZE);
+    expect(tiles.map((t) => t.index)).toEqual([...Array(STOCK_SIZE).keys()]);
+    const stock = traderStock(s.seed, stockBand(s));
+    tiles.forEach((t, i) => {
+      const item = stock[i]!;
+      expect(t).toEqual({
+        index: i, item, name: itemName(item), tone: rarityOf(item), price: stockPrice(item), affordable: true, room: true,
+      });
+    });
+    expect(buyStock(s, 3).result).toBe('ok');
+    expect(stockTiles(s)[3]).toMatchObject({ index: 3, item: null, name: 'Sold', tone: 'sold', price: 0 });
+    expect(stockTiles(s)[4]?.item).toBe(stock[4]);
+  });
+
+  it('marks a tile you are 1 Gold short of, and every tile when the bag is full', () => {
+    const s = at430();
+    const price = stockTiles(s)[5]!.price;
+    s.gold = price - 1;
+    expect(stockTiles(s)[5]?.affordable).toBe(false);
+    s.gold = price;
+    expect(stockTiles(s)[5]?.affordable).toBe(true);
+    s.bag = s.bag.map(() => gear(s, 'gloves'));
+    expect(s.bag).toHaveLength(BAG_SIZE);
+    expect(stockTiles(s).some((t) => t.room)).toBe(false);
+  });
+
+  it('labels the Buy button and says why a buy was refused', () => {
+    expect(buyLabel(1_240)).toBe('Buy · 1,240 Gold');
+    expect(buyResultText('ok')).toBeNull();
+    expect(buyResultText('sold')).toBe('That one is sold.');
+    expect(buyResultText('noGold')).toBe('Not enough Gold.');
+    expect(buyResultText('bagFull')).toBe('Your bag is full.');
+    expect(buyResultText('invalid')).toBe("That can't be bought.");
+  });
+
+  it('keeps a refusal only while it still holds', () => {
+    const s = at430();
+    const price = stockTiles(s)[2]!.price;
+    s.gold = price - 1;
+    expect(buyRefusalHolds(s, 2, 'noGold')).toBe(true);
+    s.gold = price;
+    expect(buyRefusalHolds(s, 2, 'noGold')).toBe(false);
+    expect(buyRefusalHolds(s, 2, 'sold')).toBe(false);
+    expect(buyRefusalHolds(s, 2, 'bagFull')).toBe(false);
+    expect(buyStock(s, 2).result).toBe('ok');
+    expect(buyRefusalHolds(s, 2, 'sold')).toBe(true);
+    expect(buyRefusalHolds(s, 2, 'noGold')).toBe(false);
+    s.bag = s.bag.map(() => gear(s, 'boots'));
+    expect(buyRefusalHolds(s, 2, 'bagFull')).toBe(true);
+    expect(buyRefusalHolds(s, 2, 'ok')).toBe(false);
+  });
 });

@@ -99,8 +99,9 @@ export function useItemPopover(hasWornCard: (target: ItemTarget) => boolean) {
     setMenu(null);
     if (!restoreFocus) return;
     const el = opener.current;
-    // after the re-render, so an opener that the action removed is seen as gone
-    setTimeout(() => { if (el?.isConnected) el.focus(); else fallback?.focus(); }, 0);
+    // after the re-render, so an opener that the action removed is seen as gone. The fallback may be off the screen
+    // (a heading above a scrolled grid): scrolling to it would move the page under a pointer that has not moved
+    setTimeout(() => { if (el?.isConnected) el.focus(); else fallback?.focus({ preventScroll: true }); }, 0);
   }, []);
 
   /**
