@@ -3,6 +3,7 @@ import {
   type AscendancyEffect,
 } from '../../core/ascendancy';
 import { LEVEL_CAP } from '../../core/balance';
+import { composeIcon, iconForAscendancy } from '../../core/skillIcons';
 import type { GameState } from '../../core/types';
 import { statText } from '../character/itemView';
 import { formatNumber, plural } from '../format';
@@ -27,6 +28,8 @@ function nodeLine(effects: readonly AscendancyEffect[]): string {
 export function ascendancyVMs(state: GameState): SkillNodeVM[] {
   return ASCENDANCY_NODES.map((n) => {
     const start = n.id === ASCENDANCY_START_ID;
+    const glyph = iconForAscendancy(n);
+    const frameKind = n.kind === 'start' ? 'start' : 'ascendancy';
     return {
       id: n.id,
       name: n.name,
@@ -43,6 +46,7 @@ export function ascendancyVMs(state: GameState): SkillNodeVM[] {
       refundable: false,
       staged: false,
       refunding: false,
+      icon: composeIcon(frameKind, glyph, 'ascendancy'),
     };
   });
 }

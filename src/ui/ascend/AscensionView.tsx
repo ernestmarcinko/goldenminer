@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { LEVEL_CAP } from '../../core/balance';
 import type { GameStore } from '../../store/gameStore';
 import { Web } from '../skills/Web';
+import { NodeIcon } from '../skills/SkillIcon';
 import { useGame } from '../useGame';
 import { ascendancyPointsLine, ascendancyVMs, ascendLine, pointsPreview } from './ascensionView';
 import '../skills/skills.css';
@@ -94,7 +95,10 @@ export function AscensionView({ store }: { store: GameStore }) {
         cardId={cardId}
         renderCard={(node) => (
           <section className="gm-ascend__card" data-side={node.side}>
-            <h3 className="gm-ascend__card-name">{node.name}</h3>
+            <div className="gm-node-head">
+              <NodeIcon icon={node.icon} size={48} />
+              <h3 className="gm-ascend__card-name">{node.name}</h3>
+            </div>
             <div className="gm-ascend__card-line">{node.line}</div>
             {node.desc !== '' && node.desc !== node.line && (
               <div className="gm-ascend__card-desc gm-muted">{node.desc}</div>

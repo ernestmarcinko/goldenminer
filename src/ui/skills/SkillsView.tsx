@@ -8,6 +8,7 @@ import {
   nodeVMs, pointsLine, pruneStaged, refundAffordable, refundTotalLine, resetLine, searchNodes,
   type SkillMode, type SkillNodeVM,
 } from './skillsView';
+import { NodeIcon } from './SkillIcon';
 import { Web } from './Web';
 import './skills.css';
 
@@ -162,7 +163,10 @@ export function SkillsView({ store }: { store: GameStore }) {
 
   const card = (node: SkillNodeVM) => (
     <section className="gm-skills__card" data-side={node.side}>
-      <h3 className="gm-skills__card-name">{node.name}</h3>
+      <div className="gm-node-head">
+        <NodeIcon icon={node.icon} size={48} />
+        <h3 className="gm-skills__card-name">{node.name}</h3>
+      </div>
       <div className="gm-skills__card-line">{node.line}</div>
       {node.desc !== '' && node.desc !== node.line && (
         <div className="gm-skills__card-desc gm-muted">{node.desc}</div>

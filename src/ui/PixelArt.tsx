@@ -42,6 +42,22 @@ function image(grid: readonly string[], palette: Record<string, string>, aura: s
   return canvas;
 }
 
+const dataUrls = new Map<string, string>();
+
+/** The grid as a cached PNG data URI (1 px per cell), for SVG `<image>` and HTML `<img>` icon renders. */
+export function iconDataUrl(grid: readonly string[], palette: Record<string, string>): string {
+  const key = `${grid.join('/')}|${JSON.stringify(palette)}`;
+  const hit = dataUrls.get(key);
+  if (hit !== undefined) return hit;
+  const url = image(grid, palette, undefined).toDataURL('image/png');
+  if (dataUrls.size >= CACHE_LIMIT) {
+    const oldest = dataUrls.keys().next().value;
+    if (oldest !== undefined) dataUrls.delete(oldest);
+  }
+  dataUrls.set(key, url);
+  return url;
+}
+
 /** Production draws a bad scale at the nearest whole size, at least 1, rather than blurring it. */
 export function pixelScale(scale: number): number {
   return Number.isFinite(scale) ? Math.max(1, Math.round(scale)) : 1;

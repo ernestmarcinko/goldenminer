@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { iconDataUrl } from '../PixelArt';
 import type { SkillNodeVM } from './skillsView';
 
 const VIEW_W = 1120;
@@ -6,8 +7,6 @@ const VIEW_H = 760;
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 2.5;
 const ZOOM_STEP = 1.25;
-
-const NODE_SIZE: Readonly<Record<SkillNodeVM['kind'], number>> = { start: 44, keystone: 40, notable: 32, small: 20 };
 
 interface Props {
   nodes: SkillNodeVM[];
@@ -207,40 +206,38 @@ export function Web({
               y2={e.y2}
             />
           ))}
-          {nodes.map((n) => {
-            const size = NODE_SIZE[n.kind];
-            const r = size / 2;
-            return (
-              <g
-                key={n.id}
-                className="gm-web__node"
-                data-side={n.side}
-                data-allocated={n.allocated}
-                data-kind={n.kind}
-                data-allocatable={n.allocatable || undefined}
-                data-refundable={n.refundable || undefined}
-                data-staged={n.staged || undefined}
-                data-refunding={n.refunding || undefined}
-                transform={`translate(${n.x} ${n.y})`}
-                onPointerDown={(e) => e.stopPropagation()}
-                onPointerEnter={() => enterNode(n.id)}
-                onPointerLeave={leaveNode}
-                onClick={() => onNode(n.id)}
-              >
-                {/* the click target is at least 44 px, even for a small node */}
-                <circle className="gm-web__hit" r={22} fill="transparent" />
-                {n.kind === 'keystone' ? (
-                  <rect className="gm-web__shape" x={-r} y={-r} width={size} height={size} rx={8} />
-                ) : (
-                  <circle className="gm-web__shape" r={r} />
-                )}
-                {(n.allocated || n.staged || n.refunding) && (
-                  <circle className="gm-web__core" r={Math.max(3, Math.round(size * 0.16))} />
-                )}
-                <title>{n.name}</title>
-              </g>
-            );
-          })}
+          {nodes.map((n) => (
+            <g
+              key={n.id}
+              className="gm-web__node"
+              data-side={n.side}
+              data-allocated={n.allocated}
+              data-kind={n.kind}
+              data-allocatable={n.allocatable || undefined}
+              data-refundable={n.refundable || undefined}
+              data-staged={n.staged || undefined}
+              data-refunding={n.refunding || undefined}
+              transform={`translate(${n.x} ${n.y})`}
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerEnter={() => enterNode(n.id)}
+              onPointerLeave={leaveNode}
+              onClick={() => onNode(n.id)}
+            >
+              {/* the click target is at least 44 px, even for a small node */}
+              <circle className="gm-web__hit" r={22} fill="transparent" />
+              <rect className="gm-web__halo" x={-24} y={-24} width={48} height={48} />
+              <image
+                className="gm-web__icon"
+                href={iconDataUrl(n.icon.grid, n.icon.palette)}
+                x={-24}
+                y={-24}
+                width={48}
+                height={48}
+                preserveAspectRatio="none"
+              />
+              <title>{n.name}</title>
+            </g>
+          ))}
         </g>
       </svg>
       {cardNode !== undefined && renderCard !== undefined && cardBox !== null && (
