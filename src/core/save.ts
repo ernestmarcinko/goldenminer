@@ -2,7 +2,8 @@ import { compressToBase64, decompressFromBase64 } from 'lz-string';
 import {
   BAG_SIZE, COMBAT_LOG_LIMIT, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, FINDS_LOG_LIMIT, GEM_BAG_STACK, GEM_STASH_STACK, LEVEL_CAP,
   MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_CRAFTED_LINES, MAX_DAMAGE, MAX_HELD, MAX_ITEM_LEVEL, MAX_LIFE,
-  MAX_LOOT_RULES, MAX_MAP_MODS, MAX_ROOMS, MAX_SIDE_LINES, MAX_SOCKETS, MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MAX_TRAIL_STEPS,
+  MAX_LOOT_RULES, MAX_MAP_MODS, MAX_PASSIVE_GEM_STACK, MAX_PASSIVE_MATERIAL_STACK, MAX_ROOMS, MAX_SIDE_LINES, MAX_SOCKETS,
+  MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MAX_TRAIL_STEPS,
   MONSTER_BUDGET, RUN_LOOT_LIMIT, START_GENERAL_PAGES, STASH_PAGE_SIZE, STOCK_SIZE, stashPagePrice,
 } from './balance';
 import { metreTier } from './bands';
@@ -410,13 +411,13 @@ function isSocketed(x: unknown): boolean {
 
 function isGemStack(x: unknown, nextId: number, seen: Set<number>): x is GemItem {
   if (!isObject(x) || x.type !== 'gem' || !isSocketed(x)) return false;
-  if (!isNonNegInt(x.count) || x.count < 1 || x.count > GEM_BAG_STACK) return false;
+  if (!isNonNegInt(x.count) || x.count < 1 || x.count > GEM_BAG_STACK + MAX_PASSIVE_GEM_STACK) return false;
   return isItemBase(x, nextId, seen, false);
 }
 
 function isMaterialStack(x: unknown, nextId: number, seen: Set<number>): boolean {
   if (!isObject(x) || x.type !== 'material' || !isMaterial(x.material)) return false;
-  if (!isNonNegInt(x.count) || x.count < 1 || x.count > MATERIAL_BAG_STACK) return false;
+  if (!isNonNegInt(x.count) || x.count < 1 || x.count > MATERIAL_BAG_STACK + MAX_PASSIVE_MATERIAL_STACK) return false;
   return isItemBase(x, nextId, seen, false);
 }
 

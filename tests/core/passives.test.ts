@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
 import {
-  PASSIVE_NODE_BY_ID, PASSIVE_NODES, START_NODE_ID, canAllocate, canRefund, pointsToSpend,
+  PASSIVE_NODE_BY_ID, PASSIVE_NODES, START_NODE_ID, canAllocate, canRefund, freeStashPages, pointsToSpend, stackCaps,
 } from '../../src/core/passives';
 
 it('the web is 140 nodes with one start, eight keystones and sixteen notables', () => {
@@ -53,4 +53,13 @@ it('a node refunds only while every other node stays connected to the start', ()
   expect(canRefund(s, ring2)).toBe(true);   // a leaf
   expect(canRefund(s, ring)).toBe(false);   // ring2 still depends on it
   expect(canRefund(s, 'nope')).toBe(false);
+});
+
+it('Gem Pouch and Ore Cart raise the bag stack caps, Deep Pockets the free pages', () => {
+  const s = newGame(1, 0);
+  expect(stackCaps(s)).toEqual({ gem: 25, material: 50 });
+  expect(freeStashPages(s)).toBe(0);
+  s.passives.allocated = ['gemPouch', 'oreCart', 'deepPockets'];
+  expect(stackCaps(s)).toEqual({ gem: 35, material: 75 });
+  expect(freeStashPages(s)).toBe(2);
 });

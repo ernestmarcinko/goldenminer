@@ -1,4 +1,4 @@
-import { GEM_BAG_STACK, GEM_STASH_STACK, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK } from './balance';
+import { GEM_STASH_STACK, MATERIAL_STASH_STACK } from './balance';
 import { firstEmpty, itemAt, mapTierCount, sameLoc } from './cells';
 import { craft } from './crafting';
 import { trail } from './dropLog';
@@ -8,6 +8,7 @@ import { fillAhead } from './metres';
 import { salvagePay, sellFind, stackIntoBag, stashMaterials } from './loot';
 import type { Loot } from './loot';
 import { putMap, takeMapAt } from './maps';
+import { stackCaps } from './passives';
 import { deriveStats } from './stats';
 import type { CraftResult, DropTarget, GameState, InvResult, ItemLoc } from './types';
 
@@ -72,7 +73,10 @@ function sameStack(a: Stack, b: Stack): boolean {
   return b.type === 'material' && a.material === b.material;
 }
 
-const bagStackCap = (item: Stack): number => (item.type === 'gem' ? GEM_BAG_STACK : MATERIAL_BAG_STACK);
+const bagStackCap = (state: GameState, item: Stack): number => {
+  const caps = stackCaps(state);
+  return item.type === 'gem' ? caps.gem : caps.material;
+};
 const tabStackCap = (item: Stack): number => (item.type === 'gem' ? GEM_STASH_STACK : MATERIAL_STASH_STACK);
 
 function tabLocOf(item: Stack): TabLoc {
@@ -121,7 +125,7 @@ function putInTab(state: GameState, from: ItemLoc, item: Stack): InvResult {
 
 /** Moves units from a bag or tab stack onto an identical bag stack, up to the bag stack cap. */
 function mergeStacks(state: GameState, from: ItemLoc, item: Stack, target: Stack): InvResult {
-  const room = bagStackCap(target) - target.count;
+  const room = bagStackCap(state, target) - target.count;
   if (room <= 0) return 'stackFull';
   const n = Math.min(room, item.count);
   target.count += n;
@@ -189,7 +193,7 @@ export function moveItem(state: GameState, from: ItemLoc, to: ItemLoc): InvResul
   if (isTabLoc(from)) {
     if (!isStack(item)) return 'invalid';
     if (target === undefined) {
-      const n = Math.min(bagStackCap(item), item.count);
+      const n = Math.min(bagStackCap(state, item), item.count);
       writeCell(state, to, newStack(state, item, n));
       removeUnits(state, from, item, n);
       return 'ok';
@@ -302,7 +306,7 @@ export function salvage(state: GameState, from: ItemLoc): InvResult {
 
 /** Up to a bag stack of a tab stack goes into the bag: existing stacks are topped up first, then one new cell. */
 function takeStack(state: GameState, from: TabLoc, item: Stack): InvResult {
-  const total = Math.min(bagStackCap(item), item.count);
+  const total = Math.min(bagStackCap(state, item), item.count);
   const left = stackIntoBag(state, item, total, 1, (n) => newStack(state, item, n));
   if (left === total) return 'bagFull';
   removeUnits(state, from, item, total - left);

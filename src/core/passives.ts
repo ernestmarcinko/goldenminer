@@ -1,3 +1,4 @@
+import { GEM_BAG_STACK, MATERIAL_BAG_STACK } from './balance';
 import type { StatKey } from './items';
 import type { GameState } from './types';
 
@@ -335,4 +336,15 @@ export function passiveTotals(state: Pick<GameState, 'passives'>): PassiveTotals
 /** Whether a keystone is allocated (its node is). */
 export function hasKeystone(state: Pick<GameState, 'passives'>, id: KeystoneId): boolean {
   return passiveTotals(state).keystones.has(id);
+}
+
+/** What a bag cell holds of a gem or material stack, raised by the web (Gem Pouch, Ore Cart). */
+export function stackCaps(state: Pick<GameState, 'passives'>): { gem: number; material: number } {
+  const p = passiveTotals(state);
+  return { gem: GEM_BAG_STACK + p.gemStack, material: MATERIAL_BAG_STACK + p.materialStack };
+}
+
+/** The free General pages the web grants (Deep Pockets), on top of the free and bought pages. */
+export function freeStashPages(state: Pick<GameState, 'passives'>): number {
+  return passiveTotals(state).stashPages;
 }

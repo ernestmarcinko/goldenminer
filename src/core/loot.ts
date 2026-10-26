@@ -1,6 +1,6 @@
 import {
-  GEM_BAG_STACK, GEM_GRADE_LEVEL, GEM_SALVAGE_TIN, GEM_SELL_GOLD, GEM_STASH_STACK, MAP_RARITY_SELL, MAP_SALVAGE, MAP_SELL_GOLD,
-  MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_HELD, SALVAGE_MATERIALS, SELL_GOLD,
+  GEM_GRADE_LEVEL, GEM_SALVAGE_TIN, GEM_SELL_GOLD, GEM_STASH_STACK, MAP_RARITY_SELL, MAP_SALVAGE, MAP_SELL_GOLD,
+  MATERIAL_STASH_STACK, MAX_HELD, SALVAGE_MATERIALS, SELL_GOLD,
 } from './balance';
 import { firstEmpty } from './cells';
 import { logDrop, trail } from './dropLog';
@@ -8,6 +8,7 @@ import { itemName, MATERIAL_LABELS } from './itemData';
 import { MATERIALS } from './items';
 import { ruleMatches } from './lootFilter';
 import { putMap } from './maps';
+import { stackCaps } from './passives';
 import type { Cell, GearItem, Gem, GemItem, Item, MapItem, Material, MaterialItem, Stack } from './items';
 import { deriveStats } from './stats';
 import type { DropOrigin, GameState, LootAction, LootNote, LootOutcome, LootRule, Stats, TrailStep } from './types';
@@ -129,7 +130,10 @@ function tally(state: GameState, notes: LootNote[]): LootNote[] {
 // The kind of a stack: what decides whether two stacks are one.
 type StackKind = Pick<GemItem, 'type' | 'gem' | 'grade'> | Pick<MaterialItem, 'type' | 'material'>;
 
-const bagCap = (kind: StackKind): number => (kind.type === 'gem' ? GEM_BAG_STACK : MATERIAL_BAG_STACK);
+const bagCap = (state: GameState, kind: StackKind): number => {
+  const caps = stackCaps(state);
+  return kind.type === 'gem' ? caps.gem : caps.material;
+};
 
 function sameKind(kind: StackKind, c: Cell): c is Stack {
   return kind.type === 'gem'
@@ -154,7 +158,7 @@ function stacksOf(state: GameState, item: Stack): (count: number) => Stack {
 export function stackIntoBag(
   state: GameState, kind: StackKind, count: number, cells: number, open: (count: number) => Stack,
 ): number {
-  const cap = bagCap(kind);
+  const cap = bagCap(state, kind);
   let left = count;
   for (const c of state.bag) {
     if (left === 0) break;
@@ -177,7 +181,7 @@ export function stackIntoBag(
 function holdStack(state: GameState, kind: StackKind, count: number, open: (count: number) => Stack): number {
   let left = count;
   while (left > 0 && state.overflow.length < MAX_HELD) {
-    const take = Math.min(bagCap(kind), left);
+    const take = Math.min(bagCap(state, kind), left);
     state.overflow.push(open(take));
     left -= take;
   }

@@ -106,7 +106,7 @@ it('rejects impossible inventories', () => {
     ['a bag of 61 cells', (s) => { s.bag.push(null); }],
     ['a bag of 59 cells', (s) => { s.bag.pop(); }],
     ['a General tab of 121 cells', (s) => { s.stash.general.push(null); }],
-    ['a stack of 26', (s) => { s.bag[1] = gem(s, 'ruby', { count: 26 }); }],
+    ['a stack of 36', (s) => { s.bag[1] = gem(s, 'ruby', { count: 36 }); }],
     ['an empty stack', (s) => { s.bag[1] = gem(s, 'ruby', { count: 0 }); }],
     ['an empty material stack', (s) => { s.bag[1] = { id: s.nextId++, type: 'material', material: 'tin', count: 0 }; }],
     ['an unknown material', (s) => { s.bag[1] = { id: s.nextId++, type: 'material', material: 'gold' as never, count: 1 }; }],
@@ -135,7 +135,7 @@ it('rejects impossible inventories', () => {
     ['too many loot rules', (s) => { for (let i = 0; i < MAX_LOOT_RULES + 1; i++) s.settings.lootFilter.push({ kind: 'gem', action: 'keep' }); }],
     ['a find without an id', (s) => { s.finds.push({ depth: 0, kind: 'chest', amount: 0, tick: 0 } as FindRecord); }],
     ['61 held items', (s) => { for (let i = 0; i < MAX_HELD + 1; i++) s.overflow.push(gear(s, 'pickaxe')); }],
-    ['a held gem stack of 26', (s) => { s.overflow.push(gem(s, 'ruby', { count: 26 })); }],
+    ['a held gem stack of 36', (s) => { s.overflow.push(gem(s, 'ruby', { count: 36 })); }],
   ];
   for (const [name, mutate] of cases) {
     const s = stocked();
@@ -519,7 +519,7 @@ it('the validator holds the schema-6 shape', () => {
   expect(bad((s) => { s.stash.general = s.stash.general.slice(0, 60); })).toBe(false);  // fewer than 2 pages
   expect(bad((s) => { s.stash.maps[1] = [gear(s, 'pickaxe')]; })).toBe(false);          // gear in the Maps tab
   expect(bad((s) => { s.stash.general[0] = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] }; })).toBe(false);
-  expect(bad((s) => { s.bag[0] = { id: s.nextId++, type: 'material', material: 'copper', count: 51 }; })).toBe(false);
+  expect(bad((s) => { s.bag[0] = { id: s.nextId++, type: 'material', material: 'copper', count: 76 }; })).toBe(false);
   expect(bad((s) => { s.stash.materials.copper = 1_000_001; })).toBe(false);
   expect(bad((s) => { const m = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] }; s.bag[0] = m; s.stash.maps[1] = [{ ...m }]; })).toBe(false); // duplicate id
   expect(bad((s) => { s.stash.bought.general = 3; })).toBe(false);                       // more bought than the 2 pages held
@@ -1065,4 +1065,20 @@ it('the validator refuses a broken web', () => {
   tooMany.level = 2;
   tooMany.passives.allocated = [ring1, ring2];   // more nodes than level - 1
   expect(decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: tooMany })).ok).toBe(false);
+});
+
+it('a stack over the base cap but under the passive ceiling is a valid save', () => {
+  const s = newGame(1, 0);
+  const g = gem(s);
+  g.count = 35;
+  s.bag[0] = g;
+  expect(decodeSave(encodeSave(s, 1)).ok).toBe(true);
+  g.count = 36;
+  s.bag[0] = g;
+  expect(decodeSave(encodeSave(s, 1)).ok).toBe(false);
+  const m = { id: s.nextId++, type: 'material' as const, material: 'copper' as const, count: 75 };
+  s.bag[0] = m;
+  expect(decodeSave(encodeSave(s, 1)).ok).toBe(true);
+  m.count = 76;
+  expect(decodeSave(encodeSave(s, 1)).ok).toBe(false);
 });

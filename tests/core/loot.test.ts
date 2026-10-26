@@ -599,3 +599,14 @@ it('salvage yield raises each material salvage gives, rounded', () => {
   expect(receiveItem(s, gear(s, 'ring', { rarity: 'rare', ilvl: 10 }), HERE)).toEqual([expect.objectContaining({ outcome: 'salvaged', value: 36 })]);
   expect(s.stash.materials.copper).toBe(36);
 });
+
+it('a gem stacks to the passive cap', () => {
+  const s = newGame(1, 0);
+  s.passives.allocated = ['gemPouch'];   // adjacency is not checked by receiveItem
+  const existing = gem(s);
+  existing.count = 34;
+  s.bag[0] = existing;
+  receiveItem(s, gem(s), HERE);
+  const stack = s.bag[0];
+  expect(stack?.type === 'gem' && stack.count).toBe(35);
+});
