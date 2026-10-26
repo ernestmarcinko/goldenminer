@@ -70,7 +70,7 @@ export function AscensionView({ store }: { store: GameStore }) {
       <div className="gm-ascend__legend" aria-hidden="true">
         <span className="gm-legend"><i className="gm-legend__dot gm-legend__dot--small" />small: +stat</span>
         <span className="gm-legend"><i className="gm-legend__dot gm-legend__dot--notable" />notable: named bonus</span>
-        <span className="gm-legend gm-muted">drag to pan · wheel to zoom</span>
+        <span className="gm-legend gm-muted">drag to pan · wheel or +/− to zoom</span>
       </div>
       <Web
         nodes={vms}
@@ -78,6 +78,7 @@ export function AscensionView({ store }: { store: GameStore }) {
         onHover={(id) => setSelected(id === null ? null : (byId.get(id) ?? null))}
         focusId={null}
         focusNonce={0}
+        label="Ascendancy tree"
       />
       <div className="gm-ascend__footer">
         {selected !== null && (

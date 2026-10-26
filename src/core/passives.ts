@@ -129,7 +129,7 @@ interface ChainDef {
 
 const START_X = 560;
 const START_Y = 400;
-const RING_GAP = 40;
+const RING_GAP = 72;
 
 const CHAINS: ChainDef[] = [
   // mining: upper-left, left, lower-left, plus two short branches
@@ -151,9 +151,9 @@ const CHAINS: ChainDef[] = [
   { side: 'battle', angle: 27, parent: { chain: 5, ring: 3 }, items: ['s', deadlyAim] },
   { side: 'battle', angle: 333, parent: { chain: 7, ring: 3 }, items: ['s', treasureHunter] },
   // hybrid: the bottom
-  { side: 'hybrid', angle: 250, items: ['s', 's', 's', 's', 's', 's', 's', 's', 's',
+  { side: 'hybrid', angle: 255, items: ['s', 's', 's', 's', 's', 's', 's', 's', 's',
     lampAndBlade, gemPouch, deepPockets, surveyor] },
-  { side: 'hybrid', angle: 290, items: ['s', 's', 's', 's', 's', 's', 's', 's', 's', 's',
+  { side: 'hybrid', angle: 285, items: ['s', 's', 's', 's', 's', 's', 's', 's', 's', 's',
     wellRested, sureFooting, careful, oreCart, twoWayStreet] },
 ];
 
@@ -197,7 +197,8 @@ function buildWeb(): PassiveNode[] {
   };
 
   for (const [ci, chain] of CHAINS.entries()) {
-    let ring = 1;
+    // A branch starts one ring outside the node it forks from, so its first edge is a normal one-ring step.
+    let ring = (chain.parent?.ring ?? 0) + 1;
     for (const item of chain.items) {
       if (item === 's') {
         const s = takeSmall(chain.side);
@@ -229,18 +230,15 @@ function buildWeb(): PassiveNode[] {
   };
   for (const p of placed) {
     const chain = chainDef(p.chain);
-    if (chain.parent !== undefined) {
+    if (chain.parent !== undefined && p.ring === chain.parent.ring + 1) {
       const parent = chainAt(chain.parent.chain, chain.parent.ring);
       if (parent !== undefined) link(p, parent.id);
-    } else if (p.ring === 1) {
+    } else if (chain.parent === undefined && p.ring === 1) {
       link(p, START_NODE_ID);
     } else {
+      // One parent per node: each chain is a spoke from the start (or a branch off its parent ring), never a mesh.
       const prev = chainAt(p.chain, p.ring - 1);
       if (prev !== undefined) link(p, prev.id);
-      if (p.chain > 0 && chainDef(p.chain - 1).side === chain.side) {
-        const cross = chainAt(p.chain - 1, p.ring - 1);
-        if (cross !== undefined) link(p, cross.id);
-      }
     }
   }
   // symmetric links: every link a -> b is also b -> a

@@ -31,6 +31,25 @@ it('links are symmetric, ids unique, and the start never links to itself', () =>
   expect(PASSIVE_NODE_BY_ID.get(START_NODE_ID)?.links.includes(START_NODE_ID)).toBe(false);
 });
 
+it('the web is a tree, not a mesh: 140 edges for 141 nodes, rooted at the start', () => {
+  const edges = new Set<string>();
+  for (const n of PASSIVE_NODES) {
+    for (const l of n.links) edges.add(n.id < l ? `${n.id}|${l}` : `${l}|${n.id}`);
+  }
+  expect(edges.size).toBe(PASSIVE_NODES.length - 1);
+});
+
+it('linked nodes are at least one ring apart, so the web reads as spokes and branches', () => {
+  for (const n of PASSIVE_NODES) {
+    for (const l of n.links) {
+      const m = PASSIVE_NODE_BY_ID.get(l);
+      if (m === undefined) continue;
+      const distance = Math.hypot(n.x - m.x, n.y - m.y);
+      expect(distance, `${n.id} -> ${l}`).toBeGreaterThanOrEqual(70);
+    }
+  }
+});
+
 it('points are level minus one, minus what is spent', () => {
   const s = newGame(1, 0);
   expect(pointsToSpend(s)).toBe(0);

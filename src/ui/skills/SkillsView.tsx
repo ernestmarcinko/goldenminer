@@ -80,7 +80,7 @@ export function SkillsView({ store }: { store: GameStore }) {
         <span className="gm-legend"><i className="gm-legend__dot gm-legend__dot--small" />small: +stat</span>
         <span className="gm-legend"><i className="gm-legend__dot gm-legend__dot--notable" />notable: named bonus</span>
         <span className="gm-legend"><i className="gm-legend__dot gm-legend__dot--keystone" />keystone: changes a rule</span>
-        <span className="gm-legend gm-muted">drag to pan · wheel to zoom</span>
+        <span className="gm-legend gm-muted">drag to pan · wheel or +/− to zoom</span>
       </div>
       <Web nodes={vms} onNode={pick} onHover={(id) => setSelected(id === null ? null : (byId.get(id) ?? null))} focusId={focus?.id ?? null} focusNonce={focus?.n ?? 0} />
       <div className="gm-skills__footer">
