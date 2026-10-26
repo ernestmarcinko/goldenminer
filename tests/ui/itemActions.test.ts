@@ -589,4 +589,11 @@ it('Buy runs through the store', () => {
   expect(store.state.gold).toBe(0);
   expect(runAction(store, t, buy)).toBe('invalid');
   expect(runAction(store, { where: 'stock', index: 1 }, buy)).toBe('invalid');   // no Gold left
+
+  // anything but Buy on a stock item is refused, even an action the card never offers
+  const before = structuredClone(store.state);
+  for (const id of ['run', 'sell', 'salvage', 'equip', 'toStash', 'toBag'] as const) {
+    expect(runAction(store, { where: 'stock', index: 2 }, { id, label: id, disabled: false })).toBe('invalid');
+  }
+  expect(store.state).toEqual(before);
 });

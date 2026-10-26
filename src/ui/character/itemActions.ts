@@ -244,6 +244,8 @@ export function hoverLines(item: Item): ViewLine[] {
 export function runAction(store: GameStore, target: ItemTarget, action: ActionSpec): InvResult {
   const item = itemAt(store.state, target);
   if (item === undefined) return 'invalid';
+  // a stock item can only be bought: its id belongs to the stock, not to the player's items
+  if (target.where === 'stock' && action.id !== 'buy') return 'invalid';
   switch (action.id) {
     case 'equip': return store.equip(target);
     case 'unequip': return target.where === 'worn' ? store.unequip(target.slot) : 'invalid';

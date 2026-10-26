@@ -72,7 +72,7 @@ export function stockPrice(item: StockItem): number {
 }
 
 /** The slots bought in the current band; a record from an earlier band no longer counts. */
-export function boughtIn(state: GameState): number[] {
+export function boughtIn(state: GameState): readonly number[] {
   return state.merchant.band === stockBand(state) ? state.merchant.bought : [];
 }
 
