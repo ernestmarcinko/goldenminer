@@ -1,7 +1,8 @@
 export type SpriteName = 'miner' | 'coin' | 'diamond' | 'chest' | 'map' | 'gem' | 'ruby'
   | 'sapphire' | 'emerald' | 'amethyst' | 'starstone'
   | 'pickaxe' | 'lamphelm' | 'gloves' | 'boots' | 'maul' | 'armor' | 'helm' | 'ring' | 'amulet'
-  | 'copper' | 'tin' | 'iron' | 'silver' | 'mithril' | 'starsteel' | 'obsidian' | 'voidCrystal';
+  | 'copper' | 'tin' | 'iron' | 'silver' | 'mithril' | 'starsteel' | 'obsidian' | 'voidCrystal'
+  | 'brannoc' | 'mirela';
 
 export const PALETTE: Record<string, string> = { k: '#1b1410', w: '#8a5a32', W: '#b07a45', s: '#9aa4ad', S: '#d5dde3', g: '#e8b44a', G: '#f5d68a', o: '#b8741c', r: '#c8453a', R: '#ff8a7a', b: '#3f6fc8', c: '#7fd3e8', C: '#c9f1fa', l: '#6b4429', L: '#9a6a40', y: '#ffe08a', p: '#d9c39a', P: '#a88d5c', v: '#8a6fe0', n: '#e0b08a', d: '#3b3550', D: '#5a5278', m: '#5f8a6a', M: '#8fb89a' };
 
@@ -39,6 +40,60 @@ export const GRIDS: Record<SpriteName, string[]> = {
   starsteel: ORE,
   obsidian: SHARD,
   voidCrystal: SHARD,
+  // the merchants' portraits, 16 × 24: Brannoc broad, with a brown beard, a green coat and a pack on his back
+  brannoc: [
+    '................',
+    '.....kkkkkk.....',
+    '....kwwwwwwk....',
+    '...kwwWwwWwwk...',
+    '...kwnnnnnnwk...',
+    '...knnnnnnnnk...',
+    '...knkknnkknk...',
+    '...knnnnnnnnk...',
+    '...kwnnWWnnwk...',
+    '...kwWwwwwWwk...',
+    '.ll.kwWkkWwk.ll.',
+    'lLlkkwWWWWwkklLl',
+    'lLlmkwWWWWwkmlLl',
+    'lLlmmkwWWwkmmlLl',
+    'lLlmMmkwwkmMmlLl',
+    'lLlmMmmkkmmMmlLl',
+    'lLlmMmmmmmmMmlLl',
+    'lLlmMmmmgmmMmlLl',
+    'lLlmMmmmmmmMmlLl',
+    'lLlllllgglllllLl',
+    'lLlmMmmmmmmMmlLl',
+    'lLlmMmmmgmmMmlLl',
+    'lLlmMmmmmmmMmlLl',
+    'lLlmMmmmmmmMmlLl',
+  ],
+  // Old Mirela: grey hair, a purple shawl over a dark dress, and a cane
+  mirela: [
+    '....kkkkk.......',
+    '..kkSSSSSkk.....',
+    '.kSSsSSSsSSk....',
+    '.kSsnnnnnsSk....',
+    '.kSnnnnnnnSk....',
+    '.ksnkknkknsk....',
+    '.ksnnnnnnnsk.LLL',
+    '.ksnnnWnnnsk.L.L',
+    '.kssnnnnnssk...L',
+    '.kssnnknnssk...L',
+    '.kvssnnnssvk...L',
+    'kvvvvsnsvvvvk..L',
+    'kvDvvvvvvvDvk..L',
+    'kvDvvvvvvvDvvnnL',
+    'kvvDvvvvvDvvk..L',
+    'kdvdvdvdvdvdk..L',
+    'kDdddddddddDk..L',
+    '.kDdddddddDk...L',
+    '.kDdddddddDk...L',
+    '.kDdddddddDk...L',
+    '.kDdddddddDk...L',
+    '.kDdddddddDk...L',
+    '.kDdddddddDk...L',
+    '.kkkkkkkkkkk...k',
+  ],
 };
 
 export const PALETTE_OVERRIDES: Partial<Record<SpriteName, Record<string, string>>> = {

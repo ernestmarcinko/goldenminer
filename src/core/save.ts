@@ -3,7 +3,7 @@ import {
   BAG_SIZE, COMBAT_LOG_LIMIT, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, FINDS_LOG_LIMIT, GEM_BAG_STACK, GEM_STASH_STACK, LEVEL_CAP,
   MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_CRAFTED_LINES, MAX_DAMAGE, MAX_HELD, MAX_ITEM_LEVEL, MAX_LIFE,
   MAX_LOOT_RULES, MAX_MAP_MODS, MAX_ROOMS, MAX_SIDE_LINES, MAX_SOCKETS, MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MAX_TRAIL_STEPS,
-  MONSTER_BUDGET, RUN_LOOT_LIMIT, START_GENERAL_PAGES, STASH_PAGE_SIZE, stashPagePrice,
+  MONSTER_BUDGET, RUN_LOOT_LIMIT, START_GENERAL_PAGES, STASH_PAGE_SIZE, STOCK_SIZE, stashPagePrice,
 } from './balance';
 import { metreTier } from './bands';
 import { emptyGemCounts, emptyMaterialCounts, pageCount } from './cells';
@@ -11,21 +11,23 @@ import { dungeonIndexAt, dungeonType } from './dungeons';
 import { gemGradeFor, itemName } from './itemData';
 import { sideCount } from './itemGen';
 import { sellValue } from './loot';
+import { isOldLootFilter, migrateLootFilter, ruleValid } from './lootFilter';
 import {
-  BATTLE_STATS, GEAR_SETS, GEM_GRADES, GEM_TYPES, MAP_MOD_KINDS, MATERIALS, MINING_STATS, MOD_SIDE, RARITIES, setOfSlot, slotsOf,
-  statsOf,
+  BATTLE_STATS, GEAR_SETS, GEM_GRADES, GEM_TYPES, MAP_MOD_KINDS, MAP_SPECIALS, MATERIALS, MINING_STATS, MOD_SIDE, RARITIES, setOfSlot,
+  slotsOf, statsOf,
 } from './items';
 import type { Cell, GearItem, GearSet, GemItem, GemType, MapItem, MapMod, MapRarity, ModLine, Slot, StatKey } from './items';
 import { xpToNext } from './levels';
+import { hash2 } from './rng';
 import { isValidSeedText, seedFromText } from './seed';
 import { speciesOf } from './species';
 import { tierFor } from './tiers';
 import {
-  CHAMPION_MODS, DEFAULT_MOTION, ELEMENTS, FEATURE_KINDS, FIND_KINDS, LOOT_ACTIONS, LOOT_OUTCOMES, RANKS, RUN_OUTCOMES,
-  SHAFT_MOTIONS, TRAIL_EVENTS, type DropEntry, type GameState,
+  CHAMPION_MODS, DEFAULT_MOTION, ELEMENTS, FEATURE_KINDS, FIND_KINDS, LOOT_ACTIONS, LOOT_KINDS, LOOT_OUTCOMES, RANKS, RUN_OUTCOMES,
+  SHAFT_MOTIONS, TRAIL_EVENTS, type DropEntry, type GameState, type LootRule,
 } from './types';
 
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
@@ -246,6 +248,22 @@ export const MIGRATIONS: Record<number, Migration> = {
       paused: false, drops: drops.slice(-DROP_LOG_LIMIT), deaths: [],
     };
   },
+  9: (state) => {
+    if (
+      !isObject(state) || !isObject(state.settings) || !isOldLootFilter(state.settings.lootFilter) || !isUint32(state.rng) ||
+      !isObject(state.activity)
+    ) return state;
+    // Each old rule becomes the rules that act as it did; the Trader has sold nothing yet, and the uniques get their own stream.
+    const next: Record<string, unknown> = {
+      ...state,
+      settings: { ...state.settings, lootFilter: migrateLootFilter(state.settings.lootFilter) },
+      merchant: { band: 0, bought: [] },
+      uniqueRng: hash2(state.rng, 0xa11e),
+    };
+    const { activity } = state;
+    if (activity.kind === 'map' && isObject(activity.run)) next.activity = { ...activity, run: { ...activity.run, strikes: 0 } };
+    return next;
+  },
 };
 
 const ALL_STATS: readonly StatKey[] = [...MINING_STATS, ...BATTLE_STATS];
@@ -322,7 +340,6 @@ function isMetreRoll(x: unknown): boolean {
 }
 
 const ITEM_RARITIES: readonly string[] = [...RARITIES, 'gem'];
-const LOOT_TARGETS: readonly string[] = [...GEAR_SETS, 'gem', 'any'];
 const ALL_SLOTS: readonly string[] = GEAR_SETS.flatMap((set) => slotsOf(set));
 const isIn = (list: readonly string[], x: unknown): boolean => typeof x === 'string' && list.includes(x);
 const isIdBelow = (x: unknown, nextId: number): x is number => isNonNegInt(x) && x >= 1 && x < nextId;
@@ -485,19 +502,45 @@ function isMotion(x: unknown): boolean {
   );
 }
 
+// The highest tier a rule may name: an item's level, a map's tier or a line's tier, which may sit over the cap.
+const MAX_RULE_LEVEL = MAX_ITEM_LEVEL + MAX_TIER_OVER_CAP;
+// The most modifiers a rule may count: far past what any item holds.
+const MAX_RULE_MODS = 20;
+const LOOT_RULE_KEYS: readonly string[] = [
+  'kind', 'action', 'set', 'slot', 'rarity', 'level', 'modTier', 'mods', 'mapMod', 'gem', 'grade', 'material',
+];
+const isUpTo = (x: unknown, max: number): boolean => isNonNegInt(x) && x <= max;
+const isOptional = (x: unknown, check: (x: unknown) => boolean): boolean => x === undefined || check(x);
+
+// An inclusive range with no keys but its own, each end a whole number up to `max`.
+function isLootRange(x: unknown, max: number): boolean {
+  return (
+    isObject(x) && Object.keys(x).every((k) => k === 'min' || k === 'max') &&
+    isOptional(x.min, (n) => isUpTo(n, max)) && isOptional(x.max, (n) => isUpTo(n, max))
+  );
+}
+
+// A rule has no keys but its own, each of its type, and ruleValid must hold: no field that could never match its kind.
+function isLootRule(x: unknown): x is LootRule {
+  if (!isObject(x) || !Object.keys(x).every((k) => LOOT_RULE_KEYS.includes(k))) return false;
+  if (!(x.kind === 'any' || isIn(LOOT_KINDS, x.kind)) || !isIn(LOOT_ACTIONS, x.action)) return false;
+  const fields = isOptional(x.set, (v) => isIn(GEAR_SETS, v)) && isOptional(x.slot, (v) => isIn(ALL_SLOTS, v)) &&
+    isOptional(x.rarity, (v) => isIn(RARITIES, v)) && isOptional(x.level, (v) => isLootRange(v, MAX_RULE_LEVEL)) &&
+    isOptional(x.modTier, (v) => isUpTo(v, MAX_RULE_LEVEL)) && isOptional(x.mods, (v) => isLootRange(v, MAX_RULE_MODS)) &&
+    isOptional(x.mapMod, (v) => isIn(MAP_MOD_KINDS, v)) && isOptional(x.gem, (v) => isIn(GEM_TYPES, v)) &&
+    isOptional(x.grade, (v) => isIn(GEM_GRADES, v)) && isOptional(x.material, isMaterial);
+  return fields && ruleValid(x as unknown as LootRule);
+}
+
 function isSettings(x: unknown): boolean {
   if (!isObject(x) || !isMotion(x.motion)) return false;
-  return (
-    Array.isArray(x.lootFilter) &&
-    x.lootFilter.length <= MAX_LOOT_RULES &&
-    x.lootFilter.every(
-      (r) =>
-        isObject(r) &&
-        (r.rarity === 'any' || isIn(RARITIES, r.rarity)) &&
-        (isIn(LOOT_TARGETS, r.target) || isIn(ALL_SLOTS, r.target)) &&
-        isIn(LOOT_ACTIONS, r.action),
-    )
-  );
+  return Array.isArray(x.lootFilter) && x.lootFilter.length <= MAX_LOOT_RULES && x.lootFilter.every(isLootRule);
+}
+
+// The Trader's bought record: the band it was bought in, and each stock slot bought at most once.
+function isMerchant(x: unknown): boolean {
+  if (!isObject(x) || !isNonNegInt(x.band) || !Array.isArray(x.bought) || x.bought.length > STOCK_SIZE) return false;
+  return x.bought.every((i) => isUpTo(i, STOCK_SIZE - 1)) && new Set(x.bought).size === x.bought.length;
 }
 
 const MAP_MOD_KEYS: readonly string[] = ['kind', 'tier', 'value'];
@@ -518,6 +561,7 @@ function isMapItem(x: unknown, nextId: number, seen: Set<number>): x is MapItem 
   const tier = x.tier as number;
   if (!x.mods.every((m) => isMapMod(m, tier)) || new Set(x.mods.map((m: MapMod) => m.kind)).size !== x.mods.length) return false;
   if (x.sealed !== undefined && x.sealed !== true) return false;
+  if (!isOptional(x.special, (v) => isIn(MAP_SPECIALS, v))) return false;
   return isItemBase(x, nextId, seen, false);
 }
 
@@ -557,13 +601,18 @@ function isCombatLine(x: unknown): boolean {
   if (!isObject(x)) return false;
   const named = typeof x.monster === 'string' && x.monster.length >= 1 && x.monster.length <= 80;
   switch (x.kind) {
-    case 'hit': return named && isNonNegInt(x.amount) && typeof x.crit === 'boolean' && typeof x.click === 'boolean';
+    case 'hit': {
+      // a hit logged before maps lost their clicks still says whether it was one
+      const click = x.click === undefined || typeof x.click === 'boolean';
+      return named && isNonNegInt(x.amount) && typeof x.crit === 'boolean' && click;
+    }
     case 'hurt':
     case 'heal': return named && isNonNegInt(x.amount);
     case 'kill': return named && isNonNegInt(x.xp) && isNonNegInt(x.souls);
     case 'room': return isNonNegInt(x.room) && x.room >= 1;
     case 'level': return isNonNegInt(x.level) && x.level >= 1 && x.level <= LEVEL_CAP;
     case 'drop': return isLootNote(x.note);
+    case 'saved': return named;
     default: return false;
   }
 }
@@ -582,6 +631,7 @@ function isMapRun(x: unknown, seed: number, nextId: number, seen: Set<number>): 
   if (!isNonNegInt(x.life) || x.life < 1 || x.life > MAX_LIFE) return false;
   if (!isUnitRange(x.hitCarry) || !isUnitRange(x.monsterCarry) || !isUnitRange(x.regenCarry)) return false;
   if (!isGains(x.gained) || !isNonNegInt(x.items)) return false;
+  if (!isNonNegInt(x.strikes) || (x.saved !== undefined && x.saved !== true)) return false;
   if (!Array.isArray(x.log) || x.log.length > COMBAT_LOG_LIMIT || !x.log.every(isCombatLine)) return false;
   return Array.isArray(x.loot) && x.loot.length <= RUN_LOOT_LIMIT && x.loot.every(isLootNote);
 }
@@ -684,6 +734,7 @@ export function validateState(x: unknown): x is GameState {
   if (!isObject(x.mapTally) || !isNonNegInt(x.mapTally.cleared) || !isNonNegInt(x.mapTally.lost)) return false;
   if (!Array.isArray(x.finds) || x.finds.length > FINDS_LOG_LIMIT || !x.finds.every((f) => isFindRecord(f, nextId))) return false;
   if (typeof x.paused !== 'boolean' || !isDropLog(x.drops, nextId)) return false;
+  if (!isMerchant(x.merchant) || !isUint32(x.uniqueRng)) return false;
   const { seed } = x;
   return Array.isArray(x.deaths) && x.deaths.length <= DEATH_LOG_LIMIT && x.deaths.every((d) => isDeathEntry(d, seed, nextId));
 }

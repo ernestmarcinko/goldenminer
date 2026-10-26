@@ -24,6 +24,7 @@ const targetKey = (t: ItemTarget): string => {
     case 'maps': return `maps-${t.tier}-${t.index}`;
     case 'gems': return `gems-${t.gem}-${t.grade}`;
     case 'materials': return `materials-${t.material}`;
+    case 'stock': return `stock-${t.index}`;
   }
 };
 

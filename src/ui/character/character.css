@@ -121,6 +121,7 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-card__line[data-tone='down'] { color: var(--gm-down); }
 .gm-card__line[data-tone='gem'] { color: var(--gm-gem); }
 .gm-card__line[data-tone='muted'] { color: var(--gm-muted); }
+.gm-card__line[data-tone='special'] { color: var(--gm-legendary); }
 .gm-card__compare { display: flex; flex-direction: column; gap: 2px; padding-top: 6px; border-top: 1px solid var(--gm-line); font-size: 12px; }
 .gm-card__note { font-size: 11px; color: #8f877d; }
 .gm-card__actions { display: flex; flex-direction: column; gap: 4px; padding-top: 6px; border-top: 1px solid var(--gm-line); }
@@ -151,25 +152,97 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-mattab__cell > .gm-cell { height: 100%; }
 .gm-mattab__name { font-size: 12px; line-height: 1.2; color: var(--gm-muted); text-align: center; overflow-wrap: anywhere; }
 
-.gm-rules { display: flex; flex-direction: column; gap: 8px; }
-.gm-rule { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; border-radius: 8px; background: #241e19; }
-.gm-rule__n { width: 16px; font-family: var(--gm-font-mono); font-size: 12px; color: var(--gm-muted); }
-.gm-rule__select {
-  flex: 1 1 110px; min-width: 0; min-height: 44px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--gm-line);
-  background: var(--gm-ground); color: var(--gm-text); font: inherit;
+/* The loot filter: the dialog sits at the top of the screen, so a row added under the list moves nothing above it. */
+.gm-overlay.gm-overlay--top { align-items: flex-start; }
+/*
+ * Only the list scrolls while everything fits: the head and the editor stay put. On a screen too short for two rows
+ * of list and the whole editor, the dialog scrolls as well; neither scroll moves a thing when a control is used.
+ */
+.gm-dialog.gm-dialog--rules {
+  max-width: 800px; display: flex; flex-direction: column; gap: 12px; overflow: hidden auto; overflow-anchor: none;
 }
-.gm-rule__select[aria-label='Item'] { flex-basis: 120px; }
-.gm-rule__select[aria-label='Action'] { flex-basis: 170px; }
-.gm-dialog.gm-dialog--rules { max-width: 680px; }
-.gm-rule__btns { display: flex; gap: 4px; margin-left: auto; }
+.gm-dialog__head.gm-rules__head { flex-wrap: wrap; row-gap: 0; }
+.gm-rules__head-btns { display: flex; gap: 8px; }
+/* a line of its own under the buttons, so Add rule stays where it was when it shows */
+.gm-rules__full { flex-basis: 100%; margin: 0; text-align: right; color: var(--gm-muted); font-size: 14px; line-height: 24px; }
+.gm-rules__scroll { flex: 1 1 auto; min-height: calc(2 * 57px + 8px); overflow-y: auto; overflow-anchor: none; }
+.gm-rules__intro { margin: 0 0 8px; color: var(--gm-muted); }
+.gm-rules { display: flex; flex-direction: column; }
+.gm-rule {
+  display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; min-height: 56px;
+  padding: 6px 8px; box-sizing: border-box; border-bottom: 1px solid #2c241e;
+}
+.gm-rule[data-open] { background: #241e19; border-radius: 8px; }
+.gm-rule[data-removed] { color: #5a5048; font-style: italic; }
+.gm-rule__n { font-family: var(--gm-font-mono); font-size: 12px; color: var(--gm-muted); }
+.gm-rule__text { min-width: 0; overflow-wrap: anywhere; }
+.gm-rule__text:focus { outline: none; }
+/* as wide as "Editing", so the label's change never rewraps the rule beside it */
+.gm-btn.gm-rule__edit { min-width: 84px; padding: 8px 10px; }
+.gm-rule__edit[aria-pressed='true'] { border-color: var(--gm-gold); color: var(--gm-gold-bright); }
 .gm-rule__btn {
   width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 6px;
-  border: 1px solid var(--gm-line); background: var(--gm-panel-raised); color: var(--gm-text); font: inherit; cursor: pointer;
+  border: 1px solid var(--gm-line); background: var(--gm-panel-raised); color: var(--gm-down); font: inherit; cursor: pointer;
 }
-.gm-rule__btn[data-danger] { color: var(--gm-down); }
-.gm-rule__btn:disabled, .gm-dialog .gm-btn:disabled { opacity: 0.4; cursor: default; }
-.gm-rule__select:focus-visible, .gm-rule__btn:focus-visible {
-  outline: 2px solid var(--gm-gold-bright); outline-offset: 2px;
+.gm-dialog .gm-btn:disabled, .gm-dialog .gm-btn[aria-disabled='true'] { opacity: 0.4; cursor: default; }
+.gm-rule__btn:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
+
+/* The editor keeps one size whatever its kind shows, so its head row never moves: each part reserves its tallest. */
+.gm-rule-editor {
+  flex: none; display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 10px;
+  background: #241e19; border: 1px solid var(--gm-line);
+}
+/* with no rule open it is an empty slot of the same size, so opening one moves nothing */
+.gm-rule-editor[data-empty] { background: transparent; border-style: dashed; }
+.gm-rule-editor__head {
+  display: grid; grid-template-columns: 64px minmax(0, 1fr) minmax(0, 1.4fr) auto auto auto auto; gap: 8px;
+  align-items: center; min-height: 44px;
+}
+.gm-rule-editor__title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 15px; white-space: nowrap; }
+.gm-rule-editor__none { grid-column: 1 / -1; margin: 0; color: var(--gm-muted); }
+.gm-btn.gm-rule-editor__btn { padding: 8px 12px; }
+/* the fields and the problems under them share one reserve: a map's two rows of fields and three problems are the most */
+.gm-rule-editor__body { display: flex; flex-direction: column; gap: 10px; min-height: calc(2 * 44px + 8px + 10px + 3 * 20px); }
+.gm-rule-editor__fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-content: start; }
+.gm-rule-editor__problems { color: var(--gm-down); font-size: 14px; }
+.gm-rule-editor__problems > p { margin: 0; line-height: 20px; }
+.gm-pick {
+  display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 44px; padding-left: 10px; box-sizing: border-box;
+  border-radius: 8px; border: 1px solid var(--gm-line); background: var(--gm-ground);
+}
+.gm-pick:focus-within { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
+.gm-pick__cap { flex: 0 1 auto; min-width: 0; font-size: 12px; line-height: 1.15; color: var(--gm-muted); }
+.gm-pick__word { flex: none; font-size: 13px; color: var(--gm-muted); }
+.gm-pick__select {
+  flex: 1 1 0; min-width: 0; align-self: stretch; min-height: 42px; padding: 0 6px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--gm-text); font: inherit; cursor: pointer;
+}
+.gm-pick__select:focus { outline: none; }
+.gm-pick__select option { background: var(--gm-ground); color: var(--gm-text); }
+.gm-pick__num {
+  flex: none; width: 52px; min-height: 40px; padding: 0 6px; box-sizing: border-box; border-radius: 6px;
+  border: 1px solid var(--gm-line); background: var(--gm-panel); color: var(--gm-text); font: inherit;
+}
+.gm-pick__num:focus { outline: none; border-color: var(--gm-gold); }
+/* a number the rule can't take stays as typed, in red, with its problem line under the fields */
+.gm-pick__num[aria-invalid='true'] { border-color: var(--gm-down); color: var(--gm-down); }
+
+@media (max-width: 819px) {
+  .gm-rule-editor__head { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; min-height: calc(22px + 2 * 44px + 2 * 6px); }
+  .gm-rule-editor__title { grid-column: 1 / -1; line-height: 22px; }
+  .gm-pick[data-head='kind'] { grid-column: span 3; }
+  .gm-pick[data-head='action'] { grid-column: span 5; }
+  .gm-pick[data-head] > .gm-pick__cap { display: none; }
+  .gm-btn.gm-rule-editor__btn { grid-column: span 2; padding: 4px; font-size: 14px; line-height: 1.15; }
+  /* two picks to a row, each range or tier its own: gear's five rows and two problems are the most */
+  .gm-rule-editor__body { min-height: calc(5 * 44px + 4 * 8px + 10px + 2 * 20px); }
+  .gm-rule-editor__fields { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: row dense; }
+  .gm-pick[data-wide] { grid-column: span 2; }
+}
+@media (max-width: 600px) {
+  .gm-dialog.gm-dialog--rules { padding: 14px; }
+  .gm-rule { grid-template-columns: 20px minmax(0, 1fr) auto auto; gap: 6px; padding: 6px 4px; }
+  .gm-btn.gm-rule__edit { min-width: 76px; }
 }
 
 @media (max-width: 600px) {

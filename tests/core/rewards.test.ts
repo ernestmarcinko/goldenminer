@@ -1,8 +1,9 @@
 import { expect, it, vi } from 'vitest';
 import { DROP_CHANCE, MATERIAL_TABLE, MAX_HELD, soulsPerKill } from '../../src/core/balance';
 import { deriveBattleStats } from '../../src/core/battle';
-import { clickHit, onKill, soulsForKill } from '../../src/core/combat';
+import { onKill, soulsForKill } from '../../src/core/combat';
 import { applyTicks } from '../../src/core/dig';
+import { xpToNext } from '../../src/core/levels';
 import { startMap } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
 import { isGear, setOfSlot, type MapMod, type Material } from '../../src/core/items';
@@ -37,13 +38,10 @@ it('souls per kill round by chance', () => {
   expect(soulsForKill(0.1, 1, 'champion', 1)).toBe(1);   // 0.75: floor 0, 0.1 < 0.75 -> 1
 });
 
-// Clicks, then ticks only while the map still runs: a tick after the final click would dig a metre and pay its Gold.
-function fight(s: GameState, clicks = true): void {
+// Ticks only while the map still runs: a tick after the run would dig a metre and pay its Gold.
+function fight(s: GameState): void {
   const stats = deriveStats(s);
-  while (s.activity.kind === 'map') {
-    if (clicks) clickHit(s);
-    if (s.activity.kind === 'map') applyTicks(s, 1, stats);
-  }
+  while (s.activity.kind === 'map') applyTicks(s, 1, stats);
 }
 
 function clearTier1(seed: number) {
@@ -229,6 +227,7 @@ it('the offline summary reports maps, levels and Souls as differences from a non
   const before = newGame(1, 0);
   before.souls = 7;
   before.level = 2;
+  before.xp = xpToNext(2) - 50;   // the run's XP levels it up
   before.mapTally = { cleared: 3, lost: 1 };
   const after = structuredClone(before);
   startMap(after, stashMap(after, 1, 2).id);
@@ -239,13 +238,14 @@ it('the offline summary reports maps, levels and Souls as differences from a non
   expect(sum.souls).toBe(after.souls - 7);
   expect(sum.souls).toBeGreaterThan(0);
   expect(sum.levels).toBe(after.level - 2);
+  expect(sum.levels).toBeGreaterThan(0);
 });
 
 it('the offline summary counts a lost map', () => {
   const before = newGame(1, 0);
   const after = structuredClone(before);
   startMap(after, stashMap(after, 4, 2).id);
-  fight(after, false);
+  fight(after);
   expect(after.lastRun?.outcome).toBe('died');
   expect(summarize(before, after, 600_000, 600, 28_800_000).maps).toEqual({ cleared: 0, lost: 1 });
 });

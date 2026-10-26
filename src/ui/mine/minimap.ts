@@ -14,14 +14,16 @@ export const MINIMAP_PX_PER_METRE = 6;
 /** Metres drawn above and below the visible window, so a scroll never shows a gap before the next frame. */
 const MARGIN_METRES = 10;
 /**
- * Where the window's top sits while following: 50 m above the dig face. The scroll height ends lampSight + 2 m past the
- * face, so the browser clamps the scroll and the face usually rests near the bottom (about 90% down), not at 50/88 = 57%.
+ * Where the window's top sits while following: 50 m above the dig face. The scroll height ends max(lampSight, hazardSight)
+ * + 2 m past the face, so the browser clamps the scroll and the face usually rests near the bottom (about 90% down), not
+ * at 50/88 = 57%.
  */
 const FOLLOW_OFFSET_METRES = 50;
 
 export type AheadKind = FeatureKind | 'materialVein' | 'hardRock' | Hazard;
 export interface MinimapMarker { y: number; kind: FindKind; count: number; label: string; icon: SpriteName }
-export interface MinimapHint { y: number; kind: AheadKind; label: string; icon?: SpriteName }
+/** `lantern`: a hazard Black Lantern shows, past the lamp or beside the metre's own hint. */
+export interface MinimapHint { y: number; kind: AheadKind; label: string; icon?: SpriteName; lantern?: true }
 export interface MinimapModel {
   top: number;
   bottom: number;
@@ -92,9 +94,10 @@ function hint(state: GameState, metre: number): MinimapHint | null {
 
 /**
  * Everything the minimap draws for the window whose top metre is `top`. Every `y` is absolute, measured from
- * the surface, and only the window plus a small margin is filled in.
+ * the surface, and only the window plus a small margin is filled in. Hazards up to `hazardSight` metres past the face
+ * (Black Lantern) are hints of their own, after the lamp's.
  */
-export function minimapModel(state: GameState, lampSight: number, top: number): MinimapModel {
+export function minimapModel(state: GameState, lampSight: number, top: number, hazardSight = 0): MinimapModel {
   const bottom = top + MINIMAP_METRES;
   const from = Math.max(0, top - MARGIN_METRES);
   const to = bottom + MARGIN_METRES;
@@ -141,9 +144,18 @@ export function minimapModel(state: GameState, lampSight: number, top: number): 
     const h = hint(state, metre);
     if (h) ahead.push(h);
   }
+  const lanternLast = Math.min(state.deepest + hazardSight, to);
+  for (let metre = Math.max(state.deepest + 1, from); metre <= lanternLast; metre++) {
+    const { hazard } = metreLayer(state.seed, metre);
+    if (hazard === null) continue;
+    const at = y(metre - 0.5);
+    // a lamp hint that already shows this hazard is enough
+    if (ahead.some((h) => h.y === at && h.kind === hazard)) continue;
+    ahead.push({ y: at, kind: hazard, label: HAZARD_LABELS[hazard], lantern: true });
+  }
 
   return {
-    top, bottom, height: y(state.deepest + lampSight + 2), bands, ticks, markers, ahead,
+    top, bottom, height: y(state.deepest + Math.max(lampSight, hazardSight) + 2), bands, ticks, markers, ahead,
     youY: y(state.deepest), youTagBelow: y(state.deepest) < YOU_TAG_ROOM_PX, fogY: y(state.deepest + lampSight),
   };
 }

@@ -84,20 +84,22 @@ it('xp that is negative or not a number is ignored', () => {
 
 it('monster numbers by rank and modifier', () => {
   const rat = { species: 0, rank: 'normal' as const, name: 'Mole Rat', mods: [], extra: 1 };
-  expect(monsterState(1, rat)).toMatchObject({ life: 12, maxLife: 12, damage: 3, intervalS: 2, xp: 10, element: 'physical' });
+  // tier 1's monsters are scaled × 1.38, tier 2's × 1.34 (MAP_MONSTER_SCALE)
+  expect(monsterState(1, rat)).toMatchObject({ life: 17, maxLife: 17, damage: 4, intervalS: 2, xp: 10, element: 'physical' });
   const champ = { ...rat, rank: 'champion' as const, name: 'Gorvash the Hollow', mods: ['thickSkinned', 'fireTouched'] as ChampionMod[] };
-  expect(monsterState(1, champ)).toMatchObject({ life: 54, damage: 5, xp: 30, element: 'elemental' });
+  expect(monsterState(1, champ)).toMatchObject({ life: 75, damage: 7, xp: 30, element: 'elemental' });
   const swift = monsterState(1, { ...champ, mods: ['swift', 'brutal'] });
   expect(swift.intervalS).toBeCloseTo(2 / 1.4);
-  expect(swift.damage).toBe(7);
-  expect(monsterState(1, { ...rat, rank: 'boss' })).toMatchObject({ life: 60, damage: 5, xp: 50 });
+  expect(swift.damage).toBe(10);
+  expect(monsterState(1, { ...rat, rank: 'boss' })).toMatchObject({ life: 83, damage: 7, xp: 50 });
   const slime = { species: 1, rank: 'normal' as const, name: 'Mud Slime', mods: [], extra: 1 };
-  expect(monsterState(2, slime)).toMatchObject({ element: 'elemental', life: 37, damage: 4, xp: 28, intervalS: 2 });
+  // re-pinned for Plan 10's tier-2 scale (was life 78, damage 9)
+  expect(monsterState(2, slime)).toMatchObject({ element: 'elemental', life: 49, damage: 6, xp: 28, intervalS: 2 });
   expect([monsterXp(2), monsterXp(4), monsterXp(10)]).toEqual([28, 80, 316]);
 });
 
 it('monster numbers stop at the save limits, however deep the tier', () => {
-  // Unclamped, a tier-2,000 Bone Crawler boss would have 1,760,279 life and a tier-100,000 brutal champion would hit for 3,712,505.
+  // Unclamped, a tier-2,000 Bone Crawler boss would have 2,200,349 life and a tier-100,000 brutal champion would hit for 4,640,631.
   for (const tier of [2_000, 100_000]) {
     for (const rank of ['normal', 'champion', 'boss'] as const) {
       const m = monsterState(tier, { species: 0, rank, name: 'Deep One', mods: rank === 'champion' ? ['thickSkinned', 'brutal'] : [], extra: 1 });

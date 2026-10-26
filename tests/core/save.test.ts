@@ -8,6 +8,7 @@ import fixture5 from '../fixtures/save-schema-5.txt?raw';
 import fixture6 from '../fixtures/save-schema-6.txt?raw';
 import fixture7 from '../fixtures/save-schema-7.txt?raw';
 import fixture8 from '../fixtures/save-schema-8.txt?raw';
+import fixture9 from '../fixtures/save-schema-9.txt?raw';
 import { applyTicks } from '../../src/core/dig';
 import {
   BAG_SIZE, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_HELD, MAX_LOOT_RULES,
@@ -15,14 +16,16 @@ import {
 } from '../../src/core/balance';
 import { emptyInventory, firstEmpty } from '../../src/core/cells';
 import { sideCount } from '../../src/core/itemGen';
+import { migrateLootFilter } from '../../src/core/lootFilter';
 import { addMap, startMap, takeMap } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
+import { hash2 } from '../../src/core/rng';
 import { decodeSave, encodeSave, migrate, MIGRATIONS, SCHEMA_VERSION, validateState } from '../../src/core/save';
 import { deriveStats } from '../../src/core/stats';
 import { tierFor, tierRange } from '../../src/core/tiers';
 import { MAP_MOD_KINDS, MOD_SIDE } from '../../src/core/items';
 import type { Cell, GemGrade, GemType, MapItem, MapMod, ModLine } from '../../src/core/items';
-import type { ChampionMod, DeathEntry, DropEntry, FindRecord, GameState, LootAction, MapRun, RunOutcome } from '../../src/core/types';
+import type { ChampionMod, CombatLine, DeathEntry, DropEntry, FindRecord, GameState, LootAction, MapRun, RunOutcome } from '../../src/core/types';
 import { gear, gem, stashMap } from '../helpers/items';
 
 const raw = (env: unknown) => compressToBase64(JSON.stringify(env));
@@ -87,7 +90,7 @@ function stocked(): GameState {
   s.bag[0] = (gear(s, 'weapon', { rarity: 'rare', affixes: [{ stat: 'critChance', value: 3 }, { stat: 'life', value: 20 }, { stat: 'armor', value: 12 }] }));
   s.stash.general[5] = gear(s, 'boots', { rarity: 'legendary', name: 'Long Voyage', uniqueId: 'longVoyage' });
   s.stash.gems.ruby.small = 40;
-  s.settings.lootFilter.push({ rarity: 'normal', target: 'any', action: 'sell' });
+  s.settings.lootFilter.push({ kind: 'gear', rarity: 'normal', action: 'sell' });
   return s;
 }
 
@@ -126,8 +129,8 @@ it('rejects impossible inventories', () => {
     ['a negative Gems-tab count', (s) => { s.stash.gems.ruby.tiny = -1; }],
     ['a missing Gems-tab grade', (s) => { delete (s.stash.gems.ruby as Partial<Record<GemGrade, number>>).perfect; }],
     ['an extra Gems-tab type', (s) => { (s.stash.gems as Record<string, unknown>).opal = s.stash.gems.ruby; }],
-    ['an unknown loot action', (s) => { s.settings.lootFilter.push({ rarity: 'any', target: 'any', action: 'burn' as LootAction }); }],
-    ['too many loot rules', (s) => { for (let i = 0; i < MAX_LOOT_RULES + 1; i++) s.settings.lootFilter.push({ rarity: 'any', target: 'gem', action: 'keep' }); }],
+    ['an unknown loot action', (s) => { s.settings.lootFilter.push({ kind: 'any', action: 'burn' as LootAction }); }],
+    ['too many loot rules', (s) => { for (let i = 0; i < MAX_LOOT_RULES + 1; i++) s.settings.lootFilter.push({ kind: 'gem', action: 'keep' }); }],
     ['a find without an id', (s) => { s.finds.push({ depth: 0, kind: 'chest', amount: 0, tick: 0 } as FindRecord); }],
     ['61 held items', (s) => { for (let i = 0; i < MAX_HELD + 1; i++) s.overflow.push(gear(s, 'pickaxe')); }],
     ['a held gem stack of 26', (s) => { s.overflow.push(gem(s, 'ruby', { count: 26 })); }],
@@ -162,7 +165,7 @@ it('rejects a seed text that does not match the seed', () => {
   }
 });
 
-it('accepts the limits: full grids, a full map tier, 60 held items, 20 rules, 3 gems in 3 sockets, full stacks and tab counts', () => {
+it('accepts the limits: full grids, a full map tier, 60 held items, 40 rules, 3 gems in 3 sockets, full stacks and tab counts', () => {
   const s = stocked();
   s.bag = s.bag.map((c, i) => c ?? (
     i % 4 === 0 ? gem(s, 'sapphire', { count: 25 })
@@ -174,7 +177,7 @@ it('accepts the limits: full grids, a full map tier, 60 held items, 20 rules, 3 
   s.stash.materials.copper = MATERIAL_STASH_STACK;
   s.stash.bought.general = 2;
   for (let i = 0; i < MAX_HELD; i++) s.overflow.push(gear(s, 'helm'));
-  while (s.settings.lootFilter.length < MAX_LOOT_RULES) s.settings.lootFilter.push({ rarity: 'any', target: 'gem', action: 'keep' });
+  while (s.settings.lootFilter.length < MAX_LOOT_RULES) s.settings.lootFilter.push({ kind: 'gem', action: 'keep' });
   s.equipped.battle.helm = gear(s, 'helm', { sockets: 3, gems: [{ gem: 'ruby', grade: 'tiny' }, { gem: 'ruby', grade: 'small' }, { gem: 'starstone', grade: 'perfect' }] });
   s.stash.gems.starstone.perfect = 1_000_000;
   expect([firstEmpty(s.bag), firstEmpty(s.stash.general), s.bag.length, s.stash.general.length])
@@ -342,7 +345,7 @@ function running(): GameState {
   const s = newGame(1, 0);
   const map = looseMap(s, 2, 2);
   s.activity = { kind: 'map', run: {
-    map, room: 1, bossRoom: 6, life: 40, hitCarry: 0, monsterCarry: 0, regenCarry: 0, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [], items: 0,
+    map, room: 1, bossRoom: 6, life: 40, hitCarry: 0, monsterCarry: 0, regenCarry: 0, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [], items: 0, strikes: 0,
     queue: [{ name: 'Mud Slime', species: 1, rank: 'normal', mods: [], extra: 7, element: 'elemental', life: 30, maxLife: 37, damage: 4, intervalS: 2, xp: 28 }],
   } };
   return s;
@@ -400,6 +403,17 @@ it('a run keeps its material loot notes', () => {
   const s = running();
   if (s.activity.kind === 'map') s.activity.run.loot.push({ name: 'Void crystal', rarity: 'material', base: 'voidCrystal', outcome: 'stash', value: 3 });
   expect(decodes(s)).toBe(true);
+});
+
+it('a hit line may still carry an old save\'s click flag, but only as a boolean', () => {
+  const withHit = (extra: Record<string, unknown>) => {
+    const s = running();
+    if (s.activity.kind === 'map') s.activity.run.log.push({ kind: 'hit', monster: 'Mole Rat', amount: 4, crit: false, ...extra } as CombatLine);
+    return decodes(s);
+  };
+  expect(withHit({})).toBe(true);
+  expect(withHit({ click: true })).toBe(true);
+  expect(withHit({ click: 'x' })).toBe(false);
 });
 
 it('accepts the legal extremes of maps, runs and levels', () => {
@@ -483,7 +497,7 @@ it('a schema-5 save with no maps comes out with an empty Map stash', () => {
 });
 
 it('every older fixture still loads', () => {
-  for (const f of [fixture, fixture2, fixture3, fixture4, fixture5, fixture6, fixture7, fixture8]) expect(decodeSave(f.trim()).ok).toBe(true);
+  for (const f of [fixture, fixture2, fixture3, fixture4, fixture5, fixture6, fixture7, fixture8, fixture9]) expect(decodeSave(f.trim()).ok).toBe(true);
 });
 
 it('a schema-5 save carrying more than one bag holds is rejected, not cut short', () => {
@@ -719,7 +733,8 @@ it('the schema-8 fixture migrates to hold mode, keeps its held gear, groups its 
   expect([s.drops, s.deaths]).toEqual([[], []]);
   const { bagFull, ...settings } = old.settings;
   expect(bagFull).toBe('sellWorst');
-  expect(s.settings).toEqual(settings);
+  // schema 10 then turns the old rules into the new shape
+  expect(s.settings).toEqual({ ...settings, lootFilter: migrateLootFilter(settings.lootFilter) });
   expect(old.overflow).toHaveLength(4);
   expect(s.overflow).toEqual(old.overflow);
   expect(s.gold).toBe(old.gold + 5000);
@@ -732,8 +747,10 @@ it('the schema-8 fixture migrates to hold mode, keeps its held gear, groups its 
     expect(list.every((m) => m.tier === Number(tier))).toBe(true);
     expect(list).toEqual(oldTab.filter((m: MapItem) => m.tier === Number(tier)));
   }
+  // schema 10 starts the run's strike count
+  const activity = { ...old.activity, run: { ...old.activity.run, strikes: 0 } };
   expect([s.bag, s.equipped, s.stash.general, s.activity, s.lastRun, s.finds])
-    .toEqual([old.bag, old.equipped, old.stash.general, old.activity, old.lastRun, old.finds]);
+    .toEqual([old.bag, old.equipped, old.stash.general, activity, old.lastRun, old.finds]);
   // the run in progress plays on to its end
   const runMap = old.activity.run.map.id;
   for (let t = 0; t < 20_000 && s.activity.kind !== 'dig'; t += 50) applyTicks(s, 50, deriveStats(s));
@@ -888,5 +905,130 @@ describe('the validator holds the schema-9 shapes', () => {
         gem(s, 'sapphire', { count: 25 }),
       );
     })).toBe(true);
+  });
+});
+
+it('the schema-9 fixture migrates its rules, gains an empty bought record and a unique stream, and plays on', () => {
+  const old = JSON.parse(decompressFromBase64(fixture9.trim())).state;
+  const r = decodeSave(fixture9.trim());
+  if (!r.ok) throw new Error(`fixture rejected: ${r.reason}`);
+  const s = r.state;
+  // the dead rule (a rare gem) is dropped, and the catch-all splits into gear and gems
+  expect(s.settings.lootFilter).toEqual([
+    { kind: 'gear', rarity: 'normal', action: 'sell' },
+    { kind: 'gear', set: 'mining', rarity: 'magic', action: 'salvage' },
+    { kind: 'gem', action: 'keep' },
+    { kind: 'gear', slot: 'boots', rarity: 'legendary', action: 'keep' },
+    { kind: 'gear', action: 'keep' },
+    { kind: 'gem', action: 'keep' },
+  ]);
+  expect(s.settings.motion).toEqual(old.settings.motion);
+  expect(s.merchant).toEqual({ band: 0, bought: [] });
+  expect(s.uniqueRng).toBe(hash2(old.rng, 0xa11e));
+  expect(s.rng).toBe(old.rng);
+  const run = s.activity.kind === 'map' ? s.activity.run : null;
+  expect(run?.strikes).toBe(0);
+  expect(run?.saved).toBeUndefined();
+  expect(run).toEqual({ ...old.activity.run, strikes: 0 });
+  expect([s.bag, s.equipped, s.stash, s.overflow, s.drops, s.deaths, s.lastRun, s.gold, s.deepest])
+    .toEqual([old.bag, old.equipped, old.stash, old.overflow, old.drops, old.deaths, old.lastRun, old.gold, old.deepest]);
+  // the run in progress plays on to its end
+  for (let t = 0; t < 20_000 && s.activity.kind !== 'dig'; t += 50) {
+    expect(() => applyTicks(s, 50, deriveStats(s))).not.toThrow();
+  }
+  expect(s.activity.kind).toBe('dig');
+  expect(s.lastRun?.map.id).toBe(285);
+  expect(validateState(s)).toBe(true);
+});
+
+it('a malformed schema-9 save is left for the validator to reject', () => {
+  const changes = [
+    (s: any) => { s.settings = null; },
+    (s: any) => { s.settings.lootFilter = 'x'; },
+    (s: any) => { s.settings.lootFilter.push({ rarity: 'any', target: 'chest', action: 'keep' }); },
+    (s: any) => { s.settings.lootFilter.push({ rarity: 'any', target: 'any', action: 'stash' }); },
+    (s: any) => { s.rng = -1; },
+    (s: any) => { s.activity = null; },
+  ];
+  for (const change of changes) {
+    const env = JSON.parse(decompressFromBase64(fixture9.trim()));
+    change(env.state);
+    const before = structuredClone(env.state);
+    expect(MIGRATIONS[9]?.(env.state)).toBe(env.state);
+    expect(env.state).toEqual(before);
+    expect(decodeSave(raw(env))).toEqual({ ok: false, reason: 'invalid' });
+  }
+});
+
+it('a new game starts with no rules, an empty bought record and a unique stream of its own', () => {
+  const s = newGame(5, 0, { lootSeed: 77 });
+  expect([s.settings.lootFilter, s.merchant, s.uniqueRng]).toEqual([[], { band: 0, bought: [] }, hash2(77, 0xa11e)]);
+  expect(newGame(5, 0).uniqueRng).toBe(hash2(5, 0xa11e));
+  expect(s.uniqueRng).not.toBe(s.rng);
+  const map = stashMap(s, 1, 2);
+  expect(startMap(s, map.id)).toBe('ok');
+  expect(s.activity.kind === 'map' && s.activity.run.strikes).toBe(0);
+  expect(s.activity.kind === 'map' && 'saved' in s.activity.run).toBe(false);
+});
+
+describe('the validator holds the schema-10 shapes', () => {
+  const run = (s: GameState): MapRun => { if (s.activity.kind !== 'map') throw new Error('no run'); return s.activity.run; };
+  const special = (s: GameState): MapItem => ({ id: s.nextId++, type: 'map', tier: 2, metre: 2, rarity: 'rare', mods: [], special: 'secondBoss' });
+  const check = (change: (s: GameState) => void) => { const s = running(); change(s); return decodes(s); };
+
+  it('accepts every field of a rule, a bought record, specials and a saved run', () => {
+    expect(check(() => {})).toBe(true);
+    expect(check((s) => {
+      s.settings.lootFilter = [
+        { kind: 'gear', set: 'mining', slot: 'boots', rarity: 'rare', level: { min: 1, max: 9 }, modTier: 3, mods: { min: 0, max: 20 }, action: 'stash' },
+        { kind: 'any', rarity: 'magic', level: { max: 100_002 }, modTier: 100_002, mods: { min: 2 }, mapMod: 'hardened', gem: 'ruby', grade: 'small', material: 'tin', action: 'keep' },
+        { kind: 'material', action: 'stash' },
+      ];
+    })).toBe(true);
+    expect(check((s) => { s.settings.lootFilter = Array.from({ length: MAX_LOOT_RULES }, () => ({ kind: 'gem', action: 'keep' })); })).toBe(true);
+    expect(check((s) => { s.merchant = { band: 43, bought: [11, 0, 5] }; })).toBe(true);
+    expect(check((s) => { s.merchant.bought = Array.from({ length: 12 }, (_, i) => i); })).toBe(true);
+    expect(check((s) => { s.uniqueRng = 4294967295; })).toBe(true);
+    expect(check((s) => { s.bag[0] = special(s); })).toBe(true);
+    expect(check((s) => { const m = special(s); s.stash.maps[2] = [m]; })).toBe(true);
+    expect(check((s) => { run(s).map.special = 'secondBoss'; })).toBe(true);
+    expect(check((s) => {
+      s.deaths.push({ id: s.nextId++, tick: 4, at: 9, map: { ...special(s) }, room: 2, bossRoom: 6, killer: 'Mud Slime' });
+    })).toBe(true);
+    expect(check((s) => { run(s).saved = true; run(s).strikes = 41; run(s).log.push({ kind: 'saved', monster: 'Mud Slime' }); })).toBe(true);
+  });
+
+  it('refuses anything else', () => {
+    const cases: [string, (s: GameState) => void][] = [
+      ['a rule of kind boots', (s) => { s.settings.lootFilter.push({ kind: 'boots' as never, action: 'keep' }); }],
+      ['a rule with an unknown key', (s) => { s.settings.lootFilter.push({ kind: 'gear', action: 'stash', target: 'any' } as never); }],
+      ['a material rule that sells', (s) => { s.settings.lootFilter.push({ kind: 'material', action: 'sell' }); }],
+      ['a range below 0', (s) => { s.settings.lootFilter.push({ kind: 'gear', level: { min: -1 }, action: 'keep' }); }],
+      ['a fractional range', (s) => { s.settings.lootFilter.push({ kind: 'gear', level: { max: 1.5 }, action: 'keep' }); }],
+      ['a range with an unknown key', (s) => { s.settings.lootFilter.push({ kind: 'gear', level: { min: 1, step: 2 } as never, action: 'keep' }); }],
+      ['a level past the tier cap', (s) => { s.settings.lootFilter.push({ kind: 'gear', level: { max: 100_003 }, action: 'keep' }); }],
+      ['a mod tier past the tier cap', (s) => { s.settings.lootFilter.push({ kind: 'gear', modTier: 100_003, action: 'keep' }); }],
+      ['21 modifiers', (s) => { s.settings.lootFilter.push({ kind: 'map', mods: { min: 21 }, action: 'keep' }); }],
+      ['an unknown map modifier', (s) => { s.settings.lootFilter.push({ kind: 'map', mapMod: 'cursed' as never, action: 'keep' }); }],
+      ['an unknown grade', (s) => { s.settings.lootFilter.push({ kind: 'gem', grade: 'huge' as never, action: 'keep' }); }],
+      ['a rule that cannot hold', (s) => { s.settings.lootFilter.push({ kind: 'gem', slot: 'boots', action: 'keep' }); }],
+      ['41 rules', (s) => { s.settings.lootFilter = Array.from({ length: MAX_LOOT_RULES + 1 }, () => ({ kind: 'gem', action: 'keep' })); }],
+      ['an old-shape rule', (s) => { s.settings.lootFilter.push({ rarity: 'any', target: 'any', action: 'keep' } as never); }],
+      ['a bought slot twice', (s) => { s.merchant.bought = [0, 0]; }],
+      ['a bought slot 12', (s) => { s.merchant.bought = [12]; }],
+      ['13 bought slots', (s) => { s.merchant.bought = Array.from({ length: 13 }, (_, i) => i % 12); }],
+      ['a fractional bought slot', (s) => { s.merchant.bought = [1.5]; }],
+      ['a band of -1', (s) => { s.merchant.band = -1; }],
+      ['no merchant', (s) => { delete (s as Partial<GameState>).merchant; }],
+      ['a unique stream of 2^32', (s) => { s.uniqueRng = 2 ** 32; }],
+      ['no unique stream', (s) => { delete (s as Partial<GameState>).uniqueRng; }],
+      ['strikes of -1', (s) => { run(s).strikes = -1; }],
+      ['no strikes', (s) => { delete (run(s) as Partial<MapRun>).strikes; }],
+      ['saved false', (s) => { (run(s) as { saved: unknown }).saved = false; }],
+      ['a saved line with no monster', (s) => { run(s).log.push({ kind: 'saved', monster: '' }); }],
+      ['a map with special x', (s) => { s.bag[0] = { ...special(s), special: 'x' as never }; }],
+      ['a run map with special x', (s) => { (run(s).map as { special: unknown }).special = 'x'; }],
+    ];
+    for (const [name, change] of cases) expect(check(change), name).toBe(false);
   });
 });

@@ -45,6 +45,12 @@ export function stashPagePrice(n: number): number {
 }
 // The merchant's gamble costs GAMBLE_GOLD × tier² at the deepest tier reached, so it keeps pace with Gold income.
 export const GAMBLE_GOLD = 300;
+// The Trader's stock: this many slots, each bought at most once a band of STOCK_BAND_METRES, at TRADER_PRICE_MULT × its
+// sell value; about TRADER_MAP_SHARE of the slots are maps.
+export const STOCK_SIZE = 12;
+export const STOCK_BAND_METRES = 10;
+export const TRADER_PRICE_MULT = 4;
+export const TRADER_MAP_SHARE = 0.25;
 // The item level a gem's value is worked out at, and the first tier each grade is found at.
 export const GEM_GRADE_LEVEL: Readonly<Record<GemGrade, number>> = { tiny: 2, small: 5, big: 8, giant: 12, perfect: 18 };
 export const GEM_GRADE_FROM_TIER: Readonly<Record<GemGrade, number>> = { tiny: 1, small: 4, big: 7, giant: 10, perfect: 15 };
@@ -52,7 +58,8 @@ export const GEM_BAG_STACK = 25;
 export const GEM_STASH_STACK = 1_000_000;
 export const MATERIAL_BAG_STACK = 50;
 export const MATERIAL_STASH_STACK = 1_000_000;
-export const MAX_LOOT_RULES = 20;
+// Twice the old 20: a migrated catch-all splits into a gear rule and a gem rule, so no old filter overflows.
+export const MAX_LOOT_RULES = 40;
 // Finds held for want of room; past this many, a find is sold (or, for a material, stashed).
 export const MAX_HELD = 60;
 export const MAX_SOCKETS = 3;
@@ -93,6 +100,14 @@ export function monsterLifeBase(tier: number): number {
 }
 export function monsterDamageBase(tier: number): number {
   return 2 + 1.5 * tier ** 1.2;
+}
+// What a map's tier multiplies its monsters' life and damage by (tier 1 first; deeper tiers use the last entry): a new
+// miner with no gear wins the guaranteed first map about two times in three, a level-3 miner in normal gear of tier 2's
+// item level wins a tier-2 map about seven times in ten, and from tier 3 a map of your gear's level is cleared about 40%
+// of the time.
+export const MAP_MONSTER_SCALE: readonly number[] = [1.38, 1.34, 2.05, 1.8, 1.7, 1.55, 1.4, 1.35, 1.3, 1.25];
+export function mapMonsterScale(tier: number): number {
+  return MAP_MONSTER_SCALE[Math.min(tier, MAP_MONSTER_SCALE.length) - 1] ?? 1;
 }
 export function monsterXp(tier: number): number {
   return Math.round(10 * tier ** 1.5);
@@ -136,6 +151,8 @@ export const MAX_ROOMS = 7;
 
 export const AUTOSAVE_INTERVAL_MS = 30_000;
 export const OFFLINE_SUMMARY_MIN_TICKS = 300;
+/** A gap between two live ticks longer than this (the computer slept) is dug as time away, whatever the view. */
+export const LONG_GAP_MS = 5 * 60_000;
 export const TAB_LOCK_STALE_MS = 5000;
 export const TAB_HEARTBEAT_MS = 2000;
 
@@ -188,12 +205,12 @@ export const STAT_TIERS: Readonly<Record<StatKey, { base: number; step: number }
 
 // A map modifier's tiers work as a gear line's do. Weak healing and hardened are capped once summed.
 export const MAP_MOD_TIERS: Readonly<Record<MapModKind, { base: number; step: number }>> = {
-  monsterLife: { base: 10, step: 5 },
-  monsterDamage: { base: 8, step: 4 },
-  monsterSpeed: { base: 6, step: 3 },
-  bossPower: { base: 15, step: 7 },
-  weakHealing: { base: 10, step: 5 },
-  hardened: { base: 5, step: 3 },
+  monsterLife: { base: 15, step: 8 },
+  monsterDamage: { base: 12, step: 6 },
+  monsterSpeed: { base: 8, step: 4 },
+  bossPower: { base: 20, step: 10 },
+  weakHealing: { base: 15, step: 7 },
+  hardened: { base: 8, step: 4 },
 };
 export const MAP_MOD_CAPS: Readonly<Partial<Record<MapModKind, number>>> = { weakHealing: 90, hardened: 75 };
 // What a map pays for its modifiers: each reward is this share of the sum of their values, in whole percent.
@@ -201,6 +218,11 @@ export const MAP_REWARD_FACTORS: Readonly<Record<'quantity' | 'rarity' | 'souls'
   quantity: 0.5, rarity: 0.3, souls: 0.5,
 };
 export const MAX_MAP_MODS = 6;
+// A map's special modifier: the chance an enchant adds one to a map with none, and what the specials pay.
+export const MAP_SPECIAL_CHANCE = 0.1;
+export const TREASURE_CHESTS = 3;
+export const TRIPLE_SOULS = 3;
+export const DOUBLE_MATERIALS = 2;
 
 export const DEFAULT_STAT_WEIGHT = 10;
 export const STAT_WEIGHTS: Readonly<Partial<Record<StatKey, number>>> = { ticksPerClick: 2, lampSight: 4 };
@@ -267,3 +289,11 @@ export function hazardChance(metre: number): number {
 }
 export const HAZARD_SLOW: Readonly<Record<Hazard, number>> = { gas: 2, unstable: 1.6 };
 export const MAX_HAZARD_WARD = 75;
+// Legendary uniques: each acts only while its legendary is worn.
+export const DEEPDELVER_EVERY = 25;           // every 25th metre is dug at once, its find doubled
+export const BLACK_LANTERN_SIGHT = 30;        // metres past the face whose hazards show on the minimap
+export const BLACK_LANTERN_SLOW = 0.5;        // the share of a hazard's slowdown left
+export const LONG_VOYAGE_CAP = 2;             // the offline cap's multiplier, after its clamp
+export const BAND_OF_THE_DEEP_HEAL = 0.02;    // of max life, on every critical hit
+export const WOLF_EYE_DROPS = 1;              // more items from a champion or a boss
+export const PEACEMAKER_EVERY = 5;            // every 5th strike strikes twice

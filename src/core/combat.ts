@@ -1,13 +1,13 @@
 import {
-  ARMORED_TAKEN, BOSS_DROPS, CHAMPION_DROPS, CHAMPION_MAGIC_FIND, COMBAT_LOG_LIMIT, COMBAT_STEP_S, DROP_CHANCE,
-  MAP_DROP_BATTLE_CHANCE, MAP_GEM_CHANCE, MAP_MATERIAL_CHANCE, ROOM_REGEN_TOTAL, RUN_LOOT_LIMIT, VAMPIRIC_HEAL,
-  goldPerKill, soulsPerKill,
+  ARMORED_TAKEN, BAND_OF_THE_DEEP_HEAL, BOSS_DROPS, CHAMPION_DROPS, CHAMPION_MAGIC_FIND, COMBAT_LOG_LIMIT, COMBAT_STEP_S,
+  DROP_CHANCE, MAP_DROP_BATTLE_CHANCE, MAP_GEM_CHANCE, MAP_MATERIAL_CHANCE, PEACEMAKER_EVERY, ROOM_REGEN_TOTAL,
+  RUN_LOOT_LIMIT, TREASURE_CHESTS, VAMPIRIC_HEAL, WOLF_EYE_DROPS, goldPerKill, soulsPerKill,
 } from './balance';
 import { deriveBattleStats, mitigate, type BattleStats } from './battle';
 import { dungeonLayout } from './dungeons';
 import { logDeath, trail } from './dropLog';
 import { gainXp } from './levels';
-import { rollGear, rollGem, rollRarity } from './itemGen';
+import { rollChest, rollGear, rollGem, rollLegendary, rollRarity, type Gen } from './itemGen';
 import { materialAmount, pickMaterial } from './layer';
 import { receiveItem, receiveMaterial } from './loot';
 import { mapEffects } from './mapMods';
@@ -16,6 +16,7 @@ import { nextRandom } from './rng';
 import type {
   CombatLine, GameState, LootNote, MapRun, MonsterState, Rank, RunOutcome, RunResult, Stats, TickEvent,
 } from './types';
+import { hasUnique, uniqueGen } from './uniques';
 
 /** What a strike did: the room fights on, the room was cleared and the next one entered, or the run ended. */
 type StrikeOutcome = 'fight' | 'room' | 'end';
@@ -33,15 +34,15 @@ export function noteLoot(run: MapRun, note: LootNote): void {
 }
 
 /**
- * The monsters of `room`, regenerated from the seed: rooms 1..bossRoom-1 from the layout, then the boss alone. A room
- * the layout doesn't have is fought as the boss room, so the queue is never empty.
+ * The monsters of `room`, regenerated from the seed: rooms 1..bossRoom-1 from the layout, then the boss alone (and its
+ * twin on a `secondBoss` map). A room the layout doesn't have is fought as the boss room, so the queue is never empty.
  */
 function roomQueue(state: GameState, run: MapRun, room: number): MonsterState[] {
   const layout = dungeonLayout(state.seed, run.map);
   const fx = mapEffects(run.map);
   const monsters = room < run.bossRoom ? layout.rooms[room - 1] ?? [] : [];
-  if (monsters.length === 0) return [monsterState(run.map.tier, layout.boss, fx)];
-  return monsters.map((m) => monsterState(run.map.tier, m, fx));
+  const fought = monsters.length > 0 ? monsters : layout.boss2 === null ? [layout.boss] : [layout.boss, layout.boss2];
+  return fought.map((m) => monsterState(run.map.tier, m, fx));
 }
 
 /**
@@ -84,6 +85,7 @@ function takeDrop(run: MapRun, notes: LootNote[], isItem = true): void {
  * A monster fell: its XP (levelling up heals by the max-life gained), then Souls, Gold, items, a gem chance and the
  * material chances, in that draw order (exported so the rewards can be pinned per rank). Champions guarantee an item of raised rarity, bosses guarantee BOSS_DROPS, anything may add one more.
  * The map's modifiers raise the Souls, the magic find and the drop chances, but every draw is made as on a normal map.
+ * Its special may multiply the Souls and the materials, and on a `bossLegendary` map a boss adds a legendary last.
  */
 export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: BattleStats): void {
   const tier = run.map.tier;
@@ -102,7 +104,7 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
   }
   if (b.lifeOnKill > 0) run.life = Math.min(maxLife, run.life + Math.round(b.lifeOnKill));
 
-  const souls = soulsForKill(nextRandom(state), tier, monster.rank, b.soulMultiplier * (1 + fx.souls / 100));
+  const souls = soulsForKill(nextRandom(state), tier, monster.rank, b.soulMultiplier * (1 + fx.souls / 100) * fx.soulsMult);
   state.souls += souls;
   run.gained.souls += souls;
   logLine(run, { kind: 'kill', monster: monster.name, xp, souls });
@@ -121,22 +123,33 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
     const item = rollGear(state, tier, set, rollRarity(state, magicFind * (raised ? CHAMPION_MAGIC_FIND : 1)));
     takeDrop(run, receiveItem(state, item, origin));
   }
+  // Wolf Eye's drops come from the unique stream, so the loot stream is the same without it.
+  if (monster.rank !== 'normal' && hasUnique(state, 'wolfEye')) {
+    const unique = uniqueGen(state);
+    for (let i = 0; i < WOLF_EYE_DROPS; i++) {
+      const set = nextRandom(unique) < MAP_DROP_BATTLE_CHANCE ? 'battle' : 'mining';
+      takeDrop(run, receiveItem(state, rollGear(unique, tier, set, rollRarity(unique, magicFind)), origin));
+    }
+  }
   if (nextRandom(state) < more(MAP_GEM_CHANCE)) takeDrop(run, receiveItem(state, rollGem(state, tier), origin));
   // Materials of the map's depth: rankReward chances, each pass drawing its material and then its amount.
   const metre = run.map.metre;
   for (let i = 0; i < rankReward(monster.rank); i++) {
     if (nextRandom(state) >= more(MAP_MATERIAL_CHANCE)) continue;
     const material = pickMaterial(metre, nextRandom(state));
-    takeDrop(run, receiveMaterial(state, material, materialAmount(material, metre, nextRandom(state)), origin), false);
+    const amount = materialAmount(material, metre, nextRandom(state)) * fx.materialMult;
+    takeDrop(run, receiveMaterial(state, material, amount, origin), false);
   }
+  if (monster.rank === 'boss' && run.map.special === 'bossLegendary') takeDrop(run, receiveItem(state, rollLegendary(state, tier), origin));
 }
 
-function strike(state: GameState, run: MapRun, b: BattleStats, click: boolean, events?: TickEvent[]): StrikeOutcome {
+/** One strike at the fighting monster; its damage and crit draw from `gen` (the unique stream for the Peacemaker's second). */
+function strike(state: GameState, run: MapRun, b: BattleStats, events?: TickEvent[], gen: Gen = state): StrikeOutcome {
   const m = run.queue[0];
   if (m === undefined) return 'fight';
-  let physical = b.damageMin + Math.floor(nextRandom(state) * (b.damageMax - b.damageMin + 1));
+  let physical = b.damageMin + Math.floor(nextRandom(gen) * (b.damageMax - b.damageMin + 1));
   let elemental = b.elementalDamage;
-  const crit = nextRandom(state) < b.critChance;
+  const crit = nextRandom(gen) < b.critChance;
   if (crit) {
     physical = Math.round(physical * b.critMultiplier);
     elemental = Math.round(elemental * b.critMultiplier);
@@ -146,8 +159,11 @@ function strike(state: GameState, run: MapRun, b: BattleStats, click: boolean, e
   // A hardened map softens the whole hit, after everything else.
   const amount = Math.max(1, Math.round((physical + elemental) * mapEffects(run.map).takenMult));
   m.life -= amount;
-  events?.push({ kind: 'strike', amount, crit, click });
-  logLine(run, { kind: 'hit', monster: m.name, amount, crit, click });
+  events?.push({ kind: 'strike', amount, crit });
+  logLine(run, { kind: 'hit', monster: m.name, amount, crit });
+  if (crit && hasUnique(state, 'bandOfTheDeep')) {
+    run.life = Math.min(b.maxLife, run.life + Math.round(BAND_OF_THE_DEEP_HEAL * b.maxLife));
+  }
   if (m.life > 0) return 'fight';
 
   run.queue.shift();
@@ -159,6 +175,13 @@ function strike(state: GameState, run: MapRun, b: BattleStats, click: boolean, e
     return 'end';
   }
   logLine(run, { kind: 'room', room: run.room });
+  // The treasure room: the last regular room's chests, found there before the boss room opens.
+  if (run.map.special === 'treasureRoom' && run.room === run.bossRoom - 1) {
+    const origin = { kind: 'map', tier: run.map.tier, room: run.room } as const;
+    for (let i = 0; i < TREASURE_CHESTS; i++) {
+      for (const item of rollChest(state, run.map.tier)) takeDrop(run, receiveItem(state, item, origin));
+    }
+  }
   run.room += 1;
   const { maxLife } = deriveBattleStats(state);
   const heal = mapEffects(run.map).healMult;
@@ -182,7 +205,13 @@ function combatStep(state: GameState, run: MapRun, b: BattleStats, dt: number, e
   while (run.hitCarry >= 1) {
     run.hitCarry -= 1;
     const level = state.level;
-    const outcome = strike(state, run, b, false, events);
+    run.strikes += 1;
+    let outcome = strike(state, run, b, events);
+    // The Peacemaker's second strike is drawn from the unique stream and never counts as a strike of its own.
+    if (outcome !== 'end' && run.strikes % PEACEMAKER_EVERY === 0 && hasUnique(state, 'peacemaker')) {
+      const again = strike(state, run, state.level !== level ? deriveBattleStats(state) : b, events, uniqueGen(state));
+      if (again !== 'fight') outcome = again;
+    }
     if (outcome === 'end') return b;
     if (outcome === 'room') {
       run.hitCarry -= Math.floor(run.hitCarry);
@@ -205,6 +234,12 @@ function combatStep(state: GameState, run: MapRun, b: BattleStats, dt: number, e
       m.life += healed;
       if (healed > 0) logLine(run, { kind: 'heal', monster: m.name, amount: healed });
     }
+    // Kraken Leather turns the first killing blow of a run into 1 life left.
+    if (run.life <= 0 && run.saved !== true && hasUnique(state, 'krakenLeather')) {
+      run.life = 1;
+      run.saved = true;
+      logLine(run, { kind: 'saved', monster: m.name });
+    }
     if (run.life <= 0) {
       endRun(state, run, 'died', events, m.name);
       return b;
@@ -222,10 +257,4 @@ export function mapTick(state: GameState, stats: Stats, events?: TickEvent[]): v
   for (let i = 0; i < steps && state.activity.kind === 'map'; i++) {
     b = combatStep(state, state.activity.run, b, dt / steps, events);
   }
-}
-
-/** One click strike, at once; a room it clears advances straight away. Does nothing outside a map. */
-export function clickHit(state: GameState, events?: TickEvent[]): void {
-  if (state.activity.kind !== 'map') return;
-  strike(state, state.activity.run, deriveBattleStats(state), true, events);
 }

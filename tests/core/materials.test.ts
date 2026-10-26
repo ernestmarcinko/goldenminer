@@ -123,7 +123,7 @@ it('materials yield nothing, a map yields ore, and salvage stops at the tab cap'
 
 it('the loot filter salvages into materials and notes the units', () => {
   const s = newGame(1, 0);
-  s.settings.lootFilter = [{ rarity: 'any', target: 'any', action: 'salvage' }];
+  s.settings.lootFilter = [{ kind: 'gear', action: 'salvage' }, { kind: 'gem', action: 'salvage' }];
   const notes = receiveItem(s, gear(s, 'boots', { rarity: 'magic', ilvl: 4 }), HERE);
   expect(notes[0]).toMatchObject({ outcome: 'salvaged', value: 3 });
   expect([s.stash.materials.copper, s.stash.materials.tin, s.diamonds]).toEqual([2, 1, 0]);

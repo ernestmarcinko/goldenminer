@@ -19,6 +19,7 @@ const KINDS: DropTarget[] = [
   { where: 'gems', gem: 'starstone', grade: 'perfect' },
   { where: 'materials', material: 'voidCrystal' },
   { where: 'worn', slot: 'amulet' },
+  { where: 'stock', index: 11 },
   { where: 'stashTab', tab: 'general' },
   { where: 'stashTab', tab: 'gems' },
   { where: 'stashTab', tab: 'maps' },
@@ -33,6 +34,7 @@ it('a drag starts after 5 px', () => {
 it('dropAttr and parseDrop round-trip every kind of drop target', () => {
   for (const t of KINDS) expect(parseDrop(dropAttr(t))).toEqual(t);
   expect(parseDrop('{"where":"maps","tier":4,"index":2}')).toEqual({ where: 'maps', tier: 4, index: 2 });
+  expect(parseDrop('{"where":"stock","index":3}')).toEqual({ where: 'stock', index: 3 });
 });
 
 it('parseDrop refuses anything that is not exactly a drop target', () => {
@@ -58,6 +60,9 @@ it('parseDrop checks every value against the game lists and grid sizes', () => {
   expect(parseDrop('{"where":"worn","slot":"toString"}')).toBeNull();
   expect(parseDrop('{"where":"stashTab","tab":"shop"}')).toBeNull();
   expect(parseDrop('{"where":"elsewhere"}')).toBeNull();
+  expect(parseDrop('{"where":"stock","index":12}')).toBeNull();
+  expect(parseDrop('{"where":"stock","index":-1}')).toBeNull();
+  expect(parseDrop('{"where":"stock","index":1.5}')).toBeNull();
   expect(parseDrop('[]')).toBeNull();
   expect(parseDrop('null')).toBeNull();
   expect(parseDrop('')).toBeNull();

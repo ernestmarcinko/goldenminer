@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import fixture3 from '../fixtures/save-schema-3.txt?raw';
-import { MAP_TIER_CAP } from '../../src/core/balance';
+import { MAP_TIER_CAP, STOCK_SIZE } from '../../src/core/balance';
+import { canCraft, craft } from '../../src/core/crafting';
 import { itemAt, sameLoc } from '../../src/core/cells';
 import { dropItem, equip, moveItem, salvage, sell, sendItem, socketGem, unequip } from '../../src/core/inventory';
 import { GEM_GRADES, GEM_TYPES, isGear, MINING_SLOTS, BATTLE_SLOTS } from '../../src/core/items';
@@ -10,6 +11,7 @@ import { newGame } from '../../src/core/newGame';
 import { mulberry32 } from '../../src/core/rng';
 import { decodeSave, validateState } from '../../src/core/save';
 import { deriveStats } from '../../src/core/stats';
+import { stockBand, traderStock } from '../../src/core/trader';
 import type { DropTarget, GameState, ItemLoc } from '../../src/core/types';
 import { gear, gem } from '../helpers/items';
 
@@ -537,4 +539,47 @@ it('a map sells for its value and salvages into ore, from the bag or its tier li
   expect(sell(s, bag(0))).toBe('invalid');
   expect(salvage(s, bag(0))).toBe('invalid');
   expect(s).toEqual(before);
+});
+
+it("the Trader's stock is never moved into, out of, socketed, sold, salvaged, equipped or crafted on", () => {
+  const s = newGame(11, 0);
+  s.deepest = 419;
+  s.ahead = {};
+  s.gold = 10_000_000;
+  s.equipped.battle.weapon = gear(s, 'weapon');
+  s.bag[0] = gear(s, 'pickaxe');
+  s.bag[1] = gem(s, 'ruby', { count: 3 });
+  s.bag[2] = { id: s.nextId++, type: 'material', material: 'copper', count: 9 };
+  s.stash.materials.copper = 50;
+  s.souls = 1_000_000;
+  const stockBefore = structuredClone(traderStock(s.seed, stockBand(s)));
+  const before = structuredClone(s);
+  for (let index = 0; index < STOCK_SIZE; index++) {
+    const stock: ItemLoc = { where: 'stock', index };
+    expect(itemAt(s, stock)).toBeDefined();
+    expect(sameLoc(stock, { where: 'stock', index })).toBe(true);
+    expect(sameLoc(stock, bag(index))).toBe(false);
+    for (const to of [bag(5), cell(0), bag(0), stock, { where: 'stock', index: (index + 1) % STOCK_SIZE }] as ItemLoc[]) {
+      expect(moveItem(s, stock, to)).toBe('invalid');
+    }
+    for (const from of [0, 1, 2]) {
+      expect(moveItem(s, bag(from), stock)).toBe('invalid');
+      expect(dropItem(s, bag(from), stock)).toBe('invalid');
+    }
+    for (const to of [bag(5), { where: 'worn', slot: 'weapon' }, { where: 'stashTab', tab: 'auto' }] as DropTarget[]) {
+      expect(dropItem(s, stock, to)).toBe('invalid');
+    }
+    expect(dropItem(s, { where: 'worn', slot: 'weapon' }, stock)).toBe('invalid');
+    expect(unequip(s, 'weapon', stock)).toBe('invalid');
+    expect(socketGem(s, bag(1), stock)).toBe('invalid');
+    for (const act of [sell, salvage, equip]) expect(act(s, stock)).toBe('invalid');
+    expect(sendItem(s, stock, 'stash')).toBe('invalid');
+    expect(sendItem(s, stock, 'bag')).toBe('invalid');
+    for (const kind of ['copper', 'iron', 'silver', 'mithril', 'obsidian', 'voidCrystal', 'diamond'] as const) {
+      expect(canCraft(s, stock, kind)).toBe('notGear');
+      expect(craft(s, stock, kind).check).toBe('notGear');
+    }
+  }
+  expect(s).toEqual(before);
+  expect(traderStock(s.seed, stockBand(s))).toEqual(stockBefore);
 });

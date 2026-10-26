@@ -239,16 +239,17 @@ describe('inventory intents', () => {
     expect(store.version).toBe(v + 4);
   });
 
-  it('settings keep at most 20 rules, and a new filter drains the held loot it sells', () => {
+  it('settings keep at most 40 rules, only rules that can hold, and a new filter drains the held loot it sells', () => {
     const { store } = make();
     store.load();
-    const rule: LootRule = { rarity: 'normal', target: 'any', action: 'sell' };
+    const rule: LootRule = { kind: 'gear', rarity: 'normal', action: 'sell' };
     const s = store.state;
     s.bag = s.bag.map(() => gem(s));
     s.stash.general = s.stash.general.map(() => gear(s, 'ring'));
     s.overflow.push(gear(s, 'pickaxe', { rarity: 'normal' }));
-    store.setLootFilter(Array.from({ length: 25 }, () => rule));
+    store.setLootFilter([{ kind: 'material', action: 'sell' }, ...Array.from({ length: 45 }, () => rule)]);
     expect(store.state.settings.lootFilter).toHaveLength(MAX_LOOT_RULES);
+    expect(store.state.settings.lootFilter.every((r) => r.kind === 'gear')).toBe(true);
     expect(s.overflow).toEqual([]);
     expect('setBagFull' in store).toBe(false);
   });
@@ -414,17 +415,15 @@ describe('a migrated save with held loot', () => {
 });
 
 describe('maps', () => {
-  it('a click in a map is a hit, never a dig, and still capped', () => {
+  it('a click in a map does nothing: no strike, no dig', () => {
     const { store } = make(); store.load();
     const map = stashMap(store.state, 1, 2);
     expect(store.startMap(map.id)).toBe('ok');
-    const ticks = store.state.tickCount;
-    const events = store.click();
-    expect(events.some((e) => e.kind === 'strike' && e.click)).toBe(true);
-    expect(store.state.tickCount).toBe(ticks);
-    for (let i = 0; i < 20; i++) store.click();
-    const hits = store.state.activity.kind === 'map' ? store.state.activity.run.log.filter((l) => l.kind === 'hit' && l.click).length : 0;
-    expect(hits).toBeLessThanOrEqual(10);
+    const before = structuredClone(store.state);
+    const version = store.version;
+    for (let i = 0; i < 20; i++) expect(store.click()).toEqual([]);
+    expect(store.state).toEqual(before);
+    expect(store.version).toBe(version);
   });
 
   it('leaving and dismissing', () => {
@@ -463,16 +462,9 @@ describe('maps', () => {
   }
 
   it('keeps only the newest 6 auto strikes', () => {
-    const struck = runEvents(10).flatMap((e) => (e.kind === 'strike' && !e.click ? [{ amount: e.amount, crit: e.crit }] : []));
+    const struck = runEvents(10).flatMap((e) => (e.kind === 'strike' ? [{ amount: e.amount, crit: e.crit }] : []));
     expect(struck.length).toBeGreaterThan(6);
     expect(pumpedRun(10).drainFeedback().strikes).toEqual(struck.slice(-6));
-  });
-
-  it('click strikes stay out of the feedback', () => {
-    const { store } = make(); store.load();
-    store.startMap(stashMap(store.state, 1, 2).id);
-    expect(store.click().some((e) => e.kind === 'strike' && e.click)).toBe(true);
-    expect(store.drainFeedback().strikes).toEqual([]);
   });
 
   it('sums the damage taken and starts again after a drain', () => {
@@ -637,6 +629,28 @@ describe('pausing', () => {
     expect(store.importSave(encodeSave(paused, now.t - hour)).ok).toBe(true);
     expect(dug(store.state)).toEqual([0, 0]);
     expect(store.state.lastTickAt).toBe(now.t);
+  });
+
+  it('a gap of more than 5 minutes between live ticks is dug as time away, unless the player pressed Pause', () => {
+    const minute = 60_000;
+    const { store, now } = make(); store.load();
+    store.setViewPaused(true);
+    // the computer slept on the Inventory view
+    now.t += 6 * minute; store.pump();
+    expect(store.state.deepest).toBeGreaterThan(0);
+    expect(store.offlineSummary).not.toBeNull();
+    expect(store.offlineSummary?.paused).toBe(false);
+
+    store.setPaused(true);
+    const dugThen = dug(store.state);
+    now.t += 6 * minute; store.pump();
+    expect(dug(store.state)).toEqual(dugThen);
+    expect(store.offlineSummary?.paused).toBe(true);
+
+    // 4 minutes is no gap: the view still pauses it
+    store.setPaused(false);
+    now.t += 4 * minute; store.pump();
+    expect(dug(store.state)).toEqual(dugThen);
   });
 
   it('the player\'s Pause survives a save and a load', () => {

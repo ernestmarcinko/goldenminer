@@ -1,4 +1,4 @@
-import { BAG_SIZE, MAX_ITEM_LEVEL } from '../../core/balance';
+import { BAG_SIZE, MAX_ITEM_LEVEL, STOCK_SIZE } from '../../core/balance';
 import { itemAt, sameLoc } from '../../core/cells';
 import { BATTLE_SLOTS, GEM_GRADES, GEM_TYPES, MATERIALS, MINING_SLOTS } from '../../core/items';
 import type { DropTarget, GameState, ItemLoc } from '../../core/types';
@@ -45,6 +45,8 @@ export function parseDrop(attr: string | null): DropTarget | null {
       return oneOf(MATERIALS, o.material) ? { where: 'materials', material: o.material } : null;
     case 'worn':
       return oneOf(SLOTS, o.slot) ? { where: 'worn', slot: o.slot } : null;
+    case 'stock':
+      return cellIndex(o.index, STOCK_SIZE) ? { where: 'stock', index: o.index } : null;
     case 'stashTab':
       return oneOf(DROP_TABS, o.tab) ? { where: 'stashTab', tab: o.tab } : null;
     default:

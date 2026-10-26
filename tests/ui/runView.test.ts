@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import {
-  combatLineText, deathOfLastRun, fightTiles, gainsLine, hurtParticle, mapDungeon, mapModLines, mapRewardsText, monsterCaption, monsterTags,
+  combatLineText, deathOfLastRun, fightTiles, gainsLine, hurtParticle, mapDungeon, mapModLines, mapRewardsText, mapSpecialLine, monsterCaption, monsterTags,
   roomTrack, runMapLine, runTitle, strikeParticle, xpBar,
 } from '../../src/ui/run/runView';
 import { dungeonIndexAt, dungeonType } from '../../src/core/dungeons';
@@ -16,7 +16,7 @@ const monster = (over: Partial<MonsterState> = {}): MonsterState => ({
 
 const run = (room: number, left: number, bossRoom = 6): MapRun => ({
   map: { id: 1, type: 'map', tier: 4, metre: 305, rarity: 'normal', mods: [] }, room, bossRoom, life: 50, hitCarry: 0, monsterCarry: 0, regenCarry: 0,
-  gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [],  loot: [], items: 0,
+  gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [],  loot: [], items: 0, strikes: 0,
   queue: Array.from({ length: left }, () => monster({ rank: room === bossRoom ? 'boss' : 'normal' })),
 });
 
@@ -32,6 +32,12 @@ it('the room track', () => {
   expect(roomTrack(run(6, 1), 'The Drowned Foreman').at(-1)).toEqual({ label: 'Boss', note: 'The Drowned Foreman', state: 'now' });
 });
 
+it('the room track names both bosses on a second-boss map', () => {
+  const r = run(6, 1);
+  r.map.special = 'secondBoss';
+  expect(roomTrack(r, 'Grub King').at(-1)).toEqual({ label: 'Bosses', note: 'Grub King and its Twin', state: 'now' });
+});
+
 it('the room track follows the run\'s boss room', () => {
   const rows = roomTrack(run(8, 1, 8), 'Grub King');
   expect(rows.map((r) => r.label)).toEqual(['Room 1', 'Room 2', 'Room 3', 'Room 4', 'Room 5', 'Room 6', 'Room 7', 'Boss']);
@@ -40,16 +46,16 @@ it('the room track follows the run\'s boss room', () => {
 });
 
 it('combat log lines in words', () => {
-  expect(combatLineText({ kind: 'hit', monster: 'Drowned Digger', amount: 41, crit: false, click: true })).toEqual({ text: 'You hit Drowned Digger for 41 (click)', tone: 'click' });
-  expect(combatLineText({ kind: 'hit', monster: 'Drowned Digger', amount: 62, crit: true, click: false })).toEqual({ text: 'You hit Drowned Digger for 62 (crit)', tone: 'crit' });
-  expect(combatLineText({ kind: 'hit', monster: 'Drowned Digger', amount: 80, crit: true, click: true })).toEqual({ text: 'You hit Drowned Digger for 80 (crit) (click)', tone: 'crit' });
-  expect(combatLineText({ kind: 'hit', monster: 'Drowned Digger', amount: 38, crit: false, click: false })).toEqual({ text: 'You hit Drowned Digger for 38', tone: 'plain' });
+  expect(combatLineText({ kind: 'hit', monster: 'Drowned Digger', amount: 62, crit: true })).toEqual({ text: 'You hit Drowned Digger for 62 (crit)', tone: 'crit' });
+  expect(combatLineText({ kind: 'hit', monster: 'Drowned Digger', amount: 38, crit: false })).toEqual({ text: 'You hit Drowned Digger for 38', tone: 'plain' });
   expect(combatLineText({ kind: 'hurt', monster: 'Drowned Digger', amount: 21 })).toEqual({ text: 'Drowned Digger hits you for 21', tone: 'hurt' });
   expect(combatLineText({ kind: 'heal', monster: 'Drowned Digger', amount: 7 })).toEqual({ text: 'Drowned Digger heals 7', tone: 'hurt' });
   expect(combatLineText({ kind: 'kill', monster: 'Bog Leech', xp: 1210, souls: 0 })).toEqual({ text: 'Bog Leech dies: +1,210 XP', tone: 'gain' });
   expect(combatLineText({ kind: 'kill', monster: 'Bog Leech', xp: 80, souls: 3 })).toEqual({ text: 'Bog Leech dies: +80 XP, +3 Souls', tone: 'gain' });
   expect(combatLineText({ kind: 'room', room: 2 })).toEqual({ text: 'Room 2 cleared', tone: 'gain' });
   expect(combatLineText({ kind: 'level', level: 12 })).toEqual({ text: 'Level 12!', tone: 'level' });
+  expect(combatLineText({ kind: 'saved', monster: 'Bog Leech' }))
+    .toEqual({ text: "Kraken Leather holds: Bog Leech's blow leaves you at 1 life", tone: 'level' });
   const note = { name: 'Gloomward Mail', rarity: 'rare', base: 'armor', outcome: 'bag', value: 0 } as const;
   expect(combatLineText({ kind: 'drop', note })).toEqual({ text: 'Gloomward Mail dropped (to bag)', tone: 'drop' });
 });
@@ -119,6 +125,14 @@ it('the run\'s head lists an enchanted map\'s modifiers and what they pay, and n
   ]);
   expect(mapRewardsText(enchanted)).toBe('Rewards: +11% items · +6% rarity · +11% Souls');
   expect(mapRewardsText(plain.map)).toBe('');
+});
+
+it('the run\'s head lists a map\'s special in the legendary colour, with no tier, and nothing for a map without one', () => {
+  const plain = run(1, 3).map;
+  expect(mapSpecialLine(plain)).toBeNull();
+  expect(mapSpecialLine({ ...plain, special: 'treasureRoom' })).toEqual({ text: 'A treasure room before the boss', tone: 'special' });
+  expect(mapSpecialLine({ ...plain, special: 'tripleSouls' })).toEqual({ text: 'Souls ×3, but rooms don\'t heal', tone: 'special' });
+  expect(mapModLines({ ...plain, special: 'secondBoss' })).toEqual([]);
 });
 
 it('the last run names its map\'s rarity when it was enchanted', () => {

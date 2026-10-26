@@ -18,7 +18,7 @@ export function Minimap({ store }: { store: GameStore }) {
   const deepest = useRef(state.deepest);
   deepest.current = state.deepest;
   const [top, setTop] = useState(() => followTop(state.deepest));
-  const model = minimapModel(state, stats.lampSight, top);
+  const model = minimapModel(state, stats.lampSight, top, stats.hazardSight);
 
   // While following, every new metre (or a change in scroll height) brings the window back to the face.
   useLayoutEffect(() => {
@@ -81,7 +81,7 @@ export function Minimap({ store }: { store: GameStore }) {
             ))}
             <span className="gm-minimap__dim" style={{ top: model.youY, height: Math.max(0, model.fogY - model.youY) }} />
             {model.ahead.map((a) => (
-              <span key={a.y} className="gm-minimap__marker gm-minimap__marker--ahead" style={{ top: a.y }}>
+              <span key={`${a.y}-${a.kind}`} className="gm-minimap__marker gm-minimap__marker--ahead" style={{ top: a.y }}>
                 {a.icon ? (
                   <Sprite name={a.icon} scale={2} label={a.label} />
                 ) : (

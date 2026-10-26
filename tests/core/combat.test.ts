@@ -3,7 +3,6 @@ import fixture7 from '../fixtures/save-schema-7.txt?raw';
 import { ARMORED_TAKEN, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, RUN_LOOT_LIMIT, VAMPIRIC_HEAL } from '../../src/core/balance';
 import { deriveBattleStats } from '../../src/core/battle';
 import { advance } from '../../src/core/clock';
-import { clickHit } from '../../src/core/combat';
 import { applyTicks } from '../../src/core/dig';
 import { dungeonLayout } from '../../src/core/dungeons';
 import type { MapMod } from '../../src/core/items';
@@ -21,15 +20,12 @@ const DROP: DropEntry = {
   id: 0, kind: 'gear', name: 'Test ring', rarity: 'magic', base: 'ring', count: 1, origin: { kind: 'metre', metre: 1 }, trail: [{ event: 'bag' }],
 };
 
-function runMap(tier: number, clicksPerTick: number, seed: number): GameState {
+function runMap(tier: number, seed: number): GameState {
   const s = newGame(seed, 0);
   const map = stashMap(s, tier, 10 + seed);
   expect(startMap(s, map.id)).toBe('ok');
   const stats = deriveStats(s);
-  for (let t = 0; t < 5000 && s.activity.kind === 'map'; t++) {
-    for (let c = 0; c < clicksPerTick && s.activity.kind === 'map'; c++) clickHit(s);
-    applyTicks(s, 1, stats);
-  }
+  for (let t = 0; t < 5000 && s.activity.kind === 'map'; t++) applyTicks(s, 1, stats);
   return s;
 }
 
@@ -39,23 +35,19 @@ function runOf(s: GameState): MapRun {
 }
 
 it('a naked level-1 miner clears a tier-1 map on auto hits alone', () => {
-  for (const seed of [1, 2, 3, 4, 5]) expect(runMap(1, 0, seed).lastRun?.outcome, `seed ${seed}`).toBe('cleared');
+  for (const seed of [1, 2, 3, 4, 5]) expect(runMap(1, seed).lastRun?.outcome, `seed ${seed}`).toBe('cleared');
 });
 
-it('the same miner falls in a tier-2 map without clicking', () => {
-  for (const seed of [1, 2, 3, 4, 5]) expect(runMap(2, 0, seed).lastRun?.outcome, `seed ${seed}`).toBe('died');
-});
-
-it('three clicks a second win that tier-2 map', () => {
-  for (const seed of [1, 2, 3, 4, 5]) expect(runMap(2, 3, seed).lastRun?.outcome, `seed ${seed}`).toBe('cleared');
+it('the same miner falls in a tier-2 map', () => {
+  for (const seed of [1, 2, 3, 4, 5]) expect(runMap(2, seed).lastRun?.outcome, `seed ${seed}`).toBe('died');
 });
 
 it('a tier-4 map kills a level-1 miner in the first room', () => {
-  expect(runMap(4, 0, 1).lastRun).toMatchObject({ outcome: 'died', room: 1 });
+  expect(runMap(4, 1).lastRun).toMatchObject({ outcome: 'died', room: 1 });
 });
 
 it('a cleared run levels up, consumes the map and keeps the tally', () => {
-  const s = runMap(1, 0, 1);
+  const s = runMap(1, 1);
   expect(s.level).toBeGreaterThanOrEqual(2);
   expect(s.stash.maps).toEqual({});
   expect(s.mapTally).toEqual({ cleared: 1, lost: 0 });
@@ -81,6 +73,11 @@ function monster(p: Partial<MonsterState> = {}): MonsterState {
 }
 
 const at = (s: GameState, autoTicksPerSecond: number): Stats => ({ ...deriveStats(s), autoTicksPerSecond });
+/** One automatic strike, at once: the swing is due, and the step is a thousandth of a second, too short for anything else. */
+function swing(s: GameState, events?: TickEvent[]): void {
+  runOf(s).hitCarry = 1;
+  applyTicks(s, 1, at(s, 1000), events);
+}
 const strikes = (events: TickEvent[]) => events.flatMap((e) => (e.kind === 'strike' ? [e] : []));
 
 it('vampiric champions heal what they bite', () => {
@@ -116,8 +113,8 @@ it('armor soaks the hit after the crit', () => {
     runOf(plain).queue[0]?.mods.splice(0);
     const armored: TickEvent[] = [];
     const bare: TickEvent[] = [];
-    clickHit(s, armored);
-    clickHit(plain, bare);
+    swing(s, armored);
+    swing(plain, bare);
     const [hit] = strikes(armored);
     const [raw] = strikes(bare);
     if (hit === undefined || raw === undefined) throw new Error('no strike');
@@ -139,11 +136,11 @@ it('a strike draws its damage first, then its crit', () => {
     if ((u1.value < b.critChance) === (u2.value < b.critChance)) continue;
     s.rng = rng;
     const events: TickEvent[] = [];
-    clickHit(s, events);
+    swing(s, events);
     const rolled = b.damageMin + Math.floor(u1.value * (b.damageMax - b.damageMin + 1));
     const crit = u2.value < b.critChance;
     expect(strikes(events), `rng ${rng}`).toEqual([
-      { kind: 'strike', amount: crit ? Math.round(rolled * b.critMultiplier) : rolled, crit, click: true },
+      { kind: 'strike', amount: crit ? Math.round(rolled * b.critMultiplier) : rolled, crit },
     ]);
     checked++;
   }
@@ -174,6 +171,7 @@ it('a room clear ends its combat step: the unspent swings drop and the new room 
 
 it('the combat steps after a room clear fight on in the same tick', () => {
   const { s, run } = started({ life: 1 });
+  s.equipped.battle.weapon = gear(s, 'weapon', { implicit: { stat: 'damage', value: 6 } });   // room 2 holds 48 life
   run.hitCarry = 0.9;
   const events: TickEvent[] = [];
   applyTicks(s, 1, at(s, 0.1), events);   // 10 s in 40 steps: the first clears the room, the other 39 swing 9 times
@@ -189,6 +187,7 @@ it('the tick rate never changes how long a fight lasts', () => {
     const times: number[] = [];
     for (let seed = 1; seed <= 20; seed++) {
       const s = newGame(seed, 0);
+      s.level = 5;   // long enough a fight that a 10 s tick is a small part of it
       expect(startMap(s, stashMap(s, 2, 10 + seed).id)).toBe('ok');
       const stats = at(s, rate);
       while (s.activity.kind === 'map') applyTicks(s, 1, stats);
@@ -211,9 +210,9 @@ it('a kill resets the monster carry', () => {
   const { s, run } = started({ life: 1 });
   run.queue.push(monster());
   run.monsterCarry = 0.6;
-  clickHit(s);
+  swing(s);
   expect(run.queue).toHaveLength(1);
-  expect(run.monsterCarry).toBe(0);
+  expect(run.monsterCarry).toBeCloseTo(0.001, 9);   // reset, then the thousandth of a second the swing's step lasted
 });
 
 it('a level-up mid-run adds the life it grants, before the room regen', () => {
@@ -221,7 +220,7 @@ it('a level-up mid-run adds the life it grants, before the room regen', () => {
   s.xp = xpToNext(1) - 1;
   run.life = 35;
   const oldMax = deriveBattleStats(s).maxLife;
-  clickHit(s);
+  swing(s);
   expect(s.level).toBe(2);
   const newMax = deriveBattleStats(s).maxLife;
   expect(newMax).toBeGreaterThan(oldMax);
@@ -247,7 +246,7 @@ it('every map heals the same total: a room clear heals 1.5 × max life over the 
     expect(run.bossRoom, `metre ${metre}`).toBe(bossRoom);
     run.queue = [monster({ life: 1 })];
     run.life = 1;
-    clickHit(s);
+    swing(s);
     expect(run.room).toBe(2);
     expect(run.life, `metre ${metre}`).toBe(1 + healed);
   }
@@ -256,7 +255,7 @@ it('every map heals the same total: a room clear heals 1.5 × max life over the 
 it('room regen never heals past max life', () => {
   const { s, run } = started({ life: 1 });
   run.life = 59;
-  clickHit(s);
+  swing(s);
   expect(run.room).toBe(2);
   expect(run.life).toBe(60);
 });
@@ -272,7 +271,7 @@ it('a boss room past the layout still fights the boss: the queue is never empty 
     for (let c = 0; c < 200 && s.activity.kind === 'map'; c++) {
       const m = run.queue[0];
       if (m) m.life = 1;
-      clickHit(s);
+      swing(s);
       if (s.activity.kind === 'map') expect(run.queue.length, `boss room ${bossRoom} room ${run.room}`).toBeGreaterThan(0);
     }
     expect(s.lastRun, `boss room ${bossRoom}`).toMatchObject({ outcome: 'cleared', room: bossRoom });
@@ -286,7 +285,7 @@ it('the run result counts every item, not only the notes the run keeps', () => {
   run.loot = Array.from({ length: RUN_LOOT_LIMIT }, () => ({ ...note }));
   run.items = 41;
   const before = run.log.length;
-  clickHit(s);
+  swing(s);
   const drops = run.log.slice(before).filter((l) => l.kind === 'drop' && l.note.rarity !== 'material').length;   // empty bags: one note per item; ore stacks are not items
   expect(drops).toBeGreaterThanOrEqual(2);
   expect(run.loot).toHaveLength(RUN_LOOT_LIMIT);
@@ -318,23 +317,20 @@ it('the swings after a level-up in the same tick hit with the new level', () => 
   }
 });
 
-it('every state of a run, tick by tick and click by click, is a valid save', () => {
+it('every state of a run, tick by tick, is a valid save', () => {
   for (const seed of [1, 2, 3]) {
     for (const tier of [1, 2, 4]) {
       for (const rate of [0.1, 1, 10]) {
-        for (const clicks of [0, 2]) {
+        for (const peacemaker of [false, true]) {
           const s = newGame(seed, 0);
+          if (peacemaker) s.equipped.battle.weapon = gear(s, 'weapon', { rarity: 'legendary', name: 'The Peacemaker', uniqueId: 'peacemaker' });
           expect(startMap(s, stashMap(s, tier, 10 + seed).id)).toBe('ok');
           const stats = at(s, rate);
           for (let t = 0; t < 20_000 && s.activity.kind === 'map'; t++) {
-            for (let c = 0; c < clicks && s.activity.kind === 'map'; c++) {
-              clickHit(s);
-              expect(validateState(s), `seed ${seed} tier ${tier} rate ${rate} tick ${t} click ${c}`).toBe(true);
-            }
             applyTicks(s, 1, stats);
-            expect(validateState(s), `seed ${seed} tier ${tier} rate ${rate} clicks ${clicks} tick ${t}`).toBe(true);
+            expect(validateState(s), `seed ${seed} tier ${tier} rate ${rate} tick ${t}`).toBe(true);
           }
-          expect(s.activity.kind, `seed ${seed} tier ${tier} rate ${rate} clicks ${clicks}`).toBe('dig');
+          expect(s.activity.kind, `seed ${seed} tier ${tier} rate ${rate} peacemaker ${peacemaker}`).toBe('dig');
         }
       }
     }
@@ -404,8 +400,8 @@ it('elemental damage adds to every hit, Armored softens only the physical part, 
     plain.equipped.battle.weapon!.affixes = [];
     const armored: TickEvent[] = [];
     const bare: TickEvent[] = [];
-    clickHit(s, armored);
-    clickHit(plain, bare);
+    swing(s, armored);
+    swing(plain, bare);
     const [hit] = strikes(armored);
     const [raw] = strikes(bare);
     if (hit === undefined || raw === undefined) throw new Error('no strike');
@@ -445,11 +441,11 @@ it('life per kill heals on each kill, capped at max life', () => {
   s.equipped.battle.ring = gear(s, 'ring', { affixes: [{ stat: 'lifeOnKill', value: 5 }] });
   run.queue.push(monster({ life: 1 }), monster());   // the room stays uncleared, so no room regen
   run.life = 10;
-  clickHit(s);
+  swing(s);
   expect(run.life).toBe(15);
   const { maxLife } = deriveBattleStats(s);
   run.life = maxLife - 2;
-  clickHit(s);
+  swing(s);
   expect(run.queue).toHaveLength(1);
   expect(run.life).toBe(maxLife);
 });
@@ -458,7 +454,7 @@ it('XP find raises the XP of a kill, and the kill line shows it', () => {
   const { s, run } = started({ life: 1, xp: 40 });
   s.equipped.battle.amulet = gear(s, 'amulet', { affixes: [{ stat: 'xpFind', value: 50 }] });
   run.queue.push(monster());
-  clickHit(s);
+  swing(s);
   expect(s.xp).toBe(60);
   expect(run.gained.xp).toBe(60);
   expect(run.log).toContainEqual(expect.objectContaining({ kind: 'kill', monster: 'Test Monster', xp: 60 }));
@@ -480,8 +476,8 @@ it('a hardened map\'s monsters take less from every strike, never below 1, with 
       enchant(run, [{ kind: 'hardened', tier: 10, value: 50 }]);
       const hardened: TickEvent[] = [];
       const bare: TickEvent[] = [];
-      clickHit(s, hardened);
-      clickHit(plain, bare);
+      swing(s, hardened);
+      swing(plain, bare);
       const [hit] = strikes(hardened);
       const [raw] = strikes(bare);
       if (hit === undefined || raw === undefined) throw new Error('no strike');
@@ -503,7 +499,7 @@ it('a map with weak healing heals less on each room clear', () => {
   enchant(run, [{ kind: 'weakHealing', tier: 10, value: 50 }]);
   run.queue = [monster({ life: 1 })];
   run.life = 1;
-  clickHit(s);
+  swing(s);
   expect(run.room).toBe(2);
   expect(run.life).toBe(1 + 9);
 });
@@ -521,9 +517,9 @@ it('a saved run in progress plays out exactly as before modifiers existed', () =
   };
   const played = replay();
   expect(replay((run) => { run.map.mods = []; })).toEqual(played);
-  // Pinned before map modifiers touched combat.
+  // Pinned before map modifiers touched combat; the rng re-pinned for Plan 10's monster scale (was 1231303081).
   expect(played).toMatchObject({
-    rng: 1231303081, gained: { xp: 1040, souls: 15, gold: 120, levels: 1 }, outcome: 'cleared',
+    rng: 4198657840, gained: { xp: 1040, souls: 15, gold: 120, levels: 1 }, outcome: 'cleared',
   });
 });
 
@@ -545,7 +541,8 @@ it('logging the run\'s drops and its end makes no draws: the saved run plays out
   const played = replay(false);
   expect(played.logged).toBeGreaterThan(0);
   expect(replay(true)).toEqual(played);
+  // the rng re-pinned for Plan 10's monster scale (was 1231303081)
   expect(played).toMatchObject({
-    rng: 1231303081, gained: { xp: 1040, souls: 15, gold: 120, levels: 1 }, outcome: 'cleared',
+    rng: 4198657840, gained: { xp: 1040, souls: 15, gold: 120, levels: 1 }, outcome: 'cleared',
   });
 });

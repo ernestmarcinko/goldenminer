@@ -1,13 +1,13 @@
-import { MAX_LOOT_RULES, OFFLINE_SUMMARY_MIN_TICKS } from '../core/balance';
+import { LONG_GAP_MS, MAX_LOOT_RULES, OFFLINE_SUMMARY_MIN_TICKS } from '../core/balance';
 import { deriveBattleStats, type BattleStats } from '../core/battle';
 import { advance, ClickLimiter, clickTicks } from '../core/clock';
-import { clickHit } from '../core/combat';
 import { craft as coreCraft } from '../core/crafting';
 import * as inv from '../core/inventory';
 import { itemName } from '../core/itemData';
 import { BATTLE_SLOTS, MINING_SLOTS, setOfSlot } from '../core/items';
 import type { GearItem, Slot } from '../core/items';
 import { drainOverflow } from '../core/loot';
+import { ruleValid } from '../core/lootFilter';
 import { leaveMap as coreLeaveMap, startMap as coreStartMap } from '../core/maps';
 import { gamble as coreGamble, type GambleResult } from '../core/merchant';
 import { newGame } from '../core/newGame';
@@ -15,6 +15,7 @@ import { soulUpgrade as coreSoulUpgrade, type SoulUpgradeCheck } from '../core/s
 import { buyStashPage as coreBuyStashPage } from '../core/stashPages';
 import { decodeSave, encodeSave, type DecodeResult } from '../core/save';
 import { freshWorld, isValidSeedText, seedFromText } from '../core/seed';
+import { buyStock as coreBuyStock, type BuyResult } from '../core/trader';
 import { deriveStats } from '../core/stats';
 import { summarize } from '../core/summary';
 import type {
@@ -33,7 +34,7 @@ export interface Feedback {
   gold: number;
   diamonds: number;
   finds: FindRecord[];
-  /** The newest auto strikes of a map; click strikes are not here, the click already showed them. */
+  /** The newest strikes of a map. */
   strikes: { amount: number; crit: boolean }[];
   /** Damage the player took, summed. */
   hurt: number;
@@ -121,7 +122,8 @@ export class GameStore {
 
   /**
    * Advances to now; returns the ticks applied. Clones a "before" snapshot only when a summary is possible.
-   * Offline catch-up gates digging on the player's Pause alone: the view the game was left on doesn't matter.
+   * Offline catch-up gates digging on the player's Pause alone: the view the game was left on doesn't matter. So does a
+   * live tick after a long gap, as the computer slept and the player was away whatever view was showing.
    */
   private catchUp(events?: TickEvent[], live = false): number {
     const now = this.deps.now();
@@ -131,7 +133,8 @@ export class GameStore {
       now - state.lastTickAt >= (OFFLINE_SUMMARY_MIN_TICKS * 1000) / stats.autoTicksPerSecond;
     const before = summaryPossible ? structuredClone(state) : null;
     const elapsed = now - state.lastTickAt;
-    const ticks = advance(state, now, stats, events, live ? this.digPaused : state.paused);
+    const away = !live || elapsed > LONG_GAP_MS;
+    const ticks = advance(state, now, stats, events, away ? state.paused : this.digPaused, away);
     if (before && ticks >= OFFLINE_SUMMARY_MIN_TICKS) {
       this._summary = summarize(before, state, elapsed, ticks, stats.offlineCapMs);
     }
@@ -208,7 +211,7 @@ export class GameStore {
       if (e.kind === 'gold') fb.gold += e.amount;
       else if (e.kind === 'diamond') fb.diamonds += e.amount;
       else if (e.kind === 'find') fb.finds.push(e.find);
-      else if (e.kind === 'strike' && !e.click) fb.strikes.push({ amount: e.amount, crit: e.crit });
+      else if (e.kind === 'strike') fb.strikes.push({ amount: e.amount, crit: e.crit });
       else if (e.kind === 'hurt') fb.hurt += e.amount;
     }
     if (fb.finds.length > MAX_FINDS) fb.finds = fb.finds.slice(-MAX_FINDS);
@@ -216,11 +219,11 @@ export class GameStore {
   }
 
   click(): TickEvent[] {
+    // A map's fight is automatic, and digging ticks would fast-forward it: a click there does nothing.
+    if (this._state.activity.kind === 'map') return [];
     if (!this.limiter.tryClick(this.deps.now())) return [];
     const events: TickEvent[] = [];
-    // A map click is one strike; digging ticks would fast-forward the fight.
-    if (this._state.activity.kind === 'map') clickHit(this._state, events);
-    else clickTicks(this._state, this._stats, events);
+    clickTicks(this._state, this._stats, events);
     this.changed();
     return events;
   }
@@ -305,6 +308,13 @@ export class GameStore {
     return outcome;
   }
 
+  /** Buys a slot of the Trader's stock; only an 'ok' changes anything. */
+  buyStock(index: number): BuyResult {
+    const { result } = coreBuyStock(this._state, index);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
   private noteCraft(target: ItemLoc, kind: CraftKind, result: CraftResult): void {
     this._lastCraft = { id: ++this.craftCount, target: { ...target }, kind, ...result };
   }
@@ -320,7 +330,8 @@ export class GameStore {
   }
 
   setLootFilter(rules: LootRule[]): void {
-    this._state.settings.lootFilter = rules.slice(0, MAX_LOOT_RULES).map((r) => ({ ...r }));
+    // a rule that could never match is dropped, so a save never holds one
+    this._state.settings.lootFilter = rules.filter(ruleValid).slice(0, MAX_LOOT_RULES).map((r) => ({ ...r }));
     drainOverflow(this._state);
     this.changed();
   }

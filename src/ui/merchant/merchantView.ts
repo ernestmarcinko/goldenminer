@@ -1,7 +1,80 @@
+import { STOCK_BAND_METRES, STOCK_SIZE } from '../../core/balance';
+import { firstEmpty } from '../../core/cells';
+import { itemName } from '../../core/itemData';
 import { BATTLE_SLOTS, MINING_SLOTS, type GearItem, type GearSet, type Slot } from '../../core/items';
 import { gamblePrice, type GambleResult } from '../../core/merchant';
+import { stockAt, stockBand, stockPrice, type BuyResult, type StockItem } from '../../core/trader';
 import type { GameState } from '../../core/types';
-import { SLOT_LABELS, gearKindBase } from '../character/itemView';
+import type { SpriteName } from '../../sprites/atlas';
+import { formatNumber } from '../format';
+import { SLOT_LABELS, gearKindBase, rarityOf } from '../character/itemView';
+
+/** The two merchants: the same names and looks in every world. */
+export const MERCHANTS: Readonly<Record<'trader' | 'gambler', { name: string; sprite: SpriteName }>> = {
+  trader: { name: 'Brannoc the Trader', sprite: 'brannoc' },
+  gambler: { name: 'Old Mirela', sprite: 'mirela' },
+};
+
+/** Under the Trader's name: when his stock is rolled again, e.g. "New stock every 10 m dug · next at 440 m". */
+export function stockCaption(state: GameState): string {
+  const next = (stockBand(state) + 1) * STOCK_BAND_METRES;
+  return `New stock every ${formatNumber(STOCK_BAND_METRES)} m dug · next at ${formatNumber(next)} m`;
+}
+
+export interface StockTile {
+  index: number;
+  /** null once bought: the tile stays, reading Sold, so nothing moves under the pointer. */
+  item: StockItem | null;
+  name: string;
+  tone: ReturnType<typeof rarityOf> | 'sold';
+  price: number;
+  affordable: boolean;
+  /** The bag has a free cell for it. */
+  room: boolean;
+}
+
+/** One tile per slot of the stock, in order. */
+export function stockTiles(state: GameState): StockTile[] {
+  const room = firstEmpty(state.bag) >= 0;
+  return Array.from({ length: STOCK_SIZE }, (_, index): StockTile => {
+    const item = stockAt(state, index) ?? null;
+    if (item === null) return { index, item, name: 'Sold', tone: 'sold', price: 0, affordable: false, room };
+    const price = stockPrice(item);
+    return { index, item, name: itemName(item), tone: rarityOf(item), price, affordable: state.gold >= price, room };
+  });
+}
+
+export function buyLabel(price: number): string {
+  return `Buy · ${formatNumber(price)} Gold`;
+}
+
+/** Why a buy was refused; an 'ok' needs no words, the tile reads Sold. */
+export function buyResultText(r: BuyResult): string | null {
+  switch (r) {
+    case 'ok': return null;
+    case 'sold': return 'That one is sold.';
+    case 'noGold': return 'Not enough Gold.';
+    case 'bagFull': return 'Your bag is full.';
+    case 'invalid': return "That can't be bought.";
+  }
+}
+
+/**
+ * Whether a refused buy of slot `index` is still refused for the same reason, so its words never contradict a Buy
+ * button that Gold or room has since enabled.
+ */
+export function buyRefusalHolds(state: GameState, index: number, r: BuyResult): boolean {
+  switch (r) {
+    case 'ok': return false;
+    case 'sold': return stockAt(state, index) === undefined;
+    case 'noGold': {
+      const item = stockAt(state, index);
+      return item !== undefined && state.gold < stockPrice(item);
+    }
+    case 'bagFull': return firstEmpty(state.bag) < 0;
+    case 'invalid': return true;
+  }
+}
 
 export interface GambleSlot { slot: Slot; label: string; price: number; affordable: boolean }
 export interface GambleGroup { set: GearSet; slots: GambleSlot[] }

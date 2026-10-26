@@ -93,13 +93,28 @@ it('a Soul upgrade adds a step to the item\'s trail; a refused one adds nothing'
 
 it('the loot filter\'s sale or salvage is the whole trail', () => {
   const s = newGame(1, 0);
-  s.settings.lootFilter = [{ rarity: 'magic', target: 'mining', action: 'sell' }, { rarity: 'magic', target: 'any', action: 'salvage' }];
+  s.settings.lootFilter = [{ kind: 'gear', set: 'mining', rarity: 'magic', action: 'sell' }, { kind: 'gear', rarity: 'magic', action: 'salvage' }];
   const pick = gear(s, 'pickaxe', { rarity: 'magic', ilvl: 4 });
   receiveItem(s, pick, HERE);
   expect(entryOf(s, pick.id)?.trail).toEqual([{ event: 'filterSold', gold: 48 }]);
   const ring = gear(s, 'ring', { rarity: 'magic', ilvl: 4 });
   receiveItem(s, ring, HERE);
   expect(entryOf(s, ring.id)?.trail).toEqual([{ event: 'filterSalvaged', materials: { copper: 2, tin: 1 } }]);
+});
+
+it('a find the loot filter stashes says so, and a stashed material find is one entry', () => {
+  const s = newGame(1, 0);
+  s.settings.lootFilter = [{ kind: 'gear', action: 'stash' }, { kind: 'material', action: 'stash' }];
+  const ring = gear(s, 'ring', { rarity: 'rare', ilvl: 5 });
+  receiveItem(s, ring, HERE);
+  expect(entryOf(s, ring.id)?.trail).toEqual([{ event: 'filterStashed' }]);
+  const before = s.drops.length;
+  receiveMaterial(s, 'copper', 130, HERE);
+  expect(s.drops.slice(before)).toEqual([{
+    id: expect.any(Number), kind: 'material', name: 'Copper ore', rarity: 'material', base: 'copper', count: 130,
+    origin: HERE, trail: [{ event: 'filterStashed' }],
+  }]);
+  expect(validateState(s)).toBe(true);
 });
 
 it('a held item the loot filter settles while draining says so on its entry', () => {
@@ -109,7 +124,7 @@ it('a held item the loot filter settles while draining says so on its entry', ()
   const boots = gear(s, 'boots', { rarity: 'magic', ilvl: 4 });
   receiveItem(s, ring, HERE);
   receiveItem(s, boots, HERE);
-  s.settings.lootFilter = [{ rarity: 'normal', target: 'any', action: 'sell' }, { rarity: 'magic', target: 'any', action: 'salvage' }];
+  s.settings.lootFilter = [{ kind: 'gear', rarity: 'normal', action: 'sell' }, { kind: 'gear', rarity: 'magic', action: 'salvage' }];
   drainOverflow(s);
   expect(s.overflow).toEqual([]);
   expect(entryOf(s, ring.id)?.trail).toEqual([{ event: 'held' }, { event: 'filterSold', gold: 20 }]);
@@ -160,7 +175,7 @@ it('a gem stack split between the bag and a sale logs the sale too', () => {
 
 it('a gem stack the loot filter sells is one entry for the whole stack', () => {
   const s = newGame(1, 0);
-  s.settings.lootFilter = [{ rarity: 'any', target: 'gem', action: 'sell' }];
+  s.settings.lootFilter = [{ kind: 'gem', action: 'sell' }];
   const rubies = gem(s, 'ruby', { count: 3 });
   receiveItem(s, rubies, HERE);
   expect(entryOf(s, rubies.id)).toMatchObject({ count: 3, trail: [{ event: 'filterSold', gold: 120 }] });

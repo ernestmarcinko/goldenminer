@@ -1,4 +1,6 @@
-import type { Cell, GearItem, GearSet, GemGrade, GemType, Item, MapItem, MapMod, MapRarity, Material, Rarity, Slot } from './items';
+import type {
+  Cell, GearItem, GearSet, GemGrade, GemType, Item, MapItem, MapMod, MapModKind, MapRarity, Material, Rarity, Slot,
+} from './items';
 
 export type { MapItem, MapMod, MapRarity };
 export const FEATURE_KINDS = ['goldVein', 'diamondVein', 'chest', 'gem', 'map'] as const;
@@ -8,19 +10,34 @@ export type FindKind = (typeof FIND_KINDS)[number];
 export const HAZARDS = ['gas', 'unstable'] as const;
 export type Hazard = (typeof HAZARDS)[number];
 export interface MetreRoll { feature: FeatureKind | null; amount: number; hardRock: boolean }
-/** Where an item lives: a bag cell, a General cell (any page), a map in a tier list, a Gems or Materials stack, or a worn slot. */
+/**
+ * Where an item lives: a bag cell, a General cell (any page), a map in a tier list, a Gems or Materials stack, a worn
+ * slot, or a slot of the Trader's stock (never saved; nothing moves into or out of it but a buy).
+ */
 export type ItemLoc =
   | { where: 'bag'; index: number }
   | { where: 'stash'; index: number }                   // a General cell, any page
   | { where: 'maps'; tier: number; index: number }      // a map in the Map stash's list for its tier
   | { where: 'gems'; gem: GemType; grade: GemGrade }    // a Gems-tab stack
   | { where: 'materials'; material: Material }          // a Materials-tab stack (virtual, id 0, while its count > 0)
-  | { where: 'worn'; slot: Slot };
+  | { where: 'worn'; slot: Slot }
+  | { where: 'stock'; index: number };
 export type DropTarget = ItemLoc | { where: 'stashTab'; tab: 'general' | 'gems' | 'maps' | 'materials' | 'auto' };
-export const LOOT_ACTIONS = ['keep', 'sell', 'salvage'] as const;
+export const LOOT_ACTIONS = ['keep', 'sell', 'salvage', 'stash'] as const;
 export type LootAction = (typeof LOOT_ACTIONS)[number];
-export type LootTarget = GearSet | Slot | 'gem' | 'any';
-export interface LootRule { rarity: Rarity | 'any'; target: LootTarget; action: LootAction }
+export const LOOT_KINDS = ['gear', 'gem', 'map', 'material'] as const;
+export type LootKind = (typeof LOOT_KINDS)[number];
+/** An inclusive range; a missing end is open. */
+export interface LootRange { min?: number; max?: number }
+/**
+ * A loot filter rule: every field set must hold for the item, and a field that does not apply to the item's kind fails
+ * the match. `level` is gear's item level or a map's tier; `modTier` holds when some modifier is at or above it.
+ */
+export interface LootRule {
+  kind: LootKind | 'any'; action: LootAction;
+  set?: GearSet; slot?: Slot; rarity?: Rarity; level?: LootRange; modTier?: number; mods?: LootRange;
+  mapMod?: MapModKind; gem?: GemType; grade?: GemGrade; material?: Material;
+}
 export const SHAFT_MOTIONS = ['step', 'smooth', 'off'] as const;
 export type ShaftMotion = (typeof SHAFT_MOTIONS)[number];
 export interface MotionSettings { floats: boolean; pops: boolean; lampFlicker: boolean; shaft: ShaftMotion }
@@ -38,7 +55,8 @@ export interface LootNote {
 /** Where a logged find came from: a dug metre, a room of a map, or the merchant. */
 export type DropOrigin = { kind: 'metre'; metre: number } | { kind: 'map'; tier: number; room: number } | { kind: 'merchant' };
 export const TRAIL_EVENTS = [
-  'bag', 'held', 'filterSold', 'filterSalvaged', 'stashed', 'toBag', 'equipped', 'sold', 'salvaged', 'crafted', 'upgraded', 'run', 'lost',
+  'bag', 'held', 'filterSold', 'filterSalvaged', 'filterStashed', 'stashed', 'toBag', 'equipped', 'sold', 'salvaged', 'crafted',
+  'upgraded', 'run', 'lost',
 ] as const;
 export type TrailEvent = (typeof TRAIL_EVENTS)[number];
 export interface TrailStep { event: TrailEvent; gold?: number; materials?: Partial<Record<Material, number>> }
@@ -62,13 +80,14 @@ export interface MonsterState {
   element: Element; life: number; maxLife: number; damage: number; intervalS: number; xp: number;
 }
 export type CombatLine =
-  | { kind: 'hit'; monster: string; amount: number; crit: boolean; click: boolean }
+  | { kind: 'hit'; monster: string; amount: number; crit: boolean }
   | { kind: 'hurt'; monster: string; amount: number }
   | { kind: 'heal'; monster: string; amount: number }
   | { kind: 'kill'; monster: string; xp: number; souls: number }
   | { kind: 'room'; room: number }
   | { kind: 'level'; level: number }
-  | { kind: 'drop'; note: LootNote };
+  | { kind: 'drop'; note: LootNote }
+  | { kind: 'saved'; monster: string };
 export interface RunGains { xp: number; souls: number; gold: number; levels: number }
 export interface MapRun {
   map: MapItem; room: number; bossRoom: number;   // rooms 1..bossRoom; bossRoom = regular rooms + 1 (5..8)
@@ -76,6 +95,8 @@ export interface MapRun {
   life: number; hitCarry: number; monsterCarry: number; regenCarry: number;   // regenCarry: the life regenerated short of a whole point
   gained: RunGains; log: CombatLine[]; loot: LootNote[];   // loot keeps the newest RUN_LOOT_LIMIT notes
   items: number;                                   // gear and gems dropped this run, every one counted (material stacks are not items)
+  strikes: number;                                 // every strike of the run, for the Peacemaker
+  saved?: true;                                    // Kraken Leather has fired this run
 }
 export interface RunResult { map: MapItem; outcome: RunOutcome; room: number; bossRoom: number; gained: RunGains; items: number; seen: boolean }
 export type Activity = { kind: 'dig' } | { kind: 'map'; run: MapRun };
@@ -124,6 +145,8 @@ export interface GameState {
   paused: boolean;                         // the player's Pause: digging waits, map runs go on
   drops: DropEntry[];                      // the drop log, oldest first, at most DROP_LOG_LIMIT
   deaths: DeathEntry[];                    // the death log, oldest first, at most DEATH_LOG_LIMIT
+  merchant: { band: number; bought: number[] };   // the stock band the Trader's slots were bought in, and their indexes
+  uniqueRng: number;                       // the uniques' own stream, so state.rng is the same for a player without them
 }
 export interface Stats {
   digPower: number; autoTicksPerSecond: number; ticksPerClick: number; lampSight: number;
@@ -133,13 +156,15 @@ export interface Stats {
   veinMultiplier: number;                  // every vein: Gold, Diamonds and material
   oreBonusChance: number;                  // ore find: a bonus material vein on metres the seed left empty, drawn from state.rng
   sellMultiplier: number; salvageMultiplier: number;
+  hazardSight: number;                     // metres past the face whose hazards show on the minimap (Black Lantern)
+  hazardSlow: number;                      // the share of a hazard's slowdown left after ward (Black Lantern)
 }
 export type TickEvent =
   | { kind: 'gold'; amount: number }
   | { kind: 'diamond'; amount: number }
   | { kind: 'metre'; depth: number }
   | { kind: 'find'; find: FindRecord }
-  | { kind: 'strike'; amount: number; crit: boolean; click: boolean }
+  | { kind: 'strike'; amount: number; crit: boolean }
   | { kind: 'hurt'; amount: number }
   | { kind: 'runEnd'; result: RunResult };
 export interface OfflineSummary {

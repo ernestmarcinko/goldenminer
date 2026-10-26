@@ -11,7 +11,8 @@ import { nextRandom, pickWeighted } from './rng';
 import { tierCap, tierRange, tierWeights } from './tiers';
 import type { GameState } from './types';
 
-type Gen = Pick<GameState, 'rng' | 'nextId'>;
+/** What a roll draws from and numbers its items with: the game state, or a stream of its own. */
+export type Gen = Pick<GameState, 'rng' | 'nextId'>;
 type Side = 'prefix' | 'suffix';
 
 function pickUniform<T>(state: Gen, list: readonly T[]): T {
@@ -123,6 +124,12 @@ export function rollGear(state: Gen, ilvl: number, set: GearSet, rarity: Rarity 
   const item: GearItem = { id: state.nextId++, type: 'gear', slot, name, rarity, ilvl, implicit, affixes, sockets, gems: [] };
   if (uniqueId !== undefined) item.uniqueId = uniqueId;
   return item;
+}
+
+/** Any of the legendaries, picked uniformly, rolled for its own slot at `ilvl`. */
+export function rollLegendary(gen: Gen, ilvl: number): GearItem {
+  const def = pickUniform(gen, LEGENDARIES);
+  return rollGear(gen, ilvl, setOfSlot(def.slot), 'legendary', def.slot);
 }
 
 export function rollGem(state: Gen, tier: number): GemItem {

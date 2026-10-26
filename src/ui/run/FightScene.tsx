@@ -1,10 +1,10 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { GameStore } from '../../store/gameStore';
 import { monsterLook } from '../../core/monsterLook';
 import type { DungeonType } from '../../core/dungeons';
-import type { MapRun, TickEvent } from '../../core/types';
+import type { MapRun } from '../../core/types';
 import { formatNumber, formatRate } from '../format';
-import { eventsForMotion, pruneParticles } from '../mine/particles';
+import { pruneParticles } from '../mine/particles';
 import { PixelArt } from '../PixelArt';
 import { effectiveMotion, usePrefersReducedMotion } from '../settings/motion';
 import { useGame } from '../useGame';
@@ -16,7 +16,6 @@ import './run.css';
 const SWEEP_MS = 250;
 const DRAIN_MS = 1000;
 const MONSTER_SCALE = 8;
-const DESCRIPTION_ID = 'gm-fight-state';
 
 type Point = { x: number; y: number };
 
@@ -38,7 +37,7 @@ export function FightScene({ store, run, floor, roomSize }: {
   const motion = effectiveMotion(state.settings.motion, reduced);
   const motionRef = useRef(motion);
   motionRef.current = motion;
-  const sceneRef = useRef<HTMLButtonElement>(null);
+  const sceneRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const youRef = useRef<HTMLDivElement>(null);
   const nextIdRef = useRef(0);
@@ -97,34 +96,12 @@ export function FightScene({ store, run, floor, roomSize }: {
     return () => window.clearInterval(id);
   }, [store]);
 
-  const onStrike = (e: MouseEvent<HTMLButtonElement>) => {
-    const events: TickEvent[] = eventsForMotion(store.click(), motion);
-    if (events.length === 0) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    // a keyboard "click" has no pointer position: the number floats off the monster instead
-    const keyboard = e.detail === 0;
-    const origin = keyboard ? centreOf(e.currentTarget, stageRef.current) : { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    const now = Date.now();
-    const spawned: FloatingNumber[] = [];
-    for (const ev of events) {
-      if (ev.kind === 'strike') spawned.push(strikeParticle(ev, origin, ++nextIdRef.current, now));
-      else if (ev.kind === 'hurt') spawned.push(hurtParticle(ev.amount, centreOf(e.currentTarget, youRef.current), ++nextIdRef.current, now));
-    }
-    if (spawned.length > 0) setFloats((prev) => pruneParticles([...prev, ...spawned], now, 1100));
-  };
-
   const maxLife = battle.maxLife;
   const tags = monster === undefined ? [] : monsterTags(monster);
   return (
-    <button
-      ref={sceneRef}
-      type="button"
-      className="gm-fight"
-      aria-label="Strike: click to hit"
-      aria-describedby={DESCRIPTION_ID}
-      onClick={onStrike}
-    >
-      <span id={DESCRIPTION_ID} className="gm-visually-hidden">
+    // the fight is automatic: the scene only shows it, and a click on it does nothing
+    <div ref={sceneRef} className="gm-fight">
+      <span className="gm-visually-hidden">
         {monster !== undefined && `${monster.name}: ${formatNumber(monster.life)} of ${formatNumber(monster.maxLife)} life. `}
         You: {formatNumber(run.life)} of {formatNumber(maxLife)} life.
       </span>
@@ -158,11 +135,11 @@ export function FightScene({ store, run, floor, roomSize }: {
           </div>
           <div className="gm-fight__bar"><div className="gm-fight__fill gm-fight__fill--you" style={{ width: pct(run.life, maxLife) }} /></div>
         </div>
-        <div className="gm-fight__hint">Auto {formatRate(battle.attacksPerSecond)} hit/s · click for an extra hit</div>
+        <div className="gm-fight__hint">Auto {formatRate(battle.attacksPerSecond)} hit/s</div>
       </div>
       {floats.map((p) => (
         <span key={p.id} aria-hidden="true" className="gm-float" data-kind={p.kind} style={{ left: p.x, top: p.y }}>{p.text}</span>
       ))}
-    </button>
+    </div>
   );
 }

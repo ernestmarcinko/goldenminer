@@ -5,3 +5,73 @@ export const IS_MAC: boolean = typeof navigator !== 'undefined' && /Mac|iPhone|i
 export function sellKey(mac: boolean): string {
   return mac ? '⌘' : 'Ctrl';
 }
+
+let pointerType = 'mouse';
+
+// Installed as the module loads, so the tap that opened a view already counts when its first cells mount.
+if (typeof document !== 'undefined') {
+  document.addEventListener('pointerdown', (e) => { pointerType = e.pointerType; }, { capture: true });
+}
+
+/**
+ * The kind of pointer last pressed anywhere on the page ('mouse' until one is). A cell that mounts under a resting
+ * pointer has no pointerdown of its own to ask, and a touch leaves `:hover` stuck where it tapped.
+ */
+export function lastPointerType(): string {
+  return pointerType;
+}
+
+/** How long after the next frame a cell that mounted under a still pointer checks `:hover` a last time. */
+export const HOVER_RECHECK_MS = 100;
+
+type HoverTimers = { frame(cb: () => void): () => void; after(ms: number, cb: () => void): () => void };
+
+const BROWSER_TIMERS: HoverTimers = {
+  frame: (cb) => { const n = requestAnimationFrame(cb); return () => cancelAnimationFrame(n); },
+  after: (ms, cb) => { const n = setTimeout(cb, ms); return () => clearTimeout(n); },
+};
+
+/**
+ * Runs `look` at the next frame and, if it finds no `:hover` (returns false), once more HOVER_RECHECK_MS later: a
+ * browser sets `:hover` on a node inserted under a still pointer at the next frame at the soonest, and Chrome sometimes
+ * later. Returns what cancels the look still to come.
+ */
+export function recheckHover(look: () => boolean, timers: HoverTimers = BROWSER_TIMERS): () => void {
+  let cancel = timers.frame(() => {
+    cancel = look() ? () => {} : timers.after(HOVER_RECHECK_MS, look);
+  });
+  return () => cancel();
+}
+
+const CARD_CLICK_SLOP_PX = 3;
+
+/**
+ * Where a click inside an item card landed, until the pointer moves more than CARD_CLICK_SLOP_PX from that point. A
+ * card's action or a click on the pinned card closes it, and a second click at the same point lands on whatever the
+ * card covered: a Buy or Gamble button that was never aimed at.
+ */
+export function cardClickTracker() {
+  let at: { x: number; y: number } | null = null;
+  // a hand resting on a mouse jitters by a pixel or two; only a move past this is aiming somewhere else
+  const near = (x: number, y: number): boolean => at !== null && Math.hypot(x - at.x, y - at.y) <= CARD_CLICK_SLOP_PX;
+  return {
+    click(x: number, y: number, inCard: boolean): void { if (inCard) at = { x, y }; },
+    move(x: number, y: number): void { if (!near(x, y)) at = null; },
+    through(x: number, y: number): boolean { return near(x, y); },
+  };
+}
+
+const cardClicks = cardClickTracker();
+
+if (typeof document !== 'undefined') {
+  // a click from the keyboard (detail 0) has no point
+  document.addEventListener('click', (e) => {
+    if (e.detail > 0) cardClicks.click(e.clientX, e.clientY, e.target instanceof Element && e.target.closest('[data-item-card]') !== null);
+  }, { capture: true });
+  document.addEventListener('pointermove', (e) => cardClicks.move(e.clientX, e.clientY), { capture: true });
+}
+
+/** The click came at the point of a click inside a card, with no real move since: the pointer was aimed at that card. */
+export function clickedThroughCard(e: { clientX: number; clientY: number; detail: number }): boolean {
+  return e.detail > 0 && cardClicks.through(e.clientX, e.clientY);
+}

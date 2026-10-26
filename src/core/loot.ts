@@ -1,11 +1,13 @@
 import {
-  GEM_BAG_STACK, GEM_GRADE_LEVEL, GEM_SALVAGE_TIN, GEM_SELL_GOLD, MAP_RARITY_SELL, MAP_SALVAGE, MAP_SELL_GOLD,
+  GEM_BAG_STACK, GEM_GRADE_LEVEL, GEM_SALVAGE_TIN, GEM_SELL_GOLD, GEM_STASH_STACK, MAP_RARITY_SELL, MAP_SALVAGE, MAP_SELL_GOLD,
   MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_HELD, SALVAGE_MATERIALS, SELL_GOLD,
 } from './balance';
 import { firstEmpty } from './cells';
 import { logDrop, trail } from './dropLog';
 import { itemName, MATERIAL_LABELS } from './itemData';
-import { isGear, MATERIALS, setOfSlot } from './items';
+import { MATERIALS } from './items';
+import { ruleMatches } from './lootFilter';
+import { putMap } from './maps';
 import type { Cell, GearItem, Gem, GemItem, Item, MapItem, Material, MaterialItem, Stack } from './items';
 import { deriveStats } from './stats';
 import type { DropOrigin, GameState, LootAction, LootNote, LootOutcome, LootRule, Stats, TrailStep } from './types';
@@ -88,25 +90,17 @@ export function stashMaterials(state: GameState, counts: Partial<Record<Material
 
 const units = (counts: Partial<Record<Material, number>>): number => Object.values(counts).reduce((sum, n) => sum + n, 0);
 
-export function lootAction(rules: LootRule[], item: Loot): LootAction {
-  // no rule names maps yet, so 'any' must not catch one
-  if (item.type === 'map') return 'keep';
-  for (const rule of rules) {
-    const rarityOk = rule.rarity === 'any' || (isGear(item) && item.rarity === rule.rarity);
-    const targetOk = rule.target === 'any'
-      || (isGear(item)
-        ? rule.target === item.slot || rule.target === setOfSlot(item.slot)
-        : rule.target === 'gem');
-    if (rarityOk && targetOk) return rule.action;
-  }
-  return 'keep';
+/** The first matching rule's action; nothing matching keeps. A material only ever matches a keep or stash rule. */
+export function lootAction(rules: readonly LootRule[], item: Item): LootAction {
+  return rules.find((r) => ruleMatches(r, item))?.action ?? 'keep';
 }
 
-function note(item: Loot, outcome: LootOutcome, value = 0): LootNote {
+function note(item: Item, outcome: LootOutcome, value = 0): LootNote {
   switch (item.type) {
     case 'gear': return { name: itemName(item), rarity: item.rarity, base: item.slot, outcome, value };
     case 'gem': return { name: itemName(item), rarity: 'gem', base: item.gem, outcome, value };
     case 'map': return { name: itemName(item), rarity: item.rarity, base: 'map', outcome, value };
+    case 'material': return { name: itemName(item), rarity: 'material', base: item.material, outcome, value };
   }
 }
 
@@ -121,7 +115,7 @@ export function sellFind(state: GameState, item: Loot): LootNote {
 interface Fate { note: LootNote; step: TrailStep; count: number }
 
 const fate = (note: LootNote, step: TrailStep, count = 1): Fate => ({ note, step, count });
-const unitsOf = (item: Loot): number => (item.type === 'gem' ? item.count : 1);
+const unitsOf = (item: Item): number => (item.type === 'gem' || item.type === 'material' ? item.count : 1);
 
 function tally(state: GameState, notes: LootNote[]): LootNote[] {
   for (const n of notes) {
@@ -190,11 +184,46 @@ function holdStack(state: GameState, kind: StackKind, count: number, open: (coun
   return left;
 }
 
-/** The loot filter acting on a find: what it sold or salvaged, paid out; null when it keeps the find. */
-function applyFilter(state: GameState, item: Loot): Fate | null {
+/**
+ * A find stashed in its tab: gear in the General tab's first empty cell, a map in its tier, a gem or material stack as
+ * much as the tab's cap takes (the fate counts those units). Null when the tab has no room, so the find goes on as kept.
+ */
+function stashFind(state: GameState, item: Item): Fate | null {
+  const stashed = (n: number): Fate =>
+    fate(note(item, 'stash', item.type === 'material' ? n : 0), { event: 'filterStashed' }, n);
+  switch (item.type) {
+    case 'gear': {
+      const empty = firstEmpty(state.stash.general);
+      if (empty < 0) return null;
+      state.stash.general[empty] = item;
+      return stashed(1);
+    }
+    case 'map': return putMap(state, item) === 'ok' ? stashed(1) : null;
+    case 'gem': {
+      const counts = state.stash.gems[item.gem];
+      const n = Math.min(item.count, GEM_STASH_STACK - counts[item.grade]);
+      if (n <= 0) return null;
+      counts[item.grade] += n;
+      return stashed(n);
+    }
+    case 'material': {
+      const n = units(stashMaterials(state, { [item.material]: item.count }));
+      return n > 0 ? stashed(n) : null;
+    }
+  }
+}
+
+/**
+ * The loot filter acting on a find: what it sold, salvaged or stashed, paid out; null when it keeps the find. A stash
+ * may take only part of a stack; the rest is the caller's to keep.
+ */
+function applyFilter(state: GameState, item: Item): Fate | null {
   const action = lootAction(state.settings.lootFilter, item);
+  // materials are crafting currency: only keep and stash rules match them
+  if (item.type === 'material') return action === 'stash' ? stashFind(state, item) : null;
   switch (action) {
     case 'keep': return null;
+    case 'stash': return stashFind(state, item);
     case 'sell': {
       const sold = sellFind(state, item);
       return fate(sold, { event: 'filterSold', gold: sold.value }, unitsOf(item));
@@ -247,11 +276,15 @@ function stow(state: GameState, item: Loot): Fate[] {
 
 /**
  * Every find goes through here: the loot filter first, then the bag, then the held list, then a sale. Each fate is
- * logged from `origin`; a gem stack's later parts take fresh ids, as the first keeps the find's.
+ * logged from `origin`; a gem stack's later parts take fresh ids, as the first keeps the find's. What a stash rule's
+ * tab had no room for is kept.
  */
 export function receiveItem(state: GameState, item: Loot, origin: DropOrigin): LootNote[] {
   const filtered = applyFilter(state, item);
-  const fates = filtered !== null ? [filtered] : stow(state, item);
+  const rest = unitsOf(item) - (filtered?.count ?? 0);
+  const fates = filtered === null ? stow(state, item)
+    : rest > 0 && item.type === 'gem' ? [filtered, ...stowGem(state, { ...item, count: rest })]
+    : [filtered];
   fates.forEach((f, i) => {
     const id = i === 0 ? item.id : state.nextId++;
     logDrop(state, item.type === 'gem' ? { ...item, id, count: f.count } : item, origin, f.step);
@@ -259,10 +292,22 @@ export function receiveItem(state: GameState, item: Loot, origin: DropOrigin): L
   return tally(state, fates.map((f) => f.note));
 }
 
-// A found material tops up the bag's stacks of its kind, then opens as many cells as it needs; the rest is held as a
+/**
+ * A found material goes to the Materials tab when a stash rule matches it, as one note and one entry for the units
+ * stored; the rest, or the whole find otherwise, is kept as `keepMaterial` says.
+ */
+export function receiveMaterial(state: GameState, material: Material, count: number, origin: DropOrigin): LootNote[] {
+  if (count <= 0) return [];
+  const stashed = applyFilter(state, { id: 0, type: 'material', material, count });
+  if (stashed === null) return keepMaterial(state, material, count, origin);
+  logDrop(state, { id: state.nextId++, type: 'material', material, count: stashed.count }, origin, stashed.step);
+  return [stashed.note, ...keepMaterial(state, material, count - stashed.count, origin)];
+}
+
+// A kept material tops up the bag's stacks of its kind, then opens as many cells as it needs; the rest is held as a
 // stack (split at a bag stack, as a held stack is never bigger), and past MAX_HELD it joins the Materials tab. One note
 // and one entry for where the first unit went, counting every unit kept; what the tab's cap turned away is logged lost.
-export function receiveMaterial(state: GameState, material: Material, count: number, origin: DropOrigin): LootNote[] {
+function keepMaterial(state: GameState, material: Material, count: number, origin: DropOrigin): LootNote[] {
   if (count <= 0) return [];
   const kind = { type: 'material', material } as const;
   const open = (n: number): MaterialItem => ({ id: state.nextId++, type: 'material', material, count: n });
@@ -293,16 +338,25 @@ function unhold(state: GameState, item: Item): boolean {
   }
 }
 
-/** Held finds go in, oldest first, the loot filter first; the first one with no room stops the rest. */
+/**
+ * Held finds go in, oldest first, the loot filter first; the first one with no room stops the rest. A stack a stash
+ * rule's tab took only part of stays held with the rest, and goes on as kept.
+ */
 export function drainOverflow(state: GameState): void {
   while (state.overflow.length > 0) {
     const first = state.overflow[0];
     if (first === undefined) return;
-    // materials are crafting currency: the filter never sells or salvages them
-    const settled = first.type !== 'material' ? applyFilter(state, first) : null;
-    if (settled !== null) trail(state, first.id, settled.step);
-    else if (unhold(state, first)) trail(state, first.id, { event: 'bag' });
-    else return;
+    const settled = applyFilter(state, first);
+    if (settled !== null) {
+      trail(state, first.id, settled.step);
+      if (settled.count < unitsOf(first) && (first.type === 'gem' || first.type === 'material')) first.count -= settled.count;
+      else {
+        state.overflow.shift();
+        continue;
+      }
+    }
+    if (!unhold(state, first)) return;
+    trail(state, first.id, { event: 'bag' });
     state.overflow.shift();
   }
 }

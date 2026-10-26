@@ -13,6 +13,8 @@
 /* each modifier's tier sits at the right edge, in grey, as on the item card */
 .gm-run__mods > li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .gm-run__modtier { flex: none; color: var(--gm-muted); font-family: var(--gm-font-mono); font-size: 12px; }
+/* the special sits last, in the legendary colour, as on the item card */
+.gm-run__mods > li[data-tone='special'] { color: var(--gm-legendary); }
 .gm-run__rewards { color: var(--gm-normal); overflow-wrap: anywhere; }
 
 .gm-rooms { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -25,13 +27,12 @@
 .gm-rooms__label { font-weight: 600; }
 .gm-rooms__note { font-size: 11px; text-align: right; overflow-wrap: anywhere; }
 
-/* the scene is one big button; its panels are drawn over a floor of tiles that stretches to whatever height they need */
+/* the scene only shows the fight; its panels are drawn over a floor of tiles that stretches to whatever height they need */
 .gm-fight {
   position: relative; display: flex; flex-direction: column; width: 100%; min-height: 396px; padding: 0; overflow: hidden;
-  box-sizing: border-box; border-radius: 12px; border: 1px solid var(--gm-line); background: #101417; cursor: pointer;
-  font: inherit; color: inherit; text-align: left; touch-action: manipulation; user-select: none; -webkit-user-select: none;
+  box-sizing: border-box; border-radius: 12px; border: 1px solid var(--gm-line); background: #101417;
+  user-select: none; -webkit-user-select: none;
 }
-.gm-fight:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
 .gm-fight__floor {
   position: absolute; inset: 0; display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); grid-template-rows: repeat(9, minmax(0, 1fr));
 }
@@ -84,7 +85,6 @@
 .gm-runbox__empty { margin: 0; }
 .gm-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; min-height: 140px; font-family: var(--gm-font-mono); font-size: 12px; }
 .gm-log__line { color: var(--gm-normal); overflow-wrap: anywhere; }
-.gm-log__line[data-tone='click'] { color: var(--gm-gold-bright); }
 .gm-log__line[data-tone='crit'] { color: var(--gm-legendary); }
 .gm-log__line[data-tone='hurt'] { color: #ffb4a8; }
 .gm-log__line[data-tone='gain'] { color: var(--gm-badge-bg); }
