@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest';
+import { achievementBoost } from '../../src/core/achievements';
 import { newGame } from '../../src/core/newGame';
 import { deriveStats } from '../../src/core/stats';
 import { applyTicks, digSpeed, faceTicksPerMetre } from '../../src/core/dig';
@@ -249,7 +250,7 @@ it('a hazard slows the metre it sits on and the carried progress follows', () =>
   expect(s.deepest).toBe(m - 1);
   const leftover = 0.999 + 1 / clear - 1;
   const gas = hardness(m) * TICKS_PER_METRE_AT_PARITY / 10 * 2;
-  expect(faceTicksPerMetre(s, st)).toBeCloseTo(gas);
+  expect(faceTicksPerMetre(s, st)).toBeCloseTo(gas / achievementBoost(s));   // the depth achievements raise dig power
   expect(s.progress).toBeCloseTo(leftover * clear / gas, 9);
 });
 
@@ -319,13 +320,14 @@ it('a sure ore find still never touches a metre with a feature or a layer vein',
 });
 
 it('without ore find, digging draws exactly what it drew before ore find existed', () => {
-  // Pinned before ore find was added: seed 21, chest find 50, dug a tick at a time to 400 m.
+  // Pinned before ore find was added: seed 21, chest find 50, dug a tick at a time to 400 m. The RNG stream is what
+  // matters; the tick count moved when the achievement boost (Plan 20) changed the dig speed, without touching the stream.
   const s = newGame(21, 0);
   s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'chestFind', value: 50 }] });
   const st = deriveStats(s);
   expect(st.oreBonusChance).toBe(0);
   while (s.deepest < 400) digClearing(s, 1, st);
-  expect([s.rng, s.deepest, s.finds.length, s.tickCount]).toEqual([3752176977, 400, 201, 38027]);
+  expect([s.rng, s.deepest, s.finds.length, s.tickCount]).toEqual([3752176977, 400, 201, 32406]);
   expect(s.finds.some((f) => f.kind === 'materialVein' && f.bonus === true)).toBe(false);
 });
 

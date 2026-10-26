@@ -1,3 +1,4 @@
+import { checkAchievements } from './achievements';
 import { ascendancyPoints, ascendancyTotals } from './ascendancy';
 import { ASCEND_LEVEL, GUARANTEED_FIRST_MAP_METRE } from './balance';
 import { emptyInventory } from './cells';
@@ -17,6 +18,7 @@ export function ascend(state: GameState): 'ok' | 'notReady' {
   const startingDepth = ascendancyTotals(state).startingDepth;
   const points = ascendancyPoints(deepest, state.level, state.lifetime.ascensions);
   state.lifetime.ascensions += 1;
+  checkAchievements(state, 'ascensions');
   state.lifetime.deepest = Math.max(state.lifetime.deepest, deepest);
   state.ascendancy.points += points;
 

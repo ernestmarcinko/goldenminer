@@ -1,3 +1,4 @@
+import { checkAchievements } from './achievements';
 import { ESSENCE_STASH_STACK, GEM_STASH_STACK, MATERIAL_STASH_STACK } from './balance';
 import { firstEmpty, itemAt, mapTierCount, sameLoc } from './cells';
 import { craft } from './crafting';
@@ -301,6 +302,8 @@ export function socketGem(state: GameState, gem: ItemLoc, into: ItemLoc): InvRes
   if (target.gems.length >= target.sockets) return 'noSocket';
   target.gems.push({ gem: item.gem, grade: item.grade });
   removeUnits(state, gem, item, 1);
+  state.totals.sockets += 1;
+  checkAchievements(state, 'sockets');
   if (into.where === 'worn') refillAhead(state);
   return 'ok';
 }

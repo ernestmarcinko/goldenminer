@@ -5,6 +5,7 @@ import {
 } from './balance';
 import { gearTotals, localTotals } from './stats';
 import { passiveTotals } from './passives';
+import { achievementBoost } from './achievements';
 import type { StatKey } from './items';
 import type { Element, GameState } from './types';
 
@@ -59,6 +60,12 @@ export function deriveBattleStats(state: GameState): BattleStats {
     soulMultiplier *= 2;
     maxLife = clamp(Math.round(maxLife * 0.8), 1, MAX_LIFE);
   }
+  // The achievement boost multiplies the final offensive/defensive values, just before the clamps, never into the pool.
+  const pow = achievementBoost(state);
+  damageMin = clamp(Math.round(damageMin * pow), 1, MAX_DAMAGE);
+  damageMax = clamp(Math.round(damageMax * pow), 1, MAX_DAMAGE);
+  maxLife = clamp(Math.round(maxLife * pow), 1, MAX_LIFE);
+  armor = clamp(Math.round(armor * pow), 0, MAX_DAMAGE);
   if (damageMax < damageMin) damageMax = damageMin;
   return {
     maxLife,

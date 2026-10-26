@@ -187,7 +187,7 @@ it('the tick rate never changes how long a fight lasts', () => {
     const times: number[] = [];
     for (let seed = 1; seed <= 20; seed++) {
       const s = newGame(seed, 0);
-      s.level = 5;   // long enough a fight that a 10 s tick is a small part of it
+      s.level = 4;   // long enough a fight that a 10 s tick is a small part of it
       expect(startMap(s, stashMap(s, 2, 10 + seed).id)).toBe('ok');
       const stats = at(s, rate);
       while (s.activity.kind === 'map') applyTicks(s, 1, stats);
@@ -519,7 +519,7 @@ it('a saved run in progress plays out exactly as before modifiers existed', () =
   };
   const played = replay();
   expect(replay((run) => { run.map.mods = []; })).toEqual(played);
-  // Pinned before map modifiers touched combat; the rng re-pinned for Plan 10's monster scale (was 1231303081).
+  // Pinned before map modifiers touched combat; the achievement boost (Plan 20) at 0.1% leaves the stream untouched.
   expect(played).toMatchObject({
     rng: 4198657840, gained: { xp: 1040, souls: 15, gold: 120, levels: 1 }, outcome: 'cleared',
   });
@@ -543,7 +543,6 @@ it('logging the run\'s drops and its end makes no draws: the saved run plays out
   const played = replay(false);
   expect(played.logged).toBeGreaterThan(0);
   expect(replay(true)).toEqual(played);
-  // the rng re-pinned for Plan 10's monster scale (was 1231303081)
   expect(played).toMatchObject({
     rng: 4198657840, gained: { xp: 1040, souls: 15, gold: 120, levels: 1 }, outcome: 'cleared',
   });

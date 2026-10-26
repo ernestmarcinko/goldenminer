@@ -1,3 +1,4 @@
+import { checkAchievements } from './achievements';
 import {
   GEM_GRADE_LEVEL, GEM_SALVAGE_TIN, GEM_SELL_GOLD, GEM_STASH_STACK, MAP_RARITY_SELL, MAP_SALVAGE, MAP_SELL_GOLD,
   MATERIAL_STASH_STACK, MAX_HELD, SALVAGE_MATERIALS, SELL_GOLD,
@@ -114,6 +115,8 @@ function note(item: Item, outcome: LootOutcome, value = 0): LootNote {
 export function sellFind(state: GameState, item: Loot): LootNote {
   const value = sellPay(item, deriveStats(state));
   state.gold += value;
+  state.totals.gold += value;
+  checkAchievements(state, 'gold');
   return note(item, 'sold', value);
 }
 
@@ -304,6 +307,13 @@ function stow(state: GameState, item: Loot): Fate[] {
  * tab had no room for is kept.
  */
 export function receiveItem(state: GameState, item: Loot, origin: DropOrigin): LootNote[] {
+  if (item.type === 'gem') {
+    state.totals.gems += item.count;
+    checkAchievements(state, 'gems');
+  } else if (item.type === 'gear' && item.rarity === 'legendary') {
+    state.totals.legendaries += 1;
+    checkAchievements(state, 'legendaries');
+  }
   const filtered = applyFilter(state, item);
   const rest = unitsOf(item) - (filtered?.count ?? 0);
   const fates = filtered === null ? stow(state, item)
@@ -322,6 +332,8 @@ export function receiveItem(state: GameState, item: Loot, origin: DropOrigin): L
  */
 export function receiveMaterial(state: GameState, material: Material, count: number, origin: DropOrigin): LootNote[] {
   if (count <= 0) return [];
+  state.totals.ore[material] += count;
+  checkAchievements(state, `ore.${material}`);
   const stashed = applyFilter(state, { id: 0, type: 'material', material, count });
   if (stashed === null) return keepMaterial(state, material, count, origin);
   logDrop(state, { id: state.nextId++, type: 'material', material, count: stashed.count }, origin, stashed.step);

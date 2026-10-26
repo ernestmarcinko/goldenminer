@@ -1,3 +1,4 @@
+import { zeroTotals } from './achievements';
 import { GUARANTEED_FIRST_MAP_METRE } from './balance';
 import { emptyInventory } from './cells';
 import { DEFAULT_LOOT_FILTER } from './lootFilter';
@@ -23,6 +24,7 @@ export function newGame(seed: number, nowMs: number, options: NewGameOptions = {
     oreMarket: { premium: emptyPremium() },
     passives: { allocated: [] },
     ascendancy: { points: 0, allocated: [] }, autoMap: { queue: [] }, lifetime: { ascensions: 0, deepest: 0 },
+    totals: zeroTotals(), achievements: { earned: [] },
   };
   fillAhead(state, deriveStats(state));
   const first = state.ahead[1];

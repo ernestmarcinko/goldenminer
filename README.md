@@ -96,7 +96,7 @@ The 2013 original lives in `legacy/` (open `legacy/index-dev.html`).
 
 ## Balance
 
-`npm run balance` plays a reference run headlessly through the real tick, map, passive, auto-map and ascension code: four fifteen-minute check-ins a day, offline digging between, the best drop worn, and points spent towards Surveyor. On the seeded reference run the first map arrives within a minute, auto-mapping unlocks at level 30, and the level-100 cap lands at about 14.3 simulated days; the deepest depth is still climbing a day later (10,885 m at the cap; frontier map tier 39 → 41), the cap is worth 6 ascendancy points, and a second run's level bonus is +4. The model assumes perfect drops and no crafting, so a human's run is a little longer.
+`npm run balance` plays a reference run headlessly through the real tick, map, passive, auto-map and ascension code: four fifteen-minute check-ins a day, offline digging between, the best drop worn, and points spent towards Surveyor. On the seeded reference run the first map arrives within a minute, auto-mapping unlocks at level 30, and the level-100 cap lands at about 12 simulated days (the achievements boost accelerates the idealized run; a human's first run is longer); the deepest depth is still climbing a day later (15,110 m at the cap; frontier map tier 53 → 58), the cap is worth 7 ascendancy points, and a second run's level bonus is +4. The model assumes perfect drops and no crafting, so a human's run is a little longer.
 
 ## Credits
 

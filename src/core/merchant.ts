@@ -1,3 +1,4 @@
+import { checkAchievements } from './achievements';
 import { GAMBLE_GOLD } from './balance';
 import { metreTier } from './bands';
 import { firstEmpty } from './cells';
@@ -30,6 +31,12 @@ export function gamble(state: GameState, slot: Slot): { result: GambleResult; it
   const item = rollGear(state, gambleTier(state), setOfSlot(slot), rollRarity(state), slot);
   state.bag[cell] = item;
   state.gold -= price;
+  if (item.rarity === 'legendary') {
+    state.totals.legendaries += 1;
+    checkAchievements(state, 'legendaries');
+  }
+  state.totals.buys += 1;
+  checkAchievements(state, 'merchant');
   logDrop(state, item, { kind: 'merchant' }, { event: 'bag' });
   return { result: 'ok', item };
 }

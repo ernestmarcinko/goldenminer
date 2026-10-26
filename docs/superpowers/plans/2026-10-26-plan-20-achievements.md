@@ -4,7 +4,7 @@
 
 - **Many, progressively harder.** Achievements are generated from *families* × *thresholds*, not hand-written one by one: some are trivial (dig your first metre, find your first gold vein), and they climb to the very long tail (reach 10,000 m, clear 500 maps, ascend 10 times, hold 1,000,000 Gold).
 - **Permanent.** Achievements live in a `state.achievements` store that `ascend()` never clears, like `lifetime`. They are the "carry over ascensions" layer.
-- **A global boost.** Each earned achievement adds a small permanent multiplier to the character's stats — the owner floated ~0.5% per achievement; this plan adopts that as `ACHIEVEMENT_BOOST = 0.005` per achievement, applied to the final derived values so it compounds with gear, the web and ascendancy but never re-enters the pool.
+- **A global boost.** Each earned achievement adds a small permanent multiplier to the character's stats — the owner floated ~0.5% per achievement; the balance sim showed that at 0.5% × ~1000 achievements the +500% multiplier overwhelms the level curve, so this plan ships `ACHIEVEMENT_BOOST = 0.001` (+0.1% each, +100% at full completion), applied to the final derived values so it compounds with gear, the web and ascendancy but never re-enters the pool.
 
 **Architecture:**
 
@@ -44,7 +44,7 @@
 
 | Topic | Decision |
 |---|---|
-| Boost | `ACHIEVEMENT_BOOST = 0.005` per achievement: `pow = 1 + 0.005 × earned`, applied to the final dig power, damage, life, armor, gold/diamond/vein multipliers, and find chances. The owner floated "0.5% for every stat per achievement"; this is that, as one clean multiplier on the final values. |
+| Boost | `ACHIEVEMENT_BOOST = 0.001` per achievement: `pow = 1 + 0.001 × earned`, applied to the final dig power, damage, life, armor and gold/diamond/vein multipliers. (Find chances are left unboosted — multiplying the pre-rolled metre chances would break the deterministic find stream.) The owner floated "0.5% for every stat per achievement"; 0.5% proved too strong for the level curve, so it is tuned to 0.1% — +100% at full completion. |
 | Size | ~1000 achievements, generated from families × thresholds. Hand-written text only for the family labels; individual ids are `<family>.<value>`. |
 | Families | `depth` (reach N metres), `dig` (dig N metres total), `gold` (earn N Gold lifetime), `diamonds` (earn N), `ore.<material>` (find N of each ore), `gems` (find N), `maps` (clear N), `kills` (kill N), `bosses` (kill N bosses), `deaths` (die N), `levels` (reach level N), `ascensions` (ascend N), `craft` (craft N), `merchant` (buy N), `legendaries` (own N), `sockets` (socket N gems). Roughly 16 families × ~60 thresholds ≈ 960. |
 | Thresholds | Logarithmic-ish per family (e.g. depth: 10, 25, 50, 100, 250, 500, 1000, …, 10000). Easy ones land in the first session; the tail is endgame. |

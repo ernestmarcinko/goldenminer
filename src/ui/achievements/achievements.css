@@ -1,0 +1,21 @@
+.gm-ach { display: flex; flex-direction: column; gap: 20px; min-width: 0; max-width: 760px; }
+.gm-ach__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+.gm-ach__title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 22px; }
+.gm-ach__summary { font-family: var(--gm-font-mono); font-size: 13px; color: var(--gm-gold); }
+
+.gm-ach__family { min-width: 0; }
+.gm-ach__family-label {
+  margin: 0 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--gm-line);
+  font-family: var(--gm-font-display); font-weight: 400; font-size: 16px;
+}
+.gm-ach__family-label .gm-muted { font-family: var(--gm-font-mono); font-size: 12px; }
+
+.gm-ach__list { list-style: none; margin: 0; padding: 0; }
+.gm-ach__row {
+  display: flex; align-items: baseline; gap: 4px 12px; flex-wrap: wrap;
+  min-height: 44px; padding: 8px 0; border-bottom: 1px solid var(--gm-line); font-size: 14px;
+}
+.gm-ach__name { font-weight: 700; color: var(--gm-muted); }
+.gm-ach__desc { font-size: 13px; }
+.gm-ach__row[data-earned='true'] .gm-ach__name { color: var(--gm-gold-bright); }
+.gm-ach__row[data-earned='true'] .gm-ach__desc { color: var(--gm-text); }

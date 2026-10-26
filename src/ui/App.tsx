@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { GameStore } from '../store/gameStore';
 import type { TabLock } from '../store/tabLock';
+import { AchievementsView } from './achievements/AchievementsView';
 import { AscensionView } from './ascend/AscensionView';
 import { startGame, type GameLoop } from './gameLoop';
 import { Header } from './Header';
@@ -98,6 +99,8 @@ function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: ()
           <MerchantView store={store} />
         ) : shown === 'log' ? (
           <LogView store={store} show={logShow} />
+        ) : shown === 'achievements' ? (
+          <AchievementsView store={store} />
         ) : (
           <RunView store={store} />
         )}

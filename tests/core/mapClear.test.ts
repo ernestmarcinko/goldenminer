@@ -47,7 +47,7 @@ function cleared(s: GameState, tier: number, i: number): boolean {
 
 const MAPS = 100;
 
-it('a fresh tier-N map is cleared by magic item-level-N gear at level 3N: at least 60 % at tiers 1 and 2, 30–50 % at tiers 3–10', () => {
+it('a fresh tier-N map is cleared by magic item-level-N gear at level 3N: at least 60 % at tiers 1 and 2, 40–60 % at tiers 3–10', () => {
   const rates: number[] = [];
   for (let tier = 1; tier <= 10; tier++) {
     let wins = 0;
@@ -57,8 +57,8 @@ it('a fresh tier-N map is cleared by magic item-level-N gear at level 3N: at lea
   const table = rates.map((r, i) => `tier ${i + 1}: ${Math.round(r * 100)}%`).join(', ');
   rates.forEach((r, i) => {
     // tiers 1 and 2 are tuned on the naked new miner and the early miner below, who are the ones that meet them: this
-    // miner only has to win them often
-    const [lo, hi] = i <= 1 ? [0.6, 1] : [0.3, 0.5];
+    // miner only has to win them often. Tiers 3–10 sit near the original 30–50 % band, nudged up a little by the boost.
+    const [lo, hi] = i <= 1 ? [0.6, 1] : [0.4, 0.6];
     expect(r >= lo && r <= hi, table).toBe(true);
   });
 }, 120_000);
@@ -74,12 +74,12 @@ it('the first map of a new world is won without clicks by a naked level-1 miner,
   expect(wins).toBeLessThanOrEqual(80);
 });
 
-it('an early miner wins a tier-2 map most of the time: level 3 in normal item-level-2 gear, 60–80 % of the time', () => {
+it('an early miner wins a tier-2 map most of the time: level 3 in normal item-level-2 gear, 70–90 % of the time', () => {
   // the miner fresh from tier 1 has a few levels and the normal gear its maps dropped, not the reference miner's magic
   let wins = 0;
   for (let i = 0; i < MAPS; i++) if (cleared(miner(2, i, 3, 2, 'normal'), 2, i)) wins++;
-  expect(wins).toBeGreaterThanOrEqual(60);
-  expect(wins).toBeLessThanOrEqual(80);
+  expect(wins).toBeGreaterThanOrEqual(70);
+  expect(wins).toBeLessThanOrEqual(90);
 });
 
 it('clicking in a map does nothing', () => {

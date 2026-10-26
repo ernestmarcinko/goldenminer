@@ -1,3 +1,4 @@
+import { checkAchievements } from './achievements';
 import {
   CRAFT_COST, DEFAULT_STAT_WEIGHT, GEM_STASH_STACK, MAGIC_LINE_WEIGHTS, MAP_CRAFT_SOULS_PER_TIER, MAP_SPECIAL_CHANCE, MAX_CRAFTED_LINES,
   MAX_SIDE_LINES, MAX_TIER_OVER_CAP, RARE_LINE_WEIGHTS, STAT_WEIGHTS, TEMPER_WEIGHTS,
@@ -335,6 +336,8 @@ export function craft(state: GameState, target: ItemLoc, kind: CraftKind, from?:
     pay(state, kind, cost, from);
     state.souls -= souls;
     trail(state, found.id, { event: 'crafted' });
+    state.totals.crafts += 1;
+    checkAchievements(state, 'craft');
     return outcome === undefined ? { check } : { check, temper: outcome };
   }
   const item = found as GearItem;
@@ -343,6 +346,8 @@ export function craft(state: GameState, target: ItemLoc, kind: CraftKind, from?:
   const outcome = apply(state, item, kind);
   pay(state, kind, cost, from);
   trail(state, item.id, { event: 'crafted' });
+  state.totals.crafts += 1;
+  checkAchievements(state, 'craft');
   // Worn mining gear may change lamp sight, as equipping does.
   if (target.where === 'worn' && setOfSlot(target.slot) === 'mining') fillAhead(state, deriveStats(state));
   return outcome === undefined ? { check } : { check, temper: outcome };
@@ -530,6 +535,8 @@ export function targetedCraft(state: GameState, target: ItemLoc, action: Targete
   applyTargeted(state, item, action);
   payFor(state, item, action);
   trail(state, item.id, { event: 'crafted' });
+  state.totals.crafts += 1;
+  checkAchievements(state, 'craft');
   if (target.where === 'worn' && setOfSlot(target.slot) === 'mining') fillAhead(state, deriveStats(state));
   return { check };
 }

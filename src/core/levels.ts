@@ -1,3 +1,4 @@
+import { checkAchievements } from './achievements';
 import {
   LEVEL_CAP, XP_EXPONENT, XP_PER_LEVEL, XP_RAMP_CAP, XP_RAMP_FULL, XP_RAMP_MULT, XP_RAMP_START,
 } from './balance';
@@ -20,7 +21,7 @@ export function xpToNext(level: number): number {
 }
 
 /** Adds XP and levels the miner up while there is enough; returns the levels gained. XP is 0 at the cap. */
-export function gainXp(state: Pick<GameState, 'level' | 'xp'>, amount: number): number {
+export function gainXp(state: GameState, amount: number): number {
   if (!Number.isFinite(amount) || amount < 0) return 0;
   state.xp += amount;
   let gained = 0;
@@ -30,5 +31,6 @@ export function gainXp(state: Pick<GameState, 'level' | 'xp'>, amount: number): 
     gained++;
   }
   if (state.level >= LEVEL_CAP) state.xp = 0;
+  if (gained > 0) checkAchievements(state, 'levels');
   return gained;
 }

@@ -6,6 +6,7 @@ import {
   MAX_PASSIVE_MATERIAL_STACK, MAX_ROOMS, MAX_SIDE_LINES, MAX_SOCKETS, MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MAX_TRAIL_STEPS,
   MONSTER_BUDGET, PREMIUM_CAP, RUN_LOOT_LIMIT, START_GENERAL_PAGES, STASH_PAGE_SIZE, STOCK_SIZE, stashPagePrice,
 } from './balance';
+import { ACHIEVEMENT_IDS, zeroTotals } from './achievements';
 import { ASCENDANCY_NODE_BY_ID, ASCENDANCY_NODE_COUNT, ASCENDANCY_START_ID, MAX_ASCENDANCY_PASSIVE_POINTS, ascendancyTotals } from './ascendancy';
 import { metreTier } from './bands';
 import { emptyGemCounts, emptyMaterialCounts, pageCount } from './cells';
@@ -28,10 +29,10 @@ import { speciesOf } from './species';
 import { tierFor } from './tiers';
 import {
   CHAMPION_MODS, DEFAULT_MOTION, ELEMENTS, FEATURE_KINDS, FIND_KINDS, LOOT_ACTIONS, LOOT_KINDS, LOOT_OUTCOMES, RANKS, RUN_OUTCOMES,
-  SHAFT_MOTIONS, TRAIL_EVENTS, type DropEntry, type GameState, type LootRule,
+  SHAFT_MOTIONS, TRAIL_EVENTS, type DropEntry, type GameState, type LootRule, type Totals,
 } from './types';
 
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
@@ -290,6 +291,15 @@ export const MIGRATIONS: Record<number, Migration> = {
       ...state,
       stash: { ...state.stash, essences: {} },
       oreMarket: { premium: emptyPremium() },
+    };
+  },
+  13: (state) => {
+    if (!isObject(state)) return state;
+    // Achievements start empty (past progress is not back-filled), and the lifetime counters at zero.
+    return {
+      ...state,
+      totals: zeroTotals(),
+      achievements: { earned: [] },
     };
   },
 };
@@ -653,6 +663,26 @@ function isAutoMap(x: unknown): x is { queue: number[] } {
 const isLifetime = (x: unknown): x is { ascensions: number; deepest: number } =>
   isObject(x) && isNonNegInt(x.ascensions) && isNonNegInt(x.deepest);
 
+// The permanent achievement counters: every scalar a non-negative finite number, and one count per ore.
+function isTotals(x: unknown): x is Totals {
+  if (!isObject(x) || !isObject(x.ore)) return false;
+  const ore = x.ore;
+  if (Object.keys(ore).length !== MATERIALS.length || !MATERIALS.every((m) => isNonNegFinite(ore[m]))) return false;
+  const scalars = ['gold', 'diamonds', 'metres', 'gems', 'kills', 'bosses', 'deaths', 'maps', 'crafts', 'buys', 'sockets', 'legendaries'];
+  return scalars.every((k) => isNonNegFinite(x[k]));
+}
+
+// The earned set: unique ids, each a known achievement.
+function isAchievements(x: unknown): x is { earned: string[] } {
+  if (!isObject(x) || !Array.isArray(x.earned)) return false;
+  const ids = new Set<string>();
+  for (const id of x.earned) {
+    if (typeof id !== 'string' || !ACHIEVEMENT_IDS.has(id) || ids.has(id)) return false;
+    ids.add(id);
+  }
+  return true;
+}
+
 // The passive web: at most one point per level past the first plus the ascendancy tree's, unique known ids, never the start, connected to the start.
 function isPassives(x: unknown): x is { allocated: string[] } {
   if (!isObject(x) || !Array.isArray(x.allocated) || x.allocated.length > LEVEL_CAP - 1 + MAX_ASCENDANCY_PASSIVE_POINTS) return false;
@@ -858,6 +888,7 @@ export function validateState(x: unknown): x is GameState {
   if (!isMerchant(x.merchant) || !isUint32(x.uniqueRng)) return false;
   if (!isOreMarket(x.oreMarket)) return false;
   if (!isAscendancy(x.ascendancy) || !isAutoMap(x.autoMap) || !isLifetime(x.lifetime)) return false;
+  if (!isTotals(x.totals) || !isAchievements(x.achievements)) return false;
   const extraPassivePoints = ascendancyTotals({ ascendancy: x.ascendancy }).passivePoints;
   if (!isPassives(x.passives) || x.passives.allocated.length > x.level - 1 + extraPassivePoints) return false;
   const { seed } = x;

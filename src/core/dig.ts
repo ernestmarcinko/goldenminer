@@ -1,6 +1,7 @@
 import { tryAutoMap } from './autoMap';
+import { achievementBoost, checkAchievements } from './achievements';
 import {
-  DEEPDELVER_EVERY, FINDS_LOG_LIMIT, HARD_ROCK_MULTIPLIER, LOOT_NOTES_KEPT, MAX_ITEM_LEVEL, TICKS_PER_METRE_AT_PARITY, hardness,
+  DEEPDELVER_EVERY, FINDS_LOG_LIMIT, HARD_ROCK_MULTIPLIER, LOOT_NOTES_KEPT, MAX_DIG_POWER, MAX_ITEM_LEVEL, TICKS_PER_METRE_AT_PARITY, hardness,
 } from './balance';
 import { metreTier } from './bands';
 import { mapTick } from './combat';
@@ -40,8 +41,10 @@ export function collect(
   const loot: LootNote[] = [];
   const origin = { kind: 'metre', metre: depth } as const;
   if (roll.feature === 'goldVein') {
-    amount = Math.round(roll.amount * stats.goldMultiplier * stats.veinMultiplier);
+    amount = Math.round(roll.amount * stats.goldMultiplier * stats.veinMultiplier * achievementBoost(state));
     state.gold += amount;
+    state.totals.gold += amount;
+    checkAchievements(state, 'gold');
     if (amount > 0) events?.push({ kind: 'gold', amount });
     // The Golddigger's material draws from the unique stream, so the loot stream is the same without it.
     if (hasUnique(state, 'golddigger')) {
@@ -50,8 +53,10 @@ export function collect(
       loot.push(...receiveMaterial(state, material, materialAmount(material, depth, nextRandom(unique)), origin));
     }
   } else if (roll.feature === 'diamondVein') {
-    amount = Math.round(roll.amount * stats.diamondMultiplier * stats.veinMultiplier);
+    amount = Math.round(roll.amount * stats.diamondMultiplier * stats.veinMultiplier * achievementBoost(state));
     state.diamonds += amount;
+    state.totals.diamonds += amount;
+    checkAchievements(state, 'diamonds');
     if (amount > 0) events?.push({ kind: 'diamond', amount });
   }
   const find: FindRecord = { id: state.nextId++, depth, kind: roll.feature, amount, tick: state.tickCount };
@@ -72,7 +77,7 @@ function collectMaterialVein(
   state: GameState, vein: { material: Material; amount: number }, depth: number, stats: Stats, events?: TickEvent[],
   bonus = false,
 ): void {
-  const amount = Math.round(vein.amount * stats.veinMultiplier);
+  const amount = Math.round(vein.amount * stats.veinMultiplier * achievementBoost(state));
   receiveMaterial(state, vein.material, amount, { kind: 'metre', metre: depth });
   const find: FindRecord = {
     id: state.nextId++, depth, kind: 'materialVein', material: vein.material, amount, tick: state.tickCount,
@@ -117,16 +122,20 @@ function collectBonus(state: GameState, depth: number, stats: Stats, events?: Ti
   }
 }
 
-/** Ticks one metre takes: its hardness, hard rock and any hazard, over dig power. */
-function ticksForMetre(seed: number, metre: number, roll: MetreRoll, stats: Stats): number {
+/** Ticks one metre takes: its hardness, hard rock and any hazard, over dig power (raised by the achievement boost). */
+function ticksForMetre(state: GameState, metre: number, roll: MetreRoll, stats: Stats): number {
   const hard = hardness(metre) * (roll.hardRock ? HARD_ROCK_MULTIPLIER : 1);
-  const hazard = hazardFactor(metreLayer(seed, metre).hazard, stats.hazardWard, stats.hazardSlow);
-  return hard * hazard * TICKS_PER_METRE_AT_PARITY / stats.digPower;
+  const hazard = hazardFactor(metreLayer(state.seed, metre).hazard, stats.hazardWard, stats.hazardSlow);
+  const boosted = stats.digPower * achievementBoost(state);
+  // The boost never bypasses the dig-power clamp; a non-finite override (a test's Infinity/NaN) is left alone so the
+  // tick loop's own guard still turns it into no digging.
+  const digPower = Number.isFinite(boosted) ? Math.min(MAX_DIG_POWER, boosted) : boosted;
+  return hard * hazard * TICKS_PER_METRE_AT_PARITY / digPower;
 }
 
 /** Ticks the face metre needs at the current dig power and hazard ward. */
 export function faceTicksPerMetre(state: GameState, stats: Stats): number {
-  return ticksForMetre(state.seed, state.deepest + 1, faceRoll(state, stats), stats);
+  return ticksForMetre(state, state.deepest + 1, faceRoll(state, stats), stats);
 }
 
 /** The auto-dig rate at the face; null while digging is paused (a map runs or loot is held). */
@@ -134,7 +143,7 @@ export function digSpeed(state: GameState, stats: Stats): { metresPerMinute: num
   if (state.activity.kind === 'map' || state.overflow.length > 0) return null;
   const m = state.deepest + 1;
   const roll = state.ahead[m] ?? rollMetre(state.seed, m, metreChances(state, stats));
-  const ticks = ticksForMetre(state.seed, m, roll, stats);
+  const ticks = ticksForMetre(state, m, roll, stats);
   const rate = stats.autoTicksPerSecond;
   if (!(ticks > 0) || !(rate > 0) || !Number.isFinite(ticks)) return null;
   return { metresPerMinute: 60 * rate / ticks, secondsToNext: Math.max(0, 1 - state.progress) * ticks / rate };
@@ -163,6 +172,9 @@ export function finishMetre(
   }
   delete state.ahead[next];
   state.deepest = next;
+  state.totals.metres += 1;
+  checkAchievements(state, 'depth');
+  checkAchievements(state, 'dig');
   fillAhead(state, stats);
   events?.push({ kind: 'metre', depth: next });
 }
@@ -187,7 +199,7 @@ function digFace(state: GameState, stats: Stats, events: TickEvent[] | undefined
   if (!finishInstant(state, stats, events, finds)) return;
   const roll = faceRoll(state, stats);
   const m = state.deepest + 1;
-  const step = 1 / ticksForMetre(state.seed, m, roll, stats);
+  const step = 1 / ticksForMetre(state, m, roll, stats);
   if (!(step > 0) || !Number.isFinite(step)) return;
   state.progress += step;
   while (state.progress >= 1) {
@@ -199,7 +211,7 @@ function digFace(state: GameState, stats: Stats, events: TickEvent[] | undefined
       state.progress -= Math.floor(state.progress);
       return;
     }
-    state.progress *= ticksForMetre(state.seed, next, done, stats) / faceTicksPerMetre(state, stats);
+    state.progress *= ticksForMetre(state, next, done, stats) / faceTicksPerMetre(state, stats);
   }
 }
 

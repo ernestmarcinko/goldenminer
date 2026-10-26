@@ -12,6 +12,7 @@ import fixture9 from '../fixtures/save-schema-9.txt?raw';
 import fixture10 from '../fixtures/save-schema-10.txt?raw';
 import fixture11 from '../fixtures/save-schema-11.txt?raw';
 import { applyTicks } from '../../src/core/dig';
+import { zeroTotals } from '../../src/core/achievements';
 import {
   BAG_SIZE, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_HELD, MAX_LOOT_RULES,
   MAX_TIER_OVER_CAP, MAX_TRAIL_STEPS, START_GENERAL_PAGES, STASH_PAGE_SIZE,
@@ -1048,7 +1049,8 @@ it('a schema-10 save gains an empty passive web and keeps everything else', () =
   expect(r.state.passives).toEqual({ allocated: [] });
   expect(r.state.level).toBe(4);
   const {
-    passives: _passives, ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, oreMarket: _oreMarket, ...rest
+    passives: _passives, ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, oreMarket: _oreMarket,
+    totals: _totals, achievements: _achievements, ...rest
   } = r.state;
   const { essences: _ess10, ...restStash } = r.state.stash;
   expect({ ...rest, stash: restStash }).toEqual(raw);   // nothing else changes
@@ -1164,7 +1166,10 @@ it('a schema-11 save gains an empty ascendancy, auto-map and lifetime record', (
   expect(r.state.ascendancy).toEqual({ points: 0, allocated: [] });
   expect(r.state.autoMap).toEqual({ queue: [] });
   expect(r.state.lifetime).toEqual({ ascensions: 0, deepest: 0 });
-  const { ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, oreMarket: _oreMarket, ...rest } = r.state;
+  const {
+    ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, oreMarket: _oreMarket, totals: _totals,
+    achievements: _achievements, ...rest
+  } = r.state;
   const { essences: _ess11, ...restStash } = r.state.stash;
   expect({ ...rest, stash: restStash }).toEqual(raw);   // nothing else changes
   expect(r.state.oreMarket.premium).toEqual(emptyMaterialCounts());
@@ -1180,6 +1185,18 @@ it('a schema-12 save gains a zeroed ore market and an empty essence tab', () => 
   if (!r.ok) throw new Error(`schema-12 save rejected: ${r.reason}`);
   expect(r.state.oreMarket.premium).toEqual(emptyMaterialCounts());
   expect(r.state.stash.essences).toEqual({});
+  expect(r.state).toEqual(s);   // nothing else changes
+});
+
+it('a schema-13 save gains empty achievements and zeroed totals', () => {
+  const s = newGame(1, 0);
+  const asV13 = structuredClone(s) as unknown as Record<string, unknown>;
+  delete asV13.achievements;
+  delete asV13.totals;
+  const r = decodeSave(raw({ schema: 13, savedAt: 0, state: asV13 }));
+  if (!r.ok) throw new Error(`schema-13 save rejected: ${r.reason}`);
+  expect(r.state.achievements).toEqual({ earned: [] });
+  expect(r.state.totals).toEqual(zeroTotals());
   expect(r.state).toEqual(s);   // nothing else changes
 });
 

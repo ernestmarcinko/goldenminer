@@ -1,3 +1,4 @@
+import { checkAchievements } from './achievements';
 import {
   ARMORED_TAKEN, BAND_OF_THE_DEEP_HEAL, BOSS_DROPS, CHAMPION_DROPS, CHAMPION_MAGIC_FIND, COMBAT_LOG_LIMIT, COMBAT_STEP_S,
   DROP_CHANCE, MAP_DROP_BATTLE_CHANCE, MAP_GEM_CHANCE, MAP_MATERIAL_CHANCE, PEACEMAKER_EVERY, ROOM_REGEN_TOTAL,
@@ -56,13 +57,18 @@ export function endRun(state: GameState, run: MapRun, outcome: RunOutcome, event
     items: run.items, seen: false,
   };
   state.lastRun = result;
-  if (outcome === 'cleared') state.mapTally.cleared += 1;
-  else {
+  if (outcome === 'cleared') {
+    state.mapTally.cleared += 1;
+    state.totals.maps += 1;
+    checkAchievements(state, 'maps');
+  } else {
     state.mapTally.lost += 1;
     trail(state, run.map.id, { event: 'lost' });
   }
   if (outcome === 'died') {
     logDeath(state, run, killer ?? run.queue[0]?.name ?? 'a monster');
+    state.totals.deaths += 1;
+    checkAchievements(state, 'deaths');
     // Soul Debt: a death costs 10% of the Souls on hand.
     if (hasKeystone(state, 'soulDebt')) state.souls = Math.round(state.souls * 0.9);
   }
@@ -117,6 +123,14 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
   const gold = goldPerKill(tier) * rankReward(monster.rank) * (hasKeystone(state, 'bloodMoney') ? 2 : 1);
   state.gold += gold;
   run.gained.gold += gold;
+  state.totals.gold += gold;
+  checkAchievements(state, 'gold');
+  state.totals.kills += 1;
+  checkAchievements(state, 'kills');
+  if (monster.rank === 'boss') {
+    state.totals.bosses += 1;
+    checkAchievements(state, 'bosses');
+  }
 
   const guaranteed = monster.rank === 'boss' ? BOSS_DROPS : monster.rank === 'champion' ? CHAMPION_DROPS : 0;
   const count = guaranteed + (nextRandom(state) < more(DROP_CHANCE) ? 1 : 0);

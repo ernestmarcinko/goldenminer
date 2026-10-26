@@ -92,6 +92,13 @@ export type CombatLine =
   | { kind: 'drop'; note: LootNote }
   | { kind: 'saved'; monster: string };
 export interface RunGains { xp: number; souls: number; gold: number; levels: number }
+/** The permanent achievement counters: everything cumulative that must survive ascension. */
+export interface Totals {
+  gold: number; diamonds: number; metres: number; gems: number;   // lifetime Gold/Diamonds earned, metres dug, gems found
+  ore: Record<Material, number>;                                   // lifetime each ore found
+  kills: number; bosses: number; deaths: number; maps: number;     // lifetime monsters, bosses, deaths, maps cleared
+  crafts: number; buys: number; sockets: number; legendaries: number;   // lifetime crafts, merchant buys, gems socketed, legendaries owned
+}
 export interface MapRun {
   map: MapItem; room: number; bossRoom: number;   // rooms 1..bossRoom; bossRoom = regular rooms + 1 (5..8)
   queue: MonsterState[];                           // monsters left in this room, the fighting one first; never empty
@@ -168,6 +175,8 @@ export interface GameState {
   ascendancy: { points: number; allocated: string[] };   // the permanent tree: unspent points and allocated node ids
   autoMap: { queue: number[] };                          // queued map ids, oldest first, run only while away
   lifetime: { ascensions: number; deepest: number };     // across all runs: the ascension count and the best depth
+  totals: Totals;                                        // permanent achievement counters, kept across ascension
+  achievements: { earned: string[] };                    // earned achievement ids, kept across ascension
 }
 export interface Stats {
   digPower: number; autoTicksPerSecond: number; ticksPerClick: number; lampSight: number;

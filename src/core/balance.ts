@@ -80,7 +80,7 @@ export const XP_EXPONENT = 1.5;
 export const XP_RAMP_START = 10;
 export const XP_RAMP_FULL = 30;
 export const XP_RAMP_MULT = 1.5;
-export const XP_RAMP_CAP = 4.7;
+export const XP_RAMP_CAP = 7.0;
 // Ascendancy: the depth each point costs, the level that unlocks ascension, and how many levels above it earn a
 // bonus point (from the second ascension on).
 export const ASCEND_DEPTH_PER_POINT = 250;

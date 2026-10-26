@@ -7,6 +7,7 @@ import {
 } from './balance';
 import { BATTLE_STATS, LOCAL_STATS, MINING_STATS, setOfSlot } from './items';
 import type { Gem, GearItem, GearSet, StatKey, StatLine } from './items';
+import { achievementBoost } from './achievements';
 import { GEM_EFFECTS } from './itemData';
 import { tierRange } from './tiers';
 import { ascendancyTotals } from './ascendancy';
@@ -201,6 +202,7 @@ export function deriveCharacterSheet(state: GameState): CharacterSheet {
       { label: 'Ore bonus', value: mining.oreBonusChance * 100, format: 'percent' },
       { label: 'Sell', value: mining.sellMultiplier, format: 'multiplier' },
       { label: 'Salvage', value: mining.salvageMultiplier, format: 'multiplier' },
+      { label: 'Achievement boost', value: (achievementBoost(state) - 1) * 100, format: 'percent' },
     ],
     battle: [
       { label: 'Damage', value: battle.damageMin, value2: battle.damageMax, format: 'range' },
