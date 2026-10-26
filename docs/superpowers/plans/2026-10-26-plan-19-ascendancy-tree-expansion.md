@@ -19,7 +19,7 @@
 
 **Builds on:** Plan 15 (`dev-ernest`).
 
-**Roadmap:** 15. level cap 100 · 16. the passive-web rework · 17. crafting overhaul and the ore economy · 18. character stats · **19. ascendancy tree expansion** (this plan) · 20. achievements · 21. the wiki · 22. the stats menu · 23. runes.
+**Roadmap:** 15. level cap 100 · 16. the passive-web rework · 17. crafting overhaul and the ore economy · 18. character stats · **19. ascendancy tree expansion** (this plan) · 20. achievements · 21. the wiki · 22. the stats menu · 23. runes · 24. start screen · 25. skill-tree layout · 26. ascendancy-tree rebalance · 27. crafting rebalance · 28. mining animation · 29. ascendancy icons · 30. damage types and resistances · 31. unified equipment.
 
 ## Global Constraints
 
