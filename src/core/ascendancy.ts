@@ -1,4 +1,6 @@
+import { ASCEND_DEPTH_PER_POINT } from './balance';
 import type { StatKey } from './items';
+import type { GameState } from './types';
 
 export type AscendancyKind = 'small' | 'notable' | 'start';
 /** What a node grants: a stat, a starting depth, a passive point, or a map tier auto-mapping reaches. */
@@ -166,3 +168,64 @@ export const ASCENDANCY_NODE_BY_ID: ReadonlyMap<string, AscendancyNode> = new Ma
 );
 
 export const ASCENDANCY_NODE_COUNT = ASCENDANCY_NODES.length;
+
+/** The points a run's deepest depth is worth: one per ASCEND_DEPTH_PER_POINT metres, taken as a square root. */
+export function ascendancyPoints(deepest: number): number {
+  if (!Number.isFinite(deepest) || deepest < 0) return 0;
+  return Math.floor(Math.sqrt(deepest / ASCEND_DEPTH_PER_POINT));
+}
+
+export interface AscendancyTotals {
+  stats: Record<StatKey, number>;
+  startingDepth: number;
+  passivePoints: number;
+  autoMapTier: number;
+}
+
+/** The allocated nodes' effects, summed: stats into `stats`, the structural bonuses on their own. */
+export function ascendancyTotals(state: Pick<GameState, 'ascendancy'>): AscendancyTotals {
+  const totals: AscendancyTotals = {
+    stats: {} as Record<StatKey, number>, startingDepth: 0, passivePoints: 0, autoMapTier: 0,
+  };
+  for (const id of state.ascendancy.allocated) {
+    const node = ASCENDANCY_NODE_BY_ID.get(id);
+    if (node === undefined) continue;
+    for (const effect of node.effects) {
+      switch (effect.kind) {
+        case 'stat': totals.stats[effect.stat] = (totals.stats[effect.stat] ?? 0) + effect.value; break;
+        case 'startingDepth': totals.startingDepth += effect.value; break;
+        case 'passivePoints': totals.passivePoints += effect.value; break;
+        case 'autoMapTier': totals.autoMapTier += effect.value; break;
+      }
+    }
+  }
+  return totals;
+}
+
+/** The most passive points the whole tree grants, summed from the table: three smalls and a notable, four in all. */
+export const MAX_ASCENDANCY_PASSIVE_POINTS: number = ASCENDANCY_NODES.reduce(
+  (sum, node) => sum + node.effects.reduce((n, e) => n + (e.kind === 'passivePoints' ? e.value : 0), 0),
+  0,
+);
+
+/** Whether `id` links to the start or to an allocated node (and is not itself allocated). */
+export function canAllocateAscendancy(state: Pick<GameState, 'ascendancy'>, id: string): boolean {
+  const node = ASCENDANCY_NODE_BY_ID.get(id);
+  if (node === undefined || id === ASCENDANCY_START_ID || state.ascendancy.allocated.includes(id)) return false;
+  return node.links.some((l) => l === ASCENDANCY_START_ID || state.ascendancy.allocated.includes(l));
+}
+
+/** Allocates a node for one permanent point. The start is free and never enters the allocated list. */
+export function allocateAscendancy(
+  state: GameState,
+  id: string,
+): 'ok' | 'noPoints' | 'notAdjacent' | 'allocated' | 'invalid' {
+  const node = ASCENDANCY_NODE_BY_ID.get(id);
+  if (node === undefined || id === ASCENDANCY_START_ID) return 'invalid';
+  if (state.ascendancy.allocated.includes(id)) return 'allocated';
+  if (!canAllocateAscendancy(state, id)) return 'notAdjacent';
+  if (state.ascendancy.points <= 0) return 'noPoints';
+  state.ascendancy.allocated.push(id);
+  state.ascendancy.points -= 1;
+  return 'ok';
+}

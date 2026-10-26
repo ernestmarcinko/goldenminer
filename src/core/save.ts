@@ -6,7 +6,7 @@ import {
   MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MAX_TRAIL_STEPS,
   MONSTER_BUDGET, RUN_LOOT_LIMIT, START_GENERAL_PAGES, STASH_PAGE_SIZE, STOCK_SIZE, stashPagePrice,
 } from './balance';
-import { ASCENDANCY_NODE_BY_ID, ASCENDANCY_NODE_COUNT, ASCENDANCY_START_ID } from './ascendancy';
+import { ASCENDANCY_NODE_BY_ID, ASCENDANCY_NODE_COUNT, ASCENDANCY_START_ID, MAX_ASCENDANCY_PASSIVE_POINTS, ascendancyTotals } from './ascendancy';
 import { metreTier } from './bands';
 import { emptyGemCounts, emptyMaterialCounts, pageCount } from './cells';
 import { dungeonIndexAt, dungeonType } from './dungeons';
@@ -609,9 +609,9 @@ function isAutoMap(x: unknown): x is { queue: number[] } {
 const isLifetime = (x: unknown): x is { ascensions: number; deepest: number } =>
   isObject(x) && isNonNegInt(x.ascensions) && isNonNegInt(x.deepest);
 
-// The passive web: at most one point per level past the first, unique known ids, never the start, connected to the start.
+// The passive web: at most one point per level past the first plus the ascendancy tree's, unique known ids, never the start, connected to the start.
 function isPassives(x: unknown): x is { allocated: string[] } {
-  if (!isObject(x) || !Array.isArray(x.allocated) || x.allocated.length > LEVEL_CAP - 1) return false;
+  if (!isObject(x) || !Array.isArray(x.allocated) || x.allocated.length > LEVEL_CAP - 1 + MAX_ASCENDANCY_PASSIVE_POINTS) return false;
   const ids = new Set<string>();
   for (const id of x.allocated) {
     if (typeof id !== 'string' || id === START_NODE_ID || !PASSIVE_NODE_BY_ID.has(id) || ids.has(id)) return false;
@@ -813,7 +813,8 @@ export function validateState(x: unknown): x is GameState {
   if (typeof x.paused !== 'boolean' || !isDropLog(x.drops, nextId)) return false;
   if (!isMerchant(x.merchant) || !isUint32(x.uniqueRng)) return false;
   if (!isAscendancy(x.ascendancy) || !isAutoMap(x.autoMap) || !isLifetime(x.lifetime)) return false;
-  if (!isPassives(x.passives) || x.passives.allocated.length > x.level - 1) return false;
+  const extraPassivePoints = ascendancyTotals({ ascendancy: x.ascendancy }).passivePoints;
+  if (!isPassives(x.passives) || x.passives.allocated.length > x.level - 1 + extraPassivePoints) return false;
   const { seed } = x;
   return Array.isArray(x.deaths) && x.deaths.length <= DEATH_LOG_LIMIT && x.deaths.every((d) => isDeathEntry(d, seed, nextId));
 }

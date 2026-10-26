@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
 import { deriveStats, gearTotals, itemTotals } from '../../src/core/stats';
+import { ASCENDANCY_NODES } from '../../src/core/ascendancy';
 import { MAX_HAZARD_WARD, MAX_ORE_BONUS_CHANCE } from '../../src/core/balance';
 import { MINING_STATS } from '../../src/core/items';
 import { gear, gem } from '../helpers/items';
@@ -110,6 +111,19 @@ it('allocated mining passives add to the derived stats', () => {
   const after = deriveStats(s);
   expect(after.featureChances.chest).toBeCloseTo(before.featureChances.chest * 1.15, 6);
   expect(after.diamondMultiplier).toBeCloseTo(before.diamondMultiplier * 1.2, 6);
+});
+
+it('allocated ascendancy stats add to the derived mining stats', () => {
+  const s = newGame(1, 0);
+  const before = deriveStats(s);
+  const gold = ASCENDANCY_NODES.find((n) => n.kind === 'small' &&
+    n.effects.some((e) => e.kind === 'stat' && e.stat === 'goldYield'));
+  if (gold === undefined) throw new Error('no gold-yield ascendancy small');
+  const value = gold.effects.reduce(
+    (sum, e) => sum + (e.kind === 'stat' && e.stat === 'goldYield' ? e.value : 0), 0);
+  expect(value).toBeGreaterThan(0);
+  s.ascendancy.allocated = [gold.id];   // deriveStats does not check adjacency
+  expect(deriveStats(s).goldMultiplier).toBeCloseTo(before.goldMultiplier * (1 + value / 100), 6);
 });
 
 it('Earthshaker digs three times per click but a third slower automatically', () => {

@@ -8,6 +8,7 @@ import { BATTLE_STATS, MINING_STATS, setOfSlot } from './items';
 import type { Gem, GearItem, GearSet, StatKey, StatLine } from './items';
 import { GEM_EFFECTS } from './itemData';
 import { tierRange } from './tiers';
+import { ascendancyTotals } from './ascendancy';
 import { passiveTotals } from './passives';
 import type { FeatureKind, GameState, Stats } from './types';
 import { hasUnique } from './uniques';
@@ -44,6 +45,7 @@ export function deriveStats(state: GameState): Stats {
   const g = gearTotals(state, 'mining');
   const p = passiveTotals(state);
   for (const [stat, value] of Object.entries(p.stats) as [StatKey, number][]) g[stat] += value;
+  for (const [stat, value] of Object.entries(ascendancyTotals(state).stats) as [StatKey, number][]) g[stat] += value;
   const featureChances: Record<FeatureKind, number> = {
     ...BASE_FEATURE_CHANCES,
     chest: BASE_FEATURE_CHANCES.chest * pct(g.chestFind),

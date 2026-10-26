@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import { newGame } from '../../src/core/newGame';
+import { ASCENDANCY_NODES } from '../../src/core/ascendancy';
 import {
   PASSIVE_NODE_BY_ID, PASSIVE_NODES, START_NODE_ID, canAllocate, canRefund, freeStashPages, pointsToSpend, stackCaps,
 } from '../../src/core/passives';
@@ -30,6 +31,16 @@ it('points are level minus one, minus what is spent', () => {
   s.level = 20;
   s.passives.allocated = [PASSIVE_NODE_BY_ID.get(START_NODE_ID)!.links[0]!, 'x'];
   expect(pointsToSpend(s)).toBe(17);
+});
+
+it('ascendancy passive points add to the spendable points', () => {
+  const s = newGame(1, 0);
+  const node = ASCENDANCY_NODES.find((n) => n.effects.some((e) => e.kind === 'passivePoints'));
+  if (node === undefined) throw new Error('no passive-point ascendancy node');
+  s.ascendancy.allocated = [node.id];   // the bonus comes from the allocated node, not the unspent points
+  expect(pointsToSpend(s)).toBe(1);
+  s.level = 5;
+  expect(pointsToSpend(s)).toBe(5);
 });
 
 it('a node allocates only next to the start or an allocated node', () => {

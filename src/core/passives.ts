@@ -1,4 +1,5 @@
 import { GEM_BAG_STACK, MATERIAL_BAG_STACK } from './balance';
+import { ascendancyTotals } from './ascendancy';
 import type { StatKey } from './items';
 import type { GameState } from './types';
 
@@ -268,9 +269,9 @@ export const PASSIVE_NODES: readonly PassiveNode[] = buildWeb();
 
 export const PASSIVE_NODE_BY_ID: ReadonlyMap<string, PassiveNode> = new Map(PASSIVE_NODES.map((n) => [n.id, n]));
 
-/** The unspent points: one per level past the first, minus what is already allocated. */
-export function pointsToSpend(state: Pick<GameState, 'level' | 'passives'>): number {
-  return Math.max(0, state.level - 1 - state.passives.allocated.length);
+/** The unspent points: one per level past the first, plus the ascendancy tree's, minus what is already allocated. */
+export function pointsToSpend(state: Pick<GameState, 'level' | 'passives' | 'ascendancy'>): number {
+  return Math.max(0, state.level - 1 - state.passives.allocated.length + ascendancyTotals(state).passivePoints);
 }
 
 /** Whether `id` links to the start or to an allocated node (and is not itself allocated). */

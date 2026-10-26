@@ -21,6 +21,7 @@ import { sideCount } from '../../src/core/itemGen';
 import { migrateLootFilter } from '../../src/core/lootFilter';
 import { addMap, startMap, takeMap } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
+import { ASCENDANCY_NODE_BY_ID, ASCENDANCY_START_ID, allocateAscendancy } from '../../src/core/ascendancy';
 import { PASSIVE_NODE_BY_ID, START_NODE_ID } from '../../src/core/passives';
 import { hash2 } from '../../src/core/rng';
 import { decodeSave, encodeSave, migrate, MIGRATIONS, SCHEMA_VERSION, validateState } from '../../src/core/save';
@@ -1066,6 +1067,69 @@ it('the validator refuses a broken web', () => {
   tooMany.level = 2;
   tooMany.passives.allocated = [ring1, ring2];   // more nodes than level - 1
   expect(decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: tooMany })).ok).toBe(false);
+});
+
+/** A path from the ascendancy start to `target`, in allocation order (first adjacent to the start, last = target). */
+function ascendancyPathTo(target: string): string[] {
+  const prev = new Map<string, string>();
+  const seen = new Set([ASCENDANCY_START_ID]);
+  const queue = [ASCENDANCY_START_ID];
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    if (cur === target) break;
+    for (const l of ASCENDANCY_NODE_BY_ID.get(cur)!.links) {
+      if (seen.has(l)) continue;
+      seen.add(l);
+      prev.set(l, cur);
+      queue.push(l);
+    }
+  }
+  const path: string[] = [];
+  let cur: string | undefined = target;
+  while (cur !== undefined && cur !== ASCENDANCY_START_ID) {
+    path.unshift(cur);
+    cur = prev.get(cur);
+  }
+  return path;
+}
+
+it('ascendancy passive points raise the passive web ceiling', () => {
+  // Second Sight's chain is four passive-point nodes: three smalls and the notable.
+  const bonus = ascendancyPathTo('secondSight');
+  expect(bonus).toHaveLength(4);
+  const ascendancy = newGame(1, 0);
+  ascendancy.ascendancy.points = bonus.length;
+  for (const id of bonus) expect(allocateAscendancy(ascendancy, id)).toBe('ok');
+
+  // The first six passive nodes in BFS order stay connected to the start.
+  const chain: string[] = [];
+  const seen = new Set([START_NODE_ID]);
+  const queue = [START_NODE_ID];
+  while (chain.length < 6) {
+    const cur = queue.shift()!;
+    for (const l of PASSIVE_NODE_BY_ID.get(cur)!.links) {
+      if (seen.has(l)) continue;
+      seen.add(l);
+      queue.push(l);
+      chain.push(l);
+    }
+  }
+
+  const ok = (allocated: string[]): boolean => {
+    const s = newGame(1, 0);
+    s.level = 2;
+    s.ascendancy = { points: 0, allocated: [...ascendancy.ascendancy.allocated] };
+    s.passives.allocated = allocated;
+    return decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: s })).ok;
+  };
+  // level - 1 + 4 = 5 nodes; one past that is invalid.
+  expect(ok(chain.slice(0, 5))).toBe(true);
+  expect(ok(chain.slice(0, 6))).toBe(false);
+  // and without the ascendancy points the same web is over the old level - 1 ceiling.
+  const plain = newGame(1, 0);
+  plain.level = 2;
+  plain.passives.allocated = chain.slice(0, 2);
+  expect(decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: plain })).ok).toBe(false);
 });
 
 it('a stack over the base cap but under the passive ceiling is a valid save', () => {
