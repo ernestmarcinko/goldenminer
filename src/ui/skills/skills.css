@@ -87,22 +87,20 @@
   display: inline-block;
   box-sizing: border-box;
   border: 3px solid var(--gm-skills-off);
+  border-radius: 50%;
   background: var(--gm-ground);
 }
 .gm-legend__dot--small {
   width: 16px;
   height: 16px;
-  border-radius: 0;
 }
 .gm-legend__dot--notable {
   width: 22px;
   height: 22px;
-  border-radius: 0;
 }
 .gm-legend__dot--keystone {
   width: 24px;
   height: 24px;
-  border-radius: 0;
 }
 
 .gm-web {

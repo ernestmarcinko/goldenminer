@@ -2,6 +2,7 @@ import { MAX_ITEM_LEVEL, SOUL_UPGRADE_BASE } from './balance';
 import { itemAt } from './cells';
 import { trail } from './dropLog';
 import { isGear, setOfSlot } from './items';
+import { hasKeystone } from './passives';
 import type { GearItem } from './items';
 import type { GameState, ItemLoc } from './types';
 
@@ -10,6 +11,11 @@ export type SoulUpgradeCheck = 'ok' | 'notBattle' | 'sealed' | 'maxLevel' | 'noS
 /** The Souls that raise gear of this item level by one. */
 export function soulUpgradeCost(ilvl: number): number {
   return SOUL_UPGRADE_BASE * ilvl * ilvl;
+}
+
+/** What an upgrade actually costs: Soul Debt makes Soul upgrades 25% cheaper. */
+export function soulUpgradeCostFor(state: GameState, ilvl: number): number {
+  return Math.round(soulUpgradeCost(ilvl) * (hasKeystone(state, 'soulDebt') ? 0.75 : 1));
 }
 
 /** Battle gear that is worn, in the bag or in the General tab; anything else, or nothing, is undefined. */
@@ -26,7 +32,7 @@ export function canUpgrade(state: GameState, target: ItemLoc): SoulUpgradeCheck 
   if (setOfSlot(item.slot) !== 'battle') return 'notBattle';
   if (item.sealed === true) return 'sealed';
   if (item.ilvl >= MAX_ITEM_LEVEL) return 'maxLevel';
-  return state.souls >= soulUpgradeCost(item.ilvl) ? 'ok' : 'noSouls';
+  return state.souls >= soulUpgradeCostFor(state, item.ilvl) ? 'ok' : 'noSouls';
 }
 
 /**
@@ -37,7 +43,7 @@ export function soulUpgrade(state: GameState, target: ItemLoc): SoulUpgradeCheck
   const check = canUpgrade(state, target);
   if (check !== 'ok') return check;
   const item = upgradable(state, target) as GearItem;
-  state.souls -= soulUpgradeCost(item.ilvl);
+  state.souls -= soulUpgradeCostFor(state, item.ilvl);
   item.ilvl++;
   trail(state, item.id, { event: 'upgraded' });
   return check;

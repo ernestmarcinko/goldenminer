@@ -59,7 +59,9 @@ export function deriveBattleStats(state: GameState): BattleStats {
     damageMax,
     attacksPerSecond: clamp(BASE_ATTACKS_PER_SECOND * pct(g.attackSpeed), MIN_ATTACKS_PER_SECOND, MAX_ATTACKS_PER_SECOND),
     critChance: clamp(BASE_CRIT_CHANCE + g.critChance, 0, MAX_CRIT_CHANCE) / 100,
-    critMultiplier: Math.max(1, CRIT_MULTIPLIER + g.critMultiplier / 100),
+    critMultiplier: ks.has('allOrNothing')
+      ? Math.max(1, (CRIT_MULTIPLIER + g.critMultiplier / 100) * 3)
+      : Math.max(1, CRIT_MULTIPLIER + g.critMultiplier / 100),
     armor,
     resistAll: clamp(g.resistAll, 0, MAX_RESIST),
     soulMultiplier,

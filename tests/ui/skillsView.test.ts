@@ -127,6 +127,29 @@ it('the passive start, an allocated keystone and a small node map to the right i
   expect(digPower?.icon.id).toBe('digPower');
 });
 
+it('the new keystones and notables map to their own glyphs', () => {
+  const s = newGame(1, 0);
+  s.level = 3;
+  const vms = nodeVMs(s);
+  for (const id of ['oreBaron', 'allOrNothing', 'deepBreath', 'bloodMoney', 'soulDebt', 'prospectorsEye']) {
+    expect(vms.find((n) => n.id === id)?.icon.id, id).toBe(id);
+  }
+  for (const id of ['deepMiner', 'reckoner', 'vanguard', 'alchemist', 'nightowl']) {
+    expect(vms.find((n) => n.id === id)?.icon.id, id).toBe(id);
+  }
+});
+
+it('the composed icons are round: their four corners are transparent', () => {
+  const s = newGame(1, 0);
+  s.level = 3;
+  for (const vm of nodeVMs(s)) {
+    expect(vm.icon.grid[0]?.[0], vm.id).toBe('.');
+    expect(vm.icon.grid[0]?.[23], vm.id).toBe('.');
+    expect(vm.icon.grid[23]?.[0], vm.id).toBe('.');
+    expect(vm.icon.grid[23]?.[23], vm.id).toBe('.');
+  }
+});
+
 it('every ascendancy VM carries a composed 24 × 24 icon', () => {
   const s = newGame(1, 0);
   const vms = ascendancyVMs(s);

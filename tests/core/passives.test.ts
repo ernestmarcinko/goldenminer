@@ -4,12 +4,13 @@ import { ASCENDANCY_NODES } from '../../src/core/ascendancy';
 import {
   PASSIVE_NODE_BY_ID, PASSIVE_NODES, START_NODE_ID, canAllocate, canRefund, freeStashPages, pointsToSpend, stackCaps,
 } from '../../src/core/passives';
+import type { StatKey } from '../../src/core/items';
 
-it('the web is 141 nodes with one start, eight keystones and seventeen notables', () => {
-  expect(PASSIVE_NODES).toHaveLength(141);
+it('the web is ~200 nodes: one start, fourteen keystones, twenty-two notables and 165 smalls', () => {
+  expect(PASSIVE_NODES.length).toBeGreaterThanOrEqual(200);
   const kinds = { start: 0, small: 0, notable: 0, keystone: 0 };
   for (const n of PASSIVE_NODES) kinds[n.kind] += 1;
-  expect(kinds).toEqual({ start: 1, small: 115, notable: 17, keystone: 8 });
+  expect(kinds).toEqual({ start: 1, small: 165, notable: 22, keystone: 14 });
   expect(PASSIVE_NODES.filter((n) => n.side === 'mining').length).toBeGreaterThan(PASSIVE_NODES.filter((n) => n.side === 'hybrid').length);
 });
 
@@ -31,31 +32,98 @@ it('links are symmetric, ids unique, and the start never links to itself', () =>
   expect(PASSIVE_NODE_BY_ID.get(START_NODE_ID)?.links.includes(START_NODE_ID)).toBe(false);
 });
 
-it('the web is a tree, not a mesh: 140 edges for 141 nodes, rooted at the start', () => {
+it('the whole web is connected from the start', () => {
+  const seen = new Set<string>([START_NODE_ID]);
+  const queue = [START_NODE_ID];
+  while (queue.length > 0) {
+    const id = queue.pop();
+    if (id === undefined) continue;
+    const node = PASSIVE_NODE_BY_ID.get(id);
+    if (node === undefined) throw new Error(`unknown node ${id}`);
+    for (const l of node.links) if (!seen.has(l)) { seen.add(l); queue.push(l); }
+  }
+  expect(seen.size).toBe(PASSIVE_NODES.length);
+});
+
+it('the web is a woven mesh, not a forest of spokes: cross-links add cycles', () => {
   const edges = new Set<string>();
   for (const n of PASSIVE_NODES) {
     for (const l of n.links) edges.add(n.id < l ? `${n.id}|${l}` : `${l}|${n.id}`);
   }
-  expect(edges.size).toBe(PASSIVE_NODES.length - 1);
+  // A tree has exactly one edge per non-start node; a mesh has more (its cross-links close cycles).
+  expect(edges.size).toBeGreaterThan(PASSIVE_NODES.length - 1);
+  expect(PASSIVE_NODES.some((n) => n.links.length >= 3)).toBe(true);
 });
 
-it('linked nodes are at least one ring apart, so the web reads as spokes and branches', () => {
+it('no node sits further than a bounded distance from the start', () => {
+  const start = PASSIVE_NODE_BY_ID.get(START_NODE_ID);
+  expect(start).toBeDefined();
+  if (start === undefined) return;
   for (const n of PASSIVE_NODES) {
-    for (const l of n.links) {
-      const m = PASSIVE_NODE_BY_ID.get(l);
-      if (m === undefined) continue;
-      const distance = Math.hypot(n.x - m.x, n.y - m.y);
-      expect(distance, `${n.id} -> ${l}`).toBeGreaterThanOrEqual(70);
+    const distance = Math.hypot(n.x - start.x, n.y - start.y);
+    expect(distance, n.id).toBeLessThanOrEqual(500);
+  }
+});
+
+// The order the SMALL_BUDGET tables were expanded before this plan: the builder numbers smalls from them, so these
+// ids must keep meaning the same stat forever. This is the old save's load guarantee.
+const OLD_SMALL_BUDGET: Record<'mining' | 'battle' | 'hybrid', ReadonlyArray<readonly [StatKey, number, number]>> = {
+  mining: [
+    ['digPower', 4, 8], ['digPowerPct', 6, 4], ['goldYield', 6, 4], ['diamondYield', 6, 4],
+    ['veinYield', 4, 4], ['chestFind', 5, 4], ['gemFind', 5, 3], ['mapFind', 5, 3], ['oreFind', 5, 3],
+    ['lampSight', 1, 2], ['autoTickRate', 4, 3], ['ticksPerClick', 0.5, 2], ['offlineCap', 30, 2], ['hazardWard', 8, 2],
+  ],
+  battle: [
+    ['damage', 4, 6], ['damagePct', 6, 3], ['attackSpeed', 4, 3], ['critChance', 2, 4], ['critMultiplier', 6, 3],
+    ['life', 20, 5], ['lifePct', 4, 3], ['armor', 20, 4], ['armorPct', 6, 3], ['resistAll', 4, 3],
+    ['elementalDamage', 4, 2], ['lifeRegen', 1, 2], ['lifeOnKill', 3, 1], ['soulFind', 5, 3], ['magicFind', 5, 2], ['xpFind', 5, 1],
+  ],
+  hybrid: [
+    ['digPower', 3, 3], ['damage', 3, 3], ['life', 10, 4], ['goldYield', 4, 3], ['soulFind', 3, 3], ['magicFind', 3, 3],
+  ],
+};
+
+it('every pre-existing small id keeps its stat, so old saves load with no migration', () => {
+  const expand = (rows: ReadonlyArray<readonly [StatKey, number, number]>): ReadonlyArray<readonly [StatKey, number]> =>
+    rows.flatMap(([stat, value, count]) => Array.from({ length: count }, () => [stat, value] as const));
+  for (const side of ['mining', 'battle', 'hybrid'] as const) {
+    const expected = expand(OLD_SMALL_BUDGET[side]);
+    for (let i = 0; i < expected.length; i++) {
+      const id = `${side}Small${i + 1}`;
+      const node = PASSIVE_NODE_BY_ID.get(id);
+      expect(node, id).toBeDefined();
+      if (node === undefined) continue;
+      expect(node.kind, id).toBe('small');
+      const effect = node.effects[0];
+      expect(effect?.kind, id).toBe('stat');
+      if (effect?.kind === 'stat') expect([effect.stat, effect.value], id).toEqual(expected[i]);
     }
   }
 });
 
-it('points are level minus one, minus what is spent', () => {
+it('the new smalls append after the old ones with fresh ids', () => {
+  expect(PASSIVE_NODE_BY_ID.get('miningSmall49')).toBeDefined();
+  expect(PASSIVE_NODE_BY_ID.get('battleSmall49')).toBeDefined();
+  expect(PASSIVE_NODE_BY_ID.get('hybridSmall20')).toBeDefined();
+});
+
+it('the keystones grew to fourteen, and the old eight keep their ids', () => {
+  const keystones = PASSIVE_NODES.filter((n) => n.kind === 'keystone').map((n) => n.id);
+  expect(keystones).toHaveLength(14);
+  for (const id of ['earthshaker', 'cartographer', 'prospectorsLuck', 'berserker', 'soulReaper', 'bulwark', 'deepPockets', 'twoWayStreet']) {
+    expect(keystones, id).toContain(id);
+  }
+});
+
+it('points are level minus one, minus what is spent; level 100 gives 99', () => {
   const s = newGame(1, 0);
   expect(pointsToSpend(s)).toBe(0);
   s.level = 20;
   s.passives.allocated = [PASSIVE_NODE_BY_ID.get(START_NODE_ID)!.links[0]!, 'x'];
   expect(pointsToSpend(s)).toBe(17);
+  s.level = 100;
+  s.passives.allocated = [];
+  expect(pointsToSpend(s)).toBe(99);
 });
 
 it('ascendancy passive points add to the spendable points', () => {

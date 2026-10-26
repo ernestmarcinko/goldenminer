@@ -7,7 +7,8 @@ export type PassiveKind = 'small' | 'notable' | 'keystone' | 'start';
 export type PassiveSide = 'mining' | 'battle' | 'hybrid' | 'start';
 export type KeystoneId =
   | 'earthshaker' | 'cartographer' | 'prospectorsLuck' | 'berserker'
-  | 'soulReaper' | 'bulwark' | 'deepPockets' | 'twoWayStreet';
+  | 'soulReaper' | 'bulwark' | 'deepPockets' | 'twoWayStreet'
+  | 'oreBaron' | 'allOrNothing' | 'deepBreath' | 'bloodMoney' | 'soulDebt' | 'prospectorsEye';
 
 /** What a node grants: a stat, a rule change (keystone), or a structural bonus. */
 export type PassiveEffect =
@@ -64,6 +65,18 @@ const deepPockets = n('deepPockets', 'Deep Pockets', 'keystone', [{ kind: 'stash
   'Two more General stash pages, for nothing.');
 const twoWayStreet = n('twoWayStreet', 'Two-Way Street', 'keystone', [keystone('twoWayStreet')],
   '+15% dig power, +15% damage, −10% life.');
+const oreBaron = n('oreBaron', 'Ore Baron', 'keystone', [keystone('oreBaron')],
+  '+100% ore find, −50% Gold from gold veins.');
+const allOrNothing = n('allOrNothing', 'All or Nothing', 'keystone', [keystone('allOrNothing')],
+  'Critical hits ×3, non-critical hits −40%.');
+const deepBreath = n('deepBreath', 'Deep Breath', 'keystone', [keystone('deepBreath')],
+  '×3 offline cap, −25% active dig power.');
+const bloodMoney = n('bloodMoney', 'Blood Money', 'keystone', [keystone('bloodMoney')],
+  '+100% Gold from kills, take +25% damage.');
+const soulDebt = n('soulDebt', 'Soul Debt', 'keystone', [keystone('soulDebt')],
+  'Soul upgrades 25% cheaper, deaths cost 10% of current Souls.');
+const prospectorsEye = n('prospectorsEye', "Prospector's Eye", 'keystone', [keystone('prospectorsEye')],
+  '+100% chest find, maps found one tier lower.');
 
 const veinSense = n('veinSense', 'Vein Sense', 'notable', [stat('chestFind', 15)], '+15% chest find.');
 const prospector = n('prospector', 'Prospector', 'notable', [stat('diamondYield', 20)], '+20% Diamonds.');
@@ -89,21 +102,39 @@ const oreCart = n('oreCart', 'Ore Cart', 'notable', [{ kind: 'materialStack', va
   'Materials stack 25 higher in the bag.');
 const surveyor = n('surveyor', 'Surveyor', 'notable', [{ kind: 'autoMap' }],
   'Auto-mapping: queue maps to run themselves while you are away.');
+const deepMiner = n('deepMiner', 'Deep Miner', 'notable', [stat('digPowerPct', 10), stat('oreFind', 5)],
+  '+10% dig power, +5% ore find.');
+const reckoner = n('reckoner', 'Reckoner', 'notable', [stat('critChance', 5), stat('critMultiplier', 10)],
+  '+5% crit chance, +10% critical damage.');
+const vanguard = n('vanguard', 'Vanguard', 'notable', [stat('lifePct', 10), stat('armor', 10)],
+  '+10% life, +10 armor.');
+const alchemist = n('alchemist', 'Alchemist', 'notable', [stat('goldYield', 10), stat('magicFind', 10)],
+  '+10% Gold, +10% magic find.');
+const nightowl = n('nightowl', 'Nightowl', 'notable', [stat('offlineCap', 30), stat('soulFind', 5)],
+  '+30 min offline cap, +5% Soul find.');
 
-// The small nodes' budget: [stat, value, count]. Mining totals 48, battle 48, hybrid 19 — 115 in all.
+// The small nodes' budget: [stat, value, count]. Mining totals 65, battle 65, hybrid 35 — 165 in all. The order is
+// load-bearing: the builder numbers smalls from it, so miningSmall1..48, battleSmall1..48 and hybridSmall1..19 keep
+// their stats forever; new smalls append below with fresh ids.
 const SMALL_BUDGET: Record<Exclude<PassiveSide, 'start'>, ReadonlyArray<readonly [StatKey, number, number]>> = {
   mining: [
     ['digPower', 4, 8], ['digPowerPct', 6, 4], ['goldYield', 6, 4], ['diamondYield', 6, 4],
     ['veinYield', 4, 4], ['chestFind', 5, 4], ['gemFind', 5, 3], ['mapFind', 5, 3], ['oreFind', 5, 3],
     ['lampSight', 1, 2], ['autoTickRate', 4, 3], ['ticksPerClick', 0.5, 2], ['offlineCap', 30, 2], ['hazardWard', 8, 2],
+    ['digPower', 4, 2], ['goldYield', 6, 2], ['diamondYield', 6, 2], ['chestFind', 5, 2], ['gemFind', 5, 2],
+    ['mapFind', 5, 2], ['oreFind', 5, 2], ['veinYield', 4, 2], ['hazardWard', 8, 1],
   ],
   battle: [
     ['damage', 4, 6], ['damagePct', 6, 3], ['attackSpeed', 4, 3], ['critChance', 2, 4], ['critMultiplier', 6, 3],
     ['life', 20, 5], ['lifePct', 4, 3], ['armor', 20, 4], ['armorPct', 6, 3], ['resistAll', 4, 3],
     ['elementalDamage', 4, 2], ['lifeRegen', 1, 2], ['lifeOnKill', 3, 1], ['soulFind', 5, 3], ['magicFind', 5, 2], ['xpFind', 5, 1],
+    ['damage', 4, 2], ['life', 20, 2], ['armor', 20, 2], ['attackSpeed', 4, 2], ['critChance', 2, 2],
+    ['critMultiplier', 6, 2], ['soulFind', 5, 2], ['magicFind', 5, 2], ['resistAll', 4, 1],
   ],
   hybrid: [
     ['digPower', 3, 3], ['damage', 3, 3], ['life', 10, 4], ['goldYield', 4, 3], ['soulFind', 3, 3], ['magicFind', 3, 3],
+    ['digPower', 3, 2], ['damage', 3, 2], ['life', 10, 3], ['goldYield', 4, 2], ['soulFind', 3, 2],
+    ['magicFind', 3, 2], ['chestFind', 5, 2], ['lifePct', 4, 1],
   ],
 };
 
@@ -118,43 +149,72 @@ const SMALL_NAMES: Record<string, string> = {
   magicFind: 'Magic Find', xpFind: 'XP',
 };
 
-// The web's geometry: the start in the middle, three chains fanning out each side, hybrid chains along the bottom.
-// `s` marks a small node; a NamedSpec is a notable or a keystone at a chain's far end; a branch hangs a notable off a chain.
-interface ChainDef {
+// The web's geometry: a hand-authored cluster table. The start sits at the centre; around it each side's clusters group
+// a short chain of smalls behind a terminal notable or keystone. A cluster's first small links from its `entry` (the
+// start or an earlier cluster's terminal), and its terminal cross-links its ring neighbours, weaving the whole mesh.
+interface ClusterDef {
   side: Exclude<PassiveSide, 'start'>;
-  angle: number;
-  items: (NamedSpec | 's')[];
-  parent?: { chain: number; ring: number };
+  /** The terminal's place; the cluster's smalls sit on the ray from the entry to here. */
+  x: number;
+  y: number;
+  /** How many smalls this cluster draws from its side's budget, in order. */
+  count: number;
+  terminal: NamedSpec;
+  /** Where the cluster's first small links from: the start, or another cluster's terminal id. */
+  entry: string;
+  /** Terminals this cluster's terminal also links to (the mesh's cross-links). */
+  cross: string[];
 }
 
 const START_X = 560;
 const START_Y = 400;
-const RING_GAP = 72;
 
-const CHAINS: ChainDef[] = [
-  // mining: upper-left, left, lower-left, plus two short branches
-  { side: 'mining', angle: 135, items: ['s', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's',
-    veinSense, earthshaker] },
-  { side: 'mining', angle: 180, items: ['s', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's',
-    prospector, prospectorsLuck] },
-  { side: 'mining', angle: 225, items: ['s', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's',
-    deepLungs, cartographer] },
-  { side: 'mining', angle: 153, parent: { chain: 0, ring: 3 }, items: ['s', oreSniffer] },
-  { side: 'mining', angle: 207, parent: { chain: 2, ring: 3 }, items: ['s', steadyHands] },
-  // battle: upper-right, right, lower-right, plus two short branches
-  { side: 'battle', angle: 45, items: ['s', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's',
-    thickSkin, berserker] },
-  { side: 'battle', angle: 0, items: ['s', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's',
-    sharpened, bulwark] },
-  { side: 'battle', angle: 315, items: ['s', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's', 's',
-    soulWarden, soulReaper] },
-  { side: 'battle', angle: 27, parent: { chain: 5, ring: 3 }, items: ['s', deadlyAim] },
-  { side: 'battle', angle: 333, parent: { chain: 7, ring: 3 }, items: ['s', treasureHunter] },
-  // hybrid: the bottom
-  { side: 'hybrid', angle: 255, items: ['s', 's', 's', 's', 's', 's', 's', 's', 's',
-    lampAndBlade, gemPouch, deepPockets, surveyor] },
-  { side: 'hybrid', angle: 285, items: ['s', 's', 's', 's', 's', 's', 's', 's', 's', 's',
-    wellRested, sureFooting, careful, oreCart, twoWayStreet] },
+const cluster = (
+  side: Exclude<PassiveSide, 'start'>, x: number, y: number, count: number, terminal: NamedSpec, entry: string, cross: string[],
+): ClusterDef => ({ side, x, y, count, terminal, entry, cross });
+
+// 36 clusters on 12 spokes × 3 rings: battle top-right, mining left, hybrid along the bottom. Each side's middle-spoke
+// ring-1 cluster is the anchor the start links to; the rest chain up the same spoke and cross-link their ring neighbour.
+const CLUSTERS: ClusterDef[] = [
+  // ── battle (top-right) ──────────────────────────────────────────────────────────────
+  cluster('battle', 707, 485, 6, thickSkin, 'sharpened', ['sharpened']),
+  cluster('battle', 645, 547, 6, sharpened, START_NODE_ID, ['treasureHunter']),
+  cluster('battle', 560, 570, 6, treasureHunter, 'sharpened', ['vanguard']),
+  cluster('battle', 475, 547, 6, vanguard, 'sharpened', ['thickSkin']),
+  cluster('battle', 820, 550, 6, deadlyAim, 'thickSkin', ['soulWarden']),
+  cluster('battle', 710, 660, 5, soulWarden, 'sharpened', ['reckoner']),
+  cluster('battle', 560, 700, 5, reckoner, 'treasureHunter', ['soulReaper']),
+  cluster('battle', 410, 660, 5, soulReaper, 'vanguard', ['deadlyAim']),
+  cluster('battle', 906, 600, 5, berserker, 'deadlyAim', ['allOrNothing']),
+  cluster('battle', 760, 746, 5, allOrNothing, 'soulWarden', ['bloodMoney']),
+  cluster('battle', 560, 800, 5, bloodMoney, 'reckoner', ['bulwark']),
+  cluster('battle', 360, 746, 5, bulwark, 'soulReaper', ['berserker']),
+  // ── mining (left) ───────────────────────────────────────────────────────────────────
+  cluster('mining', 413, 485, 6, veinSense, 'prospector', ['prospector']),
+  cluster('mining', 390, 400, 6, prospector, START_NODE_ID, ['steadyHands']),
+  cluster('mining', 413, 315, 6, steadyHands, 'prospector', ['prospectorsEye']),
+  cluster('mining', 475, 253, 6, prospectorsEye, 'prospector', ['veinSense']),
+  cluster('mining', 300, 550, 6, deepLungs, 'veinSense', ['oreSniffer']),
+  cluster('mining', 260, 400, 5, oreSniffer, 'prospector', ['deepMiner']),
+  cluster('mining', 300, 250, 5, deepMiner, 'steadyHands', ['deepBreath']),
+  cluster('mining', 410, 140, 5, deepBreath, 'prospectorsEye', ['deepLungs']),
+  cluster('mining', 214, 600, 5, earthshaker, 'deepLungs', ['oreBaron']),
+  cluster('mining', 160, 400, 5, oreBaron, 'oreSniffer', ['cartographer']),
+  cluster('mining', 214, 200, 5, cartographer, 'deepMiner', ['prospectorsLuck']),
+  cluster('mining', 360, 54, 5, prospectorsLuck, 'deepBreath', ['earthshaker']),
+  // ── hybrid (bottom) ─────────────────────────────────────────────────────────────────
+  cluster('hybrid', 560, 230, 3, lampAndBlade, 'sureFooting', ['sureFooting']),
+  cluster('hybrid', 645, 253, 3, sureFooting, START_NODE_ID, ['alchemist']),
+  cluster('hybrid', 707, 315, 3, alchemist, 'sureFooting', ['nightowl']),
+  cluster('hybrid', 730, 400, 3, nightowl, 'sureFooting', ['lampAndBlade']),
+  cluster('hybrid', 560, 100, 3, wellRested, 'lampAndBlade', ['careful']),
+  cluster('hybrid', 710, 140, 3, careful, 'sureFooting', ['gemPouch']),
+  cluster('hybrid', 820, 250, 3, gemPouch, 'alchemist', ['oreCart']),
+  cluster('hybrid', 860, 400, 3, oreCart, 'nightowl', ['wellRested']),
+  cluster('hybrid', 560, 0, 3, deepPockets, 'wellRested', ['twoWayStreet']),
+  cluster('hybrid', 760, 54, 3, twoWayStreet, 'careful', ['soulDebt']),
+  cluster('hybrid', 906, 200, 3, soulDebt, 'gemPouch', ['surveyor']),
+  cluster('hybrid', 960, 400, 2, surveyor, 'oreCart', ['deepPockets']),
 ];
 
 interface Placed {
@@ -167,8 +227,6 @@ interface Placed {
   x: number;
   y: number;
   links: string[];
-  ring: number;
-  chain: number;
 }
 
 function expandSmall(side: Exclude<PassiveSide, 'start'>): { stat: StatKey; value: number }[] {
@@ -184,11 +242,11 @@ function buildWeb(): PassiveNode[] {
   const smallCursor: Record<Exclude<PassiveSide, 'start'>, number> = { mining: 0, battle: 0, hybrid: 0 };
   const placed: Placed[] = [];
 
-  const chainDef = (i: number): ChainDef => {
-    const c = CHAINS[i];
-    if (c === undefined) throw new Error('missing chain');
-    return c;
-  };
+  // Every terminal's position is known up front, so a cluster's smalls can line up to its entry.
+  const terminalAt = new Map<string, { x: number; y: number }>();
+  terminalAt.set(START_NODE_ID, { x: START_X, y: START_Y });
+  for (const c of CLUSTERS) terminalAt.set(c.terminal.id, { x: c.x, y: c.y });
+
   const takeSmall = (side: Exclude<PassiveSide, 'start'>): { stat: StatKey; value: number } => {
     const s = smalls[side][smallCursor[side]];
     if (s === undefined) throw new Error('small budget exhausted');
@@ -196,52 +254,44 @@ function buildWeb(): PassiveNode[] {
     return s;
   };
 
-  for (const [ci, chain] of CHAINS.entries()) {
-    // A branch starts one ring outside the node it forks from, so its first edge is a normal one-ring step.
-    let ring = (chain.parent?.ring ?? 0) + 1;
-    for (const item of chain.items) {
-      if (item === 's') {
-        const s = takeSmall(chain.side);
-        placed.push({
-          id: `${chain.side}Small${smallCursor[chain.side]}`, name: SMALL_NAMES[s.stat] ?? s.stat, kind: 'small', side: chain.side,
-          effects: [{ kind: 'stat', stat: s.stat, value: s.value }], desc: '',
-          x: pointX(chain.angle, ring), y: pointY(chain.angle, ring), links: [], ring, chain: ci,
-        });
-      } else {
-        placed.push({
-          id: item.id, name: item.name, kind: item.kind, side: chain.side, effects: item.effects, desc: item.desc,
-          x: pointX(chain.angle, ring), y: pointY(chain.angle, ring), links: [], ring, chain: ci,
-        });
-      }
-      ring++;
+  const startLinks: string[] = [];
+
+  for (const c of CLUSTERS) {
+    const entry = terminalAt.get(c.entry);
+    if (entry === undefined) throw new Error(`unknown cluster entry ${c.entry}`);
+    // The cluster's smalls sit evenly along the ray from the entry to the terminal, short edges all the way.
+    const ids: string[] = [];
+    for (let i = 0; i < c.count; i++) {
+      const s = takeSmall(c.side);
+      const id = `${c.side}Small${smallCursor[c.side]}`;
+      const t = (i + 1) / (c.count + 1);
+      placed.push({
+        id, name: SMALL_NAMES[s.stat] ?? s.stat, kind: 'small', side: c.side,
+        effects: [{ kind: 'stat', stat: s.stat, value: s.value }], desc: '',
+        x: Math.round(entry.x + (c.x - entry.x) * t), y: Math.round(entry.y + (c.y - entry.y) * t), links: [],
+      });
+      ids.push(id);
     }
+    // Chain entry → small0 → … → last small.
+    for (let i = 0; i < ids.length; i++) {
+      const node = placed.find((p) => p.id === ids[i]);
+      if (node === undefined) continue;
+      const prev = i === 0 ? c.entry : ids[i - 1];
+      if (prev !== undefined) node.links.push(prev);
+    }
+    // The terminal ends the chain and cross-links its ring neighbours.
+    const terminal: Placed = {
+      id: c.terminal.id, name: c.terminal.name, kind: c.terminal.kind, side: c.side,
+      effects: c.terminal.effects, desc: c.terminal.desc, x: c.x, y: c.y, links: [],
+    };
+    const last = ids[ids.length - 1];
+    if (last !== undefined) terminal.links.push(last);
+    for (const target of c.cross) if (!terminal.links.includes(target)) terminal.links.push(target);
+    placed.push(terminal);
+    if (c.entry === START_NODE_ID && ids[0] !== undefined) startLinks.push(ids[0]);
   }
 
-  const byChain = new Map<number, Placed[]>();
-  for (const p of placed) {
-    const list = byChain.get(p.chain) ?? [];
-    list.push(p);
-    byChain.set(p.chain, list);
-  }
-  const chainAt = (chain: number, ring: number): Placed | undefined => byChain.get(chain)?.find((p) => p.ring === ring);
-
-  const link = (a: Placed, b: string): void => {
-    if (b !== a.id && !a.links.includes(b)) a.links.push(b);
-  };
-  for (const p of placed) {
-    const chain = chainDef(p.chain);
-    if (chain.parent !== undefined && p.ring === chain.parent.ring + 1) {
-      const parent = chainAt(chain.parent.chain, chain.parent.ring);
-      if (parent !== undefined) link(p, parent.id);
-    } else if (chain.parent === undefined && p.ring === 1) {
-      link(p, START_NODE_ID);
-    } else {
-      // One parent per node: each chain is a spoke from the start (or a branch off its parent ring), never a mesh.
-      const prev = chainAt(p.chain, p.ring - 1);
-      if (prev !== undefined) link(p, prev.id);
-    }
-  }
-  // symmetric links: every link a -> b is also b -> a
+  // symmetric links: every link a -> b is also b -> a (among the placed nodes).
   for (const p of placed) {
     for (const l of p.links) {
       const other = placed.find((o) => o.id === l);
@@ -251,19 +301,10 @@ function buildWeb(): PassiveNode[] {
 
   const start: PassiveNode = {
     id: START_NODE_ID, name: 'Miner', kind: 'start', side: 'start',
-    x: START_X, y: START_Y,
-    links: placed.filter((p) => p.ring === 1 && chainDef(p.chain).parent === undefined).map((p) => p.id),
-    effects: [], desc: 'Start',
+    x: START_X, y: START_Y, links: startLinks, effects: [], desc: 'Start',
   };
   return [start, ...placed.map(({ id, name, kind, side, effects, desc, x, y, links }) =>
     ({ id, name, kind, side, effects, desc, x, y, links }))];
-}
-
-function pointX(angleDeg: number, ring: number): number {
-  return Math.round(START_X + Math.cos((angleDeg * Math.PI) / 180) * ring * RING_GAP);
-}
-function pointY(angleDeg: number, ring: number): number {
-  return Math.round(START_Y + Math.sin((angleDeg * Math.PI) / 180) * ring * RING_GAP);
 }
 
 export const PASSIVE_NODES: readonly PassiveNode[] = buildWeb();

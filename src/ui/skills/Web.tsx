@@ -231,7 +231,7 @@ export function Web({
             >
               {/* the click target is at least 44 px, even for a small node */}
               <circle className="gm-web__hit" r={22} fill="transparent" />
-              <rect className="gm-web__halo" x={-24} y={-24} width={48} height={48} />
+              <circle className="gm-web__halo" r={24} />
               <image
                 className="gm-web__icon"
                 href={iconUris.get(n.id) ?? ''}

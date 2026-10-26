@@ -13,6 +13,7 @@ import { receiveItem, receiveMaterial } from './loot';
 import { mapEffects } from './mapMods';
 import { monsterState, rankReward } from './monsters';
 import { nextRandom } from './rng';
+import { hasKeystone } from './passives';
 import type {
   CombatLine, GameState, LootNote, MapRun, MonsterState, Rank, RunOutcome, RunResult, Stats, TickEvent,
 } from './types';
@@ -60,7 +61,11 @@ export function endRun(state: GameState, run: MapRun, outcome: RunOutcome, event
     state.mapTally.lost += 1;
     trail(state, run.map.id, { event: 'lost' });
   }
-  if (outcome === 'died') logDeath(state, run, killer ?? run.queue[0]?.name ?? 'a monster');
+  if (outcome === 'died') {
+    logDeath(state, run, killer ?? run.queue[0]?.name ?? 'a monster');
+    // Soul Debt: a death costs 10% of the Souls on hand.
+    if (hasKeystone(state, 'soulDebt')) state.souls = Math.round(state.souls * 0.9);
+  }
   state.activity = { kind: 'dig' };
   events?.push({ kind: 'runEnd', result });
 }
@@ -109,7 +114,7 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
   run.gained.souls += souls;
   logLine(run, { kind: 'kill', monster: monster.name, xp, souls });
 
-  const gold = goldPerKill(tier) * rankReward(monster.rank);
+  const gold = goldPerKill(tier) * rankReward(monster.rank) * (hasKeystone(state, 'bloodMoney') ? 2 : 1);
   state.gold += gold;
   run.gained.gold += gold;
 
@@ -153,6 +158,10 @@ function strike(state: GameState, run: MapRun, b: BattleStats, events?: TickEven
   if (crit) {
     physical = Math.round(physical * b.critMultiplier);
     elemental = Math.round(elemental * b.critMultiplier);
+  } else if (hasKeystone(state, 'allOrNothing')) {
+    // All or Nothing: a non-critical hit lands for 40% less, never below 1.
+    physical = Math.max(1, Math.round(physical * 0.6));
+    elemental = Math.round(elemental * 0.6);
   }
   // Armored softens only the physical part.
   if (m.mods.includes('armored')) physical = Math.max(1, Math.round(physical * ARMORED_TAKEN));
@@ -225,7 +234,9 @@ function combatStep(state: GameState, run: MapRun, b: BattleStats, dt: number, e
   run.monsterCarry += dt / m.intervalS;
   while (run.monsterCarry >= 1) {
     run.monsterCarry -= 1;
-    const hurt = mitigate(m.damage, m.element, b);
+    const hurt = hasKeystone(state, 'bloodMoney')
+      ? Math.max(1, Math.round(mitigate(m.damage, m.element, b) * 1.25))
+      : mitigate(m.damage, m.element, b);
     run.life -= hurt;
     events?.push({ kind: 'hurt', amount: hurt });
     logLine(run, { kind: 'hurt', monster: m.name, amount: hurt });

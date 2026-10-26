@@ -46,9 +46,12 @@ export function deriveStats(state: GameState): Stats {
   const p = passiveTotals(state);
   for (const [stat, value] of Object.entries(p.stats) as [StatKey, number][]) g[stat] += value;
   for (const [stat, value] of Object.entries(ascendancyTotals(state).stats) as [StatKey, number][]) g[stat] += value;
+  const ks = p.keystones;
+  // Prospector's Eye doubles chest find.
+  const chestFind = g.chestFind * (ks.has('prospectorsEye') ? 2 : 1);
   const featureChances: Record<FeatureKind, number> = {
     ...BASE_FEATURE_CHANCES,
-    chest: BASE_FEATURE_CHANCES.chest * pct(g.chestFind),
+    chest: BASE_FEATURE_CHANCES.chest * pct(chestFind),
     gem: BASE_FEATURE_CHANCES.gem * pct(g.gemFind),
     map: BASE_FEATURE_CHANCES.map * pct(g.mapFind),
   };
@@ -58,7 +61,7 @@ export function deriveStats(state: GameState): Stats {
     for (const kind of Object.keys(featureChances) as FeatureKind[]) featureChances[kind] *= scale;
   }
   const bonusChances = {
-    chest: BASE_FEATURE_CHANCES.chest * Math.max(0, pct(g.chestFind) - 1),
+    chest: BASE_FEATURE_CHANCES.chest * Math.max(0, pct(chestFind) - 1),
     gem: BASE_FEATURE_CHANCES.gem * Math.max(0, pct(g.gemFind) - 1),
     map: BASE_FEATURE_CHANCES.map * Math.max(0, pct(g.mapFind) - 1),
   };
@@ -70,30 +73,36 @@ export function deriveStats(state: GameState): Stats {
     bonusChances.gem *= scale;
     bonusChances.map *= scale;
   }
-  const ks = p.keystones;
   const digPower = clamp((BASE_DIG_POWER + g.digPower) * pct(g.digPowerPct), 1, MAX_DIG_POWER);
   const autoTicksPerSecond = clamp(BASE_AUTO_TICKS_PER_SECOND * pct(g.autoTickRate), MIN_AUTO_TICKS_PER_SECOND, MAX_AUTO_TICKS_PER_SECOND);
   const ticksPerClick = clamp(BASE_TICKS_PER_CLICK + g.ticksPerClick, 1, MAX_TICKS_PER_CLICK);
   const goldMultiplier = pct(g.goldYield);
   const diamondMultiplier = pct(g.diamondYield);
+  // Earthshaker digs three times as much per click but a third slower on its own; Two-Way Street digs a bit harder;
+  // Deep Breath digs a quarter slower in exchange for its much longer offline cap.
+  let digPowerOut = ks.has('twoWayStreet') ? clamp(digPower * 1.15, 1, MAX_DIG_POWER) : digPower;
+  if (ks.has('deepBreath')) digPowerOut = clamp(digPowerOut * 0.75, 1, MAX_DIG_POWER);
+  let goldMultiplierOut = ks.has('prospectorsLuck') ? goldMultiplier * 0.8 : goldMultiplier;
+  if (ks.has('oreBaron')) goldMultiplierOut = goldMultiplierOut * 0.5;
   return {
-    // Earthshaker digs three times as much per click but a third slower on its own; Two-Way Street digs a bit harder.
-    digPower: ks.has('twoWayStreet') ? clamp(digPower * 1.15, 1, MAX_DIG_POWER) : digPower,
+    digPower: digPowerOut,
     autoTicksPerSecond: ks.has('earthshaker') ? clamp(autoTicksPerSecond * 0.7, MIN_AUTO_TICKS_PER_SECOND, MAX_AUTO_TICKS_PER_SECOND) : autoTicksPerSecond,
     ticksPerClick: ks.has('earthshaker') ? clamp(ticksPerClick * 3, 1, MAX_TICKS_PER_CLICK) : ticksPerClick,
     lampSight: clamp(BASE_LAMP_SIGHT + g.lampSight, 0, MAX_LAMP_SIGHT),
-    // Long Voyage doubles the cap past its clamp.
+    // Long Voyage doubles the cap past its clamp; Deep Breath triples it.
     offlineCapMs: clamp(BASE_OFFLINE_CAP_MS + g.offlineCap * 60_000, MIN_OFFLINE_CAP_MS, MAX_OFFLINE_CAP_MS)
-      * (hasUnique(state, 'longVoyage') ? LONG_VOYAGE_CAP : 1),
+      * (hasUnique(state, 'longVoyage') ? LONG_VOYAGE_CAP : 1)
+      * (ks.has('deepBreath') ? 3 : 1),
     featureChances,
     hardRockChance: BASE_HARD_ROCK_CHANCE,
-    // Prospector's Luck trades Gold for Diamonds.
-    goldMultiplier: ks.has('prospectorsLuck') ? goldMultiplier * 0.8 : goldMultiplier,
+    // Prospector's Luck trades Gold for Diamonds; Ore Baron trades Gold from veins for ore find.
+    goldMultiplier: goldMultiplierOut,
     diamondMultiplier: ks.has('prospectorsLuck') ? diamondMultiplier * 1.5 : diamondMultiplier,
     hazardWard: clamp(g.hazardWard, 0, MAX_HAZARD_WARD),
     bonusChances,
     veinMultiplier: pct(g.veinYield),
-    oreBonusChance: clamp(ORE_BONUS_BASE * g.oreFind / 100, 0, MAX_ORE_BONUS_CHANCE),
+    // Ore Baron doubles ore find, within the same cap.
+    oreBonusChance: clamp(ORE_BONUS_BASE * g.oreFind / 100 * (ks.has('oreBaron') ? 2 : 1), 0, MAX_ORE_BONUS_CHANCE),
     sellMultiplier: pct(g.sellBonus),
     salvageMultiplier: pct(g.salvageYield),
     hazardSight: hasUnique(state, 'blackLantern') ? BLACK_LANTERN_SIGHT : 0,

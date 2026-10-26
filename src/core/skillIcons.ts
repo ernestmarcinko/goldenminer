@@ -20,13 +20,14 @@ const GLYPH_AT: [number, number] = [4, 4];
 
 export type KeystoneGlyphId =
   | 'earthshaker' | 'cartographer' | 'prospectorsLuck' | 'berserker'
-  | 'soulReaper' | 'bulwark' | 'deepPockets' | 'twoWayStreet';
+  | 'soulReaper' | 'bulwark' | 'deepPockets' | 'twoWayStreet'
+  | 'oreBaron' | 'allOrNothing' | 'deepBreath' | 'bloodMoney' | 'soulDebt' | 'prospectorsEye';
 
 export type PassiveNotableGlyphId =
   | 'veinSense' | 'prospector' | 'deepLungs' | 'oreSniffer' | 'steadyHands'
   | 'thickSkin' | 'sharpened' | 'deadlyAim' | 'soulWarden' | 'treasureHunter'
   | 'lampAndBlade' | 'wellRested' | 'sureFooting' | 'careful' | 'gemPouch'
-  | 'oreCart' | 'surveyor';
+  | 'oreCart' | 'surveyor' | 'deepMiner' | 'reckoner' | 'vanguard' | 'alchemist' | 'nightowl';
 
 export type AscendancyNotableGlyphId =
   | 'midasTouch' | 'deepRoots' | 'secondSight' | 'masterSurveyor' | 'tireless' | 'luckyBreak';
@@ -288,6 +289,96 @@ const TWO_WAY_STREET = glyph12([
   '............',
 ]);
 
+const ORE_BARON = glyph12([
+  '....kCCk....',
+  '...kCCCCk...',
+  '...kCccCk...',
+  '....kkkk....',
+  '...kGGGGk...',
+  '..kGGggGGk..',
+  '..kGggggGk..',
+  '..kGggggGk..',
+  '..kGGggGGk..',
+  '...kGGGGk...',
+  '....kkkk....',
+  '............',
+]);
+
+const ALL_OR_NOTHING = glyph12([
+  '.....kk.....',
+  '....kGGk....',
+  '....kGGk....',
+  '...kGGGGk...',
+  '..kGGGGGGk..',
+  'kkGGGGGGGGkk',
+  '.kGGGGGGGGk.',
+  '..kGGGGGGk..',
+  '...kGGGGk...',
+  '....kGGk....',
+  '.....kk.....',
+  '............',
+]);
+
+const DEEP_BREATH = glyph12([
+  '...kk..kk...',
+  '..kuukkuuk..',
+  '.kuuukkuuuk.',
+  '.kuuk..kuuk.',
+  'kuuuk..kuuuk',
+  'kuuuk..kuuuk',
+  'kuuuk..kuuuk',
+  'kuuuk..kuuuk',
+  '.kuuk..kuuk.',
+  '..kuukkuuk..',
+  '...kuuuuk...',
+  '....kkkk....',
+]);
+
+const BLOOD_MONEY = glyph12([
+  '....kkkk....',
+  '...kGGGGk...',
+  '..kGGggGGk..',
+  '..kGggggGk..',
+  '..kGgRRgGk..',
+  '..kGgRRgGk..',
+  '..kGggggGk..',
+  '..kGGggGGk..',
+  '...kGGGGk...',
+  '....kkkk....',
+  '............',
+  '............',
+]);
+
+const SOUL_DEBT = glyph12([
+  '.....kk.....',
+  '....kuuk....',
+  '...kuCCuk...',
+  '..kuCCCCuk..',
+  '..kuCCCCuk..',
+  '...kuCCuk...',
+  '....kuuk....',
+  '.....kk.....',
+  '...kkkkkk...',
+  '..kjjjjjjk..',
+  '..kj....jk..',
+  '...kkkkkk...',
+]);
+
+const PROSPECTORS_EYE = glyph12([
+  '...kkkkkk...',
+  '..kSSSSSSk..',
+  '.kSssssssSk.',
+  '.kSskGGksSk.',
+  '.kSsGppGsSk.',
+  '.kSsGppGsSk.',
+  '.kSskGGksSk.',
+  '.kSssssssSk.',
+  '..kSSSSSSk..',
+  '...kkkkkk...',
+  '............',
+  '............',
+]);
+
 const VEIN_SENSE = glyph12([
   '...kkkkkk...',
   '..keeeeeek..',
@@ -540,6 +631,81 @@ const SURVEYOR = glyph12([
   '.ktiiiiiitk.',
   '.kttttttttk.',
   '.kkkkkkkkkk.',
+  '............',
+]);
+
+const DEEP_MINER = glyph12([
+  '.....kk.....',
+  '....kSSk....',
+  '...kSSSSk...',
+  '..kSSSSSSk..',
+  '..kSSSSSSk..',
+  '...kSSSSk...',
+  '....kSSk....',
+  '.....kk.....',
+  '...kGGGGk...',
+  '..kGGggGGk..',
+  '..kGggggGk..',
+  '...kkkkkk...',
+]);
+
+const RECKONER = glyph12([
+  '...kkkkkk...',
+  '..kSSSSSSk..',
+  '.kSSSSSSSSk.',
+  'kSSR....RSSk',
+  'kSS.kRRk.SSk',
+  'kSS.kRRk.SSk',
+  'kSSR....RSSk',
+  '.kSSSSSSSSk.',
+  '..kSSSSSSk..',
+  '...kkkkkk...',
+  '............',
+  '............',
+]);
+
+const VANGUARD = glyph12([
+  '..kkkkkkkk..',
+  '.kSSSSSSSSk.',
+  'kSSssssssSSk',
+  'kSskkkkkksSk',
+  'kSskkRRkksSk',
+  'kSskkRRkksSk',
+  'kSskRRRRksSk',
+  'kSskkRRkksSk',
+  'kSskkRRkksSk',
+  'kSskkkkkksSk',
+  '.kSssssssSk.',
+  '..kkkkkkkk..',
+]);
+
+const ALCHEMIST = glyph12([
+  '.....kk.....',
+  '....kSSk....',
+  '....kSSk....',
+  '...kkkkkk...',
+  '..kGggggGk..',
+  '.kGggggggGk.',
+  '.kGgGGGGgGk.',
+  '.kGgGccGgGk.',
+  '.kGgGGGGgGk.',
+  '.kGggggggGk.',
+  '..kGggggGk..',
+  '...kkkkkk...',
+]);
+
+const NIGHTOWL = glyph12([
+  '...kkkk.....',
+  '..kSSSSk....',
+  '.kSSssSSk...',
+  '.kSSssSSk...',
+  '..kSSSSk....',
+  '...kkkk.....',
+  '.....o......',
+  '....o.o.....',
+  '.....o......',
+  '............',
+  '............',
   '............',
 ]);
 
@@ -1153,6 +1319,12 @@ export const ICON_GLYPHS: Record<IconGlyphId, IconGlyph> = {
   bulwark: BULWARK,
   deepPockets: DEEP_POCKETS,
   twoWayStreet: TWO_WAY_STREET,
+  oreBaron: ORE_BARON,
+  allOrNothing: ALL_OR_NOTHING,
+  deepBreath: DEEP_BREATH,
+  bloodMoney: BLOOD_MONEY,
+  soulDebt: SOUL_DEBT,
+  prospectorsEye: PROSPECTORS_EYE,
   veinSense: VEIN_SENSE,
   prospector: PROSPECTOR,
   deepLungs: DEEP_LUNGS,
@@ -1170,6 +1342,11 @@ export const ICON_GLYPHS: Record<IconGlyphId, IconGlyph> = {
   gemPouch: GEM_POUCH,
   oreCart: ORE_CART,
   surveyor: SURVEYOR,
+  deepMiner: DEEP_MINER,
+  reckoner: RECKONER,
+  vanguard: VANGUARD,
+  alchemist: ALCHEMIST,
+  nightowl: NIGHTOWL,
   midasTouch: MIDAS_TOUCH,
   deepRoots: DEEP_ROOTS,
   secondSight: SECOND_SIGHT,
@@ -1219,12 +1396,26 @@ export const ICON_GLYPHS: Record<IconGlyphId, IconGlyph> = {
 
 const FRAME_PALETTE: Record<string, string> = { ...ICON_PALETTE, a: '#d9c9a3', A: '#f0e6c8' };
 
+// The frames are round: every pixel whose centre lies outside this circle is cut to `.`. The glyph socket at
+// rows/cols 4–19 sits fully inside the circle, so only the frame's square corners are cut, never a glyph.
+const CIRCLE_CX = ICON_SIZE / 2;
+const CIRCLE_CY = ICON_SIZE / 2;
+const CIRCLE_RADIUS = ICON_SIZE / 2;
+
+function roundFrame(rows: readonly string[]): string[] {
+  return rows.map((row, y) => [...row].map((c, x) => {
+    const dx = x + 0.5 - CIRCLE_CX;
+    const dy = y + 0.5 - CIRCLE_CY;
+    return dx * dx + dy * dy <= CIRCLE_RADIUS * CIRCLE_RADIUS ? c : '.';
+  }).join(''));
+}
+
 function frame(rows: readonly string[], patches: readonly Pixel[] = []): IconFrame {
   if (rows.length !== ICON_SIZE) throw new Error(`icon frame has ${rows.length} rows, expected ${ICON_SIZE}`);
   for (const row of rows) {
     if (row.length !== ICON_SIZE) throw new Error(`icon frame row '${row}' is ${row.length} wide, expected ${ICON_SIZE}`);
   }
-  return { grid: paint(rows, patches, ICON_SIZE), glyphAt: GLYPH_AT, palette: { ...FRAME_PALETTE } };
+  return { grid: roundFrame(paint(rows, patches, ICON_SIZE)), glyphAt: GLYPH_AT, palette: { ...FRAME_PALETTE } };
 }
 
 const SMALL_MIDDLE = `kbaB${'.'.repeat(GLYPH_SIZE)}Babk`;

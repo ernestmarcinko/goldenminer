@@ -15,9 +15,10 @@ import { hasKeystone } from './passives';
 import type { FindRecord, GameState, LootNote, MetreRoll, Stats, TickEvent } from './types';
 import { hasUnique, uniqueGen } from './uniques';
 
-/** Cartographer finds maps one tier higher, never past the highest item level. */
+/** Cartographer finds maps one tier higher; Prospector's Eye one tier lower; never past the item-level cap or below 1. */
 function mapTier(state: GameState, tier: number): number {
-  return Math.min(MAX_ITEM_LEVEL, tier + (hasKeystone(state, 'cartographer') ? 1 : 0));
+  const adjustment = (hasKeystone(state, 'cartographer') ? 1 : 0) - (hasKeystone(state, 'prospectorsEye') ? 1 : 0);
+  return Math.max(1, Math.min(MAX_ITEM_LEVEL, tier + adjustment));
 }
 
 function logFind(state: GameState, find: FindRecord, events?: TickEvent[]): void {

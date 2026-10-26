@@ -19,7 +19,7 @@ const GLYPH_IDS = Object.keys(ICON_GLYPHS) as IconGlyphId[];
 const SIDES = Object.keys(SIDE_COLOURS) as (keyof typeof SIDE_COLOURS)[];
 
 it('every passive and ascendancy node resolves to a known glyph', () => {
-  expect(PASSIVE_NODES).toHaveLength(141);
+  expect(PASSIVE_NODES).toHaveLength(202);
   expect(ASCENDANCY_NODES).toHaveLength(30);
   for (const node of PASSIVE_NODES) {
     const id = iconForPassive(node);
@@ -36,11 +36,11 @@ it('all named nodes keep their own glyph and the starts use the miner faces', ()
   const notables = PASSIVE_NODES.filter((node) => node.kind === 'notable').map((node) => node.id);
   const ascendancyNotables = ASCENDANCY_NODES.filter((node) => node.kind === 'notable').map((node) => node.id);
   expect(keystones.sort()).toEqual([
-    'berserker', 'bulwark', 'cartographer', 'deepPockets',
-    'earthshaker', 'prospectorsLuck', 'soulReaper', 'twoWayStreet',
+    'allOrNothing', 'berserker', 'bloodMoney', 'bulwark', 'cartographer', 'deepBreath', 'deepPockets',
+    'earthshaker', 'oreBaron', 'prospectorsEye', 'prospectorsLuck', 'soulDebt', 'soulReaper', 'twoWayStreet',
   ]);
-  expect(notables).toHaveLength(17);
-  expect(new Set(notables).size).toBe(17);
+  expect(notables).toHaveLength(22);
+  expect(new Set(notables).size).toBe(22);
   expect(ascendancyNotables).toHaveLength(6);
   expect(new Set(ascendancyNotables).size).toBe(6);
   for (const id of [...keystones, ...notables, ...ascendancyNotables]) {
@@ -109,7 +109,7 @@ it('smalls use their first effect, including stats and structural bonuses', () =
 });
 
 it('every glyph is 16 × 16 with only glyph-palette letters', () => {
-  expect(GLYPH_IDS).toHaveLength(72);
+  expect(GLYPH_IDS).toHaveLength(83);
   for (const id of GLYPH_IDS) {
     const glyph = ICON_GLYPHS[id];
     expect(glyph.grid, id).toHaveLength(16);
@@ -138,6 +138,27 @@ it('every frame is 24 × 24 with the glyph socket at (4, 4)', () => {
         if (c === '.') continue;
         expect(frame.palette[c], `${kind}: '${c}'`).toBeDefined();
       }
+    }
+  }
+});
+
+it('the frames are round: the four corners are cut and the glyph socket stays a clean 16 × 16 canvas', () => {
+  for (const kind of FRAME_KINDS) {
+    const frame = ICON_FRAMES[kind];
+    // The square corners are cut to a circle.
+    expect(frame.grid[0]?.[0], kind).toBe('.');
+    expect(frame.grid[0]?.[ICON_SIZE - 1], kind).toBe('.');
+    expect(frame.grid[ICON_SIZE - 1]?.[0], kind).toBe('.');
+    expect(frame.grid[ICON_SIZE - 1]?.[ICON_SIZE - 1], kind).toBe('.');
+    // The circle still reaches each edge, so the frame reads as a ring, not a shrunken blob.
+    const rowHasColour = (row: string | undefined) => (row ?? '').split('').some((c) => c !== '.');
+    expect(rowHasColour(frame.grid[0]), `${kind} top`).toBe(true);
+    expect(rowHasColour(frame.grid[ICON_SIZE - 1]), `${kind} bottom`).toBe(true);
+    expect(frame.grid.some((row) => row[0] !== '.'), `${kind} left`).toBe(true);
+    expect(frame.grid.some((row) => row[ICON_SIZE - 1] !== '.'), `${kind} right`).toBe(true);
+    // The glyph socket at rows/cols 4–19 is a blank canvas: the border is a ring outside it, never clipping a glyph.
+    for (let y = 4; y < 20; y++) {
+      for (let x = 4; x < 20; x++) expect(frame.grid[y]?.[x], `${kind} socket ${x},${y}`).toBe('.');
     }
   }
 });

@@ -144,7 +144,8 @@ export function SkillsView({ store }: { store: GameStore }) {
   const search = (q: string): void => {
     setQuery(q);
     const found = searchNodes(state, q);
-    if (found.length > 0) setFocus({ id: found[0]!, n: (focus?.n ?? 0) + 1 });
+    const first = found[0];
+    if (first !== undefined) setFocus({ id: first, n: (focus?.n ?? 0) + 1 });
   };
 
   const stateText = (node: SkillNodeVM): string => {

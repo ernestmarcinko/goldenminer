@@ -6,7 +6,7 @@ import { isGear, MATERIALS } from '../../core/items';
 import type { GemItem, Item, MapItem, Material, MaterialItem } from '../../core/items';
 import { salvagePay, sellPay } from '../../core/loot';
 import type { Loot } from '../../core/loot';
-import { canUpgrade, soulUpgradeCost } from '../../core/soulUpgrade';
+import { canUpgrade, soulUpgradeCostFor } from '../../core/soulUpgrade';
 import type { SoulUpgradeCheck } from '../../core/soulUpgrade';
 import { deriveStats } from '../../core/stats';
 import { boughtIn, stockBand, stockPrice, traderStock } from '../../core/trader';
@@ -41,7 +41,7 @@ function craftActions(state: GameState, target: ItemTarget): ActionSpec[] {
   const label = check === 'maxLevel'
     ? `Upgrade with Souls: item level ${formatNumber(item.ilvl)} is the highest`
     : `Upgrade with Souls: item level ${formatNumber(item.ilvl)} → ${formatNumber(item.ilvl + 1)}`
-      + ` · ${formatNumber(soulUpgradeCost(item.ilvl))} Souls`;
+      + ` · ${formatNumber(soulUpgradeCostFor(state, item.ilvl))} Souls`;
   return [{ id: 'soulUpgrade', label, disabled: check !== 'ok' }, ...crafts];
 }
 
