@@ -2,8 +2,11 @@ import { MAX_CLICKS_PER_SECOND } from './balance';
 import { applyTicks } from './dig';
 import type { GameState, Stats, TickEvent } from './types';
 
-// lastTickAt moves the same whether digging is paused or not, so paused ticks are never due again.
-export function advance(state: GameState, nowMs: number, stats: Stats, events?: TickEvent[], digPaused = false): number {
+// lastTickAt moves the same whether digging is paused or not, so paused ticks are never due again. `away` marks the ticks
+// as time away from the game (Long Voyage doubles their finds).
+export function advance(
+  state: GameState, nowMs: number, stats: Stats, events?: TickEvent[], digPaused = false, away = false,
+): number {
   const elapsed = nowMs - state.lastTickAt;
   if (elapsed < 0) {
     state.lastTickAt = nowMs;
@@ -18,7 +21,7 @@ export function advance(state: GameState, nowMs: number, stats: Stats, events?: 
   const due = Math.floor(Math.min(elapsed, stats.offlineCapMs) / interval);
   const from = state.lastTickAt;
   const tick0 = state.tickCount;
-  applyTicks(state, due, stats, events, digPaused);
+  applyTicks(state, due, stats, events, digPaused, away);
   // a death is stamped with the batch's start; it happened at the end of its own tick
   for (const d of state.deaths) if (d.tick >= tick0) d.at = from + (d.tick - tick0 + 1) * interval;
   state.lastTickAt = capped ? nowMs : state.lastTickAt + due * interval;

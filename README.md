@@ -37,6 +37,19 @@ Salvage gives crafting materials (Copper and Tin ore, and more for better items)
 
 Materials craft gear. Drag a material onto an item, or open the item's card and pick a craft under Craft; the card stays open, so crafts can follow one another. Copper ore makes a normal item magic. Tin ore rerolls a magic item's modifiers and Silver ore a rare item's. Iron ore adds a modifier to a magic or rare item, and a magic item that already has two turns rare. Mithril rerolls the sockets of any item, legendaries too, and sends its gems back to the Gems tab. Starsteel rerolls the values of the modifiers within their tiers. Obsidian shards remove a random modifier. Diamonds add a modifier to a rare item. A craft costs more the higher the item's level, and the card shows each cost and greys out what you can't pay for yet. Legendary lines never change. A Void crystal tempers a magic or rare item, a gamble: it may gain a crafted line above its usual tiers, raise every line a tier, do nothing, or ruin it so every line falls to tier 1. Whatever happens, a tempered item is sealed and can't be crafted again. Souls upgrade battle gear one item level at a time, legendaries too: open its card and pick "Upgrade with Souls", and the card stays open, so upgrades can follow one another. The upgrade changes nothing else, but a higher item level raises how high later crafts can roll. Each level costs more Souls than the last, and the card shows the cost and greys it out until you can pay. Mining gear and tempered items can't be upgraded.
 
+Legendaries each have a unique line, shown in the legendary colour under their modifiers, that no other item can roll. It works only while the legendary is worn:
+
+- Deepdelver (pickaxe): Every 25th metre is dug at once, and its find is doubled.
+- The Golddigger (gloves): Gold veins also give a material of the band.
+- Black Lantern (lamp): Hazards ahead show on the minimap, and hazards slow you by half as much.
+- Long Voyage (boots): The offline cap is doubled, and catch-up finds are doubled.
+- Band of the Deep (ring): Critical hits heal 2 % of your life.
+- Wolf Eye (amulet): Champions and bosses drop one more item.
+- Kraken Leather (armor): Once per map, a killing blow leaves you at 1 life instead.
+- The Peacemaker (weapon): Every 5th hit strikes twice.
+
+A unique's extra finds, drops and strikes draw from a stream of their own, so the rest of your loot is the same with the legendary or without it.
+
 ## Worlds
 
 Every world has a seed, a short phrase such as `amber-fox-427`, shown in Settings with a Copy seed button. The seed decides the mine: its bands, the shape of the shaft and where chests, maps, veins and hard rock lie. Two players with the same seed dig through the same mine. Chest contents, bonus finds and combat are still your own luck. Start a new world from Settings with a random seed or one you type; a number or any text up to 64 characters works.

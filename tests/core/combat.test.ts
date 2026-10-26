@@ -323,18 +323,21 @@ it('every state of a run, tick by tick and click by click, is a valid save', () 
     for (const tier of [1, 2, 4]) {
       for (const rate of [0.1, 1, 10]) {
         for (const clicks of [0, 2]) {
-          const s = newGame(seed, 0);
-          expect(startMap(s, stashMap(s, tier, 10 + seed).id)).toBe('ok');
-          const stats = at(s, rate);
-          for (let t = 0; t < 20_000 && s.activity.kind === 'map'; t++) {
-            for (let c = 0; c < clicks && s.activity.kind === 'map'; c++) {
-              clickHit(s);
-              expect(validateState(s), `seed ${seed} tier ${tier} rate ${rate} tick ${t} click ${c}`).toBe(true);
+          for (const peacemaker of [false, true]) {
+            const s = newGame(seed, 0);
+            if (peacemaker) s.equipped.battle.weapon = gear(s, 'weapon', { rarity: 'legendary', name: 'The Peacemaker', uniqueId: 'peacemaker' });
+            expect(startMap(s, stashMap(s, tier, 10 + seed).id)).toBe('ok');
+            const stats = at(s, rate);
+            for (let t = 0; t < 20_000 && s.activity.kind === 'map'; t++) {
+              for (let c = 0; c < clicks && s.activity.kind === 'map'; c++) {
+                clickHit(s);
+                expect(validateState(s), `seed ${seed} tier ${tier} rate ${rate} tick ${t} click ${c}`).toBe(true);
+              }
+              applyTicks(s, 1, stats);
+              expect(validateState(s), `seed ${seed} tier ${tier} rate ${rate} clicks ${clicks} tick ${t}`).toBe(true);
             }
-            applyTicks(s, 1, stats);
-            expect(validateState(s), `seed ${seed} tier ${tier} rate ${rate} clicks ${clicks} tick ${t}`).toBe(true);
+            expect(s.activity.kind, `seed ${seed} tier ${tier} rate ${rate} clicks ${clicks} peacemaker ${peacemaker}`).toBe('dig');
           }
-          expect(s.activity.kind, `seed ${seed} tier ${tier} rate ${rate} clicks ${clicks}`).toBe('dig');
         }
       }
     }

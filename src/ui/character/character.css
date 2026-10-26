@@ -121,6 +121,7 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-card__line[data-tone='down'] { color: var(--gm-down); }
 .gm-card__line[data-tone='gem'] { color: var(--gm-gem); }
 .gm-card__line[data-tone='muted'] { color: var(--gm-muted); }
+.gm-card__line[data-tone='special'] { color: var(--gm-legendary); }
 .gm-card__compare { display: flex; flex-direction: column; gap: 2px; padding-top: 6px; border-top: 1px solid var(--gm-line); font-size: 12px; }
 .gm-card__note { font-size: 11px; color: #8f877d; }
 .gm-card__actions { display: flex; flex-direction: column; gap: 4px; padding-top: 6px; border-top: 1px solid var(--gm-line); }

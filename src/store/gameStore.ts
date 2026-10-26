@@ -134,7 +134,7 @@ export class GameStore {
     const before = summaryPossible ? structuredClone(state) : null;
     const elapsed = now - state.lastTickAt;
     const away = !live || elapsed > LONG_GAP_MS;
-    const ticks = advance(state, now, stats, events, away ? state.paused : this.digPaused);
+    const ticks = advance(state, now, stats, events, away ? state.paused : this.digPaused, away);
     if (before && ticks >= OFFLINE_SUMMARY_MIN_TICKS) {
       this._summary = summarize(before, state, elapsed, ticks, stats.offlineCapMs);
     }

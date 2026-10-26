@@ -1,13 +1,13 @@
 import {
-  ARMORED_TAKEN, BOSS_DROPS, CHAMPION_DROPS, CHAMPION_MAGIC_FIND, COMBAT_LOG_LIMIT, COMBAT_STEP_S, DROP_CHANCE,
-  MAP_DROP_BATTLE_CHANCE, MAP_GEM_CHANCE, MAP_MATERIAL_CHANCE, ROOM_REGEN_TOTAL, RUN_LOOT_LIMIT, VAMPIRIC_HEAL,
-  goldPerKill, soulsPerKill,
+  ARMORED_TAKEN, BAND_OF_THE_DEEP_HEAL, BOSS_DROPS, CHAMPION_DROPS, CHAMPION_MAGIC_FIND, COMBAT_LOG_LIMIT, COMBAT_STEP_S,
+  DROP_CHANCE, MAP_DROP_BATTLE_CHANCE, MAP_GEM_CHANCE, MAP_MATERIAL_CHANCE, PEACEMAKER_EVERY, ROOM_REGEN_TOTAL,
+  RUN_LOOT_LIMIT, VAMPIRIC_HEAL, WOLF_EYE_DROPS, goldPerKill, soulsPerKill,
 } from './balance';
 import { deriveBattleStats, mitigate, type BattleStats } from './battle';
 import { dungeonLayout } from './dungeons';
 import { logDeath, trail } from './dropLog';
 import { gainXp } from './levels';
-import { rollGear, rollGem, rollRarity } from './itemGen';
+import { rollGear, rollGem, rollRarity, type Gen } from './itemGen';
 import { materialAmount, pickMaterial } from './layer';
 import { receiveItem, receiveMaterial } from './loot';
 import { mapEffects } from './mapMods';
@@ -16,6 +16,7 @@ import { nextRandom } from './rng';
 import type {
   CombatLine, GameState, LootNote, MapRun, MonsterState, Rank, RunOutcome, RunResult, Stats, TickEvent,
 } from './types';
+import { hasUnique, uniqueGen } from './uniques';
 
 /** What a strike did: the room fights on, the room was cleared and the next one entered, or the run ended. */
 type StrikeOutcome = 'fight' | 'room' | 'end';
@@ -121,6 +122,14 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
     const item = rollGear(state, tier, set, rollRarity(state, magicFind * (raised ? CHAMPION_MAGIC_FIND : 1)));
     takeDrop(run, receiveItem(state, item, origin));
   }
+  // Wolf Eye's drops come from the unique stream, so the loot stream is the same without it.
+  if (monster.rank !== 'normal' && hasUnique(state, 'wolfEye')) {
+    const unique = uniqueGen(state);
+    for (let i = 0; i < WOLF_EYE_DROPS; i++) {
+      const set = nextRandom(unique) < MAP_DROP_BATTLE_CHANCE ? 'battle' : 'mining';
+      takeDrop(run, receiveItem(state, rollGear(unique, tier, set, rollRarity(unique, magicFind)), origin));
+    }
+  }
   if (nextRandom(state) < more(MAP_GEM_CHANCE)) takeDrop(run, receiveItem(state, rollGem(state, tier), origin));
   // Materials of the map's depth: rankReward chances, each pass drawing its material and then its amount.
   const metre = run.map.metre;
@@ -131,12 +140,15 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
   }
 }
 
-function strike(state: GameState, run: MapRun, b: BattleStats, click: boolean, events?: TickEvent[]): StrikeOutcome {
+/** One strike at the fighting monster; its damage and crit draw from `gen` (the unique stream for the Peacemaker's second). */
+function strike(
+  state: GameState, run: MapRun, b: BattleStats, click: boolean, events?: TickEvent[], gen: Gen = state,
+): StrikeOutcome {
   const m = run.queue[0];
   if (m === undefined) return 'fight';
-  let physical = b.damageMin + Math.floor(nextRandom(state) * (b.damageMax - b.damageMin + 1));
+  let physical = b.damageMin + Math.floor(nextRandom(gen) * (b.damageMax - b.damageMin + 1));
   let elemental = b.elementalDamage;
-  const crit = nextRandom(state) < b.critChance;
+  const crit = nextRandom(gen) < b.critChance;
   if (crit) {
     physical = Math.round(physical * b.critMultiplier);
     elemental = Math.round(elemental * b.critMultiplier);
@@ -148,6 +160,9 @@ function strike(state: GameState, run: MapRun, b: BattleStats, click: boolean, e
   m.life -= amount;
   events?.push({ kind: 'strike', amount, crit, click });
   logLine(run, { kind: 'hit', monster: m.name, amount, crit, click });
+  if (crit && hasUnique(state, 'bandOfTheDeep')) {
+    run.life = Math.min(b.maxLife, run.life + Math.round(BAND_OF_THE_DEEP_HEAL * b.maxLife));
+  }
   if (m.life > 0) return 'fight';
 
   run.queue.shift();
@@ -182,7 +197,13 @@ function combatStep(state: GameState, run: MapRun, b: BattleStats, dt: number, e
   while (run.hitCarry >= 1) {
     run.hitCarry -= 1;
     const level = state.level;
-    const outcome = strike(state, run, b, false, events);
+    run.strikes += 1;
+    let outcome = strike(state, run, b, false, events);
+    // The Peacemaker's second strike is drawn from the unique stream and never counts as a strike of its own.
+    if (outcome !== 'end' && run.strikes % PEACEMAKER_EVERY === 0 && hasUnique(state, 'peacemaker')) {
+      const again = strike(state, run, state.level !== level ? deriveBattleStats(state) : b, false, events, uniqueGen(state));
+      if (again !== 'fight') outcome = again;
+    }
     if (outcome === 'end') return b;
     if (outcome === 'room') {
       run.hitCarry -= Math.floor(run.hitCarry);
@@ -204,6 +225,12 @@ function combatStep(state: GameState, run: MapRun, b: BattleStats, dt: number, e
       const healed = Math.min(m.maxLife, m.life + Math.round(hurt * VAMPIRIC_HEAL)) - m.life;
       m.life += healed;
       if (healed > 0) logLine(run, { kind: 'heal', monster: m.name, amount: healed });
+    }
+    // Kraken Leather turns the first killing blow of a run into 1 life left.
+    if (run.life <= 0 && run.saved !== true && hasUnique(state, 'krakenLeather')) {
+      run.life = 1;
+      run.saved = true;
+      logLine(run, { kind: 'saved', monster: m.name });
     }
     if (run.life <= 0) {
       endRun(state, run, 'died', events, m.name);

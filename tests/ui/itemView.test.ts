@@ -75,6 +75,13 @@ it('a legendary line has no tier, and a sealed item says so', () => {
     { text: '−10% chest find', tone: 'down' },
   ]);
   expect(itemLines(legend)[1]).not.toHaveProperty('tier');
+  const deepdelver = gear(s, 'pickaxe', { rarity: 'legendary', uniqueId: 'deepdelver', implicit: { stat: 'digPower', value: 8 }, affixes: [{ stat: 'chestFind', value: -10, tier: 0 }] });
+  expect(itemLines(deepdelver)).toEqual([
+    { text: '+8 dig power', tone: 'plain' },
+    { text: '−10% chest find', tone: 'down' },
+    { text: 'Every 25th metre is dug at once, and its find is doubled.', tone: 'special' },
+  ]);
+  expect(itemLines(gear(s, 'pickaxe', { rarity: 'legendary', uniqueId: 'lostRelic' })).some((l) => l.tone === 'special')).toBe(false);
   const sealed = gear(s, 'pickaxe', { implicit: { stat: 'digPower', value: 8 }, affixes: [{ stat: 'goldYield', value: 4, tier: 1 }], sockets: 1, sealed: true });
   expect(itemLines(sealed)).toEqual([
     { text: '+8 dig power', tone: 'plain' },

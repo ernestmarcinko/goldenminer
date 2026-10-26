@@ -272,3 +272,11 @@ export function hazardChance(metre: number): number {
 }
 export const HAZARD_SLOW: Readonly<Record<Hazard, number>> = { gas: 2, unstable: 1.6 };
 export const MAX_HAZARD_WARD = 75;
+// Legendary uniques: each acts only while its legendary is worn.
+export const DEEPDELVER_EVERY = 25;           // every 25th metre is dug at once, its find doubled
+export const BLACK_LANTERN_SIGHT = 30;        // metres past the face whose hazards show on the minimap
+export const BLACK_LANTERN_SLOW = 0.5;        // the share of a hazard's slowdown left
+export const LONG_VOYAGE_CAP = 2;             // the offline cap's multiplier, after its clamp
+export const BAND_OF_THE_DEEP_HEAL = 0.02;    // of max life, on every critical hit
+export const WOLF_EYE_DROPS = 1;              // more items from a champion or a boss
+export const PEACEMAKER_EVERY = 5;            // every 5th strike strikes twice

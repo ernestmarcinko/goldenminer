@@ -58,8 +58,11 @@ export function metreLayer(seed: number, metre: number): MetreLayer {
   return { vein, hazard };
 }
 
-/** How much a hazard stretches the ticks a metre costs; ward softens it, up to MAX_HAZARD_WARD percent. */
-export function hazardFactor(hazard: Hazard | null, ward: number): number {
+/**
+ * How much a hazard stretches the ticks a metre costs; ward softens it, up to MAX_HAZARD_WARD percent, and `slow` is the
+ * share of the slowdown left after that (Black Lantern's half).
+ */
+export function hazardFactor(hazard: Hazard | null, ward: number, slow = 1): number {
   if (hazard === null) return 1;
-  return 1 + (HAZARD_SLOW[hazard] - 1) * (1 - Math.min(ward, MAX_HAZARD_WARD) / 100);
+  return 1 + (HAZARD_SLOW[hazard] - 1) * (1 - Math.min(ward, MAX_HAZARD_WARD) / 100) * slow;
 }

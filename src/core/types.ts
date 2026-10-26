@@ -152,6 +152,8 @@ export interface Stats {
   veinMultiplier: number;                  // every vein: Gold, Diamonds and material
   oreBonusChance: number;                  // ore find: a bonus material vein on metres the seed left empty, drawn from state.rng
   sellMultiplier: number; salvageMultiplier: number;
+  hazardSight: number;                     // metres past the face whose hazards show on the minimap (Black Lantern)
+  hazardSlow: number;                      // the share of a hazard's slowdown left after ward (Black Lantern)
 }
 export type TickEvent =
   | { kind: 'gold'; amount: number }

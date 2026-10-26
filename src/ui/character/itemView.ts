@@ -4,6 +4,7 @@ import { BATTLE_STATS, MOD_SIDE, isGear, setOfSlot } from '../../core/items';
 import type { GearItem, GemType, Item, MapItem, Material, ModLine, Slot, StatKey } from '../../core/items';
 import { gemEffect, itemTotals } from '../../core/stats';
 import type { GameState, LootNote, Stats } from '../../core/types';
+import { UNIQUE_LINES, isLegendaryId } from '../../core/uniques';
 import type { SpriteName } from '../../sprites/atlas';
 import { formatDuration, formatNumber, formatRate, plural } from '../format';
 import { mapDungeon, mapModLines, mapRewardsText } from '../run/runView';
@@ -73,7 +74,7 @@ function cardOrder(lines: readonly ModLine[]): ModLine[] {
   return [...lines].sort((a, b) => rank(a) - rank(b));
 }
 
-export type Tone = 'plain' | 'up' | 'down' | 'gem' | 'muted';
+export type Tone = 'plain' | 'up' | 'down' | 'gem' | 'muted' | 'special';
 /** `tier`: a modifier's tier, shown at the line's right edge. */
 export interface ViewLine { text: string; tone: Tone; tier?: number }
 
@@ -139,6 +140,8 @@ export function itemLines(item: Item): ViewLine[] {
   }
   const lines: ViewLine[] = [{ text: lineText(item.implicit), tone: item.implicit.value < 0 ? 'down' : 'plain' }];
   for (const a of cardOrder(item.affixes)) lines.push(modLine(a, item.rarity === 'legendary'));
+  // A legendary's unique line has no tier; an id this build doesn't know has no line.
+  if (item.rarity === 'legendary' && isLegendaryId(item.uniqueId)) lines.push({ text: UNIQUE_LINES[item.uniqueId], tone: 'special' });
   const set = setOfSlot(item.slot);
   for (const g of item.gems) lines.push({ text: `${gemName(g)}: ${lineText(gemEffect(g, set))}`, tone: 'gem' });
   const empty = item.sockets - item.gems.length;
