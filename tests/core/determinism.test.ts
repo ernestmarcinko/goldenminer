@@ -47,3 +47,13 @@ it('the rune stream never touches the loot stream: a same-seed run with a differ
   expect(a.nextId).toBe(b.nextId);
   expect(a.runeRng).not.toBe(b.runeRng);
 });
+
+it('the name never changes the world', () => {
+  const a = newGame(12345, 0, { name: 'Gorvash' });
+  const b = newGame(12345, 0, { name: 'Thulmar' });
+  expect(a.characterName).toBe('Gorvash');
+  expect(b.characterName).toBe('Thulmar');
+  expect([a.seed, a.rng, a.uniqueRng, a.runeRng, a.nextId, a.ahead]).toEqual(
+    [b.seed, b.rng, b.uniqueRng, b.runeRng, b.nextId, b.ahead],
+  );
+});

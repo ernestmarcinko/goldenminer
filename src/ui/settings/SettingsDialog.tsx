@@ -4,9 +4,9 @@ import type { GameStore } from '../../store/gameStore';
 import { LootFilterDialog } from '../character/LootFilterDialog';
 import { copyText } from '../copyText';
 import { DONATE_URL } from '../links';
+import { StartScreen } from '../start/StartScreen';
 import { useDialog } from '../useDialog';
 import { useGame } from '../useGame';
-import { NewWorld } from './NewWorld';
 import { effectiveMotion, usePrefersReducedMotion } from './motion';
 import { SaveDialog } from './SaveDialog';
 import './settings.css';
@@ -36,7 +36,7 @@ export function SettingsDialog({ store, runAsOwner, onClose }: Props) {
 
   if (sub === 'filter') return <LootFilterDialog store={store} onClose={back} />;
   if (sub === 'save') return <SaveDialog store={store} runAsOwner={runAsOwner} onClose={back} />;
-  if (sub === 'world') return <NewWorld store={store} runAsOwner={runAsOwner} onClose={back} onDone={onClose} />;
+  if (sub === 'world') return <StartScreen store={store} mode="newWorld" onBack={back} onStart={onClose} />;
   return <SettingsMain store={store} returnTo={lastSub} onOpen={open} onClose={onClose} />;
 }
 
@@ -114,6 +114,10 @@ function SettingsMain({ store, returnTo, onOpen, onClose }: {
 
         <section className="gm-dialog__section gm-dialog__section--ruled" aria-label="World">
           <h3>World</h3>
+          <div className="gm-seedrow">
+            <span id="gm-name-label" className="gm-visually-hidden">Miner&rsquo;s name</span>
+            <span className="gm-seedrow__seed" aria-labelledby="gm-name-label">{state.characterName}</span>
+          </div>
           <div className="gm-seedrow">
             <span id="gm-seed-label" className="gm-visually-hidden">World seed</span>
             {/* The label stays outside the seed so selecting the seed by hand copies only the seed. */}

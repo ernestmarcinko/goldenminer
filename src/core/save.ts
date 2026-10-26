@@ -16,6 +16,7 @@ import { gemGradeFor, itemName } from './itemData';
 import { sideCount } from './itemGen';
 import { sellValue } from './loot';
 import { isOldLootFilter, migrateLootFilter, ruleValid } from './lootFilter';
+import { defaultCharacterName, isValidCharacterName } from './names';
 import { emptyPremium } from './oreMarket';
 import { isConnectedWeb, PASSIVE_NODE_BY_ID, START_NODE_ID } from './passives';
 import { emptyLifetimeStats } from './telemetry';
@@ -34,7 +35,7 @@ import {
   SHAFT_MOTIONS, TRAIL_EVENTS, type DropEntry, type GameState, type LifetimeStats, type LootRule,
 } from './types';
 
-export const SCHEMA_VERSION = 16;
+export const SCHEMA_VERSION = 17;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
@@ -341,6 +342,11 @@ export const MIGRATIONS: Record<number, Migration> = {
       runeRng: hash2(state.rng, RUNE_RNG_SALT),
       stash: { ...state.stash, runes: emptyRuneCounts() },
     };
+  },
+  16: (state) => {
+    if (!isObject(state) || typeof state.seed !== 'number') return state;
+    // Every pre-name save gains a deterministic, pronounceable name from its seed; the world is untouched.
+    return { ...state, characterName: defaultCharacterName(state.seed) };
   },
 };
 
@@ -939,6 +945,7 @@ export function validateState(x: unknown): x is GameState {
   if (!isUint32(x.seed) || !isUint32(x.rng)) return false;
   if (typeof x.worldSeed !== 'string' || !isValidSeedText(x.worldSeed) || seedFromText(x.worldSeed) !== x.seed) return false;
   if (x.worldGen !== 1 && x.worldGen !== 2) return false;
+  if (typeof x.characterName !== 'string' || !isValidCharacterName(x.characterName)) return false;
   if (!isNonNegInt(x.tickCount) || !isNonNegInt(x.deepest)) return false;
   if (!isNonNegFinite(x.lastTickAt) || !isNonNegFinite(x.lastWallAt) || !isNonNegFinite(x.gold) || !isNonNegFinite(x.diamonds)) return false;
   if (!isUnitRange(x.progress)) return false;

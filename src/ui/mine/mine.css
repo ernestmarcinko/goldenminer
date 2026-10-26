@@ -8,7 +8,10 @@
 .gm-header__title {
   font-family: var(--gm-font-display); font-weight: 400; font-size: 22px;
   letter-spacing: 0.04em; color: var(--gm-gold);
+  display: flex; flex-direction: column; gap: 0; line-height: 1.1;
 }
+.gm-header__title-name { color: var(--gm-gold-bright); }
+.gm-header__title-game { font-size: 12px; color: var(--gm-muted); letter-spacing: 0.08em; text-transform: uppercase; }
 .gm-header__pills { display: flex; flex-wrap: wrap; gap: 8px; }
 .gm-pill {
   display: flex; align-items: center; gap: 8px; min-height: 44px; box-sizing: border-box;

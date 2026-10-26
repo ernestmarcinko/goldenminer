@@ -15,7 +15,10 @@ export function Header({ store, onOpenSettings }: { store: GameStore; onOpenSett
   const pointsText = points === 0 ? 'No points to spend' : `${plural(points, 'point', 'points')} to spend`;
   return (
     <header className="gm-header">
-      <div className="gm-header__title">Golden Miner</div>
+      <div className="gm-header__title">
+        <span className="gm-header__title-name">{state.characterName}</span>
+        <span className="gm-header__title-game">Golden Miner</span>
+      </div>
       <div className="gm-header__pills">
         <div className="gm-pill">
           <Sprite name="coin" scale={2} />

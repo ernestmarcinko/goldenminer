@@ -174,6 +174,7 @@ export interface GameState {
   seed: number;                            // the world seed: a pure function of worldSeed
   worldSeed: string;                       // the text the player sees and shares
   worldGen: 1 | 2;                         // 1 = pre-seed saves, 2 = procedural worlds
+  characterName: string;                   // the miner's name; never affects the world
   rng: number; tickCount: number; lastTickAt: number;
   /** The last wall-clock `nowMs` `advance` saw, distinct from the tick-aligned `lastTickAt`, so played/away time is honest. */
   lastWallAt: number;

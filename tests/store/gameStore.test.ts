@@ -5,6 +5,7 @@ import { decodeSave, encodeSave } from '../../src/core/save';
 import { compressToBase64 } from 'lz-string';
 import fixture5 from '../fixtures/save-schema-5.txt?raw';
 import { newGame } from '../../src/core/newGame';
+import { isValidCharacterName } from '../../src/core/names';
 import { PASSIVE_NODE_BY_ID, START_NODE_ID } from '../../src/core/passives';
 import { refundPrice } from '../../src/core/respec';
 import { startMap } from '../../src/core/maps';
@@ -13,7 +14,7 @@ import { freshWorld } from '../../src/core/seed';
 import { deriveBattleStats } from '../../src/core/battle';
 import { deriveStats } from '../../src/core/stats';
 import { xpToNext } from '../../src/core/levels';
-import { seedFromText } from '../../src/core/seed';
+import { isValidSeedText, seedFromText } from '../../src/core/seed';
 import { ASCEND_LEVEL, MAX_LOOT_RULES } from '../../src/core/balance';
 import { ascendancyPoints, ASCENDANCY_NODE_BY_ID, ASCENDANCY_START_ID } from '../../src/core/ascendancy';
 import type { MapItem } from '../../src/core/items';
@@ -115,7 +116,7 @@ describe('GameStore', () => {
     expect(store.unreadableSave).toBe('garbage');
     store.save();
     expect(storage.getItem(SAVE_KEY)).toBe('garbage');
-    store.newWorld(null);
+    store.newWorld('Miner', null);
     expect(store.unreadableSave).toBeNull();
     expect(storage.getItem(SAVE_KEY)).not.toBe('garbage');
     expect(decodeSave(storage.getItem(SAVE_KEY) ?? '').ok).toBe(true);
@@ -135,7 +136,7 @@ describe('GameStore', () => {
     const again = make(now, storage).store; again.load();
     expect(again.notice).toEqual({ kind: 'loadFailed', reason: 'future', backupKey: BACKUP_PREFIX + '42' });
     expect(storage.getItem(BACKUP_PREFIX + '9000')).toBeNull();
-    store.newWorld(null);
+    store.newWorld('Miner', null);
     expect(store.notice).toBeNull();
     expect(storage.getItem(SAVE_KEY)).not.toBe(future);
     expect(decodeSave(storage.getItem(SAVE_KEY) ?? '').ok).toBe(true);
@@ -151,7 +152,7 @@ describe('GameStore', () => {
     storage.setItem(SAVE_KEY, 'garbage');
     store.load();
     expect(store.notice?.kind).toBe('loadFailed');
-    store.newWorld(null);
+    store.newWorld('Miner', null);
     expect(store.notice).toBeNull();
   });
 });
@@ -208,7 +209,7 @@ describe('inventory intents', () => {
     store.state.bag[0] = gear(store.state, 'lamp');
     store.equip({ where: 'bag', index: 0 });
     expect(store.equipNotice?.id).toBe(2);
-    expect(store.newWorld(null)).toBe(true);
+    expect(store.newWorld('Miner', null)).toBe(true);
     expect(store.equipNotice).toBeNull();
   });
 
@@ -257,14 +258,63 @@ describe('inventory intents', () => {
     expect('setBagFull' in store).toBe(false);
   });
 
-  it('a new world from typed text, or refused when empty', () => {
+  it('a new world from a typed name and seed, or refused when either is empty', () => {
     const { store } = make(); store.load();
-    expect(store.newWorld('  Golden Mole ')).toBe(true);
-    expect([store.state.worldSeed, store.state.seed]).toEqual(['Golden Mole', 2_552_287_895]);
-    expect(store.newWorld('   ')).toBe(false);
-    expect(store.state.worldSeed).toBe('Golden Mole');
-    expect(store.newWorld(null)).toBe(true);
+    expect(store.newWorld('Gorvash', '  Golden Mole ')).toBe(true);
+    expect([store.state.worldSeed, store.state.seed, store.state.characterName]).toEqual(['Golden Mole', 2_552_287_895, 'Gorvash']);
+    expect(store.newWorld('   ', 'Golden Mole')).toBe(false);
+    expect(store.newWorld('Gorvash', '   ')).toBe(false);
+    expect([store.state.worldSeed, store.state.characterName]).toEqual(['Golden Mole', 'Gorvash']);
+    expect(store.newWorld('Miner', null)).toBe(true);
     expect(store.state.worldSeed).toMatch(/^[a-z]+-[a-z]+-\d{1,3}$/);
+    expect(store.state.characterName).toBe('Miner');
+  });
+
+  it('newWorld trims the name and keeps the exact seed text', () => {
+    const { store } = make(); store.load();
+    expect(store.newWorld('  Thulmar  ', 'amber-fox-427')).toBe(true);
+    expect(store.state.characterName).toBe('Thulmar');
+    expect(store.state.worldSeed).toBe('amber-fox-427');
+    expect(store.state.seed).toBe(seedFromText('amber-fox-427'));
+  });
+
+  it('a refused newWorld leaves the world unchanged', () => {
+    const { store } = make(); store.load();
+    const before = structuredClone(store.state);
+    expect(store.newWorld('', 'amber-fox-427')).toBe(false);
+    expect(store.newWorld('   ', 'amber-fox-427')).toBe(false);
+    expect(store.newWorld('Gorvash', '')).toBe(false);
+    expect(store.state).toEqual(before);
+  });
+
+  it('two same-seed worlds with different names build the same mine', () => {
+    const a = make().store; a.load();
+    const b = make().store; b.load();
+    a.newWorld('Gorvash', 'amber-fox-427');
+    b.newWorld('Thulmar', 'amber-fox-427');
+    expect(a.state.characterName).toBe('Gorvash');
+    expect(b.state.characterName).toBe('Thulmar');
+    expect([a.state.seed, a.state.rng, a.state.uniqueRng, a.state.runeRng, a.state.nextId, a.state.ahead]).toEqual(
+      [b.state.seed, b.state.rng, b.state.uniqueRng, b.state.runeRng, b.state.nextId, b.state.ahead],
+    );
+  });
+
+  it('hasSave is true only when a save exists under SAVE_KEY', () => {
+    const storage = new MemoryStorage();
+    expect(make({ t: 0 }, storage).store.hasSave()).toBe(false);
+    storage.setItem(SAVE_KEY, 'x');
+    expect(make({ t: 0 }, storage).store.hasSave()).toBe(true);
+    storage.getItem = () => { throw new Error('blocked'); };
+    expect(make({ t: 0 }, storage).store.hasSave()).toBe(false);
+  });
+
+  it('randomName and randomSeedText draw valid values', () => {
+    const { store } = make(); store.load();
+    const name = store.randomName();
+    const seed = store.randomSeedText();
+    expect(name.length).toBeGreaterThan(0);
+    expect(isValidCharacterName(name)).toBe(true);
+    expect(isValidSeedText(seed)).toBe(true);
   });
 
   it('setMotion applies a patch and skips undefined entries', () => {
@@ -542,7 +592,7 @@ describe('battle stats', () => {
     expect(store.importSave(encodeSave(other, 0)).ok).toBe(true);
     expect(store.battle).toEqual(deriveBattleStats(store.state));
     expect(store.battle.maxLife).toBeGreaterThan(deriveBattleStats(newGame(2, 0)).maxLife);
-    expect(store.newWorld(null)).toBe(true);
+    expect(store.newWorld('Miner', null)).toBe(true);
     expect(store.battle).toEqual(deriveBattleStats(store.state));
     expect(store.battle.maxLife).toBe(deriveBattleStats(newGame(2, 0)).maxLife);
   });

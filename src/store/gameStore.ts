@@ -13,6 +13,7 @@ import { drainOverflow } from '../core/loot';
 import { ruleValid } from '../core/lootFilter';
 import { leaveMap as coreLeaveMap, startMap as coreStartMap } from '../core/maps';
 import { gamble as coreGamble, type GambleResult } from '../core/merchant';
+import { isValidCharacterName, randomCharacterName } from '../core/names';
 import { newGame } from '../core/newGame';
 import { buyEssence as coreBuyEssence, buyOrb as coreBuyOrb, tradeOres as coreTradeOres, type MarketResult } from '../core/oreMarket';
 import {
@@ -22,7 +23,7 @@ import {
 import { soulUpgrade as coreSoulUpgrade, type SoulUpgradeCheck } from '../core/soulUpgrade';
 import { buyStashPage as coreBuyStashPage } from '../core/stashPages';
 import { decodeSave, encodeSave, type DecodeResult } from '../core/save';
-import { freshWorld, isValidSeedText, seedFromText } from '../core/seed';
+import { freshWorld, isValidSeedText, randomSeedText as coreRandomSeedText, seedFromText } from '../core/seed';
 import { buyStock as coreBuyStock, type BuyResult } from '../core/trader';
 import { deriveStats } from '../core/stats';
 import { summarize } from '../core/summary';
@@ -109,6 +110,25 @@ export class GameStore {
   subscribe(fn: () => void): () => void {
     this.listeners.add(fn);
     return () => { this.listeners.delete(fn); };
+  }
+
+  /** Whether a save exists in storage; false on a first launch (or when storage cannot be read). */
+  hasSave(): boolean {
+    try {
+      return this.deps.storage.getItem(SAVE_KEY) !== null;
+    } catch {
+      return false;
+    }
+  }
+
+  /** A random character name, drawn from the same RNG stream the game uses. */
+  randomName(): string {
+    return randomCharacterName(this.deps.newSeed);
+  }
+
+  /** A random seed text, drawn from the same RNG stream the game uses. */
+  randomSeedText(): string {
+    return coreRandomSeedText(this.deps.newSeed);
   }
 
   private changed(): void {
@@ -479,15 +499,18 @@ export class GameStore {
     return result;
   }
 
-  /** Starts a new world from typed seed text, or a random one for `null`; refuses text with no usable characters. */
-  newWorld(seedText: string | null): boolean {
+  /** Starts a new world named `name` from typed seed text, or a random one for `null`; refuses an invalid name or text. */
+  newWorld(name: string, seedText: string | null): boolean {
+    const trimmed = name.trim();
+    if (!isValidCharacterName(trimmed)) return false;
     const { newSeed, now } = this.deps;
     let world: GameState;
     if (seedText === null) {
       world = freshWorld(newSeed, now());
+      world.characterName = trimmed;
     } else if (isValidSeedText(seedText)) {
       const text = seedText.trim();
-      world = newGame(seedFromText(text), now(), { seedText: text, lootSeed: newSeed() });
+      world = newGame(seedFromText(text), now(), { seedText: text, lootSeed: newSeed(), name: trimmed });
     } else {
       return false;
     }

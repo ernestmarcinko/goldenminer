@@ -2,17 +2,19 @@ import { GUARANTEED_FIRST_MAP_METRE, RUNE_RNG_SALT } from './balance';
 import { emptyInventory } from './cells';
 import { DEFAULT_LOOT_FILTER } from './lootFilter';
 import { fillAhead } from './metres';
+import { defaultCharacterName } from './names';
 import { emptyPremium } from './oreMarket';
 import { hash2 } from './rng';
 import { deriveStats } from './stats';
 import { emptyLifetimeStats } from './telemetry';
 import { DEFAULT_MOTION, type GameState } from './types';
 
-export interface NewGameOptions { seedText?: string; lootSeed?: number }
+export interface NewGameOptions { seedText?: string; lootSeed?: number; name?: string }
 
 export function newGame(seed: number, nowMs: number, options: NewGameOptions = {}): GameState {
   const state: GameState = {
     seed, worldSeed: options.seedText ?? String(seed), worldGen: 2,
+    characterName: (options.name ?? '').trim() || defaultCharacterName(seed),
     rng: hash2(options.lootSeed ?? seed, 0x5eed), tickCount: 0, lastTickAt: nowMs, lastWallAt: nowMs,
     gold: 0, diamonds: 0, deepest: 0, progress: 0,
     ahead: {}, finds: [],

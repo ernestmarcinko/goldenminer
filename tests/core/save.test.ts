@@ -22,6 +22,7 @@ import { sideCount } from '../../src/core/itemGen';
 import { migrateLootFilter } from '../../src/core/lootFilter';
 import { addMap, startMap, takeMap } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
+import { defaultCharacterName } from '../../src/core/names';
 import { ASCENDANCY_NODE_BY_ID, ASCENDANCY_START_ID, allocateAscendancy } from '../../src/core/ascendancy';
 import { PASSIVE_NODE_BY_ID, START_NODE_ID } from '../../src/core/passives';
 import { hash2 } from '../../src/core/rng';
@@ -40,6 +41,37 @@ it('round-trips a game', () => {
   s.gold = 2480;
   const r = decodeSave(encodeSave(s, 456));
   expect(r).toEqual({ ok: true, state: s, savedAt: 456 });
+});
+
+it('a character name round-trips through save and load', () => {
+  const s = newGame(9, 123, { name: 'Gorvash' });
+  expect(s.characterName).toBe('Gorvash');
+  const r = decodeSave(encodeSave(s, 456));
+  if (!r.ok) throw new Error(r.reason);
+  expect(r.state.characterName).toBe('Gorvash');
+});
+
+it('a schema-16 save migrates to 17 with a generated name', () => {
+  expect(SCHEMA_VERSION).toBe(17);
+  const state16 = { ...newGame(12345, 0) };
+  delete (state16 as Partial<GameState>).characterName;
+  const r = decodeSave(raw({ schema: 16, savedAt: 0, state: state16 }));
+  if (!r.ok) throw new Error(r.reason);
+  expect(r.state.characterName).toBe(defaultCharacterName(12345));
+  expect(r.state.characterName.length).toBeGreaterThan(0);
+  expect(r.state.worldGen).toBe(2);
+});
+
+it('rejects a missing, empty, over-long or control-character name', () => {
+  const named = (name: unknown): GameState => {
+    const s = newGame(1, 0);
+    (s as { characterName: unknown }).characterName = name;
+    return s;
+  };
+  expect(validateState(named('Gorvash'))).toBe(true);
+  for (const name of [undefined, '', '   ', 'x'.repeat(25), 'Gor\u0000vash']) {
+    expect(validateState(named(name)), String(name)).toBe(false);
+  }
 });
 
 it('rejects garbage as corrupt', () => {
@@ -1051,10 +1083,11 @@ it('a schema-10 save gains an empty passive web and keeps everything else', () =
   expect(r.state.level).toBe(4);
   const {
     passives: _passives, ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, oreMarket: _oreMarket,
-    stats: _stats, achievements: _achievements, lastWallAt: _lastWallAt, runeRng: _runeRng, ...rest
+    stats: _stats, achievements: _achievements, lastWallAt: _lastWallAt, runeRng: _runeRng, characterName: _characterName, ...rest
   } = r.state;
   const { essences: _ess10, runes: _runes10, ...restStash } = r.state.stash;
   expect({ ...rest, stash: restStash }).toEqual(raw);   // nothing else changes
+  expect(r.state.characterName).toBe(defaultCharacterName(r.state.seed));
   expect(r.state.oreMarket.premium).toEqual(emptyMaterialCounts());
   expect(r.state.stash.runes).toEqual(emptyRuneCounts());
 });
@@ -1170,10 +1203,11 @@ it('a schema-11 save gains an empty ascendancy, auto-map and lifetime record', (
   expect(r.state.lifetime).toEqual({ ascensions: 0, deepest: 0 });
   const {
     ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, oreMarket: _oreMarket, stats: _stats,
-    achievements: _achievements, lastWallAt: _lastWallAt, runeRng: _runeRng, ...rest
+    achievements: _achievements, lastWallAt: _lastWallAt, runeRng: _runeRng, characterName: _characterName, ...rest
   } = r.state;
   const { essences: _ess11, runes: _runes11, ...restStash } = r.state.stash;
   expect({ ...rest, stash: restStash }).toEqual(raw);   // nothing else changes
+  expect(r.state.characterName).toBe(defaultCharacterName(r.state.seed));
   expect(r.state.oreMarket.premium).toEqual(emptyMaterialCounts());
   expect(r.state.stash.runes).toEqual(emptyRuneCounts());
 });
