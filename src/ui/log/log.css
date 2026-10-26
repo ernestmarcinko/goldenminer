@@ -4,10 +4,14 @@
 /* the Drops and Deaths tabs */
 .gm-log__tabs { display: flex; flex-wrap: wrap; gap: 8px; }
 .gm-log__tab {
-  min-height: 40px; padding: 0 14px; border-radius: 0; border: 1px solid var(--gm-line); background: var(--gm-header);
+  min-height: 40px; padding: 0 14px; border-radius: 0; border: var(--gm-edge); background: var(--gm-header);
   color: var(--gm-normal); font: inherit; font-size: 14px; cursor: pointer;
+  text-transform: uppercase; letter-spacing: 0.06em; text-shadow: var(--gm-text-shadow); box-shadow: var(--gm-bevel);
 }
-.gm-log__tab[aria-selected='true'] { background: var(--gm-panel-raised); border-color: var(--gm-gold); color: var(--gm-gold-bright); }
+.gm-log__tab[aria-selected='true'] {
+  background: var(--gm-panel-raised); border-color: var(--gm-gold); border-bottom-width: 2px; border-bottom-color: var(--gm-gold);
+  color: var(--gm-gold-bright);
+}
 .gm-log__tab:focus-visible, .gm-log__death:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
 .gm-log__panel { min-width: 0; }
 .gm-log__empty { margin: 0; }
@@ -18,7 +22,7 @@
   display: grid; grid-template-columns: 9.5em minmax(0, 1fr); gap: 4px 10px; padding: 8px 0;
   border-bottom: 1px solid var(--gm-line); font-size: 14px; overflow-wrap: anywhere;
 }
-.gm-log__death { border-radius: 0; }
+.gm-log__death { border-radius: 0; box-shadow: var(--gm-bevel); }
 .gm-log__origin { font-family: var(--gm-font-mono); font-size: 12px; color: var(--gm-muted); padding-top: 2px; }
 .gm-log__what { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; min-width: 0; }
 .gm-log__name { font-weight: 700; color: var(--gm-text); }
