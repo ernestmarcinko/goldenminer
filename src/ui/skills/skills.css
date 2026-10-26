@@ -24,7 +24,7 @@
 .gm-skills__hint {
   margin: 0;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: 0;
   border: 1px solid var(--gm-line);
   background: var(--gm-panel);
   color: var(--gm-gold-bright);
@@ -41,7 +41,7 @@
   min-height: 44px;
   box-sizing: border-box;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: 0;
   border: 1px solid var(--gm-line);
   background: var(--gm-ground);
   color: var(--gm-text);
@@ -59,7 +59,7 @@
   gap: 8px;
   flex-wrap: wrap;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: 0;
   border: 1px solid var(--gm-line);
   background: var(--gm-panel);
 }
@@ -92,24 +92,24 @@
 .gm-legend__dot--small {
   width: 16px;
   height: 16px;
-  border-radius: 50%;
+  border-radius: 0;
 }
 .gm-legend__dot--notable {
   width: 22px;
   height: 22px;
-  border-radius: 50%;
+  border-radius: 0;
 }
 .gm-legend__dot--keystone {
   width: 24px;
   height: 24px;
-  border-radius: 6px;
+  border-radius: 0;
 }
 
 .gm-web {
   position: relative;
   height: clamp(320px, 52vh, 560px);
   border: 1px solid var(--gm-line);
-  border-radius: 12px;
+  border-radius: 0;
   background: var(--gm-ground);
   overflow: hidden;
   touch-action: none;
@@ -217,7 +217,7 @@
   min-height: 44px;
   padding: 0 10px;
   box-sizing: border-box;
-  border-radius: 8px;
+  border-radius: 0;
   border: 1px solid var(--gm-line);
   background: var(--gm-panel);
   color: var(--gm-text);
@@ -267,7 +267,7 @@
   flex-direction: column;
   gap: 6px;
   padding: 12px;
-  border-radius: 10px;
+  border-radius: 0;
   background: var(--gm-panel);
   border: 1px solid var(--gm-line);
 }

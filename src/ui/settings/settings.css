@@ -10,25 +10,25 @@
 }
 .gm-switch__track {
   display: flex; align-items: center; justify-content: flex-start; width: 52px; height: 30px; padding: 3px;
-  box-sizing: border-box; border-radius: 999px; border: 1px solid var(--gm-line); background: #2e2722;
+  box-sizing: border-box; border-radius: 0; border: 1px solid var(--gm-line); background: #2e2722;
 }
-.gm-switch__knob { width: 22px; height: 22px; border-radius: 50%; background: var(--gm-muted); }
+.gm-switch__knob { width: 22px; height: 22px; border-radius: 0; background: var(--gm-muted); }
 .gm-switch[aria-checked='true'] .gm-switch__track { justify-content: flex-end; background: #5a4520; border-color: var(--gm-gold); }
 .gm-switch[aria-checked='true'] .gm-switch__knob { background: var(--gm-gold-bright); }
-.gm-switch:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; border-radius: 8px; }
+.gm-switch:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; border-radius: 0; }
 .gm-switch:disabled, .gm-segment__btn:disabled { cursor: default; opacity: 0.55; }
 
-.gm-segment { display: flex; gap: 4px; padding: 3px; border-radius: 10px; background: var(--gm-ground); }
+.gm-segment { display: flex; gap: 4px; padding: 3px; border-radius: 0; background: var(--gm-ground); }
 .gm-segment__btn {
   min-height: 44px; min-width: 44px; padding: 0 12px; box-sizing: border-box; cursor: pointer; font: inherit;
-  border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--gm-normal);
+  border-radius: 0; border: 1px solid transparent; background: transparent; color: var(--gm-normal);
 }
 .gm-segment__btn[aria-pressed='true'] { border-color: var(--gm-gold); background: #2e2617; color: var(--gm-gold-bright); }
 .gm-segment__btn:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
 
 .gm-seedrow { display: flex; align-items: center; gap: 8px; }
 .gm-seedrow__seed {
-  flex: 1 1 auto; min-width: 0; padding: 10px 12px; box-sizing: border-box; border-radius: 8px;
+  flex: 1 1 auto; min-width: 0; padding: 10px 12px; box-sizing: border-box; border-radius: 0;
   background: var(--gm-ground); border: 1px solid var(--gm-line); font-family: var(--gm-font-mono);
   color: var(--gm-gold-bright); word-break: break-all; user-select: all;
 }
@@ -40,7 +40,7 @@
 .gm-newworld__choice { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
 .gm-newworld__choice input { width: 20px; height: 20px; accent-color: var(--gm-gold); }
 .gm-newworld__text {
-  width: 100%; min-height: 44px; box-sizing: border-box; padding: 8px 12px; border-radius: 8px;
+  width: 100%; min-height: 44px; box-sizing: border-box; padding: 8px 12px; border-radius: 0;
   border: 1px solid var(--gm-line); background: var(--gm-ground); color: var(--gm-text);
   font-family: var(--gm-font-mono); font-size: 16px;
 }

@@ -1,11 +1,11 @@
-.gm-char__toggle { display: flex; align-self: flex-start; gap: 4px; padding: 3px; border-radius: 10px; background: var(--gm-ground); }
+.gm-char__toggle { display: flex; align-self: flex-start; gap: 4px; padding: 3px; border-radius: 0; background: var(--gm-ground); }
 .gm-char__tab {
-  min-height: 44px; padding: 0 14px; border-radius: 8px; border: 1px solid transparent; background: transparent;
+  min-height: 44px; padding: 0 14px; border-radius: 0; border: 1px solid transparent; background: transparent;
   color: var(--gm-normal); font: inherit; font-weight: 600; cursor: pointer;
 }
 .gm-char__tab[aria-pressed='true'] { background: #2e2617; border-color: var(--gm-gold); color: var(--gm-gold-bright); }
 .gm-char__tab:focus-visible, .gm-item:focus-visible, .gm-card__btn:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
-.gm-char__stats { padding: 8px 10px; border-radius: 8px; background: var(--gm-panel-raised); font-size: 12px; color: var(--gm-normal); }
+.gm-char__stats { padding: 8px 10px; border-radius: 0; background: var(--gm-panel-raised); font-size: 12px; color: var(--gm-normal); }
 .gm-char__baghead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .gm-char__bag { margin: 0; font-size: 14px; }
 .gm-char__bag .gm-muted { font-weight: 400; }
@@ -17,22 +17,22 @@
 .gm-doll__col--left { align-items: flex-end; }
 .gm-doll__figure {
   width: 132px; height: 168px; display: flex; align-items: center; justify-content: center;
-  border-radius: 66px; background: var(--gm-ground); border: 1px solid var(--gm-line);
+  border-radius: 0; background: var(--gm-ground); border: 1px solid var(--gm-line);
 }
 .gm-slot { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 88px; max-width: 100%; }
 .gm-slot__label { font-size: 11px; color: var(--gm-muted); }
-.gm-slot__box { width: 60px; height: 60px; border-radius: 8px; }
+.gm-slot__box { width: 60px; height: 60px; border-radius: 0; }
 .gm-slot__box--empty { box-sizing: border-box; border: 2px dashed var(--gm-line); background: transparent; }
 /* an item just went into this slot: a static green glow, shown for a moment */
 .gm-slot[data-flash] .gm-slot__box { box-shadow: 0 0 0 3px rgba(111, 207, 151, 0.55), 0 0 18px rgba(111, 207, 151, 0.45); }
 
 .gm-item {
   position: relative; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
-  padding: 0; border-radius: 6px; background: #241e19; border: 2px solid var(--gm-normal); cursor: pointer;
+  padding: 0; border-radius: 0; background: #241e19; border: 2px solid var(--gm-normal); cursor: pointer;
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
 button.gm-item:hover { background: #3a2f20; }
-.gm-slot__box.gm-item { border-radius: 8px; }
+.gm-slot__box.gm-item { border-radius: 0; }
 .gm-item[data-rarity='magic'], .gm-card[data-rarity='magic'], .gm-card__equipped[data-rarity='magic'] { --gm-tone: var(--gm-magic); }
 .gm-item[data-rarity='rare'], .gm-card[data-rarity='rare'], .gm-card__equipped[data-rarity='rare'] { --gm-tone: var(--gm-rare); }
 .gm-item[data-rarity='legendary'], .gm-card[data-rarity='legendary'], .gm-card__equipped[data-rarity='legendary'] { --gm-tone: var(--gm-legendary); }
@@ -84,12 +84,12 @@ button.gm-item:hover { background: #3a2f20; }
 /* the 36 px sprite steps down with the cells: 30 px from 34 px cells, 24 px below */
 @container (width < 445px) { .gm-grid > .gm-item > :first-child { transform: scale(0.8333); } }
 @container (width < 385px) { .gm-grid > .gm-item > :first-child { transform: scale(0.6667); } }
-.gm-cell--empty { box-sizing: border-box; border-radius: 6px; background: #1a1613; border: 1px solid #2e2722; }
+.gm-cell--empty { box-sizing: border-box; border-radius: 0; background: #1a1613; border: 1px solid #2e2722; }
 
 /* above the page, below the dialogs (.gm-overlay, z-index 10 and up), which must cover an open card */
 .gm-card {
   position: fixed; z-index: 9; width: 270px; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px;
-  padding: 12px; border-radius: 8px; background: #0f0d0b; border: 1px solid var(--gm-tone, var(--gm-normal));
+  padding: 12px; border-radius: 0; background: #0f0d0b; border: 1px solid var(--gm-tone, var(--gm-normal));
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6); pointer-events: none;
 }
 .gm-card[role='dialog'] { pointer-events: auto; }
@@ -131,7 +131,7 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-card__note { font-size: 11px; color: #8f877d; }
 .gm-card__actions { display: flex; flex-direction: column; gap: 4px; padding-top: 6px; border-top: 1px solid var(--gm-line); }
 .gm-card__btn {
-  min-height: 44px; padding: 0 12px; text-align: left; border-radius: 6px; border: 1px solid var(--gm-line);
+  min-height: 44px; padding: 0 12px; text-align: left; border-radius: 0; border: 1px solid var(--gm-line);
   background: var(--gm-panel-raised); color: var(--gm-text); font: inherit; font-size: 13px; cursor: pointer;
 }
 .gm-card__btn:hover { border-color: var(--gm-gold); }
@@ -177,7 +177,7 @@ button.gm-item:hover { background: #3a2f20; }
   display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; min-height: 56px;
   padding: 6px 8px; box-sizing: border-box; border-bottom: 1px solid #2c241e;
 }
-.gm-rule[data-open] { background: #241e19; border-radius: 8px; }
+.gm-rule[data-open] { background: #241e19; border-radius: 0; }
 .gm-rule[data-removed] { color: #5a5048; font-style: italic; }
 .gm-rule__n { font-family: var(--gm-font-mono); font-size: 12px; color: var(--gm-muted); }
 .gm-rule__text { min-width: 0; overflow-wrap: anywhere; }
@@ -186,7 +186,7 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-btn.gm-rule__edit { min-width: 84px; padding: 8px 10px; }
 .gm-rule__edit[aria-pressed='true'] { border-color: var(--gm-gold); color: var(--gm-gold-bright); }
 .gm-rule__btn {
-  width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 6px;
+  width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 0;
   border: 1px solid var(--gm-line); background: var(--gm-panel-raised); color: var(--gm-down); font: inherit; cursor: pointer;
 }
 .gm-dialog .gm-btn:disabled, .gm-dialog .gm-btn[aria-disabled='true'] { opacity: 0.4; cursor: default; }
@@ -194,7 +194,7 @@ button.gm-item:hover { background: #3a2f20; }
 
 /* The editor keeps one size whatever its kind shows, so its head row never moves: each part reserves its tallest. */
 .gm-rule-editor {
-  flex: none; display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 10px;
+  flex: none; display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 0;
   background: #241e19; border: 1px solid var(--gm-line);
 }
 /* with no rule open it is an empty slot of the same size, so opening one moves nothing */
@@ -213,19 +213,19 @@ button.gm-item:hover { background: #3a2f20; }
 .gm-rule-editor__problems > p { margin: 0; line-height: 20px; }
 .gm-pick {
   display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 44px; padding-left: 10px; box-sizing: border-box;
-  border-radius: 8px; border: 1px solid var(--gm-line); background: var(--gm-ground);
+  border-radius: 0; border: 1px solid var(--gm-line); background: var(--gm-ground);
 }
 .gm-pick:focus-within { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
 .gm-pick__cap { flex: 0 1 auto; min-width: 0; font-size: 12px; line-height: 1.15; color: var(--gm-muted); }
 .gm-pick__word { flex: none; font-size: 13px; color: var(--gm-muted); }
 .gm-pick__select {
-  flex: 1 1 0; min-width: 0; align-self: stretch; min-height: 42px; padding: 0 6px; border: 0; border-radius: 8px;
+  flex: 1 1 0; min-width: 0; align-self: stretch; min-height: 42px; padding: 0 6px; border: 0; border-radius: 0;
   background: transparent; color: var(--gm-text); font: inherit; cursor: pointer;
 }
 .gm-pick__select:focus { outline: none; }
 .gm-pick__select option { background: var(--gm-ground); color: var(--gm-text); }
 .gm-pick__num {
-  flex: none; width: 52px; min-height: 40px; padding: 0 6px; box-sizing: border-box; border-radius: 6px;
+  flex: none; width: 52px; min-height: 40px; padding: 0 6px; box-sizing: border-box; border-radius: 0;
   border: 1px solid var(--gm-line); background: var(--gm-panel); color: var(--gm-text); font: inherit;
 }
 .gm-pick__num:focus { outline: none; border-color: var(--gm-gold); }

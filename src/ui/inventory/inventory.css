@@ -7,17 +7,17 @@
 }
 .gm-inv__col {
   box-sizing: border-box; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 12px;
-  border-radius: 12px; background: var(--gm-panel); border: 1px solid var(--gm-line);
+  border-radius: 0; background: var(--gm-panel); border: 1px solid var(--gm-line);
 }
 .gm-inv__col--stash { gap: 0; }
 /* the 260 px column keeps both 60 px slot boxes beside a narrower figure */
 .gm-inv .gm-doll { gap: 6px; }
-.gm-inv .gm-doll__figure { width: 100px; height: 136px; border-radius: 50px; }
+.gm-inv .gm-doll__figure { width: 100px; height: 136px; border-radius: 0; }
 @media (max-width: 1099px) {
   .gm-inv { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .gm-inv__col--doll { grid-column: 1 / -1; }
   .gm-inv .gm-doll { gap: 12px; }
-  .gm-inv .gm-doll__figure { width: 132px; height: 168px; border-radius: 66px; }
+  .gm-inv .gm-doll__figure { width: 132px; height: 168px; border-radius: 0; }
 }
 @media (max-width: 819px) {
   .gm-inv { grid-template-columns: minmax(0, 1fr); }
@@ -29,20 +29,20 @@
 /* the stash's tabs, and the page and tier rows inside them */
 .gm-stash__tabs { display: flex; flex-wrap: wrap; gap: 4px; }
 .gm-stash__tab {
-  min-height: 44px; padding: 0 14px; border-radius: 8px 8px 0 0; border: 1px solid var(--gm-line); border-bottom: 0;
+  min-height: 44px; padding: 0 14px; border-radius: 0; border: 1px solid var(--gm-line); border-bottom: 0;
   background: var(--gm-header); color: var(--gm-normal); font: inherit; font-weight: 700; cursor: pointer;
 }
 .gm-stash__tab[aria-selected='true'] { background: var(--gm-panel-raised); border-color: var(--gm-gold); color: var(--gm-gold-bright); }
 .gm-stash__tab[data-drop-over] { outline-offset: -4px; }
 .gm-stash__tab:focus-visible, .gm-stash__panel:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: -2px; }
 .gm-stash__panel {
-  box-sizing: border-box; padding: 10px; border-radius: 0 8px 8px 8px; background: var(--gm-panel-raised);
+  box-sizing: border-box; padding: 10px; border-radius: 0; background: var(--gm-panel-raised);
   border: 1px solid var(--gm-gold);
 }
 .gm-stash__paged { display: flex; flex-direction: column; gap: 10px; }
 .gm-stash__pages { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .gm-stash__page {
-  min-height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--gm-line); background: var(--gm-panel);
+  min-height: 40px; padding: 0 12px; border-radius: 0; border: 1px solid var(--gm-line); background: var(--gm-panel);
   color: var(--gm-normal); font: inherit; font-size: 13px; cursor: pointer;
 }
 .gm-stash__page:hover { border-color: var(--gm-gold); }
