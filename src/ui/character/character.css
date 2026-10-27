@@ -47,6 +47,15 @@
   background-size: 3px 3px; background-repeat: no-repeat;
   background-position: 3px 3px, right 3px top 3px, left 3px bottom 3px, right 3px bottom 3px;
 }
+/* two dolls side by side across the gear row, each under its own set heading, stacking on a narrow screen */
+.gm-dolls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.gm-dolls__set { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; }
+.gm-dolls__title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; }
+.gm-dolls__title--mining { color: var(--gm-gold); }
+.gm-dolls__title--battle { color: var(--gm-down); }
+@media (max-width: 819px) {
+  .gm-dolls { grid-template-columns: 1fr; }
+}
 .gm-slot { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 88px; max-width: 100%; }
 .gm-slot__label { font-size: 11px; color: var(--gm-muted); }
 .gm-slot__box { width: 60px; height: 60px; border-radius: 0; }

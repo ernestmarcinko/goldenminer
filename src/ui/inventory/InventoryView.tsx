@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { BAG_SIZE, MAX_STASH_PAGES, STASH_PAGE_SIZE } from '../../core/balance';
 import { pageCount } from '../../core/cells';
-import { setOfSlot, type Cell, type GearSet } from '../../core/items';
+import type { Cell } from '../../core/items';
 import type { GameState } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
 import { dropAttr } from '../character/dragDrop';
@@ -26,12 +26,6 @@ import { useRecentEquip } from '../Toast';
 import { useGame } from '../useGame';
 import '../character/character.css';
 import './inventory.css';
-
-// The toggle switches the paper doll and its stat line; the one bag holds both sets.
-const SETS: readonly { set: GearSet; toggle: string }[] = [
-  { set: 'mining', toggle: 'Mining set' },
-  { set: 'battle', toggle: 'Battle set' },
-];
 
 const tabId = (tab: StashTab): string => `gm-stash-tab-${tab}`;
 
@@ -114,9 +108,6 @@ export function InventoryView({ store }: { store: GameStore }) {
   const { state } = useGame(store);
   const recentEquip = useRecentEquip(store);
   const flashSlot = recentEquip?.slot ?? null;
-  const running = state.activity.kind === 'map';
-  const [set, setSet] = useState<GearSet>(running ? 'battle' : 'mining');
-  const [sheetHalf, setSheetHalf] = useState<'mining' | 'battle'>(running ? 'battle' : 'mining');
   const [filterOpen, setFilterOpen] = useState(false);
   const [tab, setTab] = useState<StashTab>('general');
   const [page, setPage] = useState(0);
@@ -128,22 +119,6 @@ export function InventoryView({ store }: { store: GameStore }) {
   const { handlers, message, say, cards, tapCard, tapWhere, reset } = useItemInteractions({
     store, state, fallbackRef: bagHeadingRef, drag,
   });
-
-  // a run starting shows the Battle set and its ending the Mining set; an equip shows the set it went into, so its glow is seen
-  const wasRunning = useRef(running);
-  useEffect(() => {
-    if (running === wasRunning.current) return;
-    wasRunning.current = running;
-    setSet(running ? 'battle' : 'mining');
-    reset();
-  }, [running, reset]);
-  const shownEquip = useRef<number | undefined>(undefined);
-  useEffect(() => {
-    if (recentEquip === null || recentEquip.id === shownEquip.current) return;
-    shownEquip.current = recentEquip.id;
-    setSet(setOfSlot(recentEquip.slot));
-    reset();
-  }, [recentEquip, reset]);
 
   const closeFilter = (): void => {
     setFilterOpen(false);
@@ -199,41 +174,19 @@ export function InventoryView({ store }: { store: GameStore }) {
     <div className="gm-inv">
       <h2 className="gm-visually-hidden">Inventory</h2>
       <section aria-label="Gear" className="gm-inv__col gm-inv__col--doll">
-        <div role="group" aria-label="Gear set" className="gm-char__toggle">
-          {SETS.map((s) => (
-            <button
-              key={s.set}
-              type="button"
-              className="gm-char__tab"
-              aria-pressed={set === s.set}
-              onClick={() => { setSet(s.set); reset(); }}
-            >
-              {s.toggle}
-            </button>
-          ))}
+        <div className="gm-dolls">
+          <section className="gm-dolls__set" aria-label="Mining gear">
+            <h3 className="gm-dolls__title gm-dolls__title--mining">Mining</h3>
+            <PaperDoll state={state} set="mining" handlers={handlers} flashSlot={flashSlot} />
+          </section>
+          <section className="gm-dolls__set" aria-label="Battle gear">
+            <h3 className="gm-dolls__title gm-dolls__title--battle">Battle</h3>
+            <PaperDoll state={state} set="battle" handlers={handlers} flashSlot={flashSlot} />
+          </section>
         </div>
-        <PaperDoll state={state} set={set} handlers={handlers} flashSlot={flashSlot} />
         {tapSpot === 'doll' && tapCard}
         <div className="gm-char__stats">
-          <div role="group" aria-label="Character stats" className="gm-char__toggle gm-sheet__toggle">
-            <button
-              type="button"
-              className="gm-char__tab"
-              aria-pressed={sheetHalf === 'mining'}
-              onClick={() => setSheetHalf('mining')}
-            >
-              Mining
-            </button>
-            <button
-              type="button"
-              className="gm-char__tab"
-              aria-pressed={sheetHalf === 'battle'}
-              onClick={() => setSheetHalf('battle')}
-            >
-              Battle
-            </button>
-          </div>
-          <CharacterSheet state={state} half={sheetHalf} />
+          <CharacterSheet state={state} half="both" />
         </div>
       </section>
 
