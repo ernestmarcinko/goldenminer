@@ -38,6 +38,10 @@ export type StructuralGlyphId =
   | 'gemStack' | 'materialStack' | 'stashPages' | 'autoMap'
   | 'startingDepth' | 'passivePoints' | 'autoMapTier';
 
+/** The one-icon-per-family glyphs the achievement toasts and tab share (Plan 32). */
+export type AchievementFamilyGlyphId =
+  | 'heart' | 'flask' | 'star' | 'skull' | 'anvil';
+
 /** The 64 composed group-glyph ids: each cluster's base at slot tiers 1–8 (`groupWealth1` … `groupGreed8`). */
 type GroupVariation = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 export type AscendancyGroupGlyphId = `group${Capitalize<AscendancyGroupId>}${GroupVariation}`;
@@ -49,7 +53,8 @@ export type IconGlyphId =
   | AscendancyNamedGlyphId
   | AscendancyGroupGlyphId
   | StatKey
-  | StructuralGlyphId;
+  | StructuralGlyphId
+  | AchievementFamilyGlyphId;
 
 /** The glyph palette. `a`/`A` are deliberately absent: they belong to the frame's side accent. */
 export const ICON_PALETTE: Record<string, string> = {
@@ -1783,6 +1788,85 @@ const AUTO_MAP_TIER = glyph12([
   '............',
 ]);
 
+// ---- The achievement family glyphs (Plan 32) ----
+// One icon per achievement family, shared by the toasts and the tab. Drawn at 12 × 12 in the kit's palette; the families
+// that had a natural stat/structural glyph reuse it, these five cover the rest.
+
+const HEART = glyph12([
+  '.kk....kk...',
+  'kRRk..kRRk..',
+  'kRRRkkRRRRk.',
+  'kRRRkkRRRRk.',
+  'kRRRpkRRRRk.',
+  'kRRRpkRRRRk.',
+  '.kRRpkRRRk..',
+  '..kRpkRRk...',
+  '...kpkRk....',
+  '....kpk.....',
+  '.....kk.....',
+  '............',
+]);
+
+const FLASK = glyph12([
+  '....kkkk....',
+  '...kWWWWk...',
+  '...kW..Wk...',
+  '....k..k....',
+  '...kCccCk...',
+  '..kCccccCk..',
+  '..kCccccCk..',
+  '..kCccccCk..',
+  '..kCccccCk..',
+  '...kCccCk...',
+  '....kCCk....',
+  '....kkkk....',
+]);
+
+const STAR = glyph12([
+  '.....kk.....',
+  '.....kGk....',
+  '....kGGGk...',
+  '....kGGGk...',
+  '..kkGGGGGkk.',
+  '.kGGGGGGGGk.',
+  'kGGGGGGGGGGk',
+  '.kGGGGGGGGk.',
+  '..kGGkGGk...',
+  '..kGk..kGk..',
+  '..kk....kk..',
+  '............',
+]);
+
+const SKULL = glyph12([
+  '...kkkkkk...',
+  '..keeeeeek..',
+  '.keeeeeeeek.',
+  '.kepeekepek.',
+  '.kepeekepek.',
+  '.keeeeeeeek.',
+  '.keeekkeek..',
+  '.keeekkeek..',
+  '..keeeeeek..',
+  '...kkkkkk...',
+  '...k.k.k.k..',
+  '...kkkkkk...',
+]);
+
+const ANVIL = glyph12([
+  '...kkkkkk...',
+  '..kSSSSSSk..',
+  '..kSSSSSSk..',
+  '..kkkkkkkk..',
+  '....kSSk....',
+  '...kSSSSk...',
+  '...kSSSSk...',
+  '...kSSSSk...',
+  '...kkkkkk...',
+  '...kSSSSk...',
+  '...kkkkkk...',
+  '............',
+]);
+
 /** Every glyph id, hand-drawn at 16 × 16 and anchored at its centre. */
 export const ICON_GLYPHS: Record<IconGlyphId, IconGlyph> = {
   ...GROUP_VARIATION_GLYPHS,
@@ -1880,6 +1964,11 @@ export const ICON_GLYPHS: Record<IconGlyphId, IconGlyph> = {
   startingDepth: STARTING_DEPTH,
   passivePoints: PASSIVE_POINTS,
   autoMapTier: AUTO_MAP_TIER,
+  heart: HEART,
+  flask: FLASK,
+  star: STAR,
+  skull: SKULL,
+  anvil: ANVIL,
 };
 
 const FRAME_PALETTE: Record<string, string> = { ...ICON_PALETTE, a: '#d9c9a3', A: '#f0e6c8' };

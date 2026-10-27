@@ -19,3 +19,104 @@
 .gm-ach__desc { font-size: 13px; }
 .gm-ach__row[data-earned='true'] .gm-ach__name { color: var(--gm-gold-bright); }
 .gm-ach__row[data-earned='true'] .gm-ach__desc { color: var(--gm-text); }
+
+/* ---- Achievement toasts (Plan 32) ---- */
+
+/* The fixed top-of-screen stack: centred, below the header, and transparent to the pointer except on a toast itself, so
+   the mine stays clickable underneath. */
+.gm-ach-toasts {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: min(420px, calc(100vw - 24px));
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.gm-ach-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--gm-gold-dim);
+  border-radius: 0;
+  background: var(--gm-panel-raised);
+  color: var(--gm-text);
+  box-shadow: var(--gm-bevel), 0 8px 24px rgba(0, 0, 0, 0.5);
+  animation: gm-ach-toast-in 240ms ease-out;
+}
+
+@keyframes gm-ach-toast-in {
+  from { opacity: 0; transform: translateY(-16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.gm-ach-toast[data-leaving='true'] {
+  animation: gm-ach-toast-out 240ms ease-in forwards;
+}
+
+@keyframes gm-ach-toast-out {
+  from { opacity: 1; }
+  to { opacity: 0; transform: translateY(-8px); }
+}
+
+.gm-ach-toast__icon { flex: none; display: block; }
+
+.gm-ach-toast__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.gm-ach-toast__eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gm-gold);
+}
+
+.gm-ach-toast__name {
+  font-family: var(--gm-font-display);
+  font-weight: 400;
+  font-size: 15px;
+  color: var(--gm-gold-bright);
+  overflow-wrap: anywhere;
+}
+
+.gm-ach-toast__desc { font-size: 13px; color: var(--gm-muted); }
+
+.gm-ach-toast__close {
+  flex: none;
+  align-self: flex-start;
+  min-width: 28px;
+  min-height: 28px;
+  margin: -2px -4px 0 0;
+  padding: 0 6px;
+  box-sizing: border-box;
+  cursor: pointer;
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  border: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--gm-muted);
+}
+
+.gm-ach-toast__close:hover { border-color: var(--gm-gold-dim); color: var(--gm-text); }
+.gm-ach-toast__close:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
+
+/* The player's "Floating numbers" switch off, or the system asking for reduced motion, drops the slide entirely. */
+.gm-ach-toasts[data-motion='off'] .gm-ach-toast { animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gm-ach-toast { animation: none; }
+}

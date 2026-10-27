@@ -1,5 +1,6 @@
 import { MATERIAL_LABELS } from './itemData';
 import { MATERIALS, type Material } from './items';
+import type { IconGlyphId } from './skillIcons';
 import type { GameState } from './types';
 
 /**
@@ -127,6 +128,41 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = ALL_DEFS.flatMap((def) =>
 );
 
 export const ACHIEVEMENT_IDS: ReadonlySet<string> = new Set(ACHIEVEMENTS.map((a) => a.id));
+
+/** Every achievement by its `<family>.<value>` id, built once for the store's earned-diff lookups. */
+export const ACHIEVEMENT_BY_ID: ReadonlyMap<string, AchievementDef> = new Map(
+  ACHIEVEMENTS.map((a) => [a.id, a]),
+);
+
+/**
+ * One icon glyph per family, so a toast (or the tab) shows the family's own pixel icon. Families with a natural
+ * stat/structural glyph reuse it; the rest use the handful of family glyphs added to `skillIcons` for Plan 32.
+ */
+export const FAMILY_ICONS: Readonly<Record<string, IconGlyphId>> = {
+  depth: 'startingDepth',
+  dig: 'digPower',
+  gold: 'goldYield',
+  diamonds: 'diamondYield',
+  gems: 'gemFind',
+  maps: 'mapFind',
+  kills: 'damage',
+  bosses: 'skull',
+  deaths: 'heart',
+  levels: 'xpFind',
+  ascensions: 'minerReborn',
+  craft: 'anvil',
+  merchant: 'flask',
+  legendaries: 'star',
+  sockets: 'gemStack',
+  ...Object.fromEntries(MATERIALS.map((material): [string, IconGlyphId] => [`ore.${material}`, 'oreFind'])),
+};
+
+/** The icon glyph an achievement's toast and tab row share. */
+export function achievementIcon(def: AchievementDef): IconGlyphId {
+  const icon = FAMILY_ICONS[def.family];
+  if (icon === undefined) throw new Error(`no icon for achievement family ${def.family}`);
+  return icon;
+}
 
 const BY_FAMILY: ReadonlyMap<string, readonly AchievementDef[]> = (() => {
   const map = new Map<string, AchievementDef[]>();

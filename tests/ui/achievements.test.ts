@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ACHIEVEMENTS, ACHIEVEMENT_BOOST, FAMILY_LABELS, checkAchievements } from '../../src/core/achievements';
 import { newGame } from '../../src/core/newGame';
+import { GameStore } from '../../src/store/gameStore';
+import { MemoryStorage } from '../../src/store/storage';
 import { achievementBoostPercent, achievementVMs } from '../../src/ui/achievements/achievementsView';
 
 describe('the achievements tab view model', () => {
@@ -27,5 +29,99 @@ describe('the achievements tab view model', () => {
     expect(achievementBoostPercent(s)).toBe(0);
     s.achievements.earned = ACHIEVEMENTS.slice(0, 100).map((a) => a.id);
     expect(achievementBoostPercent(s)).toBeCloseTo(ACHIEVEMENT_BOOST * 100 * 100);
+  });
+});
+
+describe('the achievement toast queue', () => {
+  function make(now = { t: 0 }, storage = new MemoryStorage()) {
+    const store = new GameStore({ storage, storageAvailable: true, now: () => now.t, newSeed: () => 7 });
+    return { store, storage, now };
+  }
+
+  it('a fresh store starts with an empty queue', () => {
+    const { store } = make();
+    expect(store.notifications).toEqual([]);
+    store.load();
+    expect(store.notifications).toEqual([]);
+  });
+
+  it('crossing one threshold enqueues exactly one toast with the right name, desc and icon', () => {
+    const { store } = make();
+    store.load();
+    store.state.stats.goldFound = 100;
+    checkAchievements(store.state, 'gold');
+    store.setMotion({}); // any counter-free mutation runs the store's single changed() path
+    expect(store.notifications).toHaveLength(1);
+    expect(store.notifications[0]).toMatchObject({
+      name: 'Earn 100 Gold',
+      desc: 'Earn 100 Gold over your lifetime.',
+      icon: 'goldYield',
+    });
+  });
+
+  it('crossing three thresholds at once enqueues three, newest on top', () => {
+    const { store } = make();
+    store.load();
+    const gold = ACHIEVEMENTS.filter((a) => a.family === 'gold');
+    const first = gold[0];
+    const second = gold[1];
+    const third = gold[2];
+    if (first === undefined || second === undefined || third === undefined) {
+      throw new Error('the gold family has fewer than three achievements');
+    }
+    store.state.stats.goldFound = third.value;
+    checkAchievements(store.state, 'gold');
+    store.setMotion({});
+    expect(store.notifications).toHaveLength(3);
+    expect(store.notifications.map((n) => n.name)).toEqual([third.name, second.name, first.name]);
+    expect(store.notifications.every((n) => n.icon === 'goldYield')).toBe(true);
+  });
+
+  it('repeating the same action enqueues nothing', () => {
+    const { store } = make();
+    store.load();
+    store.state.stats.goldFound = 100;
+    checkAchievements(store.state, 'gold');
+    store.setMotion({});
+    expect(store.notifications).toHaveLength(1);
+    checkAchievements(store.state, 'gold');
+    store.setMotion({});
+    expect(store.notifications).toHaveLength(1);
+  });
+
+  it('dismissNotification removes only that id, and dismissAll clears the rest', () => {
+    const { store } = make();
+    store.load();
+    const gold = ACHIEVEMENTS.filter((a) => a.family === 'gold');
+    const first = gold[0];
+    const second = gold[1];
+    const third = gold[2];
+    if (first === undefined || second === undefined || third === undefined) {
+      throw new Error('the gold family has fewer than three achievements');
+    }
+    store.state.stats.goldFound = third.value;
+    checkAchievements(store.state, 'gold');
+    store.setMotion({});
+    const ids = store.notifications.map((n) => n.id);
+    expect(ids).toHaveLength(3);
+    const middle = ids[1];
+    if (middle === undefined) throw new Error('expected a middle notification');
+    store.dismissNotification(middle);
+    expect(store.notifications.map((n) => n.id)).toEqual([ids[0], ids[2]]);
+    store.dismissAll();
+    expect(store.notifications).toEqual([]);
+  });
+
+  it('reloading a save that already earned an achievement never re-toasts', () => {
+    const { store, storage, now } = make();
+    store.load();
+    store.state.stats.goldFound = 100;
+    checkAchievements(store.state, 'gold');
+    store.setMotion({});
+    expect(store.notifications).toHaveLength(1);
+    store.save();
+    const again = make(now, storage).store;
+    again.load();
+    expect(again.notifications).toEqual([]);
   });
 });

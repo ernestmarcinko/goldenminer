@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ACHIEVEMENTS, ACHIEVEMENT_BOOST, ACHIEVEMENT_IDS, FAMILY_LABELS, achievementBoost, checkAchievements, earnedCount,
+  ACHIEVEMENTS, ACHIEVEMENT_BOOST, ACHIEVEMENT_BY_ID, ACHIEVEMENT_IDS, FAMILY_ICONS, FAMILY_LABELS,
+  achievementBoost, achievementIcon, checkAchievements, earnedCount,
 } from '../../src/core/achievements';
 import { ASCEND_LEVEL, MAX_DAMAGE, MAX_LIFE } from '../../src/core/balance';
 import { ascend } from '../../src/core/ascend';
@@ -8,6 +9,7 @@ import { deriveBattleStats } from '../../src/core/battle';
 import { collect, faceTicksPerMetre, finishMetre } from '../../src/core/dig';
 import { GEM_GRADES, GEM_TYPES, MATERIALS } from '../../src/core/items';
 import { newGame } from '../../src/core/newGame';
+import { ICON_GLYPHS } from '../../src/core/skillIcons';
 import { deriveStats } from '../../src/core/stats';
 import { emptyLifetimeStats } from '../../src/core/telemetry';
 
@@ -30,6 +32,36 @@ describe('the achievement table', () => {
       expect(a.value).toBeGreaterThan(0);
       expect(a.name.length).toBeGreaterThan(0);
       expect(a.desc.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('the by-id and family-icon lookups', () => {
+  it('ACHIEVEMENT_BY_ID has one entry per achievement and resolves every id', () => {
+    expect(ACHIEVEMENT_BY_ID.size).toBe(ACHIEVEMENTS.length);
+    for (const a of ACHIEVEMENTS) {
+      expect(ACHIEVEMENT_BY_ID.get(a.id)).toBe(a);
+    }
+    for (const id of ACHIEVEMENT_IDS) {
+      expect(ACHIEVEMENT_BY_ID.get(id)).toBeDefined();
+    }
+  });
+
+  it('every family has an icon, and every icon is a real glyph in the kit', () => {
+    const families = Object.keys(FAMILY_LABELS).sort();
+    expect(Object.keys(FAMILY_ICONS).sort()).toEqual(families);
+    for (const family of families) {
+      const def = ACHIEVEMENTS.find((a) => a.family === family);
+      expect(def).toBeDefined();
+      if (def === undefined) continue;
+      const icon = achievementIcon(def);
+      expect(ICON_GLYPHS[icon]).toBeDefined();
+    }
+  });
+
+  it('the five new family glyphs are defined', () => {
+    for (const id of ['heart', 'flask', 'star', 'skull', 'anvil']) {
+      expect(ICON_GLYPHS[id as keyof typeof ICON_GLYPHS]).toBeDefined();
     }
   });
 });

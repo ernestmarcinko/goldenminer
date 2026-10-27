@@ -119,7 +119,7 @@ const ascendancyNode = (id: string) => {
 };
 
 it('every glyph is 16 × 16 with only glyph-palette letters', () => {
-  expect(GLYPH_IDS).toHaveLength(158);
+  expect(GLYPH_IDS).toHaveLength(163);
   for (const id of GLYPH_IDS) {
     const glyph = ICON_GLYPHS[id];
     expect(glyph.grid, id).toHaveLength(16);

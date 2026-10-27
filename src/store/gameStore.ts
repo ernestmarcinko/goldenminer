@@ -1,5 +1,6 @@
 import { ascend as coreAscend } from '../core/ascend';
 import { allocateAscendancy as coreAllocateAscendancy } from '../core/ascendancy';
+import { ACHIEVEMENT_BY_ID, achievementIcon } from '../core/achievements';
 import { queueForAutoMap as coreQueueForAutoMap, unqueueForAutoMap as coreUnqueueForAutoMap } from '../core/autoMap';
 import { LONG_GAP_MS, MAX_LOOT_RULES, OFFLINE_SUMMARY_MIN_TICKS } from '../core/balance';
 import { deriveBattleStats, type BattleStats } from '../core/battle';
@@ -16,6 +17,7 @@ import { gamble as coreGamble, type GambleResult } from '../core/merchant';
 import { isValidCharacterName, randomCharacterName } from '../core/names';
 import { newGame } from '../core/newGame';
 import { buyOrb as coreBuyOrb, tradeOres as coreTradeOres, type MarketResult } from '../core/oreMarket';
+import type { IconGlyphId } from '../core/skillIcons';
 import {
   allocate as coreAllocate, allocateMany as coreAllocateMany, refund as coreRefund, refundMany as coreRefundMany,
   resetWeb as coreResetWeb,
@@ -43,6 +45,9 @@ export interface CraftNotice { id: number; target: ItemLoc; kind: CraftKind; che
 
 /** The newest successful vendor buy, for the fly-in animation; `id` counts up so React re-triggers it. */
 export interface BuyNotice { id: number; key: string; name: string; sprite: SpriteName; from: 'refiner' | 'trader' }
+
+/** An earned achievement queued for a pop-down toast; transient store state, never written into the save. */
+export interface AchievementNotification { id: number; icon: IconGlyphId; name: string; desc: string }
 
 export interface Feedback {
   gold: number;
@@ -95,6 +100,11 @@ export class GameStore {
   // UI state, never saved: another view pauses live digging, and a hidden tab lifts that, since away counts as idle.
   private viewPaused = false;
   private hidden = false;
+  // Transient achievement-toast queue, never saved: newest first, capped for display by the stack. `notifId` counts up so
+  // React can tell one toast from the next; `lastEarned` is how many of the append-only `earned` ids are already queued.
+  private _notifications: AchievementNotification[] = [];
+  private notifId = 0;
+  private lastEarned = 0;
 
   constructor(private readonly deps: Deps) {
     this._state = freshWorld(deps.newSeed, deps.now());
@@ -115,6 +125,8 @@ export class GameStore {
   get lastGamble(): GearItem | null { return this._lastGamble; }
   /** The newest vendor buy, for the fly-in animation. */
   get lastBuy(): BuyNotice | null { return this._lastBuy; }
+  /** The queued achievement toasts, newest first. Transient: never written into the save. */
+  get notifications(): readonly AchievementNotification[] { return this._notifications; }
   /** Whether live ticks dig: the player's Pause always holds, the view pause only while the tab is on screen. */
   get digPaused(): boolean { return this._state.paused || (this.viewPaused && !this.hidden); }
 
@@ -145,8 +157,34 @@ export class GameStore {
   private changed(): void {
     this._stats = deriveStats(this._state);
     this._battle = deriveBattleStats(this._state);
+    this.enqueueNewAchievements();
     this._version++;
     for (const fn of [...this.listeners]) fn();
+  }
+
+  /**
+   * Diffs the append-only `state.achievements.earned`: any id past `lastEarned` was earned by the mutation that just ran,
+   * so map it to its def and queue a toast. Reading the tail never reads or advances `state.rng`, so the loot stream is
+   * untouched and a no-achievement mutation enqueues nothing.
+   */
+  private enqueueNewAchievements(): void {
+    const earned = this._state.achievements.earned;
+    if (earned.length <= this.lastEarned) {
+      this.lastEarned = earned.length;
+      return;
+    }
+    const fresh = earned.slice(this.lastEarned);
+    this.lastEarned = earned.length;
+    for (const id of fresh) {
+      const def = ACHIEVEMENT_BY_ID.get(id);
+      if (def === undefined) continue;
+      this._notifications.unshift({
+        id: ++this.notifId,
+        icon: achievementIcon(def),
+        name: def.name,
+        desc: def.desc,
+      });
+    }
   }
 
   // A loaded save may hold loot that now has room (schema 6 gave it a bigger bag), so `load` and `importSave` drain it.
@@ -156,6 +194,8 @@ export class GameStore {
     this._lastCraft = null;
     this._lastGamble = null;
     this._lastBuy = null;
+    this._notifications = [];
+    this.lastEarned = state.achievements.earned.length;
     this._stats = deriveStats(state);
     this._battle = deriveBattleStats(state);
   }
@@ -566,6 +606,21 @@ export class GameStore {
 
   dismissNotice(): void {
     this._notice = null;
+    this.changed();
+  }
+
+  /** Removes one queued toast; a no-op when its id is already gone. */
+  dismissNotification(id: number): void {
+    const next = this._notifications.filter((n) => n.id !== id);
+    if (next.length === this._notifications.length) return;
+    this._notifications = next;
+    this.changed();
+  }
+
+  /** Removes every queued toast at once. */
+  dismissAll(): void {
+    if (this._notifications.length === 0) return;
+    this._notifications = [];
     this.changed();
   }
 }
