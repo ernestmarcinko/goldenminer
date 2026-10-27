@@ -28,7 +28,7 @@ export const MOD_WORDS: Readonly<Record<StatKey, string>> = {
   offlineCap: 'Dreams', hazardWard: 'the Canary', salvageYield: 'Salvage',
   damage: 'Heavy', damagePct: 'Cruel', elementalDamage: 'Searing', attackSpeed: 'Swift', critChance: 'Keen',
   critMultiplier: 'Deadly', life: 'Hale', lifePct: 'Robust',
-  armor: 'the Wall', armorPct: 'the Bulwark', resistAll: 'Warding', lifeRegen: 'Mending', lifeOnKill: 'the Leech',
+  armor: 'the Wall', armorPct: 'the Bulwark', resistAll: 'Warding', maxResist: 'the Aegis', lifeRegen: 'Mending', lifeOnKill: 'the Leech',
   soulFind: 'Souls', magicFind: 'Plunder', xpFind: 'Learning',
 };
 
@@ -116,7 +116,7 @@ export const STAT_NAMES: Readonly<Record<StatKey, string>> = {
   offlineCap: 'Offline cap', hazardWard: 'Hazard ward', salvageYield: 'Salvage yield',
   damage: 'Damage', damagePct: 'Damage %', elementalDamage: 'Elemental damage', attackSpeed: 'Attack speed', critChance: 'Crit chance',
   critMultiplier: 'Critical damage', life: 'Life', lifePct: 'Life %',
-  armor: 'Armor', armorPct: 'Armor %', resistAll: 'All resistances', lifeRegen: 'Life regen', lifeOnKill: 'Life on kill',
+  armor: 'Armor', armorPct: 'Armor %', resistAll: 'All resistances', maxResist: 'Max resistances', lifeRegen: 'Life regen', lifeOnKill: 'Life on kill',
   soulFind: 'Soul find', magicFind: 'Magic find', xpFind: 'XP',
 };
 

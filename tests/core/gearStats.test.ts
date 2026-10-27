@@ -198,7 +198,10 @@ it('the character sheet reads the derived values, never a parallel sum', () => {
   expect(at(sheet.battle, 'Elemental damage')).toBe(battle.elementalDamage);
   expect(at(sheet.battle, 'Life')).toBe(battle.maxLife);
   expect(at(sheet.battle, 'Armor')).toBe(battle.armor);
+  expect(at(sheet.battle, 'Armor reduction')).toBe(armorReduction(battle.armor, s.level, monsterDamageBase(metreTier(s.deepest + 1))) * 100);
   expect(at(sheet.battle, 'Resistances')).toBe(battle.resistAll);
+  expect(at(sheet.battle, 'Base elemental resist')).toBe(battle.baseResist);
+  expect(at(sheet.battle, 'Max resistances')).toBe(battle.maxResist);
   expect(at(sheet.battle, 'Life regen')).toBe(battle.lifeRegen);
   expect(at(sheet.battle, 'Life on kill')).toBe(battle.lifeOnKill);
   expect(at(sheet.battle, 'XP find')).toBe(battle.xpMultiplier);
@@ -224,5 +227,5 @@ it('the sheet armor reduction is the same formula the combat code mitigates with
   const raw = monsterDamageBase(metreTier(s.deepest + 1));
   const row = deriveCharacterSheet(s).battle.find((r) => r.label === 'Armor reduction');
   if (row === undefined) throw new Error('no Armor reduction row');
-  expect(row.value).toBe(armorReduction(battle.armor, raw) * 100);
+  expect(row.value).toBe(armorReduction(battle.armor, s.level, raw) * 100);
 });

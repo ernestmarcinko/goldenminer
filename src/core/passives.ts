@@ -129,7 +129,7 @@ const SMALL_BUDGET: Record<Exclude<PassiveSide, 'start'>, ReadonlyArray<readonly
     ['life', 20, 5], ['lifePct', 4, 3], ['armor', 20, 4], ['armorPct', 6, 3], ['resistAll', 4, 3],
     ['elementalDamage', 4, 2], ['lifeRegen', 1, 2], ['lifeOnKill', 3, 1], ['soulFind', 5, 3], ['magicFind', 5, 2], ['xpFind', 5, 1],
     ['damage', 4, 2], ['life', 20, 2], ['armor', 20, 2], ['attackSpeed', 4, 2], ['critChance', 2, 2],
-    ['critMultiplier', 6, 2], ['soulFind', 5, 2], ['magicFind', 5, 2], ['resistAll', 4, 1],
+    ['critMultiplier', 6, 2], ['soulFind', 5, 2], ['magicFind', 5, 2], ['maxResist', 5, 1],
   ],
   hybrid: [
     ['digPower', 3, 3], ['damage', 3, 3], ['life', 10, 4], ['goldYield', 4, 3], ['soulFind', 3, 3], ['magicFind', 3, 3],
@@ -145,6 +145,7 @@ const SMALL_NAMES: Record<string, string> = {
   lampSight: 'Lamp Sight', autoTickRate: 'Auto Tick Rate', ticksPerClick: 'Ticks per Click', offlineCap: 'Offline Cap',
   hazardWard: 'Hazard Ward', damage: 'Damage', damagePct: 'Damage', attackSpeed: 'Attack Speed', critChance: 'Crit Chance',
   critMultiplier: 'Critical Damage', life: 'Life', lifePct: 'Life', armor: 'Armor', armorPct: 'Armor', resistAll: 'All Resistances',
+  maxResist: 'Maximum Resistances',
   elementalDamage: 'Elemental Damage', lifeRegen: 'Life per Second', lifeOnKill: 'Life per Kill', soulFind: 'Soul Find',
   magicFind: 'Magic Find', xpFind: 'XP',
 };

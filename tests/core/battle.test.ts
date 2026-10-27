@@ -1,9 +1,9 @@
 import { expect, it } from 'vitest';
-import { deriveBattleStats, mitigate } from '../../src/core/battle';
+import { deriveBattleStats, mitigate, armorReduction } from '../../src/core/battle';
 import { rollRarity } from '../../src/core/itemGen';
 import { gainXp, xpToNext } from '../../src/core/levels';
 import { monsterState } from '../../src/core/monsters';
-import { MAX_DAMAGE, MAX_LIFE, monsterXp } from '../../src/core/balance';
+import { MAX_DAMAGE, MAX_LIFE, MIN_RESIST, baseResist, monsterXp } from '../../src/core/balance';
 import { dungeonLayout } from '../../src/core/dungeons';
 import { startMap } from '../../src/core/maps';
 import { validateState } from '../../src/core/save';
@@ -15,7 +15,7 @@ import { gear, stashMap } from '../helpers/items';
 it('a naked level-1 miner', () => {
   expect(deriveBattleStats(newGame(1, 0))).toEqual({
     maxLife: 60, damageMin: 3, damageMax: 6, attacksPerSecond: 1, critChance: 0.05, critMultiplier: 1.5,
-    armor: 0, resistAll: 0, soulMultiplier: 1, magicFindMultiplier: 1,
+    armor: 0, resistAll: 0, maxResist: 75, baseResist: 0, soulMultiplier: 1, magicFindMultiplier: 1,
     elementalDamage: 0, lifeRegen: 0, lifeOnKill: 0, xpMultiplier: 1,
   });
 });
@@ -64,11 +64,57 @@ it('each battle stat stops at its limit', () => {
 
 it('armor and resistance soften hits', () => {
   const b = deriveBattleStats(newGame(1, 0));
-  expect(mitigate(10, 'physical', { ...b, armor: 100 })).toBe(5);
-  expect(mitigate(10, 'elemental', { ...b, resistAll: 75 })).toBe(3);
-  expect(mitigate(4, 'physical', { ...b, armor: 1_000_000 })).toBe(1);
-  expect(mitigate(100, 'physical', { ...b, armor: 1_000_000 })).toBe(10);
-  expect(mitigate(10, 'physical', b)).toBe(10);
+  expect(mitigate(10, 'physical', { ...b, armor: 100 }, 1)).toBe(5);
+  expect(mitigate(10, 'elemental', { ...b, resistAll: 75 }, 1)).toBe(3);
+  expect(mitigate(4, 'physical', { ...b, armor: 1_000_000 }, 1)).toBe(1);
+  expect(mitigate(100, 'physical', { ...b, armor: 1_000_000 }, 1)).toBe(5);
+  expect(mitigate(10, 'physical', b, 1)).toBe(10);
+});
+
+it('armor reduction is a level-scaled curve capped at 95 %', () => {
+  expect(armorReduction(0, 1, 100)).toBe(0);
+  expect(armorReduction(100, 1, 10)).toBe(100 / (100 + 10 * 10));   // level 1 is the old armor / (armor + 10·raw)
+  expect(armorReduction(100, 100, 10)).toBe(100 / (100 + (10 + 0.25 * 99) * 10));   // level 100 needs more armor
+  expect(armorReduction(100, 100, 10)).toBeLessThan(armorReduction(100, 1, 10));
+  expect(armorReduction(1_000_000, 1, 100)).toBe(0.95);   // the cap
+  // monotone in armor
+  const levels = [1, 25, 50, 100];
+  for (const level of levels) {
+    let prev = 0;
+    for (let a = 0; a <= 10_000; a += 500) {
+      const now = armorReduction(a, level, 100);
+      expect(now).toBeGreaterThanOrEqual(prev);
+      prev = now;
+    }
+  }
+});
+
+it('elemental resist is taxed by level and can be raised past the base cap', () => {
+  expect(baseResist(1)).toBe(0);
+  expect(baseResist(50)).toBe(-49);
+  expect(baseResist(100)).toBe(-99);
+  const naked = newGame(1, 0);
+  naked.level = 50;
+  const naked50 = deriveBattleStats(naked);
+  expect(naked50.baseResist).toBe(-49);
+  expect(naked50.resistAll).toBe(-49);
+  expect(naked50.maxResist).toBe(75);
+  // 130 resistAll of gear reaches the 75 % cap at level 50 (130 − 49 = 81, clamped to 75).
+  naked.equipped.battle.helm = gear(naked, 'helm', { affixes: [{ stat: 'resistAll', value: 130 }] });
+  const capped = deriveBattleStats(naked);
+  expect(capped.resistAll).toBe(75);
+  // +20 maxResist raises the cap to 95, so 130 resistAll now reads 81.
+  naked.equipped.battle.ring = gear(naked, 'ring', { affixes: [{ stat: 'maxResist', value: 20 }] });
+  const raised = deriveBattleStats(naked);
+  expect(raised.maxResist).toBe(95);
+  expect(raised.resistAll).toBe(81);
+  // the cap never exceeds 95 however large the affix, and resist never drops below MIN_RESIST.
+  naked.equipped.battle.amulet = gear(naked, 'amulet', { affixes: [{ stat: 'maxResist', value: 1_000_000 }] });
+  expect(deriveBattleStats(naked).maxResist).toBe(95);
+  const low = newGame(1, 0);
+  low.level = 100;
+  low.equipped.battle.helm = gear(low, 'helm', { affixes: [{ stat: 'resistAll', value: -1_000_000 }] });
+  expect(deriveBattleStats(low).resistAll).toBe(MIN_RESIST);
 });
 
 it('xp levels the miner up to the cap', () => {

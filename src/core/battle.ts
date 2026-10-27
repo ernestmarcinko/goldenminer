@@ -1,7 +1,7 @@
 import {
-  ARMOR_FACTOR, BASE_ATTACKS_PER_SECOND, BASE_CRIT_CHANCE, BASE_LIFE, CRIT_MULTIPLIER, LIFE_PER_LEVEL,
+  BASE_ATTACKS_PER_SECOND, BASE_CRIT_CHANCE, BASE_LIFE, CRIT_MULTIPLIER, LIFE_PER_LEVEL,
   MAX_ARMOR_REDUCTION, MAX_ATTACKS_PER_SECOND, MAX_CRIT_CHANCE, MAX_DAMAGE, MAX_LIFE, MAX_RESIST,
-  MIN_ATTACKS_PER_SECOND, baseDamage,
+  MAX_RESIST_HARD_CAP, MIN_ATTACKS_PER_SECOND, MIN_RESIST, armorFactor, baseDamage, baseResist,
 } from './balance';
 import { gearTotals, localTotals } from './stats';
 import { passiveTotals } from './passives';
@@ -13,6 +13,7 @@ import type { Element, GameState } from './types';
 export interface BattleStats {
   maxLife: number; damageMin: number; damageMax: number; attacksPerSecond: number;
   critChance: number; critMultiplier: number; armor: number; resistAll: number;
+  maxResist: number; baseResist: number;
   soulMultiplier: number; magicFindMultiplier: number;
   elementalDamage: number;                 // added to every hit after the physical roll; Armored doesn't soften it
   lifeRegen: number; lifeOnKill: number;   // life per second in maps, and life on each kill
@@ -80,6 +81,10 @@ export function deriveBattleStats(state: GameState): BattleStats {
       * (runes.mults.critMultiplier ?? 1),
   );
   const xpMultiplier = pct(g.xpFind) * (runes.mults.xp ?? 1);
+  // Elemental resist: base starts at 0 and falls a point a level; the effective resist is clamped to [MIN_RESIST, maxResist].
+  // The cap is 75 % by default and can be raised to at most 95 % by the maxResist stat.
+  const resistBase = baseResist(state.level);
+  const maxResist = clamp(MAX_RESIST + clamp(g.maxResist, 0, MAX_RESIST_HARD_CAP - MAX_RESIST), 0, MAX_RESIST_HARD_CAP);
   return {
     maxLife,
     damageMin,
@@ -88,7 +93,9 @@ export function deriveBattleStats(state: GameState): BattleStats {
     critChance: clamp(BASE_CRIT_CHANCE + g.critChance, 0, MAX_CRIT_CHANCE) / 100,
     critMultiplier,
     armor,
-    resistAll: clamp(g.resistAll, 0, MAX_RESIST),
+    resistAll: clamp(g.resistAll + resistBase, MIN_RESIST, maxResist),
+    maxResist,
+    baseResist: resistBase,
     soulMultiplier,
     magicFindMultiplier: pct(g.magicFind),
     elementalDamage: clamp(g.elementalDamage, 0, MAX_DAMAGE),
@@ -99,14 +106,14 @@ export function deriveBattleStats(state: GameState): BattleStats {
 }
 
 /** The fraction of a physical hit of `raw` that armor stops — the same formula `mitigate` uses. */
-export function armorReduction(armor: number, raw: number): number {
-  return armor > 0 ? Math.min(MAX_ARMOR_REDUCTION, armor / (armor + ARMOR_FACTOR * raw)) : 0;
+export function armorReduction(armor: number, level: number, raw: number): number {
+  return armor > 0 ? Math.min(MAX_ARMOR_REDUCTION, armor / (armor + armorFactor(level) * raw)) : 0;
 }
 
 /** What a monster hit of `raw` does to the miner: armor softens physical, resistance elemental; never below 1. */
-export function mitigate(raw: number, element: Element, b: BattleStats): number {
+export function mitigate(raw: number, element: Element, b: BattleStats, level: number): number {
   const taken = element === 'physical'
-    ? raw * (1 - armorReduction(b.armor, raw))
+    ? raw * (1 - armorReduction(b.armor, level, raw))
     : raw * (1 - b.resistAll / 100);
   return Math.max(1, Math.round(taken));
 }

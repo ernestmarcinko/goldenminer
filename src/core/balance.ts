@@ -119,8 +119,25 @@ export const BASE_CRIT_CHANCE = 5;
 export const MAX_CRIT_CHANCE = 75;
 export const CRIT_MULTIPLIER = 1.5;
 export const MAX_RESIST = 75;
+// The base cap can be raised to at most this by the `maxResist` stat (items + skills).
+export const MAX_RESIST_HARD_CAP = 95;
+// The floor of the effective resist: negative resist is allowed and amplifies elemental damage.
+export const MIN_RESIST = -200;
+// Every level past the first pushes the base elemental resist one point further negative.
+export const RESIST_PENALTY_PER_LEVEL = 1;
+// The base elemental resist at a level: 0 at level 1, −49 at 50, −99 at 100. Gear/passive resistAll is unchanged;
+// only the level penalty and the clamp are new.
+export function baseResist(level: number): number {
+  // `0 - …` rather than `-(…)` so level 1 yields +0, not −0.
+  return 0 - (level - 1) * RESIST_PENALTY_PER_LEVEL;
+}
 export const ARMOR_FACTOR = 10;
-export const MAX_ARMOR_REDUCTION = 0.9;
+// The armor divisor rises with level, so a higher level needs more armor for the same reduction.
+export const ARMOR_FACTOR_LEVEL = 0.25;
+export function armorFactor(level: number): number {
+  return ARMOR_FACTOR + ARMOR_FACTOR_LEVEL * (level - 1);
+}
+export const MAX_ARMOR_REDUCTION = 0.95;
 
 // Monster base values by tier (unrounded); species, rank and modifiers scale them.
 export function monsterLifeBase(tier: number): number {
@@ -132,8 +149,9 @@ export function monsterDamageBase(tier: number): number {
 // What a map's tier multiplies its monsters' life and damage by (tier 1 first; deeper tiers use the last entry): a new
 // miner with no gear wins the guaranteed first map about two times in three, a level-3 miner in normal gear of tier 2's
 // item level wins a tier-2 map about seven times in ten, and from tier 3 a map of your gear's level is cleared about 40%
-// of the time.
-export const MAP_MONSTER_SCALE: readonly number[] = [1.38, 1.34, 2.05, 1.8, 1.7, 1.55, 1.4, 1.35, 1.3, 1.25];
+// of the time. Plan 30 (damage types) re-tuned tiers 3–10 down a little: level-scaled armor and the negative base
+// elemental resist make the 3N miner weaker, so the monster scale eases off by a few percent that grows with tier.
+export const MAP_MONSTER_SCALE: readonly number[] = [1.38, 1.34, 2.00, 1.70, 1.58, 1.44, 1.29, 1.27, 1.18, 1.14];
 export function mapMonsterScale(tier: number): number {
   return MAP_MONSTER_SCALE[Math.min(tier, MAP_MONSTER_SCALE.length) - 1] ?? 1;
 }
@@ -224,6 +242,7 @@ export const STAT_TIERS: Readonly<Record<StatKey, { base: number; step: number }
   armor: { base: 6, step: 5 },
   armorPct: { base: 4, step: 2 },
   resistAll: { base: 3, step: 2 },
+  maxResist: { base: 1, step: 1 },
   lifeRegen: { base: 1, step: 0.5 },
   lifeOnKill: { base: 2, step: 2 },
   soulFind: { base: 4, step: 2 },

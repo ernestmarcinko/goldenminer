@@ -1588,6 +1588,21 @@ const RESIST_ALL = glyph12([
   '....kkkk....',
 ]);
 
+const MAX_RESIST = glyph12([
+  '..kkkkkkkk..',
+  '.kSSSSSSSSk.',
+  'kSssssssssSk',
+  'kSsskkkkssSk',
+  'kSskgGGgksSk',
+  'kSskGggGksSk',
+  'kSskgGGgksSk',
+  'kSsskkkkssSk',
+  '.kSssssssSk.',
+  '..kSssssSk..',
+  '...kSssSk...',
+  '....kkkk....',
+]);
+
 const LIFE_REGEN = glyph12([
   '....kkkk....',
   '...kGGGGk...',
@@ -1852,6 +1867,7 @@ export const ICON_GLYPHS: Record<IconGlyphId, IconGlyph> = {
   armor: ARMOR,
   armorPct: ARMOR_PCT,
   resistAll: RESIST_ALL,
+  maxResist: MAX_RESIST,
   lifeRegen: LIFE_REGEN,
   lifeOnKill: LIFE_ON_KILL,
   soulFind: SOUL_FIND,

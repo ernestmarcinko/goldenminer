@@ -39,6 +39,7 @@ export const STAT_LABELS: Readonly<Record<StatKey, { label: string; unit: '' | '
   armor: { label: 'armor', unit: '' },
   critChance: { label: 'crit chance', unit: '%' },
   resistAll: { label: 'all resistances', unit: '%' },
+  maxResist: { label: 'maximum resistances', unit: '%' },
   soulFind: { label: 'Soul find', unit: '%' },
   magicFind: { label: 'magic find', unit: '%' },
   elementalDamage: { label: 'elemental damage', unit: '' },

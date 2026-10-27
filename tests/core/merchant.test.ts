@@ -128,6 +128,8 @@ describe('rolling for a slot', () => {
   });
 
   // The hash was taken from the code before rollGear learnt slots, so drops elsewhere roll exactly as they did.
+  // Re-pinned for Plan 30 (damage types): maxResist joined the battle suffix pool, so the affixes roll differently;
+  // the RNG draw count (and so the rng state stream) is unchanged.
   it('leaves rolls without a slot byte-identical', async () => {
     const out: unknown[] = [];
     for (let i = 0; i < 200; i++) {
@@ -138,7 +140,7 @@ describe('rolling for a slot', () => {
     }
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(out)));
     expect(Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join(''))
-      .toBe('ee12e747094be675aaac8d6da1f7195657c52e4a02ece4745e3ddab83b628054');
+      .toBe('27454633265b1c09bc5c45780f33609a8f30ca3a3c8414736b54fcf2e9e329c2');
   });
 });
 

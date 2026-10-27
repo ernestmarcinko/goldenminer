@@ -1392,6 +1392,18 @@ it('a schema-16 save round-trips a rune in the bag, a socketed rune and a Runes-
   expect(r.state).toEqual(s);
 });
 
+it('a maxResist affix validates and round-trips at the current schema, with no migration', () => {
+  const s = newGame(1, 0);
+  s.equipped.battle.ring = gear(s, 'ring', { affixes: [{ stat: 'maxResist', value: 20 }] });
+  const r = decodeSave(encodeSave(s, 1));
+  if (!r.ok) throw new Error(`maxResist round-trip failed: ${r.reason}`);
+  expect(r.state).toEqual(s);
+  // a non-integer value is refused by the validator
+  const bad = newGame(1, 0);
+  bad.equipped.battle.ring = gear(bad, 'ring', { affixes: [{ stat: 'maxResist', value: 20.5 }] });
+  expect(decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: bad }))).toEqual({ ok: false, reason: 'invalid' });
+});
+
 it('the validator accepts runes and refuses malformed ones', () => {
   const ok = (change: (s: GameState) => void): boolean => {
     const s = newGame(1, 0);

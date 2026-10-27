@@ -165,8 +165,14 @@ tests/
 
 | Run | armor cap / factor | base resist | clear rate: naked tier-1 | clear rate: 3N miner tiers 3–10 | reference cap day |
 |---|---|---|---|---|---|
-| before (flat 90 % / 75 %) | 0.9, `ARMOR_FACTOR=10` | 0 (clamped ≥ 0) | 60–80 % | 40–60 % | ~12 (see Plan 15) |
-| final (95 % level-scaled / 75→95 %) | 0.95, `armorFactor(level)` | `-(level-1)` | _measured_ | _measured_ | _measured_ |
+| before (flat 90 % / 75 %) | 0.9, `ARMOR_FACTOR=10` | 0 (clamped ≥ 0) | 67 % (60–80 %) | 45/46/50/51/48/44/55/45 % (40–60 %) | 11.55 (see Plan 15) |
+| final (95 % level-scaled / 75→95 %) | 0.95, `armorFactor(level)` | `-(level-1)` | 67 % (60–80 %) | 44/52/52/58/50/54/53/46 % (40–60 %) | 13.96 (10–18) |
+
+> The 3N-miner numbers are the win rates for tiers 3–10 in order, over 100 seeded maps each. The final numbers are
+> measured with `MAP_MONSTER_SCALE` tiers 3–10 re-tuned to `[2.00, 1.70, 1.58, 1.44, 1.29, 1.27, 1.18, 1.14]`
+> (a few percent lower than the old `[2.05, 1.8, 1.7, 1.55, 1.4, 1.35, 1.3, 1.25]`): level-scaled armor and the
+> negative base resist weaken the 3N miner, so the monster scale eases off by a factor that grows with tier. The naked
+> tier-1 and early tier-2 miners are unchanged (67 % and 76 %).
 
 ---
 

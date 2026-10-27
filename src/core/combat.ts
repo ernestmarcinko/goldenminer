@@ -259,8 +259,8 @@ function combatStep(state: GameState, run: MapRun, b: BattleStats, dt: number, e
   while (run.monsterCarry >= 1) {
     run.monsterCarry -= 1;
     const hurt = hasKeystone(state, 'bloodMoney')
-      ? Math.max(1, Math.round(mitigate(m.damage, m.element, b) * 1.25))
-      : mitigate(m.damage, m.element, b);
+      ? Math.max(1, Math.round(mitigate(m.damage, m.element, b, state.level) * 1.25))
+      : mitigate(m.damage, m.element, b, state.level);
     run.life -= hurt;
     events?.push({ kind: 'hurt', amount: hurt });
     logLine(run, { kind: 'hurt', monster: m.name, amount: hurt });

@@ -191,7 +191,7 @@ export function deriveCharacterSheet(state: GameState): CharacterSheet {
   // Dig speed at parity, exactly as the Mine view's own summary computes it (no hazard or hard rock on the face).
   const digSpeed = (mining.autoTicksPerSecond * 60 * mining.digPower) / (hardness(state.deepest + 1) * TICKS_PER_METRE_AT_PARITY);
   // Armor reduction against the hit a monster at the face deals, the same formula the combat code uses.
-  const reduction = armorReduction(battle.armor, monsterDamageBase(metreTier(state.deepest + 1)));
+  const reduction = armorReduction(battle.armor, state.level, monsterDamageBase(metreTier(state.deepest + 1)));
   const dps = (battle.damageMin + battle.damageMax) / 2 * battle.attacksPerSecond
     * (1 + battle.critChance * (battle.critMultiplier - 1));
   const fc = mining.featureChances;
@@ -225,6 +225,8 @@ export function deriveCharacterSheet(state: GameState): CharacterSheet {
       { label: 'Armor', value: battle.armor, format: 'number' },
       { label: 'Armor reduction', value: reduction * 100, format: 'percent' },
       { label: 'Resistances', value: battle.resistAll, format: 'percent' },
+      { label: 'Base elemental resist', value: battle.baseResist, format: 'percent' },
+      { label: 'Max resistances', value: battle.maxResist, format: 'percent' },
       { label: 'Life regen', value: battle.lifeRegen, format: 'perSecond' },
       { label: 'Life on kill', value: battle.lifeOnKill, format: 'number' },
       { label: 'XP find', value: battle.xpMultiplier, format: 'multiplier' },

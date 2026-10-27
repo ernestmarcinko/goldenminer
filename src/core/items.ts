@@ -6,7 +6,7 @@ export const MINING_STATS = ['digPower', 'goldYield', 'diamondYield', 'chestFind
   'lampSight', 'ticksPerClick', 'autoTickRate', 'offlineCap', 'hazardWard',
   'digPowerPct', 'veinYield', 'oreFind', 'salvageYield', 'sellBonus'] as const;
 export const BATTLE_STATS = ['damage', 'damagePct', 'attackSpeed', 'life', 'armor', 'critChance',
-  'resistAll', 'soulFind', 'magicFind',
+  'resistAll', 'maxResist', 'soulFind', 'magicFind',
   'elementalDamage', 'critMultiplier', 'lifePct', 'armorPct', 'lifeRegen', 'lifeOnKill', 'xpFind'] as const;
 export const GEM_TYPES = ['ruby', 'sapphire', 'emerald', 'amethyst', 'starstone'] as const;
 export const GEM_GRADES = ['tiny', 'small', 'big', 'giant', 'perfect'] as const;
@@ -155,7 +155,7 @@ export const MOD_SIDE: Readonly<Record<StatKey, 'prefix' | 'suffix'>> = {
   offlineCap: 'suffix', hazardWard: 'suffix', salvageYield: 'suffix',
   damage: 'prefix', damagePct: 'prefix', elementalDamage: 'prefix', attackSpeed: 'prefix', critChance: 'prefix',
   critMultiplier: 'prefix', life: 'prefix', lifePct: 'prefix',
-  armor: 'suffix', armorPct: 'suffix', resistAll: 'suffix', lifeRegen: 'suffix', lifeOnKill: 'suffix',
+  armor: 'suffix', armorPct: 'suffix', resistAll: 'suffix', maxResist: 'suffix', lifeRegen: 'suffix', lifeOnKill: 'suffix',
   soulFind: 'suffix', magicFind: 'suffix', xpFind: 'suffix',
 };
 
