@@ -101,7 +101,6 @@ export const ASCEND_LEVEL_STEP = 10;
 export const ASCENDANCY_SMALL_COST = 1;
 export const ASCENDANCY_MID_COST = 6;
 export const ASCENDANCY_BIG_COST = 12;
-export const AUTO_MAP_BASE_TIER = 3;
 export const AUTO_MAP_QUEUE_SIZE = 100;
 export const COMBAT_LOG_LIMIT = 20;
 export const RUN_LOOT_LIMIT = 30;

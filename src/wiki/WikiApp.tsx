@@ -70,7 +70,6 @@ function ascendancyEffectText(node: AscendancyNode): string {
       case 'stat': return statText(e.stat, e.value);
       case 'startingDepth': return `${e.value} m starting depth`;
       case 'passivePoints': return `+${e.value} passive point${e.value === 1 ? '' : 's'}`;
-      case 'autoMapTier': return `+${e.value} auto-map tier${e.value === 1 ? '' : 's'}`;
       case 'autoMapQueue': return `+${e.value} auto-map queue slot${e.value === 1 ? '' : 's'}`;
     }
   }).join(', ');

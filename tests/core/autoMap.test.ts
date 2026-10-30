@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { ASCENDANCY_NODES } from '../../src/core/ascendancy';
 import {
-  autoMapMaxTier, autoMapping, autoMapQueueSize, nextEligibleAutoMap, queueForAutoMap, unqueueForAutoMap,
+  autoMapping, autoMapQueueSize, nextEligibleAutoMap, queueForAutoMap, tryAutoMap, unqueueForAutoMap,
 } from '../../src/core/autoMap';
 import { endRun } from '../../src/core/combat';
 import { applyTicks } from '../../src/core/dig';
@@ -33,13 +33,14 @@ it('auto-mapping is off until the Surveyor notable is allocated', () => {
   expect(autoMapping(s)).toBe(true);
 });
 
-it('the auto-map tier limit starts at 3 and rises with the ascendancy tree', () => {
-  const s = fresh();
-  expect(autoMapMaxTier(s)).toBe(3);
-  const node = ASCENDANCY_NODES.find((n) => n.effects.some((e) => e.kind === 'autoMapTier'));
-  if (node === undefined) throw new Error('no auto-map tier ascendancy node');
-  s.ascendancy.allocated = [node.id];
-  expect(autoMapMaxTier(s)).toBeGreaterThan(3);
+it('auto-mapping starts a queued tier-40 map with no ascendancy points', () => {
+  const s = ready();
+  const map = stashMap(s, 40, 400);
+  expect(queueForAutoMap(s, map.id)).toBe('ok');
+  expect(tryAutoMap(s)).toBe(true);
+  expect(s.activity.kind).toBe('map');
+  if (s.activity.kind !== 'map') throw new Error('no map run');
+  expect(s.activity.run.map.tier).toBe(40);
 });
 
 it('the auto-map queue holds 100 maps, and the World Atlas ascendancy raises it', () => {
@@ -104,15 +105,6 @@ it('live ticks auto-map too: starting it begins the battle at once', () => {
   applyTicks(s, 400, deriveStats(s), undefined, false, false);
   expect(s.mapTally.cleared + s.mapTally.lost).toBe(1);
   expect(s.autoMap.queue).toEqual([]);
-});
-
-it('an over-tier map stays queued and digging continues', () => {
-  const s = ready();
-  const map = stashMap(s, 5, 50);
-  expect(queueForAutoMap(s, map.id)).toBe('ok');
-  applyTicks(s, 400, deriveStats(s), undefined, false, true);
-  expect(s.autoMap.queue.map((m) => m.id)).toEqual([map.id]);
-  expect(s.deepest).toBeGreaterThan(0);
 });
 
 it('auto-mapping switched off leaves the queue alone while away', () => {
@@ -185,16 +177,10 @@ it('auto-mapping switches itself off once the queue is exhausted', () => {
   expect(s.autoMap.on).toBe(false);   // nothing left to run: the chain is done
 });
 
-it('the next eligible map is the oldest queued within the tier limit', () => {
+it('the queue runs oldest first whatever the tier', () => {
   const s = surveyor();
-  const low = stashMap(s, 2, 10);
-  const high = stashMap(s, 5, 50);   // over the base tier-3 limit
-  expect(queueForAutoMap(s, high.id)).toBe('ok');
-  expect(queueForAutoMap(s, low.id)).toBe('ok');
-  expect(nextEligibleAutoMap(s)?.id).toBe(low.id);
-  s.autoMap.on = true;
-  expect(startMap(s, low.id, true)).toBe('ok');
-  expect(nextEligibleAutoMap(s)).toBeUndefined();   // the over-tier map stays queued but isn't eligible
+  for (const tier of [30, 2, 9]) expect(queueForAutoMap(s, stashMap(s, tier, tier * 10).id)).toBe('ok');
+  expect(nextEligibleAutoMap(s)?.tier).toBe(30);
 });
 
 it('an auto-mapped run that hands to the next queued map keeps its result off-screen', () => {

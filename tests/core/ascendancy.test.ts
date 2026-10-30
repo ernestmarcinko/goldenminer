@@ -51,9 +51,14 @@ it('every node\'s cost follows its kind and every big carries a large bonus', ()
   const bigPassive = ASCENDANCY_NODES.find((n) => n.kind === 'big'
     && n.effects.some((e) => e.kind === 'passivePoints'));
   expect(bigPassive?.effects.some((e) => e.kind === 'passivePoints' && e.value === 3)).toBe(true);
-  const bigTier = ASCENDANCY_NODES.find((n) => n.kind === 'big'
-    && n.effects.some((e) => e.kind === 'autoMapTier'));
-  expect(bigTier?.effects.some((e) => e.kind === 'autoMapTier' && e.value === 4)).toBe(true);
+  const cartographySmalls = ASCENDANCY_NODES.filter((n) => n.kind === 'small' && n.id.startsWith('cartographySmall'));
+  expect(cartographySmalls.length).toBeGreaterThan(0);
+  for (const small of cartographySmalls) {
+    expect(small.name, small.id).toBe('Auto-map Queue');
+    expect(small.effects, small.id).toEqual([{ kind: 'autoMapQueue', value: 10 }]);
+  }
+  expect(node('masterSurveyor').effects).toEqual([{ kind: 'autoMapQueue', value: 20 }]);
+  expect(node('worldAtlas').effects).toEqual([{ kind: 'autoMapQueue', value: 50 }]);
 });
 
 it('the original node ids survive: smalls still cost 1, the old notables are 6-point mids', () => {
@@ -212,20 +217,20 @@ it('allocated nodes add their stats and structural bonuses to the totals', () =>
   const passive = ASCENDANCY_NODES.find((n) => n.kind === 'small' &&
     n.effects.some((e) => e.kind === 'passivePoints'));
   const depth = ASCENDANCY_NODES.find((n) => n.effects.some((e) => e.kind === 'startingDepth'));
-  const tier = ASCENDANCY_NODES.find((n) => n.effects.some((e) => e.kind === 'autoMapTier'));
-  if (gold === undefined || passive === undefined || depth === undefined || tier === undefined) {
+  const queue = ASCENDANCY_NODES.find((n) => n.effects.some((e) => e.kind === 'autoMapQueue'));
+  if (gold === undefined || passive === undefined || depth === undefined || queue === undefined) {
     throw new Error('the ascendancy tree is missing an effect kind');
   }
   const s = newGame(1, 0);
-  expect(ascendancyTotals(s)).toEqual({ stats: {}, startingDepth: 0, passivePoints: 0, autoMapTier: 0, autoMapQueue: 0 });
+  expect(ascendancyTotals(s)).toEqual({ stats: {}, startingDepth: 0, passivePoints: 0, autoMapQueue: 0 });
   s.ascendancy.allocated = [gold.id];
   expect(ascendancyTotals(s).stats.goldYield).toBe(10);
   s.ascendancy.allocated = [passive.id];
   expect(ascendancyTotals(s).passivePoints).toBe(1);
   s.ascendancy.allocated = [depth.id];
   expect(ascendancyTotals(s).startingDepth).toBe(25);
-  s.ascendancy.allocated = [tier.id];
-  expect(ascendancyTotals(s).autoMapTier).toBe(1);
+  s.ascendancy.allocated = [queue.id];
+  expect(ascendancyTotals(s).autoMapQueue).toBeGreaterThan(0);
   s.ascendancy.allocated = ['notANode'];
-  expect(ascendancyTotals(s)).toEqual({ stats: {}, startingDepth: 0, passivePoints: 0, autoMapTier: 0, autoMapQueue: 0 });
+  expect(ascendancyTotals(s)).toEqual({ stats: {}, startingDepth: 0, passivePoints: 0, autoMapQueue: 0 });
 });

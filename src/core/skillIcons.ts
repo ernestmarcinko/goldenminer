@@ -36,7 +36,7 @@ export type AscendancyNamedGlyphId =
 
 export type StructuralGlyphId =
   | 'gemStack' | 'materialStack' | 'stashPages' | 'autoMap'
-  | 'startingDepth' | 'passivePoints' | 'autoMapTier';
+  | 'startingDepth' | 'passivePoints';
 
 /** The one-icon-per-family glyphs the achievement toasts and tab share (Plan 32). */
 export type AchievementFamilyGlyphId =
@@ -1979,7 +1979,6 @@ export const ICON_GLYPHS: Record<IconGlyphId, IconGlyph> = {
   autoMap: AUTO_MAP,
   startingDepth: STARTING_DEPTH,
   passivePoints: PASSIVE_POINTS,
-  autoMapTier: AUTO_MAP_TIER,
   heart: HEART,
   flask: FLASK,
   star: STAR,

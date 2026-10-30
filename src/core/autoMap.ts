@@ -1,10 +1,10 @@
-import { autoMapping, autoMapMaxTier, autoMapQueueSize } from './autoMapRule';
+import { autoMapping, autoMapQueueSize } from './autoMapRule';
 import { firstEmpty } from './cells';
 import type { MapItem } from './items';
 import { putMap, startMap, takeMapAt } from './maps';
 import type { GameState } from './types';
 
-export { autoMapping, autoMapMaxTier, autoMapQueueSize, nextEligibleAutoMap } from './autoMapRule';
+export { autoMapping, autoMapQueueSize, nextEligibleAutoMap } from './autoMapRule';
 
 /** The map with `id` in the bag or the Map stash, read-only. */
 export function findMap(state: Pick<GameState, 'bag' | 'stash'>, id: number): MapItem | undefined {
@@ -61,26 +61,17 @@ export function unqueueForAutoMap(state: GameState, id: number): 'ok' | 'notQueu
 }
 
 /**
- * Starts the oldest queued map that is within the tier limit, and removes it from the queue. Over-tier maps stay queued
- * for later, a busy run leaves the queue untouched. When nothing eligible is left, the chain switches itself off — the
- * start button is then due back — while the over-tier maps stay queued.
+ * Starts the oldest queued map, whatever its tier, and removes it from the queue. A busy run leaves the queue
+ * untouched. When the queue is empty, the chain switches itself off — the start button is then due back.
  */
 export function tryAutoMap(state: GameState): boolean {
   if (!autoMapping(state) || !state.autoMap.on) return false;
-  const maxTier = autoMapMaxTier(state);
-  let index = 0;
-  while (index < state.autoMap.queue.length) {
-    const map = state.autoMap.queue[index];
-    if (map === undefined) break;
-    if (map.tier > maxTier) {
-      index++;
-      continue;
-    }
+  for (let map = state.autoMap.queue[0]; map !== undefined; map = state.autoMap.queue[0]) {
     const started = startMap(state, map.id, true);
     if (started === 'ok') return true;   // `startMap` removed it from the queue
     if (started === 'busy') return false;
-    state.autoMap.queue.splice(index, 1);   // the map vanished between the look and the start
+    state.autoMap.queue.shift();   // the map vanished between the look and the start
   }
-  state.autoMap.on = false;   // nothing eligible left: the chain is done
+  state.autoMap.on = false;   // nothing left: the chain is done
   return false;
 }

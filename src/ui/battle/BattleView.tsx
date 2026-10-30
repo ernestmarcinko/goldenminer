@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { autoMapMaxTier, autoMapQueueSize, autoMapping, nextEligibleAutoMap } from '../../core/autoMap';
+import { autoMapQueueSize, autoMapping, nextEligibleAutoMap } from '../../core/autoMap';
 import { itemAt } from '../../core/cells';
 import type { GameStore } from '../../store/gameStore';
 import { ItemGrid } from '../character/ItemGrid';
@@ -90,7 +90,6 @@ export function BattleView({ store }: { store: GameStore }) {
             <h3 ref={queueRef} tabIndex={-1} className="gm-battle__name">
               Auto-map queue <span className="gm-muted">{formatNumber(state.autoMap.queue.length)} / {formatNumber(queueSize)}</span>
             </h3>
-            <span className="gm-muted gm-small">Up to tier {formatNumber(autoMapMaxTier(state))}</span>
           </div>
           <p className="gm-muted gm-small">
             Shift+click or drag maps here to queue them. With auto-map on, they run one after another until the queue is empty.

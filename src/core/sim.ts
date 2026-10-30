@@ -1,6 +1,6 @@
 import { ascendancyPoints } from './ascendancy';
 import { ascend } from './ascend';
-import { autoMapMaxTier, autoMapping, queueForAutoMap } from './autoMap';
+import { autoMapping, queueForAutoMap } from './autoMap';
 import { LEVEL_CAP } from './balance';
 import { clickTicks } from './clock';
 import { applyTicks } from './dig';
@@ -183,13 +183,11 @@ function bestAvailableMap(state: GameState, maxTier: number): MapItem | undefine
   return best;
 }
 
-/** Queues every stashed map auto-mapping can reach, which is idempotent for maps already queued. */
+/** Queues every stashed map, which is idempotent for maps already queued. */
 function queueStashedMaps(state: GameState): void {
   if (!autoMapping(state)) return;
   state.autoMap.on = true;   // the reference player keeps auto-mapping on, re-armed when the chain drains
-  const maxTier = autoMapMaxTier(state);
-  for (const [key, list] of Object.entries(state.stash.maps)) {
-    if (Number(key) > maxTier) continue;
+  for (const list of Object.values(state.stash.maps)) {
     for (const map of list) queueForAutoMap(state, map.id);
   }
 }

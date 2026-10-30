@@ -62,6 +62,6 @@ it('a node line names its effects in words, including the structural bonuses', (
   expect(vms.find((n) => n.id === 'depthSmall1')?.allocated).toBe(true);
   expect(line('depthSmall1')).toBe('+25 m starting depth');
   expect(line('insightSmall1')).toBe('+1 passive point');
-  expect(line('masterSurveyor')).toBe('+2 auto-map tiers, +20 auto-map queue slots');
+  expect(line('masterSurveyor')).toBe('+20 auto-map queue slots');
   expect(line('luckyBreak')).toBe('+10% chest find, +10% gem find, +10% map find');
 });
