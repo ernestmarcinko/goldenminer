@@ -7,6 +7,7 @@ import {
 } from './balance';
 import { deriveBattleStats, mitigate, type BattleStats } from './battle';
 import { dungeonLayout } from './dungeons';
+import { gateWall } from './gates';
 import { logDeath, trail } from './dropLog';
 import { gainXp } from './levels';
 import { rollChest, rollGear, rollGemOrRune, rollLegendary, rollRarity, type Gen } from './itemGen';
@@ -46,7 +47,7 @@ function roomQueue(state: GameState, run: MapRun, room: number): MonsterState[] 
   const fx = mapEffects(run.map);
   const monsters = room < run.bossRoom ? layout.rooms[room - 1] ?? [] : [];
   const fought = monsters.length > 0 ? monsters : layout.boss2 === null ? [layout.boss] : [layout.boss, layout.boss2];
-  return fought.map((m) => monsterState(run.map.tier, m, fx));
+  return fought.map((m) => monsterState(run.map.tier, m, fx, gateWall(state.seed, run.map.tier)));
 }
 
 /**

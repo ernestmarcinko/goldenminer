@@ -3,6 +3,7 @@ import { checkAchievements } from './achievements';
 import { deriveBattleStats } from './battle';
 import { endRun } from './combat';
 import { dungeonLayout } from './dungeons';
+import { gateWall } from './gates';
 import { trail } from './dropLog';
 import type { MapItem } from './items';
 import { receiveItem } from './loot';
@@ -67,7 +68,7 @@ export function startMap(state: GameState, mapId: number, auto = false): 'ok' | 
   trail(state, map.id, { event: 'run' });
   const layout = dungeonLayout(state.seed, map);
   const fx = mapEffects(map);
-  const queue = (layout.rooms[0] ?? []).map((m) => monsterState(map.tier, m, fx));
+  const queue = (layout.rooms[0] ?? []).map((m) => monsterState(map.tier, m, fx, gateWall(state.seed, map.tier)));
   state.activity = {
     kind: 'map',
     run: {

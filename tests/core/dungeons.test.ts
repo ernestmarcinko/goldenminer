@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import { CHAMPION_UNITS, MAX_ROOMS, MIN_ROOMS, monsterBudget } from '../../src/core/balance';
+import { gateWall } from '../../src/core/gates';
 import { dungeonIndexAt, dungeonLayout, dungeonType, spreadUnits, uniqueName } from '../../src/core/dungeons';
 import { DEEP_SPECIES, NAMED_SPECIES, speciesOf } from '../../src/core/species';
 import { seedFromText } from '../../src/core/seed';
@@ -215,4 +216,12 @@ it('creature names never stutter', () => {
   const words: string[] = [];
   for (const a of SYLLABLE_START) for (const m of ['', ...SYLLABLE_MIDDLE]) for (const e of SYLLABLE_END) words.push(creatureWord(a, m, e));
   expect(words.filter((w) => /(..+)\1/i.test(w))).toEqual([]);
+});
+
+it('a gate tier\'s dungeons all lean to the gate\'s wall; other tiers keep their own bias', () => {
+  for (let seed = 1; seed <= 50; seed++) {
+    for (const i of [0, 1, 2] as const) expect(dungeonType(seed, 10, i).bias, `seed ${seed} index ${i}`).toBe(gateWall(seed, 10));
+  }
+  // an off-gate bias is still the hashed pick
+  expect(dungeonType(seedFromText('golden mole'), 3, 0).bias).toBe('elemental');
 });

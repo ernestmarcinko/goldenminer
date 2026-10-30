@@ -1,4 +1,5 @@
 import { CHAMPION_UNITS, MAX_ROOMS, MIN_ROOMS, monsterBudget } from './balance';
+import { gateWall } from './gates';
 import { allDungeonNames, bossName, championName, dungeonName } from './names';
 import { hashN, mulberry32 } from './rng';
 import type { MapSpecial } from './items';
@@ -68,7 +69,8 @@ export function dungeonType(seed: number, tier: number, index: 0 | 1 | 2): Dunge
     pattern: FLOOR_PATTERNS[(f >>> 20) % FLOOR_PATTERNS.length] ?? 0,
   };
 
-  const bias = ELEMENTS[hashN(seed, SALT_BIAS, tier, index) % ELEMENTS.length] ?? 'physical';
+  // A gate tier leans every dungeon to its wall; any other tier picks a bias per dungeon.
+  const bias = gateWall(seed, tier) ?? ELEMENTS[hashN(seed, SALT_BIAS, tier, index) % ELEMENTS.length] ?? 'physical';
 
   // The bias only orders the pick: matching species first, each group in hash order.
   const band = speciesOf(tier);

@@ -3,6 +3,7 @@ import {
   MAX_LIFE, SWIFT_SPEED, THICK_LIFE, mapMonsterScale, monsterDamageBase, monsterLifeBase, monsterXp,
 } from './balance';
 import type { LayoutMonster } from './dungeons';
+import type { Wall } from './gates';
 import { NO_MAP_EFFECTS, type MapEffects } from './mapMods';
 import { speciesOf } from './species';
 import type { MonsterState, Rank } from './types';
@@ -18,9 +19,10 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n
 
 /**
  * A layout slot made fightable: its species, rank and champion modifiers decide the numbers, scaled by the map's tier
- * and its modifiers (`fx`), up to the save limits.
+ * and its modifiers (`fx`), up to the save limits. On a gate tier the `wall` is the monsters' damage type; only a
+ * fire-touched champion stays elemental.
  */
-export function monsterState(tier: number, lm: LayoutMonster, fx: MapEffects = NO_MAP_EFFECTS): MonsterState {
+export function monsterState(tier: number, lm: LayoutMonster, fx: MapEffects = NO_MAP_EFFECTS, wall?: Wall): MonsterState {
   const s = speciesOf(tier)[lm.species];
   if (s === undefined) throw new Error(`no species ${lm.species} at tier ${tier}`);
   const power = lm.rank === 'normal' ? 1 : fx.bossMult;
@@ -31,7 +33,7 @@ export function monsterState(tier: number, lm: LayoutMonster, fx: MapEffects = N
   ), 1, MAX_LIFE);
   return {
     name: lm.name, species: lm.species, rank: lm.rank, mods: [...lm.mods], extra: lm.extra,
-    element: lm.mods.includes('fireTouched') ? 'elemental' : s.element,
+    element: lm.mods.includes('fireTouched') ? 'elemental' : wall ?? s.element,
     life: maxLife, maxLife,
     damage: clamp(Math.round(
       monsterDamageBase(tier) * s.damageMult * RANK_DAMAGE[lm.rank] * (lm.mods.includes('brutal') ? BRUTAL_DAMAGE : 1)

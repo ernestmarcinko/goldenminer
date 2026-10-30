@@ -1,4 +1,5 @@
 import { baseDamage, hardness, MATERIAL_TABLE, TICKS_PER_METRE_AT_PARITY } from '../../core/balance';
+import { gateWall, type Wall } from '../../core/gates';
 import { GEM_GRADE_LABELS, gemName, itemName } from '../../core/itemData';
 import { BATTLE_STATS, MOD_SIDE, isGear, orbName, setOfSlot } from '../../core/items';
 import type { GearItem, GemType, Item, MapItem, Material, ModLine, OrbFamily, OrbItem, OrbSide, OrbTier, Slot, StatKey } from '../../core/items';
@@ -126,8 +127,16 @@ export function cardHead(seed: number, item: Item): { name: string; kind: string
 }
 
 /** A map's modifiers with their tiers, in their rolled order, and what they pay; then where it was found. */
-function mapLines(map: MapItem): ViewLine[] {
-  const lines = mapModLines(map);
+const GATE_LINES: Readonly<Record<Wall, string>> = {
+  physical: 'Gate tier: physical wall. Monsters hit hard; armour matters most.',
+  elemental: 'Gate tier: elemental wall. Most damage is elemental; resistances matter most.',
+};
+
+/** A map's gate line (when its tier is a gate, which the world's seed decides), then its modifiers and the rest. */
+function mapLines(map: MapItem, seed?: number): ViewLine[] {
+  const wall = seed === undefined ? undefined : gateWall(seed, map.tier);
+  const lines: ViewLine[] = wall === undefined ? [] : [{ text: GATE_LINES[wall], tone: 'plain' }];
+  lines.push(...mapModLines(map));
   const special = mapSpecialLine(map);
   if (special !== null) lines.push(special);
   const rewards = mapRewardsText(map);
@@ -137,8 +146,8 @@ function mapLines(map: MapItem): ViewLine[] {
   return lines;
 }
 
-export function itemLines(item: Item, level?: number): ViewLine[] {
-  if (item.type === 'map') return mapLines(item);
+export function itemLines(item: Item, level?: number, seed?: number): ViewLine[] {
+  if (item.type === 'map') return mapLines(item, seed);
   if (item.type === 'material') {
     const from = MATERIAL_TABLE[item.material].from;
     return [

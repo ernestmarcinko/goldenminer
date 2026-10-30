@@ -165,8 +165,8 @@ it('monster numbers by rank and modifier', () => {
 });
 
 it('monster numbers stop at the save limits, however deep the tier', () => {
-  // Unclamped, a tier-2,000 Bone Crawler boss would have 2,200,349 life and a tier-100,000 brutal champion would hit for 4,640,631.
-  for (const tier of [2_000, 100_000]) {
+  // Unclamped, a tier-1,000,000,000 Bone Crawler boss would have more than 1e12 life and a tier-10,000,000,000 brutal champion more than 1e12 damage.
+  for (const tier of [1_000_000_000, 10_000_000_000]) {
     for (const rank of ['normal', 'champion', 'boss'] as const) {
       const m = monsterState(tier, { species: 0, rank, name: 'Deep One', mods: rank === 'champion' ? ['thickSkinned', 'brutal'] : [], extra: 1 });
       expect(m.maxLife, `tier ${tier} ${rank}`).toBeLessThanOrEqual(MAX_LIFE);
@@ -175,8 +175,9 @@ it('monster numbers stop at the save limits, however deep the tier', () => {
     }
     expect(monsterState(tier, { species: 0, rank: 'boss', name: 'Deep One', mods: [], extra: 1 }).maxLife).toBe(MAX_LIFE);
   }
-  expect(monsterState(100_000, { species: 0, rank: 'champion', name: 'Deep One', mods: ['brutal'], extra: 1 }).damage).toBe(MAX_DAMAGE);
-  // and a run started that deep is a valid save, its boss included
+  expect(monsterState(10_000_000_000, { species: 0, rank: 'champion', name: 'Deep One', mods: ['brutal'], extra: 1 }).damage).toBe(MAX_DAMAGE);
+  // and a run started at the deepest tiers a map can have is a valid save, its boss included (a saved map's tier stops
+  // at MAX_ITEM_LEVEL, so a real run no longer reaches the limits themselves)
   for (const tier of [2_000, 100_000]) {
     const s = newGame(1, 0);
     expect(startMap(s, stashMap(s, tier, 5).id)).toBe('ok');

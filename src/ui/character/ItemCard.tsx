@@ -241,7 +241,7 @@ export function ItemCard({
   const beside = pair && worn !== undefined;
   const note = isMenu ? menuNote(item) : null;
   const others = actions.filter((a) => a.id !== 'craft' && a.id !== UPGRADE);
-  const lines = isMenu ? itemLines(item, state.level) : [...itemLines(item, state.level), ...hoverLines(item)];
+  const lines = isMenu ? itemLines(item, state.level, state.seed) : [...itemLines(item, state.level, state.seed), ...hoverLines(item)];
   const wornBlock = worn !== undefined && !beside && (
     <div className="gm-card__equipped" data-rarity={rarityOf(worn)}><EquippedContent worn={worn} level={state.level} /></div>
   );

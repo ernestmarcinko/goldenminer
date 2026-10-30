@@ -5,6 +5,7 @@ describe('formatNumber', () => {
   it('uses en-US separators and never exponents', () => {
     expect(formatNumber(2480)).toBe('2,480');
     expect(formatNumber(1234567)).toBe('1,234,567');
+    expect(formatNumber(1e12)).toBe('1,000,000,000,000');
     expect(formatNumber(1e21)).toBe('1,000,000,000,000,000,000,000');
     expect(formatNumber(12.7)).toBe('13');
   });

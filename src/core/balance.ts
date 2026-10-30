@@ -104,8 +104,10 @@ export const ASCENDANCY_BIG_COST = 12;
 export const AUTO_MAP_QUEUE_SIZE = 100;
 export const COMBAT_LOG_LIMIT = 20;
 export const RUN_LOOT_LIMIT = 30;
-export const MAX_LIFE = 1_000_000;
-export const MAX_DAMAGE = 1_000_000;
+export const MAX_LIFE = 1e12;
+export const MAX_DAMAGE = 1e12;
+// Every GATE_EVERY-th map tier is a gate: a physical or an elemental wall (gates.ts).
+export const GATE_EVERY = 5;
 
 // The miner's battle numbers.
 export const BASE_LIFE = 50;

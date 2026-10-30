@@ -5,9 +5,11 @@ import { deriveBattleStats } from '../../src/core/battle';
 import { advance } from '../../src/core/clock';
 import { applyTicks } from '../../src/core/dig';
 import { dungeonLayout } from '../../src/core/dungeons';
+import { gateWall } from '../../src/core/gates';
 import type { MapMod } from '../../src/core/items';
 import { xpToNext } from '../../src/core/levels';
 import { leaveMap, startMap } from '../../src/core/maps';
+import { NO_MAP_EFFECTS } from '../../src/core/mapMods';
 import { monsterState } from '../../src/core/monsters';
 import { newGame } from '../../src/core/newGame';
 import { mulberry32 } from '../../src/core/rng';
@@ -566,4 +568,23 @@ it('logging the run\'s drops and its end makes no draws: the saved run plays out
   expect(played).toMatchObject({
     rng: 3438939776, gained: { xp: 1048, souls: 16, gold: 144, levels: 1 }, outcome: 'cleared',
   });
+});
+
+it('a gate wall sets the monsters\' damage type, except for a fire-touched champion', () => {
+  const mole = { species: 0, rank: 'normal' as const, name: 'Mole Rat', mods: [], extra: 1 };
+  const slime = { species: 1, rank: 'normal' as const, name: 'Mud Slime', mods: [], extra: 1 };
+  expect(monsterState(10, mole, NO_MAP_EFFECTS, 'elemental').element).toBe('elemental');
+  expect(monsterState(10, slime, NO_MAP_EFFECTS, 'physical').element).toBe('physical');
+  const fire = { ...mole, rank: 'champion' as const, name: 'Gorvash', mods: ['fireTouched' as const] };
+  expect(monsterState(10, fire, NO_MAP_EFFECTS, 'physical').element).toBe('elemental');
+  expect(monsterState(10, mole).element).toBe(monsterState(10, mole, NO_MAP_EFFECTS, undefined).element);
+});
+
+it('a run on a gate tier fights with the gate\'s wall', () => {
+  const s = newGame(7, 0);
+  const map = stashMap(s, 10, 40);
+  expect(startMap(s, map.id)).toBe('ok');
+  const run = s.activity.kind === 'map' ? s.activity.run : undefined;
+  expect(run?.queue.length).toBeGreaterThan(0);
+  expect(run?.queue.every((m) => m.element === gateWall(s.seed, 10) || m.mods.includes('fireTouched'))).toBe(true);
 });

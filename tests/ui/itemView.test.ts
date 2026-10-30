@@ -8,6 +8,7 @@ import {
 } from '../../src/ui/character/itemView';
 import { mapDungeon } from '../../src/ui/run/runView';
 import type { MapItem, RuneItem } from '../../src/core/items';
+import { gateWall } from '../../src/core/gates';
 import { gear, gem } from '../helpers/items';
 
 it('stat text', () => {
@@ -391,4 +392,22 @@ it('a material loot note reads as how many and where they went', () => {
   const n = { name: 'Copper ore', rarity: 'material', base: 'copper', value: 1240 } as const;
   expect(lootNoteText({ ...n, outcome: 'bag' })).toBe('×1,240 to bag');
   expect(lootNoteText({ ...n, outcome: 'stash' })).toBe('×1,240 to Materials tab');
+});
+
+it('a gate map card names its wall before the modifiers; other tiers have no gate line', () => {
+  const seed = 77;
+  const map: MapItem = { id: 1, type: 'map', tier: 10, metre: 327, rarity: 'magic', mods: [{ kind: 'monsterLife', tier: 4, value: 27 }] };
+  const text = gateWall(seed, 10) === 'physical'
+    ? 'Gate tier: physical wall. Monsters hit hard; armour matters most.'
+    : 'Gate tier: elemental wall. Most damage is elemental; resistances matter most.';
+  expect(itemLines(map, undefined, seed).slice(0, 2)).toEqual([
+    { text, tone: 'plain' },
+    { text: 'Monsters have +27% life', tone: 'plain', tier: 4 },
+  ]);
+  const both = Array.from({ length: 40 }, (_, i) => i + 1).map((s) => itemLines(map, undefined, s)[0]?.text);
+  expect(both).toContain('Gate tier: physical wall. Monsters hit hard; armour matters most.');
+  expect(both).toContain('Gate tier: elemental wall. Most damage is elemental; resistances matter most.');
+  const off = itemLines({ ...map, tier: 9 }, undefined, seed).map((l) => l.text);
+  expect(off.some((t) => t.startsWith('Gate tier'))).toBe(false);
+  expect(itemLines(map).some((l) => l.text.startsWith('Gate tier'))).toBe(false);
 });
