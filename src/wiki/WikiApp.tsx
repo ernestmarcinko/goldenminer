@@ -453,14 +453,14 @@ export function WikiApp() {
               A dungeon entrance you dig past becomes a map. Maps come in normal, magic and rare, hold up to{' '}
               {MAX_MAP_MODS} modifiers (each kind at most once) plus one special, and the Maps tab keeps up to{' '}
               {MAP_TIER_CAP} maps of each tier. Enchanting a map makes its monsters tougher but pays more drops, better
-              rarity, more Souls and more materials.
+              rarity, more Souls and more materials. A boss may also drop a map one tier either side of the map&apos;s tier.
             </p>
             <p>
               Every {GATE_EVERY}th map tier, from tier {GATE_EVERY} on, is a gate: a wall that asks for one kind of defence. A
               physical wall makes the dungeon&apos;s monsters hit with physical damage, so armour matters most; an
               elemental wall makes them hit with elemental damage, so resistances matter most. Each pair of gates
               (tiers {GATE_EVERY} and {GATE_EVERY * 2}, then {GATE_EVERY * 3} and {GATE_EVERY * 4}, and so on) has one of each, and your world&apos;s seed decides which comes first.
-              The map&apos;s card names its wall. Only a fire-touched champion keeps its own element.
+              The map&apos;s card names its wall. A fire-touched champion still hits with elemental damage.
             </p>
             <p>Map modifiers, by tier (lower tiers are likelier):</p>
             <Table wide>

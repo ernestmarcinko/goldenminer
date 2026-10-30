@@ -590,6 +590,26 @@ it('a run on a gate tier fights with the gate\'s wall', () => {
   expect(run?.queue.every((m) => m.element === gateWall(s.seed, 10) || m.mods.includes('fireTouched'))).toBe(true);
 });
 
+it.each(['physical', 'elemental'] as const)('a tier-10 gate boss reached by advancing rooms fights with the %s wall', (wall) => {
+  let seed = 1;
+  while (gateWall(seed, 10) !== wall) seed += 1;
+  const s = newGame(seed, 0);
+  expect(startMap(s, stashMap(s, 10, 40).id)).toBe('ok');
+  const run = runOf(s);
+  run.life = 1_000_000_000;
+  run.room = run.bossRoom - 1;
+  run.queue = [monster({ life: 1, maxLife: 1 })];
+  for (let c = 0; c < 20 && run.room < run.bossRoom; c++) swing(s);
+  expect(run.room).toBe(run.bossRoom);
+  expect(run.queue.length).toBeGreaterThan(0);
+  for (const m of run.queue) {
+    expect(m.rank).toBe('boss');
+    expect(m.mods).not.toContain('fireTouched');
+    expect(m.element).toBe(gateWall(s.seed, 10));
+    expect(m.element).toBe(wall);
+  }
+});
+
 describe('maps from map clears', () => {
   // A run on a tier-`tier` map; each kill is made directly, so only the kill's own draws are in play.
   function runAt(tier: number): { s: GameState; run: MapRun } {
@@ -633,6 +653,23 @@ describe('maps from map clears', () => {
       expect(Math.abs((tiers[t] ?? 0) / drops - share), `tier ${t}`).toBeLessThan(0.03);
     }
     expect(s.stats.mapsFromClears).toBe(drops);
+  });
+
+  it('with enough map find the drop chance caps at 100%: every boss kill drops a map', () => {
+    const { s, run } = runAt(7);
+    s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'mapFind', value: 100 }] });
+    for (let rng = 1; rng <= 50; rng++) expect(kill(s, run, 'boss', rng), `rng ${rng}`).toHaveLength(1);
+  });
+
+  it.each([
+    ['cartographer', [7, 8, 9]],
+    ['prospectorsEye', [5, 6, 7]],
+  ] as const)('with %s a tier-7 boss only drops maps of tiers %j', (keystone, tiers) => {
+    const { s, run } = runAt(7);
+    s.passives.allocated = [keystone];
+    const seen = new Set<number>();
+    for (let rng = 1; rng <= 400; rng++) for (const t of kill(s, run, 'boss', rng)) seen.add(t);
+    expect([...seen].sort((a, b) => a - b)).toEqual(tiers);
   });
 
   it('a tier-1 boss never drops a tier-0 map', () => {
