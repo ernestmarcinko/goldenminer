@@ -1,14 +1,21 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   ACHIEVEMENTS, ACHIEVEMENT_BOOST, ACHIEVEMENT_BY_ID, ACHIEVEMENT_IDS, FAMILY_ICONS, FAMILY_LABELS,
-  achievementBoost, achievementIcon, checkAchievements, earnedCount, pruneEarned,
+  achievementBoost, achievementIcon, checkAchievements, checkFeats, earnedCount, pruneEarned, registerFeatsForTest,
+  type FeatDef, type FeatEvent,
 } from '../../src/core/achievements';
 import { ASCEND_LEVEL, MAX_DAMAGE, MAX_LIFE } from '../../src/core/balance';
 import { ascend } from '../../src/core/ascend';
+import { clickTicks } from '../../src/core/clock';
+import { endRun, onKill } from '../../src/core/combat';
+import { salvage, sell } from '../../src/core/inventory';
+import { LEGENDARIES } from '../../src/core/itemData';
+import { startMap } from '../../src/core/maps';
+import { CHAMPION_MODS, type GameState, type MapRun, type MonsterState } from '../../src/core/types';
 import { deriveBattleStats } from '../../src/core/battle';
 import { collect, faceTicksPerMetre, finishMetre } from '../../src/core/dig';
 import { addToSet } from '../../src/core/ledger';
-import { GEM_GRADES, GEM_TYPES, MATERIALS } from '../../src/core/items';
+import { GEM_GRADES, GEM_TYPES, MAP_SPECIALS, MATERIALS, RUNE_TYPES } from '../../src/core/items';
 import { gamble } from '../../src/core/merchant';
 import { receiveItem } from '../../src/core/loot';
 import type { GearItem } from '../../src/core/items';
@@ -16,12 +23,12 @@ import { newGame } from '../../src/core/newGame';
 import { ICON_GLYPHS } from '../../src/core/skillIcons';
 import { deriveStats } from '../../src/core/stats';
 import { emptyLifetimeStats } from '../../src/core/telemetry';
-import { gear } from '../helpers/items';
+import { gear, stashMap } from '../helpers/items';
 
 describe('the achievement table', () => {
   it('holds a well-spaced set of unique achievements across every family', () => {
-    expect(ACHIEVEMENTS.length).toBe(529);
-    expect(ACHIEVEMENT_IDS.size).toBe(529);
+    expect(ACHIEVEMENTS.length).toBe(609);   // 529 ladders and 80 collection steps
+    expect(ACHIEVEMENT_IDS.size).toBe(609);
     const families = new Set(ACHIEVEMENTS.map((a) => a.family));
     expect(families).toEqual(new Set([
       'depth', 'dig', 'clicks', 'handMined', 'autoMined', 'gold', 'goldSpent', 'diamonds', 'diamondsSpent', 'soulsEarned', 'soulsSpent',
@@ -29,6 +36,9 @@ describe('the achievement table', () => {
       'levels', 'levelsGained', 'ascensions', 'craft', 'merchant', 'itemsKept', 'itemsSold', 'itemsSalvaged',
       'oresTraded', 'legendaries', 'sockets', 'timePlayed', 'timeAway',
       ...MATERIALS.map((m) => `ore.${m}`),
+      'collection.legendaries', 'collection.legendaryTier1', 'collection.legendaryTier2', 'collection.legendaryTier3',
+      'collection.legendaryTier4', 'collection.legendaryTier5', 'collection.runes', 'collection.championMods',
+      'collection.specials', 'collection.gems', 'collection.dungeons',
     ]));
     expect(Object.keys(FAMILY_LABELS).sort()).toEqual([...families].sort());
   });
@@ -249,7 +259,292 @@ describe('pruneEarned', () => {
     expect(s.achievements.earned).toEqual(['gold.1000000', 'depth.10']);
   });
 
-  it('every ladder is a ladder whose value is its threshold', () => {
-    expect(ACHIEVEMENTS.every((a) => a.kind === 'ladder')).toBe(true);
+  it('every generated achievement is a ladder or a collection, collections named for their set', () => {
+    expect(ACHIEVEMENTS.every((a) => a.kind === (a.family.startsWith('collection.') ? 'collection' : 'ladder'))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The feat engine. The real list arrives later; these tests register their own.
+// ---------------------------------------------------------------------------------------------------------------------
+
+const clutchWin: FeatDef = {
+  id: 'feat.test-clutch', family: 'test', kind: 'feat', name: 'Clutch', desc: 'Clear a map below 10% life.', on: 'runEnd',
+  test: (s, e) => e.kind === 'runEnd' && e.result.outcome === 'cleared' && e.run.minLife / deriveBattleStats(s).maxLife < 0.1,
+};
+const pausedClick: FeatDef = {
+  id: 'secret.test-paused', family: 'test', kind: 'hidden', name: 'Idle hands', desc: 'Click while paused.', on: 'click',
+  test: (_s, e) => e.kind === 'click' && e.paused,
+};
+
+/** A feat that earns nothing and records every event it is offered, to see where the hooks fire. */
+function spy(on: FeatEvent['kind']): { feat: FeatDef; seen: FeatEvent[] } {
+  const seen: FeatEvent[] = [];
+  return { seen, feat: { id: `feat.spy-${on}`, family: 'test', kind: 'feat', name: 'Spy', desc: 'Watches.', on, test: (_s, e) => { seen.push(e); return false; } } };
+}
+
+/** Every random stream a game owns. */
+const streams = (s: GameState): number[] => [s.rng, s.uniqueRng, s.runeRng];
+
+/** A fresh game running a tier-1 map, whose lowest life so far is a share of max life. */
+function inMap(lifeShare = 1): { s: GameState; run: MapRun } {
+  const s = newGame(1, 0);
+  expect(startMap(s, stashMap(s, 1, 2).id)).toBe('ok');
+  if (s.activity.kind !== 'map') throw new Error('no map is running');
+  const run = s.activity.run;
+  run.minLife = Math.max(1, Math.round(deriveBattleStats(s).maxLife * lifeShare));
+  return { s, run };
+}
+
+afterEach(() => registerFeatsForTest(null));
+
+describe('the feat engine', () => {
+  it('a run-end feat earns on a clear at 5% life, not on a death at 5%, nor a clear at 50%', () => {
+    registerFeatsForTest([clutchWin]);
+    const clear = inMap(0.05);
+    endRun(clear.s, clear.run, 'cleared');
+    expect(clear.s.achievements.earned).toContain('feat.test-clutch');
+    const died = inMap(0.05);
+    endRun(died.s, died.run, 'died');
+    expect(died.s.achievements.earned).not.toContain('feat.test-clutch');
+    const easy = inMap(0.5);
+    endRun(easy.s, easy.run, 'cleared');
+    expect(easy.s.achievements.earned).not.toContain('feat.test-clutch');
+  });
+
+  it('a click feat earns on a click while paused, not on one while unpaused', () => {
+    registerFeatsForTest([pausedClick]);
+    const s = newGame(1, 0);
+    clickTicks(s, deriveStats(s));
+    expect(s.achievements.earned).not.toContain('secret.test-paused');
+    s.paused = true;
+    clickTicks(s, deriveStats(s));
+    expect(s.achievements.earned).toContain('secret.test-paused');
+  });
+
+  it('counts clicks made while paused', () => {
+    const s = newGame(1, 0);
+    clickTicks(s, deriveStats(s));
+    expect(s.stats.clicksPaused).toBe(0);
+    s.paused = true;
+    clickTicks(s, deriveStats(s));
+    clickTicks(s, deriveStats(s));
+    expect(s.stats.clicksPaused).toBe(2);
+    expect(s.stats.clicks).toBe(3);
+  });
+
+  it('never earns an id twice and only tries the feats of the event it is given', () => {
+    registerFeatsForTest([pausedClick, clutchWin]);
+    const s = newGame(1, 0);
+    checkFeats(s, { kind: 'click', paused: true });
+    checkFeats(s, { kind: 'click', paused: true });
+    expect(s.achievements.earned).toEqual(['secret.test-paused']);
+    checkFeats(s, { kind: 'rename', name: 'x' });
+    expect(s.achievements.earned).toEqual(['secret.test-paused']);
+  });
+
+  it('reads and advances no random stream', () => {
+    registerFeatsForTest([pausedClick, clutchWin]);
+    const s = newGame(1, 0);
+    const before = streams(s);
+    checkFeats(s, { kind: 'click', paused: true });
+    checkFeats(s, { kind: 'rename', name: 'x' });
+    expect(streams(s)).toEqual(before);
+    const { s: t, run } = inMap(0.05);
+    const rng = streams(t);
+    checkFeats(t, { kind: 'runEnd', run, result: { map: run.map, outcome: 'cleared', room: 1, bossRoom: 1, gained: run.gained, items: 0, seen: false } });
+    expect(t.achievements.earned).toContain('feat.test-clutch');
+    expect(streams(t)).toEqual(rng);
+  });
+
+  it('the real table has no feat yet', () => {
+    expect(ACHIEVEMENTS.filter((a) => a.kind === 'feat' || a.kind === 'hidden')).toEqual([]);
+  });
+});
+
+describe('where the feat hooks fire', () => {
+  it('endRun offers the run once, after the counters moved', () => {
+    const { feat, seen } = spy('runEnd');
+    registerFeatsForTest([feat]);
+    const { s, run } = inMap();
+    const cleared = s.stats.mapsCleared;
+    endRun(s, run, 'cleared');
+    expect(seen).toHaveLength(1);
+    expect(s.stats.mapsCleared).toBe(cleared + 1);
+    const first = seen[0];
+    expect(first?.kind === 'runEnd' && first.result.outcome).toBe('cleared');
+    expect(first?.kind === 'runEnd' && first.run).toBe(run);
+  });
+
+  it('a kill offers the monster and the run, once', () => {
+    const { feat, seen } = spy('kill');
+    registerFeatsForTest([feat]);
+    const { s, run } = inMap();
+    const m: MonsterState = { ...(run.queue[0] as MonsterState) };
+    onKill(s, run, m, deriveBattleStats(s));
+    expect(seen).toEqual([{ kind: 'kill', run, monster: m }]);
+  });
+
+  it('a click offers whether the game was paused', () => {
+    const { feat, seen } = spy('click');
+    registerFeatsForTest([feat]);
+    const s = newGame(1, 0);
+    clickTicks(s, deriveStats(s));
+    s.paused = true;
+    clickTicks(s, deriveStats(s));
+    expect(seen).toEqual([{ kind: 'click', paused: false }, { kind: 'click', paused: true }]);
+  });
+
+  it('a finished metre offers its depth', () => {
+    const { feat, seen } = spy('metre');
+    registerFeatsForTest([feat]);
+    const s = newGame(1, 0);
+    finishMetre(s, 1, { feature: null, amount: 0, hardRock: false }, deriveStats(s));
+    expect(seen).toEqual([{ kind: 'metre', depth: 1 }]);
+  });
+
+  it('a manual sale and a manual salvage offer the item', () => {
+    const sold = spy('sell');
+    const salvaged = spy('salvage');
+    registerFeatsForTest([sold.feat, salvaged.feat]);
+    const s = newGame(1, 0);
+    const a = gear(s, 'pickaxe');
+    const b = gear(s, 'lamp');
+    s.bag[0] = a;
+    s.bag[1] = b;
+    expect(sell(s, { where: 'bag', index: 0 })).toBe('ok');
+    expect(salvage(s, { where: 'bag', index: 1 })).toBe('ok');
+    expect(sold.seen).toEqual([{ kind: 'sell', item: a }]);
+    expect(salvaged.seen).toEqual([{ kind: 'salvage', item: b }]);
+  });
+
+  it('a find the loot filter sells or salvages offers the item too', () => {
+    const sold = spy('sell');
+    const salvaged = spy('salvage');
+    registerFeatsForTest([sold.feat, salvaged.feat]);
+    const s = newGame(1, 0);
+    s.settings.lootFilter = [{ kind: 'gear', rarity: 'normal', action: 'sell' }, { kind: 'gear', rarity: 'magic', action: 'salvage' }];
+    const a = gear(s, 'pickaxe', { rarity: 'normal' });
+    const b = gear(s, 'lamp', { rarity: 'magic' });
+    receiveItem(s, a, { kind: 'metre', metre: 1 });
+    receiveItem(s, b, { kind: 'metre', metre: 1 });
+    expect(sold.seen).toEqual([{ kind: 'sell', item: a }]);
+    expect(salvaged.seen).toEqual([{ kind: 'salvage', item: b }]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Collections.
+// ---------------------------------------------------------------------------------------------------------------------
+
+const collection = (family: string) => ACHIEVEMENTS.filter((a) => a.family === family);
+const legendary = (s: GameState, id: string): GearItem => gear(s, 'pickaxe', { rarity: 'legendary', uniqueId: id });
+const here = { kind: 'metre', metre: 1 } as const;
+
+describe('collections', () => {
+  it('each set has a ladder of collection achievements that ends at its full size', () => {
+    const tiers = [1, 2, 3, 4, 5].map((t) => LEGENDARIES.filter((d) => d.tier === t).length);
+    const expected: [string, number][] = [
+      ['collection.legendaries', LEGENDARIES.length],
+      ...tiers.map((n, i): [string, number] => [`collection.legendaryTier${i + 1}`, n]),
+      ['collection.runes', RUNE_TYPES.length],
+      ['collection.championMods', CHAMPION_MODS.length],
+      ['collection.specials', MAP_SPECIALS.length],
+      ['collection.gems', GEM_TYPES.length * GEM_GRADES.length],
+      ['collection.dungeons', 100],
+    ];
+    for (const [family, size] of expected) {
+      const list = collection(family);
+      expect(list.length, family).toBeGreaterThan(0);
+      expect(list.every((a) => a.kind === 'collection' && a.id === `${family}.${a.value}`), family).toBe(true);
+      expect(list.map((a) => a.value), family).toEqual([...list.map((a) => a.value)].sort((x, y) => x - y));
+      expect(list[list.length - 1]?.value, family).toBe(size);
+      expect(FAMILY_LABELS[family], family).toBeDefined();
+    }
+    expect(collection('collection.dungeons').map((a) => a.value)).toEqual([5, 10, 25, 50, 100]);
+  });
+
+  it('the first distinct legendary earns the first step, and the same one again does not move it', () => {
+    const s = newGame(1, 0);
+    receiveItem(s, legendary(s, 'molesbane'), here);
+    expect(s.achievements.earned).toContain('collection.legendaries.1');
+    expect(s.achievements.earned).toContain('collection.legendaryTier1.1');
+    const earned = [...s.achievements.earned];
+    receiveItem(s, legendary(s, 'molesbane'), here);
+    expect(s.stats.legendariesFound).toEqual(['molesbane']);
+    expect(s.achievements.earned.filter((id) => id.startsWith('collection.'))).toEqual(earned.filter((id) => id.startsWith('collection.')));
+  });
+
+  it('a legendary counts toward its own tier only', () => {
+    const s = newGame(1, 0);
+    const t5 = LEGENDARIES.find((d) => d.tier === 5);
+    if (t5 === undefined) throw new Error('no tier-5 legendary');
+    receiveItem(s, legendary(s, t5.id), here);
+    expect(s.achievements.earned).toContain('collection.legendaryTier5.1');
+    expect(s.achievements.earned).not.toContain('collection.legendaryTier1.1');
+  });
+
+  it('the legendary total climbs with the set, up to every legendary', () => {
+    const s = newGame(1, 0);
+    for (const d of LEGENDARIES) receiveItem(s, legendary(s, d.id), here);
+    expect(s.achievements.earned).toContain(`collection.legendaries.${LEGENDARIES.length}`);
+    for (let t = 1; t <= 5; t++) {
+      const n = LEGENDARIES.filter((d) => d.tier === t).length;
+      expect(s.achievements.earned, `tier ${t}`).toContain(`collection.legendaryTier${t}.${n}`);
+    }
+  });
+
+  it('runes earn their collection as each new type is found', () => {
+    const s = newGame(1, 0);
+    receiveItem(s, { id: s.nextId++, type: 'rune', rune: 'isa', count: 1 }, here);
+    expect(s.achievements.earned).toContain('collection.runes.1');
+    expect(s.achievements.earned).not.toContain('collection.runes.2');
+    receiveItem(s, { id: s.nextId++, type: 'rune', rune: 'fehu', count: 1 }, here);
+    expect(s.achievements.earned).toContain('collection.runes.2');
+  });
+
+  it('gems count (type, grade) pairs, not gems', () => {
+    const s = newGame(1, 0);
+    const find = (gem: 'ruby' | 'emerald', grade: 'tiny' | 'big', count: number) =>
+      receiveItem(s, { id: s.nextId++, type: 'gem', gem, grade, count }, here);
+    find('ruby', 'tiny', 40);
+    expect(s.achievements.earned).toContain('collection.gems.1');
+    expect(s.achievements.earned).not.toContain('collection.gems.2');
+    find('ruby', 'big', 1);
+    find('emerald', 'tiny', 1);
+    expect(s.achievements.earned).toContain('collection.gems.3');
+  });
+
+  it('champion mods are collected by killing champions that carry them', () => {
+    const { s, run } = inMap();
+    const m: MonsterState = { ...(run.queue[0] as MonsterState), rank: 'champion', mods: ['armored', 'swift'] };
+    onKill(s, run, m, deriveBattleStats(s));
+    expect(s.achievements.earned).toContain('collection.championMods.1');
+    expect(s.achievements.earned).toContain('collection.championMods.2');
+    expect(s.achievements.earned).not.toContain('collection.championMods.3');
+  });
+
+  it('a cleared map with a special grows the specials collection', () => {
+    const { s, run } = inMap();
+    run.map.special = 'treasureRoom';
+    endRun(s, run, 'cleared');
+    expect(s.stats.specialsCleared).toEqual(['treasureRoom']);
+    expect(s.achievements.earned).toContain('collection.specials.1');
+  });
+
+  it('a cleared map of a new dungeon type grows the dungeons collection', () => {
+    const { s, run } = inMap();
+    s.stats.dungeonTypesCleared = ['2:0', '2:1', '2:2', '3:0'];
+    endRun(s, run, 'cleared');
+    expect(s.stats.dungeonTypesCleared).toHaveLength(5);
+    expect(s.achievements.earned).toContain('collection.dungeons.5');
+  });
+
+  it('collections never touch the random streams', () => {
+    const s = newGame(1, 0);
+    const before = streams(s);
+    s.stats.runesFound = ['fehu'];
+    checkAchievements(s, 'collection.runes');
+    expect(streams(s)).toEqual(before);
   });
 });

@@ -1,3 +1,4 @@
+import { checkAchievements } from '../../src/core/achievements';
 import { describe, expect, it } from 'vitest';
 import { compressToBase64, decompressFromBase64 } from 'lz-string';
 import fixture from '../fixtures/save-schema-1.txt?raw';
@@ -1508,7 +1509,7 @@ describe('schema 25: the feat and collection ledger', () => {
     const s = newGame(7, 0);
     expect(startMap(s, stashMap(s, 1, 2).id)).toBe('ok');
     const old = JSON.parse(JSON.stringify(s)) as GameState;
-    for (const k of ['legendariesFound', 'runesFound', 'championModsKilled', 'specialsCleared', 'dungeonTypesCleared', 'gateAttempts', 'gatesFirstTry']) {
+    for (const k of ['legendariesFound', 'runesFound', 'championModsKilled', 'specialsCleared', 'dungeonTypesCleared', 'gateAttempts', 'gatesFirstTry', 'clicksPaused']) {
       delete (old.stats as unknown as Record<string, unknown>)[k];
     }
     if (old.activity.kind !== 'map') throw new Error('no map is running');
@@ -1516,7 +1517,7 @@ describe('schema 25: the feat and collection ledger', () => {
     const r = decodeSave(raw({ schema: 24, savedAt: 0, state: old }));
     if (!r.ok) throw new Error(r.reason);
     expect(r.state.stats).toMatchObject({
-      legendariesFound: [], runesFound: [], championModsKilled: [], specialsCleared: [], dungeonTypesCleared: [], gateAttempts: {}, gatesFirstTry: [],
+      legendariesFound: [], runesFound: [], championModsKilled: [], specialsCleared: [], dungeonTypesCleared: [], gateAttempts: {}, gatesFirstTry: [], clicksPaused: 0,
     });
     if (r.state.activity.kind !== 'map') throw new Error('no map is running');
     expect(r.state.activity.run).toMatchObject({ minLife: r.state.activity.run.life, elapsedS: 0, attempt: 0 });
@@ -1546,6 +1547,7 @@ describe('schema 25: the feat and collection ledger', () => {
     expect(startMap(s, stashMap(s, 10, 40).id)).toBe('ok');
     if (s.activity.kind !== 'map') throw new Error('no map is running');
     s.activity.run.bossSinceS = 12.5;
+    checkAchievements(s);   // a load grants what the ledger already passes, so the saved state holds those too
     const r = save25(s);
     if (!r.ok) throw new Error(r.reason);
     expect(r.state).toEqual(s);
@@ -1563,6 +1565,7 @@ describe('schema 25: the feat and collection ledger', () => {
       ['an unknown map special', (s) => { s.stats.specialsCleared = ['nope' as never]; }],
       ['a duplicate legendary', (s) => { s.stats.legendariesFound = ['molesbane', 'molesbane']; }],
       ['a malformed dungeon key', (s) => { s.stats.dungeonTypesCleared = ['nope']; }],
+      ['a negative paused-click count', (s) => { s.stats.clicksPaused = -1; }],
       ['a negative attempt count', (s) => { s.stats.gateAttempts = { 5: -1 }; }],
       ['a non-numeric attempt key', (s) => { s.stats.gateAttempts = { five: 1 } as never; }],
     ];

@@ -1,5 +1,5 @@
 import { tryAutoMap } from './autoMap';
-import { achievementBoost, checkAchievements } from './achievements';
+import { achievementBoost, checkAchievements, checkFeats } from './achievements';
 import {
   DEEPDELVER_EVERY, FINDS_LOG_LIMIT, HARD_ROCK_MULTIPLIER, LOOT_NOTES_KEPT, MAX_DIG_POWER, TICKS_PER_METRE_AT_PARITY, hardness,
 } from './balance';
@@ -182,6 +182,7 @@ export function finishMetre(
   checkAchievements(state, 'dig');
   checkAchievements(state, 'handMined');
   checkAchievements(state, 'autoMined');
+  checkFeats(state, { kind: 'metre', depth: next });
   fillAhead(state, stats);
   events?.push({ kind: 'metre', depth: next });
 }

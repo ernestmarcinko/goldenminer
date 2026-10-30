@@ -383,7 +383,7 @@ it('without ore find, digging draws exactly what it drew before ore find existed
   const st = deriveStats(s);
   expect(st.oreBonusChance).toBe(0);
   while (s.deepest < 400) digClearing(s, 1, st);
-  expect([s.rng, s.deepest, s.finds.length, s.tickCount]).toEqual([1288775494, 400, 201, 25211]);
+  expect([s.rng, s.deepest, s.finds.length, s.tickCount]).toEqual([1288775494, 400, 201, 24735]);
   expect(s.finds.some((f) => f.kind === 'materialVein' && f.bonus === true)).toBe(false);
 });
 

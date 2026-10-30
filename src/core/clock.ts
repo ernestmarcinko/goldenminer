@@ -1,5 +1,5 @@
 import { MAX_CLICKS_PER_SECOND } from './balance';
-import { checkAchievements } from './achievements';
+import { checkAchievements, checkFeats } from './achievements';
 import { applyTicks } from './dig';
 import type { GameState, Stats, TickEvent } from './types';
 
@@ -41,7 +41,9 @@ export function advance(
 
 export function clickTicks(state: GameState, stats: Stats, events?: TickEvent[]): void {
   state.stats.clicks += 1;
+  if (state.paused) state.stats.clicksPaused += 1;
   checkAchievements(state, 'clicks');
+  checkFeats(state, { kind: 'click', paused: state.paused });
   applyTicks(state, stats.ticksPerClick, stats, events, false, false, true);
 }
 

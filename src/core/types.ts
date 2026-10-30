@@ -106,6 +106,7 @@ export interface LifetimeStats {
   // Distance & time
   metresDug: number;                       // metres completed, all ascensions
   clicks: number;                          // total manual clicks
+  clicksPaused: number;                    // clicks made while the player's Pause was on
   metresDugByClick: number;                // metres finished by a click (hand-mined)
   metresDugAuto: number;                   // metres finished by auto-ticks (auto-mined)
   timePlayedMs: number;                    // wall-clock live elapsed

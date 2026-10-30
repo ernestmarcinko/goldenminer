@@ -1,4 +1,4 @@
-import { checkAchievements } from './achievements';
+import { checkAchievements, checkFeats } from './achievements';
 import { queueForAutoMap, unqueueForAutoMap } from './autoMap';
 import { GEM_STASH_STACK, MATERIAL_STASH_STACK, ORB_STASH_STACK, RUNE_STASH_STACK } from './balance';
 import { firstEmpty, itemAt, mapTierCount, sameLoc } from './cells';
@@ -376,6 +376,7 @@ export function salvage(state: GameState, from: ItemLoc): InvResult {
   trail(state, item.id, { event: 'salvaged', materials: stashMaterials(state, salvagePay(item, deriveStats(state))) });
   state.stats.itemsSalvaged += 1;
   checkAchievements(state, 'itemsSalvaged');
+  checkFeats(state, { kind: 'salvage', item });
   return 'ok';
 }
 

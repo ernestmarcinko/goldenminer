@@ -1,6 +1,6 @@
 import { ascend as coreAscend } from '../core/ascend';
 import { allocateAscendancy as coreAllocateAscendancy } from '../core/ascendancy';
-import { ACHIEVEMENT_BY_ID, achievementIcon } from '../core/achievements';
+import { ACHIEVEMENT_BY_ID, achievementIcon, checkFeats } from '../core/achievements';
 import { autoMapping, queueForAutoMap as coreQueueForAutoMap, tryAutoMap, unqueueForAutoMap as coreUnqueueForAutoMap } from '../core/autoMap';
 import { LONG_GAP_MS, MAX_LOOT_RULES, OFFLINE_SUMMARY_MIN_TICKS } from '../core/balance';
 import { deriveBattleStats, type BattleStats } from '../core/battle';
@@ -599,6 +599,7 @@ export class GameStore {
     this._unreadable = null;
     this.clearLoadFailed();
     this.replaceState(world);
+    checkFeats(this._state, { kind: 'rename', name: trimmed });
     this._summary = null;
     this.feedback = emptyFeedback();
     this.changed();

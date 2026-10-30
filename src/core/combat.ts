@@ -1,4 +1,4 @@
-import { checkAchievements } from './achievements';
+import { checkAchievements, checkFeats } from './achievements';
 import { autoMapContinues } from './autoMapRule';
 import {
   ARMORED_TAKEN, BAND_OF_THE_DEEP_HEAL, BOSS_DROPS, CHAMPION_DROPS, CHAMPION_MAGIC_FIND, CLEAVE_TARGETS, COMBAT_LOG_LIMIT, COMBAT_STEP_S,
@@ -70,8 +70,10 @@ export function endRun(state: GameState, run: MapRun, outcome: RunOutcome, event
     state.mapTally.cleared += 1;
     state.stats.mapsCleared += 1;
     checkAchievements(state, 'maps');
-    if (run.map.special !== undefined) addToSet(state.stats.specialsCleared, run.map.special);
-    addToSet(state.stats.dungeonTypesCleared, `${run.map.tier}:${dungeonIndexAt(state.seed, run.map.metre)}`);
+    if (run.map.special !== undefined && addToSet(state.stats.specialsCleared, run.map.special)) checkAchievements(state, 'collection.specials');
+    if (addToSet(state.stats.dungeonTypesCleared, `${run.map.tier}:${dungeonIndexAt(state.seed, run.map.metre)}`)) {
+      checkAchievements(state, 'collection.dungeons');
+    }
     if (isGateTier(run.map.tier) && run.attempt === 1) addToSet(state.stats.gatesFirstTry, run.map.tier);
   } else {
     state.mapTally.lost += 1;
@@ -87,6 +89,7 @@ export function endRun(state: GameState, run: MapRun, outcome: RunOutcome, event
     if (hasKeystone(state, 'soulDebt')) state.souls = Math.round(state.souls * 0.9);
   }
   state.activity = { kind: 'dig' };
+  checkFeats(state, { kind: 'runEnd', run, result });
   events?.push({ kind: 'runEnd', result });
 }
 
@@ -147,7 +150,9 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
   checkAchievements(state, 'kills');
   if (monster.rank === 'champion') {
     state.stats.championKills += 1;
-    for (const mod of monster.mods) addToSet(state.stats.championModsKilled, mod);
+    let newMod = false;
+    for (const mod of monster.mods) newMod = addToSet(state.stats.championModsKilled, mod) || newMod;
+    if (newMod) checkAchievements(state, 'collection.championMods');
     checkAchievements(state, 'champions');
   }
   if (monster.rank === 'boss') {
@@ -188,6 +193,7 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
     const offset = pickWeighted(state, MAP_CLEAR_TIER_WEIGHTS);
     takeDrop(run, dropMap(state, mapTier(state, Math.max(1, tier + offset)), metre, origin));
   }
+  checkFeats(state, { kind: 'kill', run, monster });
 }
 
 /** One strike at the fighting monster; its damage and crit draw from `gen` (the unique stream for the Peacemaker's second). */

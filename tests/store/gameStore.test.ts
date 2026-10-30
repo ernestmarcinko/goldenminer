@@ -4,6 +4,7 @@ import { MemoryStorage, SAVE_KEY, BACKUP_PREFIX, safeStorage } from '../../src/s
 import { decodeSave, encodeSave } from '../../src/core/save';
 import { compressToBase64 } from 'lz-string';
 import fixture5 from '../fixtures/save-schema-5.txt?raw';
+import { registerFeatsForTest } from '../../src/core/achievements';
 import { newGame } from '../../src/core/newGame';
 import { isValidCharacterName } from '../../src/core/names';
 import { PASSIVE_NODE_BY_ID, START_NODE_ID } from '../../src/core/passives';
@@ -289,6 +290,24 @@ describe('inventory intents', () => {
     expect(store.state.settings.lootFilter.every((r) => r.kind === 'gear')).toBe(true);
     expect(s.overflow).toEqual([]);
     expect('setBagFull' in store).toBe(false);
+  });
+
+  it('naming a new world offers the name to the rename feats, and a feat earned that way is notified', () => {
+    const seen: string[] = [];
+    registerFeatsForTest([{
+      id: 'secret.test-name', family: 'test', kind: 'hidden', name: 'Namesake', desc: 'Name the miner Gorvash.', on: 'rename',
+      test: (_s, e) => { if (e.kind === 'rename') seen.push(e.name); return e.kind === 'rename' && e.name === 'Gorvash'; },
+    }]);
+    try {
+      const { store } = make(); store.load();
+      expect(store.newWorld('Miner', null)).toBe(true);
+      expect(store.state.achievements.earned).not.toContain('secret.test-name');
+      expect(store.newWorld('  Gorvash ', null)).toBe(true);
+      expect(seen).toEqual(['Miner', 'Gorvash']);
+      expect(store.state.achievements.earned).toContain('secret.test-name');
+    } finally {
+      registerFeatsForTest(null);
+    }
   });
 
   it('a new world from a typed name and seed, or refused when either is empty', () => {

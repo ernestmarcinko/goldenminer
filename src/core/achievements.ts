@@ -1,7 +1,7 @@
-import { MATERIAL_LABELS } from './itemData';
-import { MATERIALS, type Material } from './items';
+import { LEGENDARIES, MATERIAL_LABELS } from './itemData';
+import { GEM_GRADES, GEM_TYPES, MAP_SPECIALS, MATERIALS, RUNE_TYPES, type Item, type Material } from './items';
 import type { IconGlyphId } from './skillIcons';
-import type { GameState } from './types';
+import { CHAMPION_MODS, type GameState, type MapRun, type MonsterState, type RunResult } from './types';
 
 /**
  * The permanent, global boost each earned achievement grants: +1% per achievement, applied to the final derived
@@ -29,6 +29,8 @@ interface FamilyDef {
   label: string;
   thresholds: readonly number[];
   desc: (n: number) => string;
+  /** A collection's size so far, read off the lifetime ledger; absent for a ladder, whose counter `familyValue` knows. */
+  size?: (state: GameState) => number;
 }
 
 /** Whole numbers with thousands separators, for the generated descriptions. */
@@ -195,7 +197,56 @@ const ORE_DEFS: readonly FamilyDef[] = MATERIALS.map((material) => {
   };
 });
 
-const ALL_DEFS: readonly FamilyDef[] = [...FAMILY_DEFS, ...ORE_DEFS];
+// --------------------------------------------------------------------------------------------------------------------
+// Collections. One ladder per set of distinct finds, climbing to the set's full size, so the last step is "every one".
+// --------------------------------------------------------------------------------------------------------------------
+
+/** The `steps` below `total`, then `total` itself: a collection's ladder always ends at the full set. */
+function stepsTo(total: number, steps: readonly number[]): number[] {
+  return [...steps.filter((n) => n < total), total];
+}
+
+const LEGENDARY_TIERS = [1, 2, 3, 4, 5] as const;
+const legendariesOfTier = (tier: number): string[] => LEGENDARIES.filter((d) => d.tier === tier).map((d) => d.id);
+const GEM_PAIRS = GEM_TYPES.length * GEM_GRADES.length;
+
+const COLLECTION_DEFS: readonly FamilyDef[] = [
+  { family: 'collection.legendaries', label: 'Legendaries Found',
+    thresholds: stepsTo(LEGENDARIES.length, [1, 3, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]),
+    size: (state) => state.stats.legendariesFound.length,
+    desc: (n) => n === LEGENDARIES.length ? 'Find every legendary.' : `Find ${n} different legendaries.` },
+  ...LEGENDARY_TIERS.map((tier): FamilyDef => {
+    const ids = legendariesOfTier(tier);
+    return {
+      family: `collection.legendaryTier${tier}`,
+      label: `Tier ${tier} Legendaries`,
+      thresholds: stepsTo(ids.length, [1, 3, 5, 8, 10, 12]),
+      size: (state) => state.stats.legendariesFound.filter((id) => ids.includes(id)).length,
+      desc: (n) => n === ids.length ? `Find every tier ${tier} legendary.` : `Find ${n} different tier ${tier} legendaries.`,
+    };
+  }),
+  { family: 'collection.runes', label: 'Runes Found', thresholds: stepsTo(RUNE_TYPES.length, [1, 2, 3, 4, 5, 6, 7, 8, 9]),
+    size: (state) => state.stats.runesFound.length,
+    desc: (n) => n === RUNE_TYPES.length ? 'Find every rune.' : `Find ${n} different runes.` },
+  { family: 'collection.championMods', label: 'Champion Mods Slain', thresholds: stepsTo(CHAMPION_MODS.length, [1, 2, 3, 4, 5]),
+    size: (state) => state.stats.championModsKilled.length,
+    desc: (n) => n === CHAMPION_MODS.length ? 'Slay a champion with every mod.' : `Slay champions bearing ${n} different mods.` },
+  { family: 'collection.specials', label: 'Map Specials Cleared', thresholds: stepsTo(MAP_SPECIALS.length, [1, 2, 3, 4, 5]),
+    size: (state) => state.stats.specialsCleared.length,
+    desc: (n) => n === MAP_SPECIALS.length ? 'Clear a map of every special.' : `Clear maps of ${n} different specials.` },
+  { family: 'collection.gems', label: 'Gems Found', thresholds: stepsTo(GEM_PAIRS, [1, 2, 3, 5, 8, 10, 13, 15, 18, 20, 22]),
+    size: (state) => GEM_TYPES.reduce((n, type) => n + GEM_GRADES.filter((grade) => state.stats.gemsFound[type][grade] > 0).length, 0),
+    desc: (n) => n === GEM_PAIRS ? 'Find every gem of every grade.' : `Find ${n} different gems, each type and grade counting once.` },
+  { family: 'collection.dungeons', label: 'Dungeon Types Cleared', thresholds: [5, 10, 25, 50, 100],
+    size: (state) => state.stats.dungeonTypesCleared.length,
+    desc: (n) => `Clear ${n} different dungeon types in one world.` },
+];
+
+const ALL_DEFS: readonly FamilyDef[] = [...FAMILY_DEFS, ...ORE_DEFS, ...COLLECTION_DEFS];
+
+const SIZE_OF: ReadonlyMap<string, (state: GameState) => number> = new Map(
+  COLLECTION_DEFS.flatMap((def) => (def.size === undefined ? [] : [[def.family, def.size] as const])),
+);
 
 // --------------------------------------------------------------------------------------------------------------------
 // Naming. Every achievement gets a hand-written, cookie-clicker-style name — a pun, a phrase or a sentence, never a
@@ -302,7 +353,7 @@ const NAMES: readonly string[] = [
   'The Fist of the North Star', 'The Right Hand Man', 'The Left-Handed Compliment', 'The Underhanded Move',
   'The Overhand Swing', 'The Backhanded Compliment', 'The Roundhouse Kick', 'The Haymaker', 'The Uppercut',
   'The One-Two Punch', 'The Knockout Blow', 'The Below-the-Belt Blow', 'The Cheap Shot', 'The Sucker Punch',
-  'The Haymaker', 'The Sunday Punch', 'The Lucky Punch', 'The Rabbit Punch', 'The Hook', 'The Jab', 'The Cross',
+  'The Windmill Haymaker', 'The Sunday Punch', 'The Lucky Punch', 'The Rabbit Punch', 'The Hook', 'The Jab', 'The Cross',
   'The Feint', 'The Parry', 'The Riposte', 'The Counter', 'The Clinch', 'The Grapple', 'The Throw', 'The Slam',
   'The Piledriver', 'The Body Slam', 'The Stone Cold Stunner', 'The Tombstone', 'The Chokeslam', 'The Powerbomb',
   'The Moonsault', 'The 450 Splash', 'The Hurricanrana', 'The Frankensteiner', 'The Tope Suicida', 'The Diving Headbutt',
@@ -563,6 +614,7 @@ const NAMES: readonly string[] = [
   'The Age of the Nerd', 'The Age of the Clicker', 'The Age of the Grind', 'The Age of the Mine', 'The Age of the Deep',
   'The Age of the Dark', 'The Age of the Light', 'The Age of the Flame', 'The Age of the Forge', 'The Age of the Anvil',
   'The Age of the Hammer', 'The Age of the Pick', 'The Age of the Shovel', 'The Age of the Spade', 'The Age of the Digger',
+  'Gotta Dig ’Em All', 'Completionist’s Curse', 'Cabinet of Curiosities', 'Show and Tell', 'The Full Set', 'Mint in Box', 'Mostly Complete', 'Shelf Life', 'Checklist Cleared', 'One of Each, Please',
 ];
 
 /** The name for the `index`-th achievement: the `index`-th name, wrapping only past the list's end. */
@@ -570,7 +622,30 @@ function funkyName(index: number): string {
   return NAMES[index % NAMES.length] ?? `Achievement ${index}`;
 }
 
-/** The full generated table: families × thresholds, each with a unique funky name and `<family>.<value>` id. */
+/** What happened, for the feats to judge: each is offered right after the counters it concerns moved. */
+export type FeatEvent =
+  | { kind: 'runEnd'; run: MapRun; result: RunResult }
+  | { kind: 'kill'; run: MapRun; monster: MonsterState }
+  | { kind: 'click'; paused: boolean }
+  | { kind: 'metre'; depth: number }
+  | { kind: 'sell'; item: Item }
+  | { kind: 'salvage'; item: Item }
+  | { kind: 'rename'; name: string };
+
+/**
+ * A single deed (a feat, or a hidden one shown as "???" until earned). `test` only reads: it never draws from `state.rng`
+ * or any other stream and never changes the state, so a feat can neither shift a seeded world nor be earned twice.
+ */
+export interface FeatDef {
+  id: string; family: string; kind: 'feat' | 'hidden'; name: string; desc: string;
+  on: FeatEvent['kind'];
+  test: (state: GameState, event: FeatEvent) => boolean;
+}
+
+/** Every feat and hidden achievement. The list is written in the next step of the plan. */
+const FEATS: readonly FeatDef[] = [];
+
+/** The full table: the generated ladders and collections (families × thresholds, each with a unique funky name and `<family>.<value>` id), then the feats. */
 export const ACHIEVEMENTS: readonly AchievementDef[] = (() => {
   const out: AchievementDef[] = [];
   let index = 0;
@@ -579,7 +654,7 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = (() => {
       out.push({
         id: `${def.family}.${value}`,
         family: def.family,
-        kind: 'ladder',
+        kind: def.size === undefined ? 'ladder' : 'collection',
         value,
         name: funkyName(index),
         desc: def.desc(value),
@@ -587,6 +662,7 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = (() => {
       index += 1;
     }
   }
+  for (const feat of FEATS) out.push({ id: feat.id, family: feat.family, kind: feat.kind, value: 1, name: feat.name, desc: feat.desc });
   return out;
 })();
 
@@ -636,6 +712,13 @@ export const FAMILY_ICONS: Readonly<Record<string, IconGlyphId>> = {
   timePlayed: 'autoTickRate',
   timeAway: 'offlineCap',
   ...Object.fromEntries(MATERIALS.map((material): [string, IconGlyphId] => [`ore.${material}`, 'oreFind'])),
+  'collection.legendaries': 'star',
+  ...Object.fromEntries(LEGENDARY_TIERS.map((tier): [string, IconGlyphId] => [`collection.legendaryTier${tier}`, 'star'])),
+  'collection.runes': 'gemStack',
+  'collection.championMods': 'skull',
+  'collection.specials': 'cartographer',
+  'collection.gems': 'gemFind',
+  'collection.dungeons': 'mapFind',
 };
 
 /** The icon glyph an achievement's toast and tab row share. */
@@ -695,7 +778,11 @@ function familyValue(state: GameState, family: string): number {
     case 'sockets': return state.stats.gemsSocketed;
     case 'timePlayed': return Math.floor(state.stats.timePlayedMs / 3_600_000);
     case 'timeAway': return Math.floor(state.stats.timeAwayMs / 3_600_000);
-    default: return family.startsWith('ore.') ? (state.stats.oresFound[family.slice(4) as Material] ?? 0) : 0;
+    default: {
+      const size = SIZE_OF.get(family);
+      if (size !== undefined) return size(state);
+      return family.startsWith('ore.') ? (state.stats.oresFound[family.slice(4) as Material] ?? 0) : 0;
+    }
   }
 }
 
@@ -714,6 +801,43 @@ export function checkAchievements(state: GameState, family?: string): void {
       earned.push(a.id);
       earnedSet.add(a.id);
     }
+  }
+}
+
+/** Marks the legendary collections: the total and the tier of each legendary found, after the set grew. */
+export function checkLegendaryCollections(state: GameState): void {
+  checkAchievements(state, 'collection.legendaries');
+  for (const tier of LEGENDARY_TIERS) checkAchievements(state, `collection.legendaryTier${tier}`);
+}
+
+// The feats the engine judges, grouped by the event they wait for. Tests may swap the list; nothing else does.
+function groupByEvent(feats: readonly FeatDef[]): ReadonlyMap<FeatEvent['kind'], readonly FeatDef[]> {
+  const map = new Map<FeatEvent['kind'], FeatDef[]>();
+  for (const feat of feats) {
+    const list = map.get(feat.on);
+    if (list === undefined) map.set(feat.on, [feat]);
+    else list.push(feat);
+  }
+  return map;
+}
+
+let featsByEvent = groupByEvent(FEATS);
+
+/** Test-only: judges `feats` instead of the real list; `null` puts the real list back. */
+export function registerFeatsForTest(feats: readonly FeatDef[] | null): void {
+  featsByEvent = groupByEvent(feats ?? FEATS);
+}
+
+/** Earns every feat waiting for this kind of event whose test now passes. Each is earned once, and nothing here draws a random number. */
+export function checkFeats(state: GameState, event: FeatEvent): void {
+  const feats = featsByEvent.get(event.kind);
+  if (feats === undefined) return;
+  const earned = state.achievements.earned;
+  const earnedSet = new Set(earned);
+  for (const feat of feats) {
+    if (earnedSet.has(feat.id) || !feat.test(state, event)) continue;
+    earned.push(feat.id);
+    earnedSet.add(feat.id);
   }
 }
 

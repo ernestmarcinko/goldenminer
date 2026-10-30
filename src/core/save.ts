@@ -503,14 +503,14 @@ export const MIGRATIONS: Record<number, Migration> = {
   },
   24: (state) => {
     if (!isObject(state)) return state;
-    // The feat and collection ledger starts empty (past finds were not tracked), and a run in flight starts tracking now:
-    // its lowest life is its life as it stands, no time is counted and it is not a gate attempt.
+    // The feat and collection ledger starts empty (past finds and paused clicks were not tracked), and a run in flight
+    // starts tracking now: its lowest life is its life as it stands, no time is counted and it is not a gate attempt.
     const next: Record<string, unknown> = {
       ...state,
       stats: isObject(state.stats)
         ? {
           legendariesFound: [], runesFound: [], championModsKilled: [], specialsCleared: [], dungeonTypesCleared: [],
-          gateAttempts: {}, gatesFirstTry: [], ...state.stats,
+          gateAttempts: {}, gatesFirstTry: [], clicksPaused: 0, ...state.stats,
         }
         : state.stats,
     };
@@ -915,7 +915,7 @@ const isLifetime = (x: unknown): x is { ascensions: number; deepest: number } =>
 function isLifetimeStats(x: unknown): x is LifetimeStats {
   if (!isObject(x)) return false;
   const scalars = [
-    'metresDug', 'clicks', 'metresDugByClick', 'metresDugAuto',
+    'metresDug', 'clicks', 'clicksPaused', 'metresDugByClick', 'metresDugAuto',
     'timePlayedMs', 'timeAwayMs', 'timeDiggingMs', 'timeCombatMs', 'timeIdleMs',
     'goldFound', 'goldFromSales', 'goldSpent', 'diamondsFound', 'diamondsSpent', 'soulsEarned', 'soulsSpent',
     'chestsOpened', 'mapsFound', 'mapsFromClears', 'monstersKilled', 'championKills', 'bossKills', 'deaths', 'mapsCleared', 'mapsLost',

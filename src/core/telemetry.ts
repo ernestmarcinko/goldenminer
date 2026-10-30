@@ -28,7 +28,7 @@ const emptyGems = (): Record<GemType, Record<GemGrade, number>> => {
  */
 export function emptyLifetimeStats(): LifetimeStats {
   return {
-    metresDug: 0, clicks: 0, metresDugByClick: 0, metresDugAuto: 0,
+    metresDug: 0, clicks: 0, clicksPaused: 0, metresDugByClick: 0, metresDugAuto: 0,
     timePlayedMs: 0, timeAwayMs: 0, timeDiggingMs: 0, timeCombatMs: 0, timeIdleMs: 0,
     goldFound: 0, goldFromSales: 0, goldSpent: 0,
     diamondsFound: 0, diamondsSpent: 0, soulsEarned: 0, soulsSpent: 0,

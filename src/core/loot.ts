@@ -1,4 +1,4 @@
-import { checkAchievements } from './achievements';
+import { checkAchievements, checkFeats, checkLegendaryCollections } from './achievements';
 import {
   GEM_GRADE_LEVEL, GEM_SALVAGE_TIN, GEM_SELL_GOLD, GEM_STASH_STACK, MAP_RARITY_SELL, MAP_SALVAGE, MAP_SELL_GOLD,
   MATERIAL_STASH_STACK, MAX_HELD, RUNE_SALVAGE_VOID_CRYSTAL, RUNE_SELL_GOLD, RUNE_STASH_STACK, SALVAGE_MATERIALS, SELL_GOLD,
@@ -127,6 +127,7 @@ export function sellFind(state: GameState, item: Loot): LootNote {
   state.gold += value;
   state.stats.goldFromSales += value;
   checkAchievements(state, 'gold');
+  checkFeats(state, { kind: 'sell', item });
   return note(item, 'sold', value);
 }
 
@@ -282,6 +283,7 @@ function applyFilter(state: GameState, item: Item): Fate | null {
     }
     case 'salvage': {
       const stored = stashMaterials(state, salvagePay(item, deriveStats(state)));
+      checkFeats(state, { kind: 'salvage', item });
       return fate(note(item, 'salvaged', units(stored)), { event: 'filterSalvaged', materials: stored }, unitsOf(item));
     }
   }
@@ -336,12 +338,13 @@ export function receiveItem(state: GameState, item: Loot, origin: DropOrigin): L
     state.stats.gems += item.count;
     countGem(state.stats, item.gem, item.grade, item.count);
     checkAchievements(state, 'gems');
+    checkAchievements(state, 'collection.gems');
   } else if (item.type === 'gear' && item.rarity === 'legendary') {
     state.stats.legendaries += 1;
-    if (item.uniqueId !== undefined) addToSet(state.stats.legendariesFound, item.uniqueId);
+    if (item.uniqueId !== undefined && addToSet(state.stats.legendariesFound, item.uniqueId)) checkLegendaryCollections(state);
     checkAchievements(state, 'legendaries');
   } else if (item.type === 'rune') {
-    addToSet(state.stats.runesFound, item.rune);
+    if (addToSet(state.stats.runesFound, item.rune)) checkAchievements(state, 'collection.runes');
   }
   const filtered = applyFilter(state, item);
   const rest = unitsOf(item) - (filtered?.count ?? 0);
