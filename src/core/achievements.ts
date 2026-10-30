@@ -1,5 +1,6 @@
 import { LEGENDARIES, MATERIAL_LABELS } from './itemData';
 import { GEM_GRADES, GEM_TYPES, MAP_SPECIALS, MATERIALS, RUNE_TYPES, type Item, type Material } from './items';
+import { addToSet } from './ledger';
 import type { IconGlyphId } from './skillIcons';
 import { CHAMPION_MODS, type GameState, type MapRun, type MonsterState, type RunResult } from './types';
 
@@ -804,8 +805,9 @@ export function checkAchievements(state: GameState, family?: string): void {
   }
 }
 
-/** Marks the legendary collections: the total and the tier of each legendary found, after the set grew. */
-export function checkLegendaryCollections(state: GameState): void {
+/** Notes a legendary received, dropped or bought in the lifetime set and, when it is a new one, marks the legendary collections. */
+export function recordLegendary(state: GameState, uniqueId: string | undefined): void {
+  if (uniqueId === undefined || !addToSet(state.stats.legendariesFound, uniqueId)) return;
   checkAchievements(state, 'collection.legendaries');
   for (const tier of LEGENDARY_TIERS) checkAchievements(state, `collection.legendaryTier${tier}`);
 }

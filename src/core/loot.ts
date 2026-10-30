@@ -1,4 +1,4 @@
-import { checkAchievements, checkFeats, checkLegendaryCollections } from './achievements';
+import { checkAchievements, checkFeats, recordLegendary } from './achievements';
 import {
   GEM_GRADE_LEVEL, GEM_SALVAGE_TIN, GEM_SELL_GOLD, GEM_STASH_STACK, MAP_RARITY_SELL, MAP_SALVAGE, MAP_SELL_GOLD,
   MATERIAL_STASH_STACK, MAX_HELD, RUNE_SALVAGE_VOID_CRYSTAL, RUNE_SELL_GOLD, RUNE_STASH_STACK, SALVAGE_MATERIALS, SELL_GOLD,
@@ -121,12 +121,18 @@ function note(item: Item, outcome: LootOutcome, value = 0): LootNote {
   }
 }
 
-/** Sells a find, or part of a gem stack, for its sell pay: the Gold is paid and the note says how much. */
+/**
+ * Sells a find, or part of a gem stack, for its sell pay: the Gold is paid, the sale is counted and the note says how
+ * much. Every sale (manual, loot filter or overflow) comes through here, so the sell feats are offered once per sale,
+ * after the counters moved.
+ */
 export function sellFind(state: GameState, item: Loot): LootNote {
   const value = sellPay(item, deriveStats(state));
   state.gold += value;
   state.stats.goldFromSales += value;
   checkAchievements(state, 'gold');
+  state.stats.itemsSold += 1;
+  checkAchievements(state, 'itemsSold');
   checkFeats(state, { kind: 'sell', item });
   return note(item, 'sold', value);
 }
@@ -139,15 +145,9 @@ const unitsOf = (item: Item): number => (isStack(item) ? item.count : 1);
 
 function tally(state: GameState, notes: LootNote[]): LootNote[] {
   for (const n of notes) {
-    if (n.outcome === 'sold') {
-      state.lootTally.sold += 1;
-      state.stats.itemsSold += 1;
-      checkAchievements(state, 'itemsSold');
-    } else if (n.outcome === 'salvaged') {
-      state.lootTally.salvaged += 1;
-      state.stats.itemsSalvaged += 1;
-      checkAchievements(state, 'itemsSalvaged');
-    } else {
+    if (n.outcome === 'sold') state.lootTally.sold += 1;
+    else if (n.outcome === 'salvaged') state.lootTally.salvaged += 1;
+    else {
       state.lootTally.kept += 1;
       state.stats.itemsKept += 1;
       checkAchievements(state, 'itemsKept');
@@ -283,6 +283,8 @@ function applyFilter(state: GameState, item: Item): Fate | null {
     }
     case 'salvage': {
       const stored = stashMaterials(state, salvagePay(item, deriveStats(state)));
+      state.stats.itemsSalvaged += 1;
+      checkAchievements(state, 'itemsSalvaged');
       checkFeats(state, { kind: 'salvage', item });
       return fate(note(item, 'salvaged', units(stored)), { event: 'filterSalvaged', materials: stored }, unitsOf(item));
     }
@@ -341,7 +343,7 @@ export function receiveItem(state: GameState, item: Loot, origin: DropOrigin): L
     checkAchievements(state, 'collection.gems');
   } else if (item.type === 'gear' && item.rarity === 'legendary') {
     state.stats.legendaries += 1;
-    if (item.uniqueId !== undefined && addToSet(state.stats.legendariesFound, item.uniqueId)) checkLegendaryCollections(state);
+    recordLegendary(state, item.uniqueId);
     checkAchievements(state, 'legendaries');
   } else if (item.type === 'rune') {
     if (addToSet(state.stats.runesFound, item.rune)) checkAchievements(state, 'collection.runes');

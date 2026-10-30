@@ -1,10 +1,9 @@
-import { checkAchievements, checkLegendaryCollections } from './achievements';
+import { checkAchievements, recordLegendary } from './achievements';
 import { GAMBLE_GOLD } from './balance';
 import { metreTier } from './bands';
 import { firstEmpty } from './cells';
 import { logDrop } from './dropLog';
 import { rollGear, rollRarity } from './itemGen';
-import { addToSet } from './ledger';
 import { setOfSlot, type GearItem, type Slot } from './items';
 import type { GameState } from './types';
 
@@ -36,7 +35,7 @@ export function gamble(state: GameState, slot: Slot): { result: GambleResult; it
   checkAchievements(state, 'goldSpent');
   if (item.rarity === 'legendary') {
     state.stats.legendaries += 1;
-    if (item.uniqueId !== undefined && addToSet(state.stats.legendariesFound, item.uniqueId)) checkLegendaryCollections(state);
+    recordLegendary(state, item.uniqueId);
     checkAchievements(state, 'legendaries');
   }
   state.stats.itemsBought += 1;

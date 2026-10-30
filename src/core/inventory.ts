@@ -365,8 +365,6 @@ export function sell(state: GameState, from: ItemLoc): InvResult {
   const item = discard(state, from);
   if (item === undefined) return 'invalid';
   trail(state, item.id, { event: 'sold', gold: sellFind(state, item).value });
-  state.stats.itemsSold += 1;
-  checkAchievements(state, 'itemsSold');
   return 'ok';
 }
 

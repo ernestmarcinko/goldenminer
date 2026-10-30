@@ -418,6 +418,35 @@ describe('where the feat hooks fire', () => {
     expect(salvaged.seen).toEqual([{ kind: 'salvage', item: b }]);
   });
 
+  it('a sell is offered once, after itemsSold moved, on the manual and the filter path alike', () => {
+    const counts: number[] = [];
+    const { feat, seen } = spy('sell');
+    registerFeatsForTest([{ ...feat, test: (s, e) => { counts.push(s.stats.itemsSold); return feat.test(s, e); } }]);
+    const s = newGame(1, 0);
+    s.bag[0] = gear(s, 'pickaxe');
+    expect(sell(s, { where: 'bag', index: 0 })).toBe('ok');
+    expect(counts).toEqual([1]);
+    expect(s.stats.itemsSold).toBe(1);
+    s.settings.lootFilter = [{ kind: 'gear', rarity: 'normal', action: 'sell' }];
+    receiveItem(s, gear(s, 'lamp', { rarity: 'normal' }), { kind: 'metre', metre: 1 });
+    expect(counts).toEqual([1, 2]);
+    expect(seen).toHaveLength(2);
+    expect(s.stats.itemsSold).toBe(2);
+  });
+
+  it('a salvage is offered once, after itemsSalvaged moved, on the manual and the filter path alike', () => {
+    const counts: number[] = [];
+    const { feat, seen } = spy('salvage');
+    registerFeatsForTest([{ ...feat, test: (s, e) => { counts.push(s.stats.itemsSalvaged); return feat.test(s, e); } }]);
+    const s = newGame(1, 0);
+    s.bag[0] = gear(s, 'pickaxe');
+    expect(salvage(s, { where: 'bag', index: 0 })).toBe('ok');
+    s.settings.lootFilter = [{ kind: 'gear', rarity: 'normal', action: 'salvage' }];
+    receiveItem(s, gear(s, 'lamp', { rarity: 'normal' }), { kind: 'metre', metre: 1 });
+    expect(counts).toEqual([1, 2]);
+    expect(seen).toHaveLength(2);
+  });
+
   it('a find the loot filter sells or salvages offers the item too', () => {
     const sold = spy('sell');
     const salvaged = spy('salvage');
