@@ -96,7 +96,7 @@ export function startMap(state: GameState, mapId: number, auto = false): 'ok' | 
       map, room: 1, bossRoom: layout.rooms.length + 1, queue,
       life: maxLife, hitCarry: 0, monsterCarry: 0, regenCarry: 0,
       gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [], items: 0, strikes: 0,
-      minLife: maxLife, elapsedS: 0, attempt, startedWith: runHandicaps(state),
+      minLifeShare: 1, elapsedS: 0, attempt, startedWith: runHandicaps(state),
       ...(auto ? { auto: true as const } : {}),
     },
   };

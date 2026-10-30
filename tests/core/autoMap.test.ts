@@ -1,4 +1,6 @@
 import { expect, it } from 'vitest';
+import { registerFeatsForTest, type FeatEvent } from '../../src/core/achievements';
+import { advance } from '../../src/core/clock';
 import { ASCENDANCY_NODES } from '../../src/core/ascendancy';
 import {
   autoMapping, autoMapQueueSize, nextEligibleAutoMap, queueForAutoMap, tryAutoMap, unqueueForAutoMap,
@@ -215,4 +217,25 @@ it('the last auto-mapped map and a manual run show their results', () => {
   if (run === undefined) throw new Error('no run');
   endRun(s, run, 'cleared');
   expect(s.lastRun?.seen).toBe(false);   // a manual run always shows, even with a queue behind it
+});
+
+it('an offline catch-up through several queued auto-maps offers a run-end feat once per run', () => {
+  const seen: FeatEvent[] = [];
+  registerFeatsForTest([{
+    id: 'feat.test-probe', family: 'test', kind: 'feat', name: 'Probe', desc: 'Watches every run end.', on: 'runEnd',
+    test: (_s, e) => { seen.push(e); return false; },
+  }]);
+  try {
+    const s = ready();
+    for (let i = 0; i < 4; i++) expect(queueForAutoMap(s, stashMap(s, 1, 10 + i).id)).toBe('ok');
+    const stats = deriveStats(s);
+    advance(s, stats.offlineCapMs, stats, undefined, false, true);
+    const finished = s.mapTally.cleared + s.mapTally.lost;
+    expect(finished).toBeGreaterThanOrEqual(3);
+    const runs = seen.flatMap((e) => (e.kind === 'runEnd' ? [e.run] : []));
+    expect(runs).toHaveLength(finished);
+    expect(new Set(runs.map((r) => r.map.id)).size).toBe(finished);
+  } finally {
+    registerFeatsForTest(null);
+  }
 });

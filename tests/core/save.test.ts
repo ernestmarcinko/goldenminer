@@ -498,7 +498,7 @@ function running(): GameState {
   const s = newGame(1, 0);
   const map = looseMap(s, 2, 2);
   s.activity = { kind: 'map', run: {
-    map, room: 1, bossRoom: 6, life: 40, hitCarry: 0, monsterCarry: 0, regenCarry: 0, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [], items: 0, strikes: 0, minLife: 40, elapsedS: 0, attempt: 0, startedWith: { emptySlot: false, plainGear: false, noBattleGear: false, noPassives: false },
+    map, room: 1, bossRoom: 6, life: 40, hitCarry: 0, monsterCarry: 0, regenCarry: 0, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [], items: 0, strikes: 0, minLifeShare: 1, elapsedS: 0, attempt: 0, startedWith: { emptySlot: false, plainGear: false, noBattleGear: false, noPassives: false },
     queue: [{ name: 'Mud Slime', species: 1, rank: 'normal', mods: [], extra: 7, element: 'elemental', life: 30, maxLife: 37, damage: 4, intervalS: 2, xp: 28 }],
   } };
   return s;
@@ -901,7 +901,7 @@ it('the schema-8 fixture migrates to hold mode, keeps its held gear, groups its 
     expect(list).toEqual(oldTab.filter((m: MapItem) => m.tier === Number(tier)));
   }
   // schema 10 starts the run's strike count
-  const activity = { ...old.activity, run: { ...old.activity.run, strikes: 0, minLife: old.activity.run.life, elapsedS: 0, attempt: 0, startedWith: { emptySlot: false, plainGear: false, noBattleGear: false, noPassives: false } } };
+  const activity = { ...old.activity, run: { ...old.activity.run, strikes: 0, minLifeShare: 1, elapsedS: 0, attempt: 0, startedWith: { emptySlot: false, plainGear: false, noBattleGear: false, noPassives: false } } };
   expect([s.bag, s.equipped, s.stash.general, s.activity, s.lastRun, s.finds])
     .toEqual([old.bag, old.equipped, old.stash.general, activity, old.lastRun, old.finds]);
   // the run in progress plays on to its end
@@ -1082,7 +1082,7 @@ it('the schema-9 fixture migrates its rules, gains an empty bought record and a 
   const run = s.activity.kind === 'map' ? s.activity.run : null;
   expect(run?.strikes).toBe(0);
   expect(run?.saved).toBeUndefined();
-  expect(run).toEqual({ ...old.activity.run, strikes: 0, minLife: old.activity.run.life, elapsedS: 0, attempt: 0, startedWith: { emptySlot: false, plainGear: false, noBattleGear: false, noPassives: false } });
+  expect(run).toEqual({ ...old.activity.run, strikes: 0, minLifeShare: 1, elapsedS: 0, attempt: 0, startedWith: { emptySlot: false, plainGear: false, noBattleGear: false, noPassives: false } });
   const { orbs: _orbs9, runes: _runes9, ...stash9 } = s.stash;
   expect([s.bag, s.equipped, stash9, s.overflow, s.drops, s.deaths, s.lastRun, s.gold, s.deepest])
     .toEqual([old.bag, old.equipped, old.stash, old.overflow, old.drops, old.deaths, old.lastRun, old.gold, old.deepest]);
@@ -1517,14 +1517,14 @@ describe('schema 25: the feat and collection ledger', () => {
       delete (old.stats as unknown as Record<string, unknown>)[k];
     }
     if (old.activity.kind !== 'map') throw new Error('no map is running');
-    for (const k of ['minLife', 'elapsedS', 'bossSinceS', 'attempt', 'startedWith']) delete (old.activity.run as unknown as Record<string, unknown>)[k];
+    for (const k of ['minLifeShare', 'elapsedS', 'bossSinceS', 'attempt', 'startedWith']) delete (old.activity.run as unknown as Record<string, unknown>)[k];
     const r = decodeSave(raw({ schema: 24, savedAt: 0, state: old }));
     if (!r.ok) throw new Error(r.reason);
     expect(r.state.stats).toMatchObject({
       legendariesFound: [], runesFound: [], championModsKilled: [], specialsCleared: [], dungeonTypesCleared: [], gateAttempts: {}, gatesFirstTry: [], clicksPaused: 0,
     });
     if (r.state.activity.kind !== 'map') throw new Error('no map is running');
-    expect(r.state.activity.run).toMatchObject({ minLife: r.state.activity.run.life, elapsedS: 0, attempt: 0 });
+    expect(r.state.activity.run).toMatchObject({ minLifeShare: 1, elapsedS: 0, attempt: 0 });
     expect(r.state.activity.run.bossSinceS).toBeUndefined();
     // a run already under way began with no handicap the feats can trust, and the pickaxe mark starts at the worn one
     expect(r.state.activity.run.startedWith).toEqual({ emptySlot: false, plainGear: false, noBattleGear: false, noPassives: false });
@@ -1600,8 +1600,10 @@ describe('schema 25: the feat and collection ledger', () => {
 
   it('requires the run fields on a live map run', () => {
     const cases: [string, (run: MapRun) => void][] = [
-      ['no minLife', (run) => { delete (run as Partial<MapRun>).minLife; }],
-      ['a zero minLife', (run) => { run.minLife = 0; }],
+      ['no minLifeShare', (run) => { delete (run as Partial<MapRun>).minLifeShare; }],
+      ['a negative minLifeShare', (run) => { run.minLifeShare = -0.1; }],
+      ['a minLifeShare above 1', (run) => { run.minLifeShare = 1.1; }],
+      ['a non-finite minLifeShare', (run) => { run.minLifeShare = Number.NaN; }],
       ['no elapsedS', (run) => { delete (run as Partial<MapRun>).elapsedS; }],
       ['a negative elapsedS', (run) => { run.elapsedS = -1; }],
       ['a negative bossSinceS', (run) => { run.bossSinceS = -1; }],

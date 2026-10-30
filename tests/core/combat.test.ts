@@ -722,19 +722,21 @@ describe('maps from map clears', () => {
 });
 
 describe('run tracking for feats', () => {
-  it('minLife is the lowest life the run reached, however far it healed back', () => {
+  it('minLifeShare is the lowest life share the run reached, however far it healed back', () => {
     const { s, run } = started({ intervalS: 0.25, damage: 30, life: 1e9, maxLife: 1e9 });
-    expect(run.minLife).toBe(run.life);
+    expect(run.minLifeShare).toBe(1);
     const start = run.life;
     applyTicks(s, 1, at(s, 4));
     expect(run.life).toBeLessThan(start);
-    expect(run.minLife).toBe(run.life);
-    const low = run.life;
+    const lowLife = run.life;
+    const low = run.minLifeShare;
+    expect(low).toBeLessThan(1);
+    expect(low).toBeCloseTo(run.life / deriveBattleStats(s).maxLife, 2);
     run.life = start;
     run.queue = [monster({ intervalS: 1000, life: 1e9, maxLife: 1e9 })];
     applyTicks(s, 1, at(s, 4));
-    expect(run.life).toBeGreaterThan(low);
-    expect(run.minLife).toBe(low);
+    expect(run.life).toBeGreaterThan(lowLife);
+    expect(run.minLifeShare).toBe(low);
   });
 
   it('elapsedS grows by one combat step per step, and the boss room stamps bossSinceS', () => {
@@ -752,6 +754,39 @@ describe('run tracking for feats', () => {
     expect(run.room).toBe(run.bossRoom);
     expect(run.bossSinceS).toBeGreaterThanOrEqual(before);
     expect(run.bossSinceS).toBe(run.elapsedS);
+  });
+
+  it('on a secondBoss map bossSinceS holds from the boss room’s start until the second boss dies, and a boss rush measures that span', () => {
+    const s = newGame(1, 0);
+    const map = stashMap(s, 5, 40);
+    map.special = 'secondBoss';
+    expect(startMap(s, map.id)).toBe('ok');
+    const run = runOf(s);
+    run.elapsedS = 20;
+    run.room = run.bossRoom - 1;
+    run.queue = [monster({ life: 1, maxLife: 1 })];
+    swing(s);
+    expect(run.room).toBe(run.bossRoom);
+    expect(run.queue).toHaveLength(2);
+    const since = run.bossSinceS;
+    expect(since).toBeGreaterThanOrEqual(20);
+    // the first boss falls: the run goes on, and the stamp is untouched
+    run.queue[0] = monster({ rank: 'boss', life: 1, maxLife: 1 });
+    run.queue[1] = monster({ rank: 'boss', life: 1e9, maxLife: 1e9, intervalS: 1e6 });
+    run.elapsedS += 1;
+    swing(s);
+    expect(run.queue).toHaveLength(1);
+    expect(s.activity.kind).toBe('map');
+    expect(run.bossSinceS).toBe(since);
+    // the second boss falls 1.5 s after the room began: the clear is a boss rush of that span, not of the first boss's
+    run.elapsedS = (since ?? 0) + 1.5 - COMBAT_STEP_S / 1000;
+    run.queue[0] = monster({ rank: 'boss', life: 1, maxLife: 1 });
+    swing(s);
+    expect(s.activity.kind).toBe('dig');
+    expect(s.lastRun?.outcome).toBe('cleared');
+    expect(s.achievements.earned).toContain('feat.bossRush.5');
+    expect(run.elapsedS - (since ?? 0)).toBeGreaterThan(1.4);
+    expect(run.elapsedS - (since ?? 0)).toBeLessThanOrEqual(2);
   });
 
   it('startMap counts the attempt on a gate tier only', () => {

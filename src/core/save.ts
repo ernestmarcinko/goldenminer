@@ -521,7 +521,7 @@ export const MIGRATIONS: Record<number, Migration> = {
     const { activity } = state;
     if (isObject(activity) && activity.kind === 'map' && isObject(activity.run)) {
       const startedWith = { emptySlot: false, plainGear: false, noBattleGear: false, noPassives: false };
-      next.activity = { ...activity, run: { minLife: activity.run.life, elapsedS: 0, attempt: 0, startedWith, ...activity.run } };
+      next.activity = { ...activity, run: { minLifeShare: 1, elapsedS: 0, attempt: 0, startedWith, ...activity.run } };
     }
     return next;
   },
@@ -961,6 +961,7 @@ function isAchievements(x: unknown): x is { earned: string[] } {
   if (!isObject(x) || !Array.isArray(x.earned)) return false;
   const ids = new Set<string>();
   for (const id of x.earned) {
+    // pruneEarned has already dropped unknown and non-string ids before validation, so this guards only duplicates.
     if (typeof id !== 'string' || !ACHIEVEMENT_IDS.has(id) || ids.has(id)) return false;
     ids.add(id);
   }
@@ -1069,7 +1070,7 @@ function isMapRun(x: unknown, seed: number, nextId: number, seen: Set<number>): 
   if (!isNonNegInt(x.life) || x.life < 1 || x.life > MAX_LIFE) return false;
   if (!isUnitRange(x.hitCarry) || !isUnitRange(x.monsterCarry) || !isUnitRange(x.regenCarry)) return false;
   if (!isGains(x.gained) || !isNonNegInt(x.items)) return false;
-  if (!isNonNegInt(x.minLife) || x.minLife < 1 || x.minLife > MAX_LIFE || !isNonNegFinite(x.elapsedS) || !isNonNegInt(x.attempt)) return false;
+  if (!isNonNegFinite(x.minLifeShare) || x.minLifeShare > 1 || !isNonNegFinite(x.elapsedS) || !isNonNegInt(x.attempt)) return false;
   if (x.bossSinceS !== undefined && !isNonNegFinite(x.bossSinceS)) return false;
   if (!isRunHandicaps(x.startedWith)) return false;
   if (!isNonNegInt(x.strikes) || (x.saved !== undefined && x.saved !== true) || (x.auto !== undefined && x.auto !== true)) return false;

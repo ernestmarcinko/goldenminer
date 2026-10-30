@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { MAX_CHARACTER_NAME, isValidCharacterName } from '../../core/names';
 import { SHAFT_MOTIONS, type MotionSettings, type ShaftMotion } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
 import { LootFilterDialog } from '../character/LootFilterDialog';
@@ -44,7 +45,19 @@ function SettingsMain({ store, returnTo, onOpen, onClose }: {
   store: GameStore; returnTo: Sub | null; onOpen: (sub: Sub) => void; onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
-  const { focusRef: closeRef, depth } = useDialog<HTMLButtonElement>(onClose, dialogRef);
+  // null: the name is shown; a string: the miner is being renamed to it.
+  const [draft, setDraft] = useState<string | null>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const renameRef = useRef<HTMLButtonElement>(null);
+  const renaming = draft !== null;
+  const draftValid = draft !== null && isValidCharacterName(draft);
+  const stopRename = (): void => {
+    setDraft(null);
+    // the rename button comes back after this render; hand focus to it
+    window.setTimeout(() => renameRef.current?.focus(), 0);
+  };
+  // Escape cancels a rename in progress before it closes the dialog.
+  const { focusRef: closeRef, depth } = useDialog<HTMLButtonElement>(() => { if (draft !== null) stopRename(); else onClose(); }, dialogRef);
   const { state } = useGame(store);
   const reduced = usePrefersReducedMotion();
   const shown = effectiveMotion(state.settings.motion, reduced);
@@ -54,6 +67,12 @@ function SettingsMain({ store, returnTo, onOpen, onClose }: {
   useEffect(() => {
     if (returnTo) document.querySelector<HTMLElement>(`[data-sub="${returnTo}"]`)?.focus();
   }, [returnTo]);
+
+  useEffect(() => { if (renaming) nameInputRef.current?.focus(); }, [renaming]);
+
+  const saveRename = (): void => {
+    if (draft !== null && store.renameCharacter(draft)) stopRename();
+  };
 
   const set = (patch: Partial<MotionSettings>): void => store.setMotion(patch);
 
@@ -114,10 +133,35 @@ function SettingsMain({ store, returnTo, onOpen, onClose }: {
 
         <section className="gm-dialog__section gm-dialog__section--ruled" aria-label="World">
           <h3>World</h3>
-          <div className="gm-seedrow">
-            <span id="gm-name-label" className="gm-visually-hidden">Miner&rsquo;s name</span>
-            <span className="gm-seedrow__seed" aria-labelledby="gm-name-label">{state.characterName}</span>
-          </div>
+          {draft === null ? (
+            <div className="gm-seedrow">
+              <span id="gm-name-label" className="gm-visually-hidden">Miner&rsquo;s name</span>
+              <span className="gm-seedrow__seed" aria-labelledby="gm-name-label">{state.characterName}</span>
+              <button type="button" ref={renameRef} className="gm-btn" onClick={() => setDraft(state.characterName)}>
+                Rename
+              </button>
+            </div>
+          ) : (
+            <form
+              className="gm-seedrow"
+              onSubmit={(e) => { e.preventDefault(); saveRename(); }}
+            >
+              <input
+                ref={nameInputRef}
+                type="text"
+                className="gm-seedrow__input"
+                value={draft}
+                maxLength={MAX_CHARACTER_NAME}
+                aria-label="New name for the miner"
+                aria-invalid={!draftValid || undefined}
+                autoComplete="off"
+                spellCheck={false}
+                onChange={(e) => setDraft(e.target.value)}
+              />
+              <button type="submit" className="gm-btn" disabled={!draftValid}>Save</button>
+              <button type="button" className="gm-btn" onClick={stopRename}>Cancel</button>
+            </form>
+          )}
           <div className="gm-seedrow">
             <span id="gm-seed-label" className="gm-visually-hidden">World seed</span>
             {/* The label stays outside the seed so selecting the seed by hand copies only the seed. */}

@@ -275,6 +275,9 @@ function strike(state: GameState, run: MapRun, b: BattleStats, events?: TickEven
   return 'room';
 }
 
+/** The run's life as a share of the step's max life, clamped to 0..1. */
+const lifeShareOf = (run: MapRun, b: BattleStats): number => Math.min(1, Math.max(0, run.life / b.maxLife));
+
 /**
  * One combat step of `dt` seconds: life regeneration, the miner's auto hits, then (unless the room fell) the fighting
  * monster's attacks. Returns the battle stats to use next, re-derived after a level-up.
@@ -282,7 +285,7 @@ function strike(state: GameState, run: MapRun, b: BattleStats, events?: TickEven
 function combatStep(state: GameState, run: MapRun, b: BattleStats, dt: number, events?: TickEvent[]): BattleStats {
   // Regeneration heals in whole life; the fraction waits in the carry.
   run.elapsedS += dt;
-  run.minLife = Math.min(run.minLife, run.life);
+  run.minLifeShare = Math.min(run.minLifeShare, lifeShareOf(run, b));
   run.regenCarry += b.lifeRegen * dt;
   const healed = Math.floor(run.regenCarry);
   run.regenCarry -= healed;
@@ -343,7 +346,7 @@ function combatStep(state: GameState, run: MapRun, b: BattleStats, dt: number, e
       run.saved = true;
       logLine(run, { kind: 'saved', monster: killer ?? front.name });
     }
-    run.minLife = Math.min(run.minLife, run.life);
+    run.minLifeShare = Math.min(run.minLifeShare, lifeShareOf(run, b));
     if (run.life <= 0) {
       endRun(state, run, 'died', events, killer ?? front.name);
       return b;

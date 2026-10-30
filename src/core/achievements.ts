@@ -1,5 +1,4 @@
 import { GATE_EVERY, LEVEL_CAP } from './balance';
-import { deriveBattleStats } from './battle';
 import { dungeonLayout } from './dungeons';
 import { gateWall, isGateTier } from './gates';
 import { LEGENDARIES, MATERIAL_LABELS } from './itemData';
@@ -209,7 +208,12 @@ const ORE_DEFS: readonly FamilyDef[] = MATERIALS.map((material) => {
 // Collections. One ladder per set of distinct finds, climbing to the set's full size, so the last step is "every one".
 // --------------------------------------------------------------------------------------------------------------------
 
-/** The `steps` below `total`, then `total` itself: a collection's ladder always ends at the full set. */
+/**
+ * The `steps` below `total`, then `total` itself: a collection's ladder always ends at the full set. A collection whose
+ * top step equals a set's full size gets ids that shift when content is added to the set (the old top id then names a
+ * step below the new total); the prune and re-check on load drops what no longer exists and re-earns what the ledger
+ * still satisfies, so this is safe.
+ */
 function stepsTo(total: number, steps: readonly number[]): number[] {
   return [...steps.filter((n) => n < total), total];
 }
@@ -691,16 +695,9 @@ const CHAMPION_PACKS: readonly number[] = [4, 5, 6, 7];
 const clearedRun = (e: FeatEvent): e is RunEnd => e.kind === 'runEnd' && e.result.outcome === 'cleared';
 const clearedAtLeast = (e: FeatEvent, tier: number): e is RunEnd => clearedRun(e) && e.run.map.tier >= tier;
 
-// The lowest life of a run as a share of max life, worked out once per event however many feats ask.
-const lifeShares = new WeakMap<FeatEvent, number>();
-function lifeShare(state: GameState, e: RunEnd): number {
-  let share = lifeShares.get(e);
-  if (share === undefined) {
-    share = e.run.minLife / deriveBattleStats(state).maxLife;
-    lifeShares.set(e, share);
-  }
-  return share;
-}
+// The lowest life of a run as a share of the max life of the step it was seen in, tracked by the combat step itself
+// (so a level-up or a gear swap before the end cannot move it).
+const lifeShare = (e: RunEnd): number => e.run.minLifeShare;
 
 // A cleared map killed every champion of its layout: their count and the distinct mods they carried, once per event.
 const packs = new WeakMap<FeatEvent, { champions: number; mods: number }>();
@@ -800,7 +797,7 @@ const FEATS: readonly FeatDef[] = [
     'Zen Garden', 'Measured Response', 'Nerves of Steel', 'Grace Under Fire', 'Cool as a Cucumber', 'Serenity Now',
     'Not Even Sweating',
   ], 'runEnd', (t) => `Clear the tier ${t} gate without dropping below half your life.`,
-  (t, state, e) => clearedRun(e) && e.run.map.tier === t && lifeShare(state, e) >= 0.5),
+  (t, _s, e) => clearedRun(e) && e.run.map.tier === t && lifeShare(e) >= 0.5),
 
   ...tiered(FEAT_FAMILIES.clutch, GATE_TIERS, [
     'Clutch', 'By the Skin of Your Teeth', 'Close Shave', 'Nail-Biter', 'Hanging On', 'White Knuckles',
@@ -808,7 +805,7 @@ const FEATS: readonly FeatDef[] = [
     'Running on Fumes', 'Cheating Death', 'Near-Death Experience', 'Knocking on Death’s Door', 'Not Today',
     'Just a Flesh Wound', 'Tis But a Scratch', 'Still Standing',
   ], 'runEnd', (t) => `Clear a map of tier ${t} or higher after dropping below 10% of your life.`,
-  (t, state, e) => clearedAtLeast(e, t) && lifeShare(state, e) < 0.1),
+  (t, _s, e) => clearedAtLeast(e, t) && lifeShare(e) < 0.1),
 
   ...tiered(FEAT_FAMILIES.flawless, GATE_TIERS, [
     'Untouchable', 'Not a Hair Out of Place', 'Barely a Scratch', 'Clean Hands', 'Pristine', 'Spotless',
@@ -816,7 +813,7 @@ const FEATS: readonly FeatDef[] = [
     'Float Like a Butterfly', 'Dodge This', 'Can’t Touch This', 'Ghost Run', 'Immaculate', 'Without a Trace',
     'Perfectionist',
   ], 'runEnd', (t) => `Clear a map of tier ${t} or higher without dropping below 90% of your life.`,
-  (t, state, e) => clearedAtLeast(e, t) && lifeShare(state, e) >= 0.9),
+  (t, _s, e) => clearedAtLeast(e, t) && lifeShare(e) >= 0.9),
 
   ...tiered(FEAT_FAMILIES.bossRush, GATE_TIERS, [
     'Boss Rush', 'Speed Dating', 'Hostile Takeover', 'Pink Slip', 'You’re Fired', 'Quick Draw', 'Blink and Miss It',

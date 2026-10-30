@@ -310,6 +310,26 @@ describe('inventory intents', () => {
     }
   });
 
+  it('renaming the miner validates the name, keeps the old one on a refusal, and earns the name secrets with a toast', () => {
+    const { store } = make(); store.load();
+    expect(store.newWorld('Miner', null)).toBe(true);
+    for (const n of [...store.notifications]) store.dismissNotification(n.id);
+    for (const bad of ['', '   ', 'x'.repeat(200), 'tab\there']) {
+      expect(store.renameCharacter(bad), JSON.stringify(bad)).toBe(false);
+      expect(store.state.characterName).toBe('Miner');
+    }
+    expect(store.state.achievements.earned).not.toContain('secret.goldenMiner');
+    expect(store.renameCharacter('  Gorvash ')).toBe(true);
+    expect(store.state.characterName).toBe('Gorvash');
+    expect(store.notifications).toEqual([]);
+    expect(store.renameCharacter('Golden Miner')).toBe(true);
+    expect(store.state.characterName).toBe('Golden Miner');
+    expect(store.state.achievements.earned).toContain('secret.goldenMiner');
+    expect(store.notifications.map((n) => n.name)).toContain('Self-Titled');
+    expect(store.renameCharacter('STEVE')).toBe(true);
+    expect(store.state.achievements.earned).toContain('secret.steve');
+  });
+
   it('a new world from a typed name and seed, or refused when either is empty', () => {
     const { store } = make(); store.load();
     expect(store.newWorld('Gorvash', '  Golden Mole ')).toBe(true);

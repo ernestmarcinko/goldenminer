@@ -13,7 +13,7 @@ import { LEGENDARIES } from '../../src/core/itemData';
 import { startMap } from '../../src/core/maps';
 import { CHAMPION_MODS, type GameState, type MapRun, type MonsterState } from '../../src/core/types';
 import { deriveBattleStats } from '../../src/core/battle';
-import { collect, faceTicksPerMetre, finishMetre } from '../../src/core/dig';
+import { applyTicks, collect, faceTicksPerMetre, finishMetre } from '../../src/core/dig';
 import { addToSet } from '../../src/core/ledger';
 import { GEM_GRADES, GEM_TYPES, MAP_SPECIALS, MATERIALS, RUNE_TYPES } from '../../src/core/items';
 import { gamble } from '../../src/core/merchant';
@@ -309,7 +309,7 @@ describe('pruneEarned', () => {
 
 const clutchWin: FeatDef = {
   id: 'feat.test-clutch', family: 'test', kind: 'feat', name: 'Clutch', desc: 'Clear a map below 10% life.', on: 'runEnd',
-  test: (s, e) => e.kind === 'runEnd' && e.result.outcome === 'cleared' && e.run.minLife / deriveBattleStats(s).maxLife < 0.1,
+  test: (s, e) => e.kind === 'runEnd' && e.result.outcome === 'cleared' && e.run.minLifeShare < 0.1,
 };
 const pausedClick: FeatDef = {
   id: 'secret.test-paused', family: 'test', kind: 'hidden', name: 'Idle hands', desc: 'Click while paused.', on: 'click',
@@ -332,7 +332,7 @@ function inMap(lifeShare = 1, tier = 1, metre = 2, prepare?: (s: GameState) => v
   expect(startMap(s, stashMap(s, tier, metre).id)).toBe('ok');
   if (s.activity.kind !== 'map') throw new Error('no map is running');
   const run = s.activity.run;
-  run.minLife = Math.max(1, Math.round(deriveBattleStats(s).maxLife * lifeShare));
+  run.minLifeShare = lifeShare;
   return { s, run };
 }
 
@@ -674,6 +674,53 @@ describe('the real feats', () => {
     expect(s.achievements.earned).not.toContain('feat.clutch.15');
     expect(s.achievements.earned).not.toContain('feat.flawless.10');
     expect(s.achievements.earned).not.toContain('feat.gateComposed.10');
+  });
+
+  describe('the life share is measured during the run', () => {
+    /** A run in a harmless, unkillable room, stepped once so the share is sampled against the current stats. */
+    function calmRun(prepare?: (s: GameState) => void): { s: GameState; run: MapRun } {
+      const { s, run } = inMap(1, 5, 2, prepare);
+      run.queue = [{ name: 'Dummy', species: 0, rank: 'normal', mods: [], extra: 0, element: 'physical', life: 1e12, maxLife: 1e12, damage: 1, intervalS: 1e6, xp: 10 }];
+      return { s, run };
+    }
+    const step = (s: GameState): void => applyTicks(s, 1, { ...deriveStats(s), autoTicksPerSecond: 4 });
+    const lifeGear = (s: GameState) => gear(s, 'helm', { rarity: 'rare', affixes: [{ stat: 'life', value: 5000 }] });
+
+    it('a level-up mid-run, with no damage taken, still earns Flawless', () => {
+      const { s, run } = calmRun();
+      step(s);
+      const before = deriveBattleStats(s);
+      onKill(s, run, { ...run.queue[0] as MonsterState, xp: 1e9 }, before);
+      expect(s.level).toBeGreaterThan(1);
+      expect(deriveBattleStats(s).maxLife).toBeGreaterThan(before.maxLife);
+      step(s);
+      expect(run.minLifeShare).toBe(1);
+      endRun(s, run, 'cleared');
+      expect(s.achievements.earned).toContain('feat.flawless.5');
+      expect(s.achievements.earned).not.toContain('feat.clutch.5');
+    });
+
+    it('taking life gear off right before the end does not change the share', () => {
+      const { s, run } = calmRun((st) => { st.equipped.battle.helm = lifeGear(st); });
+      run.life = Math.round(deriveBattleStats(s).maxLife * 0.5);
+      step(s);
+      expect(run.minLifeShare).toBeCloseTo(0.5, 2);
+      delete s.equipped.battle.helm;
+      endRun(s, run, 'cleared');
+      expect(run.minLifeShare).toBeCloseTo(0.5, 2);
+      expect(s.achievements.earned).not.toContain('feat.flawless.5');
+      expect(s.achievements.earned).not.toContain('feat.clutch.5');
+    });
+
+    it('putting life gear on right before the end does not create a Clutch', () => {
+      const { s, run } = calmRun();
+      step(s);
+      expect(run.minLifeShare).toBe(1);
+      s.equipped.battle.helm = lifeGear(s);
+      endRun(s, run, 'cleared');
+      expect(s.achievements.earned).not.toContain('feat.clutch.5');
+      expect(s.achievements.earned).toContain('feat.flawless.5');
+    });
   });
 
   it('a quick boss counts only when the boss room was timed', () => {

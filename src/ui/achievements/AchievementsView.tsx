@@ -86,7 +86,8 @@ export function AchievementsView({ store }: { store: GameStore }) {
             <span className="gm-muted">{formatNumber(group.earned)} / {formatNumber(group.total)}</span>
           </h3>
           {group.families.map((family) => (
-            <section key={family.family} className="gm-ach__family" aria-label={group.kind === 'hidden' ? group.label : family.label}>
+            // The secrets are one unlabelled family, so the group's own region is the only one they sit in.
+            <section key={family.family} className="gm-ach__family" aria-label={group.kind === 'hidden' ? undefined : family.label}>
               {group.kind === 'hidden' ? null : (
                 <h4 className="gm-ach__family-label">
                   <FamilyGlyph id={family.icon} size={24} />

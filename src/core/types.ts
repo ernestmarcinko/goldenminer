@@ -155,7 +155,7 @@ export interface MapRun {
   gained: RunGains; log: CombatLine[]; loot: LootNote[];   // loot keeps the newest RUN_LOOT_LIMIT notes
   items: number;                                   // gear and gems dropped this run, every one counted (material stacks are not items)
   strikes: number;                                 // every strike of the run, for the Peacemaker
-  minLife: number;                                 // the lowest life seen, starting at max life
+  minLifeShare: number;                            // the lowest life as a share (0..1) of the max life of the step it was seen in, starting at 1
   elapsedS: number;                                // simulated seconds fought
   bossSinceS?: number;                             // elapsedS when the boss room began
   attempt: number;                                 // the gate attempt count of this run (0 off-gate)

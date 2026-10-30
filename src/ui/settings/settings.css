@@ -37,6 +37,14 @@
   color: var(--gm-gold-bright); word-break: break-all; user-select: all; box-shadow: var(--gm-bevel-deep);
 }
 
+.gm-seedrow__input {
+  flex: 1 1 auto; min-width: 0; min-height: 44px; box-sizing: border-box; padding: 8px 12px; border-radius: 0;
+  border: 1px solid var(--gm-line); background: var(--gm-ground); color: var(--gm-text);
+  font-family: var(--gm-font-mono); font-size: 16px; box-shadow: var(--gm-bevel-deep);
+}
+.gm-seedrow__input:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
+.gm-seedrow__input[aria-invalid='true'] { border-color: var(--gm-down); }
+
 .gm-settings__buttons { display: flex; flex-wrap: wrap; gap: 8px; }
 .gm-settings__donate { font-size: 13px; }
 

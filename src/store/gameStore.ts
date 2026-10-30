@@ -607,6 +607,17 @@ export class GameStore {
     return true;
   }
 
+  /** Renames the current miner (trimmed); refuses an invalid name and leaves the old one. The rename feats see every change. */
+  renameCharacter(name: string): boolean {
+    const trimmed = name.trim();
+    if (!isValidCharacterName(trimmed)) return false;
+    this._state.characterName = trimmed;
+    checkFeats(this._state, { kind: 'rename', name: trimmed });
+    this.changed();
+    this.save();
+    return true;
+  }
+
   /** The player's Pause; it is saved, so a paused game stays paused after a reload. */
   setPaused(paused: boolean): void {
     this._state.paused = paused;
