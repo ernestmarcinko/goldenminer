@@ -1,4 +1,5 @@
-import type { GemGrade, MapModKind, MapRarity, Material, OrbFamily, OrbTier, Rarity, StatKey } from './items';
+import { orbKey } from './items';
+import type { GemGrade, MapModKind, MapRarity, Material, OrbFamily, OrbSide, OrbTier, Rarity, StatKey } from './items';
 import type { CraftKind, FeatureKind, Hazard, Stats, TemperOutcome } from './types';
 
 export const BASE_DIG_POWER = 10;
@@ -101,6 +102,7 @@ export const ASCENDANCY_SMALL_COST = 1;
 export const ASCENDANCY_MID_COST = 6;
 export const ASCENDANCY_BIG_COST = 12;
 export const AUTO_MAP_BASE_TIER = 3;
+export const AUTO_MAP_QUEUE_SIZE = 100;
 export const COMBAT_LOG_LIMIT = 20;
 export const RUN_LOOT_LIMIT = 30;
 export const MAX_LIFE = 1_000_000;
@@ -156,7 +158,7 @@ export function mapMonsterScale(tier: number): number {
   return MAP_MONSTER_SCALE[Math.min(tier, MAP_MONSTER_SCALE.length) - 1] ?? 1;
 }
 export function monsterXp(tier: number): number {
-  return Math.round(10 * tier ** 1.5);
+  return Math.round(8 * tier ** 1.5);
 }
 export const CHAMPION_LIFE = 2.5;
 export const CHAMPION_DAMAGE = 1.5;
@@ -177,21 +179,43 @@ export function soulsPerKill(tier: number): number {
 export function goldPerKill(tier: number): number {
   return 2 * tier;
 }
-export const DROP_CHANCE = 0.15;
+export const DROP_CHANCE = 0.01;
 export const BOSS_DROPS = 2;
 export const CHAMPION_DROPS = 1;
 export const CHAMPION_MAGIC_FIND = 3;
 export const MAP_DROP_BATTLE_CHANCE = 0.8;
-export const MAP_GEM_CHANCE = 0.04;
+export const MAP_GEM_CHANCE = 0.004;
 // A kill rolls this chance rankReward times; each pass drops a material of the map's depth.
-export const MAP_MATERIAL_CHANCE = 0.25;
+export const MAP_MATERIAL_CHANCE = 0.02;
 // What the room clears of a map heal in all, as a share of max life: each clear heals its part, so every map heals the same.
 export const ROOM_REGEN_TOTAL = 1.5;
 // A map tick is fought in equal steps of at most this many seconds, so the tick rate never changes a fight.
 export const COMBAT_STEP_S = 0.25;
-// A map's layout: every map holds the same monster budget; a champion costs CHAMPION_UNITS of it.
-export const MONSTER_BUDGET = 15;
+// A map's layout: each room holds `monsterBudget(tier)` monsters. Lower tiers keep the classic density (~3 a room), and
+// it grows with the tier up to MONSTER_BUDGET_MAX a room. A champion costs CHAMPION_UNITS of a room's budget.
+export const MONSTER_BUDGET_BASE = 3;
+export const MONSTER_BUDGET_MAX = 1000;
+export const MONSTER_BUDGET_LOW_TIERS = 6;
+export const MONSTER_BUDGET_PER_TIER = 20;
+export function monsterBudget(tier: number): number {
+  if (tier <= MONSTER_BUDGET_LOW_TIERS) return MONSTER_BUDGET_BASE;
+  return Math.min(MONSTER_BUDGET_MAX, MONSTER_BUDGET_BASE + (tier - MONSTER_BUDGET_LOW_TIERS) * MONSTER_BUDGET_PER_TIER);
+}
 export const CHAMPION_UNITS = 3;
+// How many monsters attack at once: one at the lowest tiers, a few as the tier climbs, never an overwhelming swarm.
+export const MONSTER_ATTACKERS_BASE = 1;
+export const MONSTER_ATTACKERS_MAX = 3;
+export function monsterAttackers(tier: number): number {
+  return Math.min(MONSTER_ATTACKERS_MAX, MONSTER_ATTACKERS_BASE + Math.floor((tier - 1) / 7));
+}
+// When several monsters attack at once, each one after the first lands a softer blow: this share of its normal damage.
+export const MONSTER_ATTACKER_DAMAGE_SHARE = 0.6;
+// Cleave: every strike hits this many extra enemies beyond its main target, each for the cleave efficiency (see
+// CLEAVE_BASE) of the damage. The main target always takes the full hit.
+export const CLEAVE_TARGETS = 3;
+// Cleave is always on: each extra enemy struck takes this share of the hit by default, raised toward 100% by items and
+// skills (the `cleave` stat adds percentage points on top).
+export const CLEAVE_BASE = 25;
 export const MIN_ROOMS = 4;
 export const MAX_ROOMS = 7;
 
@@ -237,6 +261,7 @@ export const STAT_TIERS: Readonly<Record<StatKey, { base: number; step: number }
   attackSpeed: { base: 3, step: 2 },
   critChance: { base: 1, step: 0.5 },
   critMultiplier: { base: 5, step: 3 },
+  cleave: { base: 5, step: 4 },
   life: { base: 8, step: 6 },
   lifePct: { base: 3, step: 2 },
   armor: { base: 6, step: 5 },
@@ -281,35 +306,50 @@ export const CHEST_SECOND_ITEM_CHANCE = 0.2;
 export const CHEST_BATTLE_CHANCE = 0.2;
 
 // A craft costs base + floor(level / per) of its material, or base alone when per is 0. Gear's level is its ilvl, a
-// map's its tier. Starsteel and Obsidian are retired as crafts (they are orb currency, Plan 27), so they have no entry.
+// map's its tier. Starsteel and Obsidian are retired as crafts (they are orb currency, Plan 27), and so is Copper (its
+// "make it magic" became a Diamond upgrade), so none of the three has an entry. `makeMagic`/`makeRare` spend Diamonds
+// on gear; on maps they spend Souls instead (no material).
 export const CRAFT_COST: Readonly<Partial<Record<CraftKind, { base: number; per: number }>>> = {
-  copper: { base: 1, per: 2 }, tin: { base: 1, per: 2 }, iron: { base: 1, per: 2 },
+  tin: { base: 1, per: 2 }, iron: { base: 1, per: 2 },
   silver: { base: 1, per: 4 }, mithril: { base: 1, per: 4 },
   diamond: { base: 1, per: 3 },
+  makeMagic: { base: 1, per: 4 },
+  makeRare: { base: 1, per: 2 },
   voidCrystal: { base: 1, per: 0 },
 };
 
-// The crafting rebalance (Plan 27): the 15-orb catalogue replaces essences and the old two orbs. Copper, Tin, Silver,
+// The crafting rebalance (Plan 27): the orb catalogue replaces essences and the old two orbs. Copper, Tin, Silver,
 // Mithril and Diamond stay the cheap base crafts; Void crystal still tempers; Iron, Mithril and Void crystal buy the
 // orbs below, and the ore exchange turns any ore into whichever an orb costs.
 export const ORB_BAG_STACK = 50;
 export const ORB_STASH_STACK = 1_000_000;
 
-/** The ore and cost of each orb family and tier: Minor in Iron, Normal in Mithril, Greater in Void crystal. */
-export const ORB_COSTS: Readonly<Record<OrbFamily, Readonly<Record<OrbTier, { ore: Material; cost: number }>>>> = {
-  craft: { minor: { ore: 'iron', cost: 2 }, normal: { ore: 'mithril', cost: 3 }, greater: { ore: 'voidCrystal', cost: 4 } },
-  removal: { minor: { ore: 'iron', cost: 2 }, normal: { ore: 'mithril', cost: 4 }, greater: { ore: 'voidCrystal', cost: 6 } },
-  scattering: { minor: { ore: 'iron', cost: 3 }, normal: { ore: 'mithril', cost: 6 }, greater: { ore: 'voidCrystal', cost: 9 } },
+/**
+ * The ore and cost of each orb, keyed by `orbKey`. Craft orbs are tiered (Minor Iron, Normal Mithril, Greater Void
+ * crystal); removal, scattering, socketing and clearing orbs are untiered.
+ */
+export const ORB_COSTS: Readonly<Record<string, { ore: Material; cost: number }>> = {
+  'craft:prefix:minor': { ore: 'iron', cost: 2 },
+  'craft:prefix:normal': { ore: 'mithril', cost: 3 },
+  'craft:prefix:greater': { ore: 'voidCrystal', cost: 4 },
+  'craft:suffix:minor': { ore: 'iron', cost: 2 },
+  'craft:suffix:normal': { ore: 'mithril', cost: 3 },
+  'craft:suffix:greater': { ore: 'voidCrystal', cost: 4 },
+  'removal:prefix': { ore: 'mithril', cost: 3 },
+  'removal:suffix': { ore: 'mithril', cost: 3 },
+  'scattering': { ore: 'mithril', cost: 6 },
+  'socketing': { ore: 'iron', cost: 2 },
+  'clearSockets': { ore: 'mithril', cost: 2 },
 };
 
-/** The ore an orb of a family and tier is bought with. */
-export function orbOre(family: OrbFamily, tier: OrbTier): Material {
-  return ORB_COSTS[family][tier].ore;
+/** The ore an orb is bought with. */
+export function orbOre(family: OrbFamily, side?: OrbSide, tier?: OrbTier): Material {
+  return ORB_COSTS[orbKey(family, side, tier)]?.ore ?? 'iron';
 }
 
-/** What an orb of a family and tier costs, in units of its ore. */
-export function orbCost(family: OrbFamily, tier: OrbTier): number {
-  return ORB_COSTS[family][tier].cost;
+/** What an orb costs, in units of its ore. */
+export function orbCost(family: OrbFamily, side?: OrbSide, tier?: OrbTier): number {
+  return ORB_COSTS[orbKey(family, side, tier)]?.cost ?? 0;
 }
 
 /**

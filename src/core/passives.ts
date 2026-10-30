@@ -101,7 +101,7 @@ const gemPouch = n('gemPouch', 'Gem Pouch', 'notable', [{ kind: 'gemStack', valu
 const oreCart = n('oreCart', 'Ore Cart', 'notable', [{ kind: 'materialStack', value: 25 }],
   'Materials stack 25 higher in the bag.');
 const surveyor = n('surveyor', 'Surveyor', 'notable', [{ kind: 'autoMap' }],
-  'Auto-mapping: queue maps to run themselves while you are away.');
+  'Auto-mapping: queue maps to run back-to-back on their own.');
 const deepMiner = n('deepMiner', 'Deep Miner', 'notable', [stat('digPowerPct', 10), stat('oreFind', 5)],
   '+10% dig power, +5% ore find.');
 const reckoner = n('reckoner', 'Reckoner', 'notable', [stat('critChance', 5), stat('critMultiplier', 10)],
@@ -151,89 +151,220 @@ const SMALL_NAMES: Record<string, string> = {
 };
 
 // ── The world and its spacing constants ──────────────────────────────────────────────────────────────
-// The web lives in a 2400 × 2000 world centred on the miner. The gaps below are the decluttered spacing the web is
-// tuned to: adjacent smalls sit at least two icon widths apart, majors stand well clear of each other, and clusters
-// keep their own breathing room. They are pinned by the geometry tests, so changing them changes the web.
-export const START_X = 1200;
-export const START_Y = 1000;
-export const WORLD_W = 2400;
-export const WORLD_H = 2000;
+// The web lives in a 3200 × 2600 world centred on the miner. The gaps below are the decluttered spacing the web is
+// tuned to: adjacent smalls sit at least two icon widths apart, majors stand well clear of each other, and every node
+// stays inside MAX_RADIUS of the start. They are pinned by the geometry tests, so changing them changes the web.
+export const START_X = 1600;
+export const START_Y = 1300;
+export const WORLD_W = 3200;
+export const WORLD_H = 2600;
 export const SMALL_GAP = 92;
 export const MAJOR_GAP = 280;
 export const CLUSTER_GAP = 120;
-export const MAX_RADIUS = 1100;
+export const MAX_RADIUS = 1500;
 
-// The web's geometry: a hand-authored cluster table. The start sits at the centre; each side's clusters group a chain
-// of smalls behind a terminal notable or keystone. A cluster's first small links from its `entry` (the start or an
-// earlier cluster's terminal), its smalls arc along the quadratic Bézier from the entry through its `bend` control
-// point to the terminal, and its terminal links only to its own last small. `cross` names neighbour clusters whose
-// first small this cluster's first small also cross-links to, weaving the mesh at the minor level (never major↔major).
-interface ClusterDef {
+// The web's geometry is generated, not hand-placed: each side fans out from the start as a radial tree. The hybrid
+// side's short chains form the inner ring of roots (their first small links straight to the start); the battle and
+// mining sides' longer chains are the outer leaves, each branching off the root nearest its angle. A short relaxation
+// then pushes the majors apart before the smalls are spaced along the straight entry → terminal rays, so the mesh is
+// planar — no crossing edges, no overlapping nodes.
+interface ClusterMeta {
   side: Exclude<PassiveSide, 'start'>;
-  /** The terminal's place. */
-  x: number;
-  y: number;
-  /** The Bézier control point the smalls arc through on the way from the entry to the terminal. */
-  bendX: number;
-  bendY: number;
   /** How many smalls this cluster draws from its side's budget, in order. */
   count: number;
   terminal: NamedSpec;
-  /** Where the cluster's first small links from: the start, or another cluster's terminal id. */
-  entry: string;
-  /** Neighbour clusters (by terminal id) whose first small this cluster's first small cross-links to. */
-  cross: string[];
 }
 
 const cluster = (
-  side: Exclude<PassiveSide, 'start'>, x: number, y: number, bendX: number, bendY: number, count: number,
-  terminal: NamedSpec, entry: string, cross: string[],
-): ClusterDef => ({ side, x, y, bendX, bendY, count, terminal, entry, cross });
+  side: Exclude<PassiveSide, 'start'>, count: number, terminal: NamedSpec,
+): ClusterMeta => ({ side, count, terminal });
 
-// 36 scattered cluster centres across the three side wedges (battle right, mining left, hybrid top). Angles and radii
-// are jittered from the old 12-spoke × 3-ring grid, then nudged so majors stay ≥ MAJOR_GAP apart and every cluster
-// sits within MAX_RADIUS of the start. The bend control point pushes each chain into a gentle arc.
-const CLUSTERS: ClusterDef[] = [
+const CLUSTERS: readonly ClusterMeta[] = [
   // ── battle (right) ──────────────────────────────────────────────────────────────────────────────
-  cluster('battle', 1936, 1313, 2025, 908, 6, thickSkin, 'sharpened', ['sharpened']),
-  cluster('battle', 1617, 831, 1229, 473, 6, sharpened, START_NODE_ID, ['treasureHunter']),
-  cluster('battle', 1385, 1482, 1558, 1177, 6, treasureHunter, 'sharpened', ['vanguard']),
-  cluster('battle', 2025, 1043, 2035, 524, 6, vanguard, 'sharpened', ['thickSkin']),
-  cluster('battle', 1720, 1730, 2092, 1658, 5, deadlyAim, 'thickSkin', ['soulWarden']),
-  cluster('battle', 1667, 1451, 1851, 1124, 6, soulWarden, 'sharpened', ['reckoner']),
-  cluster('battle', 1475, 1958, 1700, 1669, 5, reckoner, 'treasureHunter', ['soulReaper']),
-  cluster('battle', 2133, 565, 2338, 863, 5, soulReaper, 'vanguard', ['deadlyAim']),
-  cluster('battle', 2260, 1206, 2032, 1511, 5, berserker, 'deadlyAim', ['allOrNothing']),
-  cluster('battle', 2003, 1723, 1616, 1858, 5, allOrNothing, 'soulWarden', ['bloodMoney']),
-  cluster('battle', 2246, 834, 1910, 1430, 5, bloodMoney, 'reckoner', ['bulwark']),
-  cluster('battle', 2162, 1490, 2207, 1026, 5, bulwark, 'soulReaper', ['berserker']),
+  cluster('battle', 6, thickSkin),
+  cluster('battle', 6, sharpened),
+  cluster('battle', 6, treasureHunter),
+  cluster('battle', 6, vanguard),
+  cluster('battle', 5, deadlyAim),
+  cluster('battle', 6, soulWarden),
+  cluster('battle', 5, reckoner),
+  cluster('battle', 5, soulReaper),
+  cluster('battle', 5, berserker),
+  cluster('battle', 5, allOrNothing),
+  cluster('battle', 5, bloodMoney),
+  cluster('battle', 5, bulwark),
   // ── mining (left) ──────────────────────────────────────────────────────────────────────────────
-  cluster('mining', 661, 515, 245, 832, 6, veinSense, 'prospector', ['prospector']),
-  cluster('mining', 752, 961, 935, 1457, 6, prospector, START_NODE_ID, ['steadyHands']),
-  cluster('mining', 470, 1310, 238, 834, 6, steadyHands, 'prospector', ['prospectorsEye']),
-  cluster('mining', 348, 547, 337, 961, 6, prospectorsEye, 'prospector', ['veinSense']),
-  cluster('mining', 640, 1580, 591, 1046, 6, deepLungs, 'veinSense', ['oreSniffer']),
-  cluster('mining', 849, 1390, 470, 1250, 5, oreSniffer, 'prospector', ['deepMiner']),
-  cluster('mining', 300, 1030, -8, 1409, 5, deepMiner, 'steadyHands', ['deepBreath']),
-  cluster('mining', 190, 1330, 210, 927, 5, deepBreath, 'prospectorsEye', ['deepLungs']),
-  cluster('mining', 140, 770, 339, 1207, 5, earthshaker, 'deepLungs', ['oreBaron']),
-  cluster('mining', 517, 804, 631, 1127, 5, oreBaron, 'oreSniffer', ['cartographer']),
-  cluster('mining', 330, 1609, 255, 1323, 5, cartographer, 'deepMiner', ['prospectorsLuck']),
-  cluster('mining', 506, 1827, 297, 1611, 5, prospectorsLuck, 'deepBreath', ['earthshaker']),
-  // ── hybrid (top) ──────────────────────────────────────────────────────────────────────────────
-  cluster('hybrid', 1160, 300, 1019, 442, 3, lampAndBlade, 'sureFooting', ['sureFooting']),
-  cluster('hybrid', 984, 640, 1041, 851, 3, sureFooting, START_NODE_ID, ['alchemist']),
-  cluster('hybrid', 1380, 531, 1166, 528, 3, alchemist, 'sureFooting', ['nightowl']),
-  cluster('hybrid', 1695, 538, 1331, 530, 3, nightowl, 'sureFooting', ['lampAndBlade']),
-  cluster('hybrid', 1929, 366, 1550, 273, 3, wellRested, 'lampAndBlade', ['careful']),
-  cluster('hybrid', 1522, 277, 1219, 409, 3, careful, 'sureFooting', ['gemPouch']),
-  cluster('hybrid', 859, 301, 1144, 361, 3, gemPouch, 'alchemist', ['oreCart']),
-  cluster('hybrid', 1323, 40, 1557, 253, 3, oreCart, 'nightowl', ['wellRested']),
-  cluster('hybrid', 1740, 65, 1938, 150, 3, deepPockets, 'wellRested', ['twoWayStreet']),
-  cluster('hybrid', 660, 65, 1105, 113, 3, twoWayStreet, 'careful', ['soulDebt']),
-  cluster('hybrid', 979, 40, 701, 70, 3, soulDebt, 'gemPouch', ['surveyor']),
-  cluster('hybrid', 423, 250, 859, 87, 2, surveyor, 'oreCart', ['deepPockets']),
+  cluster('mining', 6, veinSense),
+  cluster('mining', 6, prospector),
+  cluster('mining', 6, steadyHands),
+  cluster('mining', 6, prospectorsEye),
+  cluster('mining', 6, deepLungs),
+  cluster('mining', 5, oreSniffer),
+  cluster('mining', 5, deepMiner),
+  cluster('mining', 5, deepBreath),
+  cluster('mining', 5, earthshaker),
+  cluster('mining', 5, oreBaron),
+  cluster('mining', 5, cartographer),
+  cluster('mining', 5, prospectorsLuck),
+  // ── hybrid (top / inner ring) ──────────────────────────────────────────────────────────────────
+  cluster('hybrid', 3, lampAndBlade),
+  cluster('hybrid', 3, sureFooting),
+  cluster('hybrid', 3, alchemist),
+  cluster('hybrid', 3, nightowl),
+  cluster('hybrid', 3, wellRested),
+  cluster('hybrid', 3, careful),
+  cluster('hybrid', 3, gemPouch),
+  cluster('hybrid', 3, oreCart),
+  cluster('hybrid', 3, deepPockets),
+  cluster('hybrid', 3, twoWayStreet),
+  cluster('hybrid', 3, soulDebt),
+  cluster('hybrid', 2, surveyor),
 ];
+
+// Layout tuning, internal. The exported `SMALL_GAP` / `MAJOR_GAP` stay the test pins; these add a little breathing
+// room so the relaxed web is never *exactly* at the limit.
+const ROOT_RADIUS = 600;
+const EDGE_PAD = 14;
+const LAYOUT_MAJOR_GAP = MAJOR_GAP + 10;
+const MIN_RADIUS = 300;
+const RELAX_ITERATIONS = 6000;
+
+interface TermPlacement {
+  id: string;
+  side: Exclude<PassiveSide, 'start'>;
+  count: number;
+  angle: number;
+  x: number;
+  y: number;
+  root: boolean;
+}
+
+const polar = (deg: number, r: number): { x: number; y: number } => {
+  const a = (deg * Math.PI) / 180;
+  return { x: START_X + Math.cos(a) * r, y: START_Y + Math.sin(a) * r };
+};
+
+const angleDiff = (a: number, b: number): number => {
+  let d = a - b;
+  while (d > 180) d -= 360;
+  while (d < -180) d += 360;
+  return d;
+};
+
+/** Initial terminal placement: hybrid clusters ring the start as roots; battle fans right, mining fans left. */
+function initialTerminals(): TermPlacement[] {
+  const out: TermPlacement[] = [];
+  for (let i = 0; i < CLUSTERS.length; i++) {
+    const c = CLUSTERS[i];
+    if (c === undefined) continue;
+    // sharpened and prospector were the start-connected battle/mining roots before the geometry rework, and old saves
+    // may reach them straight from the start; keep them roots so a migrated allocation stays connected.
+    const root = c.side === 'hybrid' || c.terminal.id === 'sharpened' || c.terminal.id === 'prospector';
+    let angle: number;
+    let radius: number;
+    if (c.side === 'hybrid') {
+      angle = -90 + (i - 24) * 30;
+      radius = ROOT_RADIUS;
+    } else if (c.side === 'battle') {
+      angle = -85 + i * (170 / 11);
+      radius = root
+        ? SMALL_GAP * (c.count + 1) + EDGE_PAD
+        : ROOT_RADIUS + SMALL_GAP * (c.count + 1) + EDGE_PAD;
+    } else {
+      angle = 95 + (i - 12) * (170 / 11);
+      radius = root
+        ? SMALL_GAP * (c.count + 1) + EDGE_PAD
+        : ROOT_RADIUS + SMALL_GAP * (c.count + 1) + EDGE_PAD;
+    }
+    const p = polar(angle, radius);
+    out.push({ id: c.terminal.id, side: c.side, count: c.count, angle, x: p.x, y: p.y, root });
+  }
+  return out;
+}
+
+/** Each outer cluster's entry is the root nearest its angle. */
+function assignEntries(term: readonly TermPlacement[]): (number | null)[] {
+  const entry: (number | null)[] = new Array(term.length).fill(null);
+  for (let i = 0; i < term.length; i++) {
+    const ti = term[i];
+    if (ti === undefined || ti.root) continue;
+    let best = -1;
+    let bestScore = Infinity;
+    for (let j = 0; j < term.length; j++) {
+      const tj = term[j];
+      if (tj === undefined || !tj.root) continue;
+      const d = Math.abs(angleDiff(ti.angle, tj.angle));
+      if (d < bestScore) {
+        bestScore = d;
+        best = j;
+      }
+    }
+    entry[i] = best;
+  }
+  return entry;
+}
+
+/** Relax the terminals: majors push apart, and each outer cluster's edge stretches to fit its smalls. */
+function relaxTerminals(term: TermPlacement[], entry: readonly (number | null)[]): void {
+  const edgeLen = (i: number): number => {
+    const t = term[i];
+    if (t === undefined) throw new Error(`missing terminal ${i}`);
+    return SMALL_GAP * (t.count + 1) + EDGE_PAD;
+  };
+  for (let it = 0; it < RELAX_ITERATIONS; it++) {
+    let maxMove = 0;
+    for (let i = 0; i < term.length; i++) {
+      for (let j = i + 1; j < term.length; j++) {
+        const a = term[i];
+        const b = term[j];
+        if (a === undefined || b === undefined) continue;
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const d = Math.hypot(dx, dy);
+        if (d < LAYOUT_MAJOR_GAP && d > 0.001) {
+          const push = (LAYOUT_MAJOR_GAP - d) / 2;
+          a.x += (dx / d) * push;
+          a.y += (dy / d) * push;
+          b.x -= (dx / d) * push;
+          b.y -= (dy / d) * push;
+          maxMove = Math.max(maxMove, push);
+        }
+      }
+    }
+    for (let i = 0; i < term.length; i++) {
+      const a = term[i];
+      if (a === undefined || a.root) continue;
+      const e = entry[i];
+      if (e === null || e === undefined) continue;
+      const b = term[e];
+      if (b === undefined) continue;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const want = edgeLen(i);
+      const f = (want - d) * 0.6;
+      a.x -= (dx / d) * f;
+      a.y -= (dy / d) * f;
+      b.x += (dx / d) * f;
+      b.y += (dy / d) * f;
+      maxMove = Math.max(maxMove, Math.abs(f));
+    }
+    for (const t of term) {
+      const dx = t.x - START_X;
+      const dy = t.y - START_Y;
+      const r = Math.hypot(dx, dy);
+      if (r > MAX_RADIUS && r > 0) {
+        t.x = START_X + (dx / r) * MAX_RADIUS;
+        t.y = START_Y + (dy / r) * MAX_RADIUS;
+      }
+      if (r < MIN_RADIUS && r > 0) {
+        t.x = START_X + (dx / r) * MIN_RADIUS;
+        t.y = START_Y + (dy / r) * MIN_RADIUS;
+      }
+    }
+    if (maxMove < 0.02) break;
+  }
+}
 
 interface Placed {
   id: string;
@@ -253,46 +384,6 @@ function expandSmall(side: Exclude<PassiveSide, 'start'>): { stat: StatKey; valu
   return out;
 }
 
-// A point on the quadratic Bézier from `p0` through `p1` to `p2`.
-const bezier = (p0: { x: number; y: number }, p1: { x: number; y: number }, p2: { x: number; y: number }, t: number): { x: number; y: number } => {
-  const mt = 1 - t;
-  return {
-    x: mt * mt * p0.x + 2 * mt * t * p1.x + t * t * p2.x,
-    y: mt * mt * p0.y + 2 * mt * t * p1.y + t * t * p2.y,
-  };
-};
-
-// The point at the given arc-length fraction along a quadratic Bézier, by sampling the curve finely.
-const bezierAtArc = (
-  p0: { x: number; y: number }, p1: { x: number; y: number }, p2: { x: number; y: number }, frac: number,
-): { x: number; y: number } => {
-  const SAMPLES = 128;
-  const pts: { x: number; y: number }[] = [p0];
-  const arc: number[] = [0];
-  let prev = p0;
-  let cum = 0;
-  for (let i = 1; i <= SAMPLES; i++) {
-    const cur = bezier(p0, p1, p2, i / SAMPLES);
-    cum += Math.hypot(cur.x - prev.x, cur.y - prev.y);
-    arc.push(cum);
-    pts.push(cur);
-    prev = cur;
-  }
-  const target = frac * (arc[SAMPLES] ?? 0);
-  for (let i = 0; i < SAMPLES; i++) {
-    const end = arc[i + 1];
-    if (end === undefined || end < target) continue;
-    const a = pts[i];
-    const b = pts[i + 1];
-    if (a === undefined || b === undefined) continue;
-    const start = arc[i] ?? 0;
-    const seg = end - start;
-    const f = seg === 0 ? 0 : (target - start) / seg;
-    return { x: Math.round(a.x + (b.x - a.x) * f), y: Math.round(a.y + (b.y - a.y) * f) };
-  }
-  return pts[SAMPLES] ?? p2;
-};
-
 function buildWeb(): PassiveNode[] {
   const smalls: Record<Exclude<PassiveSide, 'start'>, { stat: StatKey; value: number }[]> = {
     mining: expandSmall('mining'), battle: expandSmall('battle'), hybrid: expandSmall('hybrid'),
@@ -300,10 +391,23 @@ function buildWeb(): PassiveNode[] {
   const smallCursor: Record<Exclude<PassiveSide, 'start'>, number> = { mining: 0, battle: 0, hybrid: 0 };
   const placed: Placed[] = [];
 
-  // Every terminal's place is known up front, so a cluster's smalls can arc from its entry to here.
-  const terminalAt = new Map<string, { x: number; y: number }>();
-  terminalAt.set(START_NODE_ID, { x: START_X, y: START_Y });
-  for (const c of CLUSTERS) terminalAt.set(c.terminal.id, { x: c.x, y: c.y });
+  const term = initialTerminals();
+  const entry = assignEntries(term);
+  relaxTerminals(term, entry);
+
+  // Every entry's place is known up front, so a cluster's smalls sit on the straight ray from it to the terminal.
+  const entryAt = (i: number): { x: number; y: number; id: string } => {
+    const e = entry[i];
+    if (e === null || e === undefined) return { x: START_X, y: START_Y, id: START_NODE_ID };
+    const t = term[e];
+    if (t === undefined) throw new Error(`missing entry terminal at ${e}`);
+    return { x: t.x, y: t.y, id: t.id };
+  };
+  const entryId = (i: number): string | null => {
+    const e = entry[i];
+    if (e === null || e === undefined) return null;
+    return term[e]?.id ?? null;
+  };
 
   const takeSmall = (side: Exclude<PassiveSide, 'start'>): { stat: StatKey; value: number } => {
     const s = smalls[side][smallCursor[side]];
@@ -320,32 +424,34 @@ function buildWeb(): PassiveNode[] {
     if (!b.links.includes(a.id)) b.links.push(a.id);
   };
 
-  // Place each cluster's smalls (arc-length steps along the Bézier), then its terminal. The small ids fall out of the
-  // cluster order, which is load-bearing: it is what keeps every pre-existing id pointing at the same stat.
+  // Place each cluster's smalls on its straight ray, then its terminal. The small ids fall out of the cluster order,
+  // which is load-bearing: it is what keeps every pre-existing id pointing at the same stat.
   const smallIds = new Map<string, string[]>();   // terminal id → the cluster's small ids, in chain order
   const startLinks: string[] = [];
 
-  for (const c of CLUSTERS) {
-    const entry = terminalAt.get(c.entry);
-    if (entry === undefined) throw new Error(`unknown cluster entry ${c.entry}`);
+  for (let i = 0; i < CLUSTERS.length; i++) {
+    const c = CLUSTERS[i];
+    if (c === undefined) continue;
+    const t = term[i];
+    if (t === undefined) throw new Error(`missing terminal ${i}`);
+    const e = entryAt(i);
     const ids: string[] = [];
-    for (let i = 0; i < c.count; i++) {
-      const s = takeSmall(c.side);
+    for (let s = 1; s <= c.count; s++) {
+      const stat = takeSmall(c.side);
       const id = `${c.side}Small${smallCursor[c.side]}`;
-      const p = bezierAtArc(entry, { x: c.bendX, y: c.bendY }, { x: c.x, y: c.y }, (i + 1) / (c.count + 1));
+      const f = s / (c.count + 1);
       placed.push({
-        id, name: SMALL_NAMES[s.stat] ?? s.stat, kind: 'small', side: c.side,
-        effects: [{ kind: 'stat', stat: s.stat, value: s.value }], desc: '',
-        x: p.x, y: p.y, links: [],
+        id, name: SMALL_NAMES[stat.stat] ?? stat.stat, kind: 'small', side: c.side,
+        effects: [{ kind: 'stat', stat: stat.stat, value: stat.value }], desc: '',
+        x: Math.round(e.x + (t.x - e.x) * f), y: Math.round(e.y + (t.y - e.y) * f), links: [],
       });
       ids.push(id);
     }
     smallIds.set(c.terminal.id, ids);
-    if (c.entry === START_NODE_ID && ids[0] !== undefined) startLinks.push(ids[0]);
-    // The terminal ends its own chain and links to nothing else yet.
+    if (entryId(i) === null && ids[0] !== undefined) startLinks.push(ids[0]);
     placed.push({
       id: c.terminal.id, name: c.terminal.name, kind: c.terminal.kind, side: c.side,
-      effects: c.terminal.effects, desc: c.terminal.desc, x: c.x, y: c.y, links: [],
+      effects: c.terminal.effects, desc: c.terminal.desc, x: t.x, y: t.y, links: [],
     });
   }
 
@@ -359,19 +465,22 @@ function buildWeb(): PassiveNode[] {
 
   // Wire the chains and the entries. A terminal links only to its own last small; a first small links from its entry
   // (the start, or another cluster's terminal) and on to its own second small.
-  for (const c of CLUSTERS) {
+  for (let i = 0; i < CLUSTERS.length; i++) {
+    const c = CLUSTERS[i];
+    if (c === undefined) continue;
     const ids = smallIds.get(c.terminal.id) ?? [];
-    for (let i = 0; i < ids.length; i++) {
-      const id = ids[i];
+    const from = entryId(i);
+    for (let s = 0; s < ids.length; s++) {
+      const id = ids[s];
       if (id === undefined) continue;
       const node = must(id);
-      if (i === 0) {
+      if (s === 0) {
         // The first small links from its entry: the start (a one-way edge the start mirrors via startLinks) or a
         // terminal of another cluster (a both-ways edge).
-        if (c.entry === START_NODE_ID) node.links.push(START_NODE_ID);
-        else linkTo(node, must(c.entry));
+        if (from === null) node.links.push(START_NODE_ID);
+        else linkTo(node, must(from));
       } else {
-        const prev = ids[i - 1];
+        const prev = ids[s - 1];
         if (prev !== undefined) linkTo(node, must(prev));
       }
     }
@@ -380,17 +489,79 @@ function buildWeb(): PassiveNode[] {
     if (last !== undefined) linkTo(terminal, must(last));
   }
 
-  // The mesh's cycles: this cluster's first small cross-links to each named neighbour's first small (minor↔minor).
-  for (const c of CLUSTERS) {
-    const mine = smallIds.get(c.terminal.id);
-    const myFirst = mine?.[0];
-    if (myFirst === undefined) continue;
-    for (const target of c.cross) {
-      const theirs = smallIds.get(target);
-      const theirFirst = theirs?.[0];
-      if (theirFirst === undefined) continue;
-      linkTo(must(myFirst), must(theirFirst));
+  // The mesh's cycles: each outer cluster's last small cross-links to its angularly nearest same-side neighbour's last
+  // small — short chords on the outer ring that close the web without ever crossing an edge.
+  for (let i = 0; i < CLUSTERS.length; i++) {
+    const t = term[i];
+    if (t === undefined || t.root) continue;
+    let best = -1;
+    let bestScore = Infinity;
+    for (let j = 0; j < CLUSTERS.length; j++) {
+      const o = term[j];
+      if (o === undefined || j === i || o.root || o.side !== t.side) continue;
+      const d = Math.abs(angleDiff(t.angle, o.angle));
+      if (d > 0.5 && d < bestScore) {
+        bestScore = d;
+        best = j;
+      }
     }
+    if (best < 0) continue;
+    const mine = smallIds.get(t.id) ?? [];
+    const theirs = smallIds.get(term[best]?.id ?? '') ?? [];
+    const a = mine[mine.length - 1];
+    const b = theirs[theirs.length - 1];
+    if (a === undefined || b === undefined) continue;
+    if (!must(a).links.includes(b)) linkTo(must(a), must(b));
+  }
+
+  // The larger notable/keystone icons need a little more clearance, so nudge smalls apart from each other, from the
+  // majors and from the start — never moving a major, which keeps the MAJOR_GAP guarantee exact.
+  const smallNodes = placed.filter((p) => p.kind === 'small');
+  const majorNodes = placed.filter((p) => p.kind !== 'small');
+  for (let it = 0; it < 240; it++) {
+    let maxMove = 0;
+    for (const a of smallNodes) {
+      let vx = 0;
+      let vy = 0;
+      for (const b of smallNodes) {
+        if (a === b) continue;
+        const ox = a.x - b.x;
+        const oy = a.y - b.y;
+        const d = Math.hypot(ox, oy);
+        if (d < 52 && d > 0.001) {
+          const push = 52 - d;
+          vx += (ox / d) * push;
+          vy += (oy / d) * push;
+        }
+      }
+      for (const b of majorNodes) {
+        const ox = a.x - b.x;
+        const oy = a.y - b.y;
+        const d = Math.hypot(ox, oy);
+        const min = b.kind === 'keystone' ? 66 : 58;
+        if (d < min && d > 0.001) {
+          const push = min - d;
+          vx += (ox / d) * push;
+          vy += (oy / d) * push;
+        }
+      }
+      const ox = a.x - START_X;
+      const oy = a.y - START_Y;
+      const d = Math.hypot(ox, oy);
+      if (d < 52 && d > 0.001) {
+        const push = 52 - d;
+        vx += (ox / d) * push;
+        vy += (oy / d) * push;
+      }
+      const len = Math.hypot(vx, vy);
+      if (len > 0.5) {
+        const step = Math.min(len, 4);
+        a.x += (vx / len) * step;
+        a.y += (vy / len) * step;
+        maxMove = Math.max(maxMove, step);
+      }
+    }
+    if (maxMove < 0.02) break;
   }
 
   const start: PassiveNode = {

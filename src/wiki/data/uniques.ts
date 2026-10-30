@@ -16,7 +16,8 @@ export interface UniqueRow {
   name: string;
   slot: Slot;
   slotLabel: string;
-  /** The unique line, as its card shows it. */
+  tier: number;
+  /** The unique line, as its card shows it; empty for a stat-only legendary. */
   effect: string;
   lines: UniqueLineRow[];
 }
@@ -32,7 +33,8 @@ export function uniqueRows(): UniqueRow[] {
     name: def.name,
     slot: def.slot,
     slotLabel: SLOT_LABELS[def.slot],
-    effect: UNIQUE_LINES[def.id],
+    tier: def.tier,
+    effect: UNIQUE_LINES[def.id] ?? '',
     lines: def.lines.map((line) => ({
       stat: line.stat,
       statName: STAT_NAMES[line.stat],

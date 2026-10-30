@@ -1,4 +1,4 @@
-import { CHAMPION_UNITS, MAX_ROOMS, MIN_ROOMS, MONSTER_BUDGET } from './balance';
+import { CHAMPION_UNITS, MAX_ROOMS, MIN_ROOMS, monsterBudget } from './balance';
 import { allDungeonNames, bossName, championName, dungeonName } from './names';
 import { hashN, mulberry32 } from './rng';
 import type { MapSpecial } from './items';
@@ -109,7 +109,9 @@ function roomOrder(seed: number, metre: number, rooms: number): number[] {
  * Splits the monster budget over the rooms: champions go first, to the first `champions` rooms of `order`, then each
  * normal unit goes to the room with the smallest total, the earlier room in `order` on a tie.
  */
-export function spreadUnits(order: readonly number[], rooms: number, champions: number): { normals: number[]; champion: boolean[] } {
+export function spreadUnits(
+  order: readonly number[], rooms: number, champions: number, budget: number,
+): { normals: number[]; champion: boolean[] } {
   const champion = new Array<boolean>(rooms).fill(false);
   const normals = new Array<number>(rooms).fill(0);
   const totals = new Array<number>(rooms).fill(0);
@@ -117,7 +119,7 @@ export function spreadUnits(order: readonly number[], rooms: number, champions: 
     champion[r] = true;
     totals[r] = CHAMPION_UNITS;
   }
-  for (let unit = 0; unit < MONSTER_BUDGET - champions * CHAMPION_UNITS; unit++) {
+  for (let unit = 0; unit < budget - champions * CHAMPION_UNITS; unit++) {
     let best = order[0] ?? 0;
     for (const r of order) if ((totals[r] ?? 0) < (totals[best] ?? 0)) best = r;
     totals[best] = (totals[best] ?? 0) + 1;
@@ -146,7 +148,7 @@ export function dungeonLayout(
   const type = dungeonType(seed, tier, index);
   const order = roomOrder(seed, metre, type.rooms);
 
-  const { normals, champion: hasChampion } = spreadUnits(order, type.rooms, tier >= 8 ? 2 : 1);
+  const { normals, champion: hasChampion } = spreadUnits(order, type.rooms, tier >= 8 ? 2 : 1, monsterBudget(tier) * type.rooms);
 
   const band = speciesOf(tier);
   const rooms = normals.map((n, room) => {

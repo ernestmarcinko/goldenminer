@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BAG_SIZE, GAMBLE_GOLD } from '../../src/core/balance';
 import { firstEmpty } from '../../src/core/cells';
 import { rollGear } from '../../src/core/itemGen';
+import { LEGENDARIES } from '../../src/core/itemData';
 import { BATTLE_SLOTS, MINING_SLOTS, RARITIES, isGear, setOfSlot, type GearItem, type Rarity } from '../../src/core/items';
 import { gamble, gamblePrice } from '../../src/core/merchant';
 import { newGame } from '../../src/core/newGame';
@@ -87,18 +88,24 @@ describe('a gamble', () => {
 });
 
 describe('rolling for a slot', () => {
-  it('turns a legendary for a slot without one into a rare', () => {
+  it('a legendary at a low item level drops only a tier-1 legendary, higher tiers gated deeper', () => {
     const s = newGame(2, 0);
-    const helm = rollGear(s, 7, 'battle', 'legendary', 'helm');
-    expect(helm).toMatchObject({ slot: 'helm', rarity: 'rare', ilvl: 7 });
-    expect(helm.affixes.length).toBeGreaterThanOrEqual(4);
-    expect(helm.uniqueId).toBeUndefined();
+    for (let i = 0; i < 50; i++) {
+      const helm = rollGear(s, 7, 'battle', 'legendary', 'helm');
+      expect(helm).toMatchObject({ slot: 'helm', rarity: 'legendary', ilvl: 7 });
+      const def = LEGENDARIES.find((d) => d.id === helm.uniqueId);
+      expect(def?.tier).toBe(1);
+    }
   });
 
   it('gives the slot its own legendary', () => {
     const s = newGame(2, 0);
-    expect(rollGear(s, 7, 'battle', 'legendary', 'ring')).toMatchObject({ slot: 'ring', rarity: 'legendary', uniqueId: 'bandOfTheDeep' });
-    expect(rollGear(s, 7, 'mining', 'legendary', 'lamp')).toMatchObject({ slot: 'lamp', rarity: 'legendary', uniqueId: 'blackLantern' });
+    const ring = rollGear(s, 7, 'battle', 'legendary', 'ring');
+    expect(ring).toMatchObject({ slot: 'ring', rarity: 'legendary' });
+    expect(LEGENDARIES.some((d) => d.id === ring.uniqueId && d.slot === 'ring')).toBe(true);
+    const lamp = rollGear(s, 7, 'mining', 'legendary', 'lamp');
+    expect(lamp).toMatchObject({ slot: 'lamp', rarity: 'legendary' });
+    expect(LEGENDARIES.some((d) => d.id === lamp.uniqueId && d.slot === 'lamp')).toBe(true);
   });
 
   it('gives valid gear for every slot at every rarity, through a gamble and through rollGear', () => {
@@ -140,7 +147,7 @@ describe('rolling for a slot', () => {
     }
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(out)));
     expect(Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join(''))
-      .toBe('27454633265b1c09bc5c45780f33609a8f30ca3a3c8414736b54fcf2e9e329c2');
+      .toBe('d8c2b58dfea8f8eef6708cfd186788b8eab00dd072988d615f3bc45cbd08c811');
   });
 });
 

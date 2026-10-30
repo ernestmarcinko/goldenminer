@@ -1,5 +1,6 @@
 import { GEM_BAG_STACK, GEM_STASH_STACK, MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, ORB_BAG_STACK, RUNE_BAG_STACK, RUNE_STASH_STACK } from '../../core/balance';
 import { autoMapping } from '../../core/autoMap';
+import { autoMapQueueSize } from '../../core/autoMap';
 import { firstEmpty, itemAt, mapTierCount } from '../../core/cells';
 import { MATERIAL_LABELS } from '../../core/itemData';
 import { isGear, MATERIALS } from '../../core/items';
@@ -139,9 +140,9 @@ function sellSalvage(state: GameState, item: Loot, all = false): [ActionSpec, Ac
 function mapActions(state: GameState, target: ItemTarget, item: MapItem): ActionSpec[] {
   const run: ActionSpec = { id: 'run', label: 'Run this map', disabled: state.activity.kind === 'map' };
   const auto: ActionSpec[] = autoMapping(state)
-    ? [state.autoMap.queue.includes(item.id)
+    ? [state.autoMap.queue.some((m) => m.id === item.id)
       ? { id: 'unqueueAutoMap', label: 'Remove from auto-map', disabled: false }
-      : { id: 'autoMap', label: 'Auto-map', disabled: false }]
+      : { id: 'autoMap', label: 'Auto-map', disabled: state.autoMap.queue.length >= autoMapQueueSize(state) }]
     : [];
   const move: ActionSpec = target.where === 'maps'
     ? { id: 'toBag', label: 'To bag', disabled: firstEmpty(state.bag) < 0 }
@@ -247,7 +248,8 @@ export function noShortcutText(state: GameState, target: ItemTarget, intent: Cli
 function shortcutLine(target: ItemTarget, item: Item, mac: boolean): string {
   switch (target.where) {
     case 'worn': return 'Click to pick up · Shift+click stash · right-click for actions';
-    case 'stock': return 'Click for its card · right-click to buy';
+    case 'stock': return 'Click to buy';
+    case 'queue': return 'Shift+click to return it to the stash · right-click for actions';
     case 'gems':
     case 'runes':
     case 'materials':
@@ -271,7 +273,7 @@ export function hoverNotes(state: GameState, target: ItemTarget, item: Item, mac
   const stats = deriveStats(state);
   const sells = formatNumber(sellPay(item, stats));
   if (target.where === 'stock' && (item.type === 'gear' || item.type === 'map')) {
-    return [`Costs ${formatNumber(stockPrice(item))} Gold · Sells for ${sells} Gold`, shortcuts];
+    return [`Sells for ${sells} Gold`, shortcuts];
   }
   return [`Sells for ${sells} Gold · Salvages into ${materialsText(salvagePay(item, stats))}`, shortcuts];
 }
@@ -349,6 +351,8 @@ export function resultText(r: InvResult, map?: MapItem): string | null {
       // only a map is ever refused for a full tier, so a caller always has one to name
       if (map === undefined) throw new Error('a full map tier needs the refused map to name it');
       return `The tier ${formatNumber(map.tier)} maps are full.`;
+    case 'queueFull': return 'The auto-map queue is full.';
+    case 'locked': return 'Auto-mapping is locked. Allocate Surveyor in the Skills tree first.';
     case 'noSocket': return 'That item has no open socket.';
     case 'wrongSlot': return "That doesn't fit that slot.";
     case 'gemsOnly': return 'Only gems go in the Gems tab.';

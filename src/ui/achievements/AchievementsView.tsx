@@ -1,11 +1,66 @@
 import { ACHIEVEMENTS, earnedCount } from '../../core/achievements';
+import { ICON_GLYPHS, ICON_PALETTE, type IconGlyphId } from '../../core/skillIcons';
 import type { GameStore } from '../../store/gameStore';
 import { formatNumber, formatRate } from '../format';
+import { iconDataUrl } from '../PixelArt';
 import { useGame } from '../useGame';
 import { achievementBoostPercent, achievementVMs } from './achievementsView';
 import './achievements.css';
 
-/** The achievements tab: every family with its achievements, plus the running total and the global boost. */
+/** A family's pixel glyph, drawn at `size` px with crisp nearest-neighbour scaling. */
+function FamilyGlyph({ id, size }: { id: IconGlyphId; size: number }) {
+  const glyph = ICON_GLYPHS[id];
+  return (
+    <img
+      className="gm-ach__family-icon"
+      src={iconDataUrl(glyph.grid, ICON_PALETTE)}
+      width={size}
+      height={size}
+      style={{ imageRendering: 'pixelated' }}
+      alt=""
+      draggable={false}
+    />
+  );
+}
+
+/** The four progress tones, hardest-first: rarer thresholds read as more precious, so a group reads as a ramp. */
+const TONES = ['bronze', 'silver', 'gold', 'diamond'] as const;
+type Tone = (typeof TONES)[number];
+
+/** Which tone an achievement badge wears, from its place in the family's threshold order. */
+function badgeTone(index: number, total: number): Tone {
+  if (total <= 1) return 'gold';
+  const band = Math.floor((index / (total - 1)) * TONES.length);
+  return TONES[Math.min(band, TONES.length - 1)] ?? 'gold';
+}
+
+/** One achievement badge: the family's icon in a progress tone, filled when earned, dim when not. */
+function AchievementBadge({ id, name, desc, earned, tone, size }: {
+  id: IconGlyphId; name: string; desc: string; earned: boolean; tone: Tone; size: number;
+}) {
+  const glyph = ICON_GLYPHS[id];
+  return (
+    <span
+      className="gm-ach__badge"
+      data-earned={earned}
+      data-tone={tone}
+      data-tip={`${name} — ${desc}`}
+      title={`${name} — ${desc}`}
+    >
+      <img
+        className="gm-ach__badge-icon"
+        src={iconDataUrl(glyph.grid, ICON_PALETTE)}
+        width={size}
+        height={size}
+        style={{ imageRendering: 'pixelated' }}
+        alt=""
+        draggable={false}
+      />
+    </span>
+  );
+}
+
+/** The achievements tab: every family's icons in groups, each badge its own tone, hovered badges showing the text. */
 export function AchievementsView({ store }: { store: GameStore }) {
   const { state } = useGame(store);
   const families = achievementVMs(state);
@@ -22,17 +77,23 @@ export function AchievementsView({ store }: { store: GameStore }) {
       {families.map((family) => (
         <section key={family.family} className="gm-ach__family" aria-label={family.label}>
           <h3 className="gm-ach__family-label">
-            {family.label}{' '}
+            <FamilyGlyph id={family.icon} size={24} />
+            <span>{family.label}</span>
             <span className="gm-muted">{formatNumber(family.earned)}/{formatNumber(family.total)}</span>
           </h3>
-          <ul className="gm-ach__list">
-            {family.achievements.map((a) => (
-              <li key={a.id} className="gm-ach__row" data-earned={a.earned}>
-                <span className="gm-ach__name">{a.name}</span>
-                <span className="gm-ach__desc gm-muted">{a.desc}</span>
-              </li>
+          <div className="gm-ach__grid">
+            {family.achievements.map((a, index) => (
+              <AchievementBadge
+                key={a.id}
+                id={a.icon}
+                name={a.name}
+                desc={a.desc}
+                earned={a.earned}
+                tone={badgeTone(index, family.achievements.length)}
+                size={22}
+              />
             ))}
-          </ul>
+          </div>
         </section>
       ))}
     </div>

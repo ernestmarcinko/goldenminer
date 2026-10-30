@@ -14,25 +14,28 @@ import { deriveStats } from '../../src/core/stats';
 import { emptyLifetimeStats } from '../../src/core/telemetry';
 
 describe('the achievement table', () => {
-  it('holds ~1000 unique achievements across every family', () => {
-    expect(ACHIEVEMENTS).toHaveLength(1000);
-    expect(ACHIEVEMENT_IDS.size).toBe(1000);
+  it('holds a well-spaced set of unique achievements across every family', () => {
+    expect(ACHIEVEMENTS.length).toBe(529);
+    expect(ACHIEVEMENT_IDS.size).toBe(529);
     const families = new Set(ACHIEVEMENTS.map((a) => a.family));
     expect(families).toEqual(new Set([
-      'depth', 'dig', 'gold', 'diamonds', 'gems', 'maps', 'kills', 'bosses', 'deaths',
-      'levels', 'ascensions', 'craft', 'merchant', 'legendaries', 'sockets',
+      'depth', 'dig', 'clicks', 'handMined', 'autoMined', 'gold', 'goldSpent', 'diamonds', 'diamondsSpent', 'soulsEarned', 'soulsSpent',
+      'gems', 'chests', 'maps', 'mapsFound', 'mapsLost', 'kills', 'champions', 'bosses', 'deaths',
+      'levels', 'levelsGained', 'ascensions', 'craft', 'merchant', 'itemsKept', 'itemsSold', 'itemsSalvaged',
+      'oresTraded', 'legendaries', 'sockets', 'timePlayed', 'timeAway',
       ...MATERIALS.map((m) => `ore.${m}`),
     ]));
     expect(Object.keys(FAMILY_LABELS).sort()).toEqual([...families].sort());
   });
 
-  it('ids are `<family>.<value>`, each threshold positive with a name and description', () => {
+  it('ids are `<family>.<value>`, each threshold positive with a unique name and a description', () => {
     for (const a of ACHIEVEMENTS) {
       expect(a.id).toBe(`${a.family}.${a.value}`);
       expect(a.value).toBeGreaterThan(0);
       expect(a.name.length).toBeGreaterThan(0);
       expect(a.desc.length).toBeGreaterThan(0);
     }
+    expect(new Set(ACHIEVEMENTS.map((a) => a.name)).size).toBe(ACHIEVEMENTS.length);
   });
 });
 
@@ -67,7 +70,7 @@ describe('the by-id and family-icon lookups', () => {
 });
 
 describe('the boost', () => {
-  it('adds 0.5% per earned achievement', () => {
+  it('adds 1% per earned achievement', () => {
     const s = newGame(1, 0);
     expect(earnedCount(s)).toBe(0);
     expect(achievementBoost(s)).toBe(1);
@@ -119,18 +122,19 @@ describe('the boost', () => {
 describe('checks', () => {
   it('marks a family once, idempotently, and only when its condition holds', () => {
     const s = newGame(1, 0);
-    s.stats.goldFound = 500;
+    s.stats.goldFound = 2_000_000;
     checkAchievements(s, 'gold');
     const earned = [...s.achievements.earned];
     expect(earned.length).toBeGreaterThan(0);
     expect(earned.every((id) => id.startsWith('gold.'))).toBe(true);
-    expect(s.achievements.earned).toContain('gold.100');
+    expect(s.achievements.earned).toContain('gold.1000000');
+    expect(s.achievements.earned).toContain('gold.123456');
     checkAchievements(s, 'gold');
     expect(s.achievements.earned).toEqual(earned);
-    s.stats.goldFound = 1_000_000;
+    s.stats.goldFound = 10_000_000;
     checkAchievements(s, 'gold');
     expect(s.achievements.earned.length).toBeGreaterThan(earned.length);
-    expect(s.achievements.earned).toContain('gold.1000000');
+    expect(s.achievements.earned).toContain('gold.10000000');
   });
 
   it('a family check touches only that family', () => {
@@ -163,11 +167,11 @@ describe('carry-over', () => {
     finishMetre(s, 1, { feature: null, amount: 0, hardRock: false }, deriveStats(s));
     expect(s.deepest).toBe(1);
     expect(s.stats.metresDug).toBe(1);
-    s.deepest = 10;
+    s.deepest = 250;
     checkAchievements(s, 'depth');
-    expect(s.achievements.earned).toContain('depth.10');
+    expect(s.achievements.earned).toContain('depth.250');
     checkAchievements(s, 'depth');
-    expect(s.achievements.earned.filter((id) => id === 'depth.10')).toHaveLength(1);
+    expect(s.achievements.earned.filter((id) => id === 'depth.250')).toHaveLength(1);
   });
 });
 

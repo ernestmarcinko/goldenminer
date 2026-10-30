@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { DROP_CHANCE, MATERIAL_TABLE, MAX_HELD, soulsPerKill } from '../../src/core/balance';
+import { DROP_CHANCE, MAP_MATERIAL_CHANCE, MATERIAL_TABLE, MAX_HELD, soulsPerKill } from '../../src/core/balance';
 import { deriveBattleStats } from '../../src/core/battle';
 import { onKill, soulsForKill } from '../../src/core/combat';
 import { applyTicks } from '../../src/core/dig';
@@ -105,7 +105,7 @@ function kill(
   // The draws the kill will make, read ahead on a copy: Souls, then the extra-item chance.
   const ahead = { rng: s.rng };
   nextRandom(ahead);
-  const chancePasses = nextRandom(ahead) < 0.15;
+  const chancePasses = nextRandom(ahead) < DROP_CHANCE;
   onKill(s, run, m, b);
   return { s, run, b, chancePasses };
 }
@@ -117,7 +117,7 @@ const GUARANTEED: Record<Rank, number> = { normal: 0, champion: 1, boss: 2 };
 it('each rank drops its guaranteed items plus one more when the chance draw passes', () => {
   for (const rank of ['normal', 'champion', 'boss'] as const) {
     const seen = { pass: 0, miss: 0 };
-    for (let seed = 1; seed <= 120; seed++) {
+    for (let seed = 1; seed <= 2000; seed++) {
       const { run, chancePasses } = kill(seed, rank);
       seen[chancePasses ? 'pass' : 'miss'] += 1;
       // Gem and material notes are on the run too: items rolled with a rarity draw are counted by the spy.
@@ -164,7 +164,7 @@ it('about 80% of map gear is battle gear, and gems land in the bag', () => {
 
 it('a gem drop is noted on the run and in the log like an item', () => {
   let found = 0;
-  for (let seed = 1; seed <= 400; seed++) {
+  for (let seed = 1; seed <= 5000; seed++) {
     const { run } = kill(seed, 'normal');
     if (spy.gems > 0) {
       found++;
@@ -196,15 +196,15 @@ it('normal kills roll one material chance', () => {
   for (let seed = 1; seed <= 2000; seed++) {
     if (materialsOf(kill(seed, 'normal').run).length > 0) dropped++;
   }
-  expect(Math.abs(dropped / 2000 - 0.25)).toBeLessThan(0.03);
+  expect(Math.abs(dropped / 2000 - MAP_MATERIAL_CHANCE)).toBeLessThan(0.03);
 });
 
 it('bosses roll the material chance five times', () => {
   let drops = 0;
   const kills = 800;
   for (let seed = 1; seed <= kills; seed++) drops += materialsOf(kill(seed, 'boss').run).length;
-  // 5 passes x 0.25 = 1.25 a kill (about 1,000 drops, sd about 27); a single pass would give about 200.
-  expect(Math.abs(drops / kills - 5 * 0.25)).toBeLessThan(0.1);
+  // 5 passes × MAP_MATERIAL_CHANCE a kill; a single pass would give about a fifth as many.
+  expect(Math.abs(drops / kills - 5 * MAP_MATERIAL_CHANCE)).toBeLessThan(0.1);
 });
 
 it('a material drop is noted on the run but not counted as an item', () => {

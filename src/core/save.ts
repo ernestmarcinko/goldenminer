@@ -4,8 +4,8 @@ import {
   GEM_BAG_STACK, GEM_STASH_STACK, LEVEL_CAP, MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_CRAFTED_LINES,
   MAX_DAMAGE, MAX_HELD, MAX_ITEM_LEVEL, MAX_LIFE, MAX_LOOT_RULES, MAX_MAP_MODS, MAX_PASSIVE_GEM_STACK,
   MAX_PASSIVE_MATERIAL_STACK, MAX_ROOMS, MAX_SIDE_LINES, MAX_SOCKETS, MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MAX_TRAIL_STEPS,
-  MONSTER_BUDGET, ORB_BAG_STACK, ORB_STASH_STACK, PREMIUM_CAP, RUN_LOOT_LIMIT, RUNE_BAG_STACK, RUNE_RNG_SALT, RUNE_STASH_STACK, START_GENERAL_PAGES,
-  STASH_PAGE_SIZE, STOCK_SIZE, stashPagePrice,
+  MONSTER_BUDGET_MAX, ORB_BAG_STACK, ORB_STASH_STACK, PREMIUM_CAP, RUN_LOOT_LIMIT, RUNE_BAG_STACK, RUNE_RNG_SALT, RUNE_STASH_STACK, START_GENERAL_PAGES,
+  STASH_PAGE_SIZE, STOCK_SIZE, monsterBudget, stashPagePrice,
 } from './balance';
 import { ACHIEVEMENT_IDS } from './achievements';
 import { ASCENDANCY_NODE_BY_ID, ASCENDANCY_NODE_COUNT, ASCENDANCY_START_ID, MAX_ASCENDANCY_PASSIVE_POINTS, ascendancyTotals } from './ascendancy';
@@ -24,7 +24,7 @@ import {
   BATTLE_STATS, GEAR_SETS, GEM_GRADES, GEM_TYPES, MAP_MOD_KINDS, MAP_SPECIALS, MATERIALS, MINING_STATS,
   MOD_SIDE, ORB_FAMILIES, ORB_SIDES, ORB_TIERS, RARITIES, RUNE_TYPES, orbKey, parseOrbKey, setOfSlot, slotsOf, statsOf,
 } from './items';
-import type { Cell, GearItem, GearSet, GemItem, GemType, MapItem, MapMod, MapRarity, Material, ModLine, OrbItem, RuneItem, RuneType, Slot, StatKey } from './items';
+import type { Cell, GearItem, GearSet, GemItem, GemType, MapItem, MapMod, MapRarity, Material, ModLine, OrbFamily, OrbItem, RuneItem, RuneType, Slot, StatKey } from './items';
 import { xpToNext } from './levels';
 import { hash2 } from './rng';
 import { isValidSeedText, seedFromText } from './seed';
@@ -35,7 +35,7 @@ import {
   SHAFT_MOTIONS, TRAIL_EVENTS, type DropEntry, type GameState, type LifetimeStats, type LootRule,
 } from './types';
 
-export const SCHEMA_VERSION = 19;
+export const SCHEMA_VERSION = 23;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
@@ -402,6 +402,98 @@ export const MIGRATIONS: Record<number, Migration> = {
     delete nextStash.essences;
     return { ...state, bag, overflow, stash: nextStash };
   },
+  19: (state) => {
+    if (!isObject(state)) return state;
+    // The crafting follow-up untiered the removal orbs: merge each side's three tiered stacks into one, and drop the
+    // tier off any held removal orb.
+    const untierRemovalCell = (cell: unknown): unknown => {
+      if (isObject(cell) && cell.type === 'orb' && cell.family === 'removal') {
+        const next: Record<string, unknown> = { ...cell };
+        delete next.tier;
+        return next;
+      }
+      return cell;
+    };
+    const bag = Array.isArray(state.bag) ? state.bag.map(untierRemovalCell) : state.bag;
+    const overflow = Array.isArray(state.overflow) ? state.overflow.map(untierRemovalCell) : state.overflow;
+    const orbs: Record<string, unknown> = {};
+    if (isObject(state.stash) && isObject(state.stash.orbs)) {
+      for (const [key, n] of Object.entries(state.stash.orbs)) {
+        const parts = key.split(':');
+        if (parts.length === 3 && parts[0] === 'removal' && (parts[1] === 'prefix' || parts[1] === 'suffix')) {
+          const merged = `removal:${parts[1]}`;
+          const cur = typeof orbs[merged] === 'number' ? orbs[merged] : 0;
+          orbs[merged] = cur + (typeof n === 'number' ? n : 0);
+        } else {
+          orbs[key] = n;
+        }
+      }
+    }
+    return { ...state, bag, overflow, stash: { ...(isObject(state.stash) ? state.stash : {}), orbs } };
+  },
+  20: (state) => {
+    if (!isObject(state)) return state;
+    // The scattering orbs collapsed to one: merge the three tiered stacks into one, and drop the tier off a held one.
+    const untierScatterCell = (cell: unknown): unknown => {
+      if (isObject(cell) && cell.type === 'orb' && cell.family === 'scattering') {
+        const next: Record<string, unknown> = { ...cell };
+        delete next.tier;
+        return next;
+      }
+      return cell;
+    };
+    const bag = Array.isArray(state.bag) ? state.bag.map(untierScatterCell) : state.bag;
+    const overflow = Array.isArray(state.overflow) ? state.overflow.map(untierScatterCell) : state.overflow;
+    const orbs: Record<string, unknown> = {};
+    if (isObject(state.stash) && isObject(state.stash.orbs)) {
+      for (const [key, n] of Object.entries(state.stash.orbs)) {
+        const parts = key.split(':');
+        if (parts.length === 2 && parts[0] === 'scattering') {
+          const cur = typeof orbs.scattering === 'number' ? orbs.scattering : 0;
+          orbs.scattering = cur + (typeof n === 'number' ? n : 0);
+        } else {
+          orbs[key] = n;
+        }
+      }
+    }
+    return { ...state, bag, overflow, stash: { ...(isObject(state.stash) ? state.stash : {}), orbs } };
+  },
+  21: (state) => {
+    if (!isObject(state) || !isObject(state.stats)) return state;
+    // Clicks and the hand/auto mined split are new counters: they start at zero (past metres are not back-filled).
+    return { ...state, stats: { ...state.stats, clicks: 0, metresDugByClick: 0, metresDugAuto: 0 } };
+  },
+  22: (state) => {
+    if (!isObject(state) || !isObject(state.autoMap) || !Array.isArray(state.autoMap.queue)) return state;
+    // The auto-map queue became a physical list of maps. Each old id resolves to the map it pointed at — still in the
+    // bag or the Map stash — which moves into the queue; ids that resolve to nothing are dropped.
+    const queue: unknown[] = [];
+    for (const id of state.autoMap.queue) {
+      if (!isNonNegInt(id)) continue;
+      let moved = false;
+      if (Array.isArray(state.bag)) {
+        const index = state.bag.findIndex((c) => isObject(c) && c.type === 'map' && c.id === id);
+        if (index >= 0) {
+          queue.push(state.bag[index]);
+          state.bag[index] = null;
+          moved = true;
+        }
+      }
+      if (!moved && isObject(state.stash) && isObject(state.stash.maps)) {
+        for (const list of Object.values(state.stash.maps)) {
+          if (!Array.isArray(list)) continue;
+          const index = list.findIndex((m) => isObject(m) && m.type === 'map' && m.id === id);
+          if (index >= 0) {
+            queue.push(list[index]);
+            list.splice(index, 1);
+            moved = true;
+            break;
+          }
+        }
+      }
+    }
+    return { ...state, autoMap: { queue, on: false } };
+  },
 };
 
 // The passive web the Plan-25 graph leaves connected to the start, in allocation order.
@@ -575,9 +667,11 @@ function isMaterialStack(x: unknown, nextId: number, seen: Set<number>): boolean
 }
 
 function isOrbStack(x: unknown, nextId: number, seen: Set<number>): x is OrbItem {
-  if (!isObject(x) || x.type !== 'orb' || !isIn(ORB_FAMILIES, x.family) || !isIn(ORB_TIERS, x.tier)) return false;
-  const sideOk = x.family === 'scattering' ? x.side === undefined : isIn(ORB_SIDES, x.side);
-  if (!sideOk) return false;
+  if (!isObject(x) || x.type !== 'orb' || !isIn(ORB_FAMILIES, x.family)) return false;
+  const family = x.family as OrbFamily;
+  const sideOk = family === 'craft' || family === 'removal' ? isIn(ORB_SIDES, x.side) : x.side === undefined;
+  const tierOk = family === 'craft' ? isIn(ORB_TIERS, x.tier) : x.tier === undefined;
+  if (!sideOk || !tierOk) return false;
   if (!isNonNegInt(x.count) || x.count < 1 || x.count > ORB_BAG_STACK) return false;
   return isItemBase(x, nextId, seen, false);
 }
@@ -694,7 +788,7 @@ const MAX_RULE_LEVEL = MAX_ITEM_LEVEL + MAX_TIER_OVER_CAP;
 // The most modifiers a rule may count: far past what any item holds.
 const MAX_RULE_MODS = 20;
 const LOOT_RULE_KEYS: readonly string[] = [
-  'kind', 'action', 'set', 'slot', 'rarity', 'level', 'modTier', 'mods', 'mapMod', 'gem', 'grade', 'rune', 'material',
+  'kind', 'action', 'set', 'slot', 'rarity', 'level', 'modTier', 'modTierGap', 'mods', 'mapMod', 'gem', 'grade', 'rune', 'material',
 ];
 const isUpTo = (x: unknown, max: number): boolean => isNonNegInt(x) && x <= max;
 const isOptional = (x: unknown, check: (x: unknown) => boolean): boolean => x === undefined || check(x);
@@ -713,7 +807,8 @@ function isLootRule(x: unknown): x is LootRule {
   if (!(x.kind === 'any' || isIn(LOOT_KINDS, x.kind)) || !isIn(LOOT_ACTIONS, x.action)) return false;
   const fields = isOptional(x.set, (v) => isIn(GEAR_SETS, v)) && isOptional(x.slot, (v) => isIn(ALL_SLOTS, v)) &&
     isOptional(x.rarity, (v) => isIn(RARITIES, v)) && isOptional(x.level, (v) => isLootRange(v, MAX_RULE_LEVEL)) &&
-    isOptional(x.modTier, (v) => isUpTo(v, MAX_RULE_LEVEL)) && isOptional(x.mods, (v) => isLootRange(v, MAX_RULE_MODS)) &&
+    isOptional(x.modTier, (v) => isUpTo(v, MAX_RULE_LEVEL)) && isOptional(x.modTierGap, (v) => isUpTo(v, MAX_RULE_LEVEL)) &&
+    isOptional(x.mods, (v) => isLootRange(v, MAX_RULE_MODS)) &&
     isOptional(x.mapMod, (v) => isIn(MAP_MOD_KINDS, v)) && isOptional(x.gem, (v) => isIn(GEM_TYPES, v)) &&
     isOptional(x.grade, (v) => isIn(GEM_GRADES, v)) && isOptional(x.rune, isRuneType) && isOptional(x.material, isMaterial);
   return fields && ruleValid(x as unknown as LootRule);
@@ -775,13 +870,14 @@ function isAscendancy(x: unknown): x is { points: number; allocated: string[] } 
   return isConnectedTree(x.allocated as string[], ASCENDANCY_NODE_BY_ID, ASCENDANCY_START_ID);
 }
 
-// The auto-map queue: unique map ids in the order queued; whether a map exists is the run loop's business.
-function isAutoMap(x: unknown): x is { queue: number[] } {
-  if (!isObject(x) || !Array.isArray(x.queue)) return false;
+// The auto-map queue: maps physically held, unique ids, and the on/off switch.
+function isAutoMap(x: unknown, nextId: number, seen: Set<number>): x is { queue: MapItem[]; on: boolean } {
+  if (!isObject(x) || typeof x.on !== 'boolean' || !Array.isArray(x.queue)) return false;
   const ids = new Set<number>();
-  for (const id of x.queue) {
-    if (!isNonNegInt(id) || ids.has(id)) return false;
-    ids.add(id);
+  for (const m of x.queue) {
+    if (!isMapItem(m, nextId, seen)) return false;
+    if (ids.has(m.id)) return false;
+    ids.add(m.id);
   }
   return true;
 }
@@ -793,7 +889,8 @@ const isLifetime = (x: unknown): x is { ascensions: number; deepest: number } =>
 function isLifetimeStats(x: unknown): x is LifetimeStats {
   if (!isObject(x)) return false;
   const scalars = [
-    'metresDug', 'timePlayedMs', 'timeAwayMs', 'timeDiggingMs', 'timeCombatMs', 'timeIdleMs',
+    'metresDug', 'clicks', 'metresDugByClick', 'metresDugAuto',
+    'timePlayedMs', 'timeAwayMs', 'timeDiggingMs', 'timeCombatMs', 'timeIdleMs',
     'goldFound', 'goldFromSales', 'goldSpent', 'diamondsFound', 'diamondsSpent', 'soulsEarned', 'soulsSpent',
     'chestsOpened', 'mapsFound', 'monstersKilled', 'championKills', 'bossKills', 'deaths', 'mapsCleared', 'mapsLost',
     'levelsGained', 'itemsCrafted', 'itemsKept', 'itemsSold', 'itemsSalvaged', 'gems', 'itemsBought', 'gemsSocketed', 'legendaries',
@@ -918,12 +1015,12 @@ function isMapRun(x: unknown, seed: number, nextId: number, seen: Set<number>): 
   if (!isObject(x) || !isMapItem(x.map, nextId, seen) || !isBossRoom(x.bossRoom, seed, x.map) || !isRoomIn(x.room, x.bossRoom)) return false;
   const { queue, room, bossRoom } = x;
   const tier = isObject(x.map) && typeof x.map.tier === 'number' ? x.map.tier : 1;
-  if (!Array.isArray(queue) || queue.length < 1 || queue.length > MONSTER_BUDGET || !queue.every((m) => isMonster(m, tier))) return false;
+  if (!Array.isArray(queue) || queue.length < 1 || queue.length > monsterBudget(tier) + 1 || !queue.every((m) => isMonster(m, tier))) return false;
   if ((queue[0].rank === 'boss') !== (room === bossRoom)) return false;
   if (!isNonNegInt(x.life) || x.life < 1 || x.life > MAX_LIFE) return false;
   if (!isUnitRange(x.hitCarry) || !isUnitRange(x.monsterCarry) || !isUnitRange(x.regenCarry)) return false;
   if (!isGains(x.gained) || !isNonNegInt(x.items)) return false;
-  if (!isNonNegInt(x.strikes) || (x.saved !== undefined && x.saved !== true)) return false;
+  if (!isNonNegInt(x.strikes) || (x.saved !== undefined && x.saved !== true) || (x.auto !== undefined && x.auto !== true)) return false;
   if (!Array.isArray(x.log) || x.log.length > COMBAT_LOG_LIMIT || !x.log.every(isCombatLine)) return false;
   return Array.isArray(x.loot) && x.loot.length <= RUN_LOOT_LIMIT && x.loot.every(isLootNote);
 }
@@ -1029,7 +1126,7 @@ export function validateState(x: unknown): x is GameState {
   if (typeof x.paused !== 'boolean' || !isDropLog(x.drops, nextId)) return false;
   if (!isMerchant(x.merchant) || !isUint32(x.uniqueRng) || !isUint32(x.runeRng)) return false;
   if (!isOreMarket(x.oreMarket)) return false;
-  if (!isAscendancy(x.ascendancy) || !isAutoMap(x.autoMap) || !isLifetime(x.lifetime)) return false;
+  if (!isAscendancy(x.ascendancy) || !isAutoMap(x.autoMap, nextId, seen) || !isLifetime(x.lifetime)) return false;
   if (!isLifetimeStats(x.stats) || !isAchievements(x.achievements)) return false;
   const extraPassivePoints = ascendancyTotals({ ascendancy: x.ascendancy }).passivePoints;
   if (!isPassives(x.passives) || x.passives.allocated.length > x.level - 1 + extraPassivePoints) return false;

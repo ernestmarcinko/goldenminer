@@ -53,7 +53,12 @@ export function RunView({ store }: { store: GameStore }) {
           )}
           {rewards !== '' && <div className="gm-run__rewards gm-small">{rewards}</div>}
           <RoomTrack run={run} bossName={type.bossName} />
-          <button type="button" className="gm-btn" onClick={() => store.leaveMap()}>Leave map</button>
+          <div className="gm-run__leave">
+            <button type="button" className="gm-btn" onClick={() => store.leaveMap()}>Leave map</button>
+            {state.autoMap.on && (
+              <button type="button" className="gm-btn" onClick={() => store.setAutoMap(false)}>Stop after this map</button>
+            )}
+          </div>
           <div className="gm-muted gm-small">Leaving or dying loses the map. XP and drops are kept.</div>
         </section>
         <section className="gm-run__fight" aria-label="Fight">

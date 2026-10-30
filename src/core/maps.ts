@@ -1,4 +1,5 @@
 import { MAP_TIER_CAP } from './balance';
+import { checkAchievements } from './achievements';
 import { deriveBattleStats } from './battle';
 import { endRun } from './combat';
 import { dungeonLayout } from './dungeons';
@@ -34,10 +35,11 @@ export function takeMapAt(state: GameState, loc: { tier: number; index: number }
 /** A found map is a normal one, and goes where every find goes: to the bag, else held, else sold. */
 export function addMap(state: GameState, tier: number, metre: number): LootNote[] {
   state.stats.mapsFound += 1;
+  checkAchievements(state, 'mapsFound');
   return receiveItem(state, { id: state.nextId++, type: 'map', tier, metre, rarity: 'normal', mods: [] }, { kind: 'metre', metre });
 }
 
-/** Takes a map out of its bag cell or its tier list. */
+/** Takes a map out of its bag cell, its tier list, or the auto-map queue. */
 export function takeMap(state: GameState, mapId: number): MapItem | undefined {
   const inBag = state.bag.findIndex((c) => c?.type === 'map' && c.id === mapId);
   const carried = state.bag[inBag];
@@ -49,11 +51,16 @@ export function takeMap(state: GameState, mapId: number): MapItem | undefined {
     const index = list.findIndex((m) => m.id === mapId);
     if (index >= 0) return takeMapAt(state, { tier: Number(tier), index });
   }
+  const queued = state.autoMap.queue.findIndex((m) => m.id === mapId);
+  if (queued >= 0) return state.autoMap.queue.splice(queued, 1)[0];
   return undefined;
 }
 
-/** Opens a map from the bag or the Map stash: the map leaves its cell and the run starts in room 1 at full life. */
-export function startMap(state: GameState, mapId: number): 'ok' | 'busy' | 'invalid' {
+/**
+ * Opens a map from the bag or the Map stash: the map leaves its cell and the run starts in room 1 at full life. `auto`
+ * marks a map the auto-map chain started, so its finished result can be kept off the screen while the chain continues.
+ */
+export function startMap(state: GameState, mapId: number, auto = false): 'ok' | 'busy' | 'invalid' {
   if (state.activity.kind === 'map') return 'busy';
   const map = takeMap(state, mapId);
   if (map === undefined) return 'invalid';
@@ -67,14 +74,16 @@ export function startMap(state: GameState, mapId: number): 'ok' | 'busy' | 'inva
       map, room: 1, bossRoom: layout.rooms.length + 1, queue,
       life: deriveBattleStats(state).maxLife, hitCarry: 0, monsterCarry: 0, regenCarry: 0,
       gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [], items: 0, strikes: 0,
+      ...(auto ? { auto: true as const } : {}),
     },
   };
   return 'ok';
 }
 
-/** Walks out of the running map; the map is spent. False when no map is running. */
+/** Walks out of the running map; the map is spent, and auto-mapping is stopped. False when no map is running. */
 export function leaveMap(state: GameState): boolean {
   if (state.activity.kind !== 'map') return false;
   endRun(state, state.activity.run, 'left');
+  state.autoMap.on = false;
   return true;
 }

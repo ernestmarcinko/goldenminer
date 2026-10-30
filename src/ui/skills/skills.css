@@ -146,6 +146,14 @@
   fill: transparent;
   stroke: none;
 }
+/* Keystones wear a dashed gold ring, so the rule-changing nodes read as the biggest, most important stops. */
+.gm-web__keystone {
+  fill: none;
+  stroke: var(--gm-gold-bright);
+  stroke-width: 2;
+  stroke-dasharray: 3 2;
+  opacity: 0.75;
+}
 /* Allocated: the frame's accent already glows, so just a soft side-coloured drop shadow. */
 .gm-web__node[data-allocated='true'] .gm-web__icon {
   filter: drop-shadow(0 0 5px currentColor);

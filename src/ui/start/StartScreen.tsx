@@ -58,7 +58,7 @@ export function StartScreen({ store, mode, onBack, onStart }: Props) {
     onStart();
   };
 
-  const title = mode === 'newWorld' ? 'Start a new world' : 'Golden Miner';
+  const title = mode === 'newWorld' ? 'Start a new world' : 'The Golden Minder';
 
   return (
     <div className="gm-start" style={{ zIndex: 10 + depth }}>

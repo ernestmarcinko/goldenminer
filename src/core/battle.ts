@@ -1,5 +1,5 @@
 import {
-  BASE_ATTACKS_PER_SECOND, BASE_CRIT_CHANCE, BASE_LIFE, CRIT_MULTIPLIER, LIFE_PER_LEVEL,
+  BASE_ATTACKS_PER_SECOND, BASE_CRIT_CHANCE, BASE_LIFE, CLEAVE_BASE, CRIT_MULTIPLIER, LIFE_PER_LEVEL,
   MAX_ARMOR_REDUCTION, MAX_ATTACKS_PER_SECOND, MAX_CRIT_CHANCE, MAX_DAMAGE, MAX_LIFE, MAX_RESIST,
   MAX_RESIST_HARD_CAP, MIN_ATTACKS_PER_SECOND, MIN_RESIST, armorFactor, baseDamage, baseResist,
 } from './balance';
@@ -18,6 +18,7 @@ export interface BattleStats {
   elementalDamage: number;                 // added to every hit after the physical roll; Armored doesn't soften it
   lifeRegen: number; lifeOnKill: number;   // life per second in maps, and life on each kill
   xpMultiplier: number;
+  cleave: number;                          // the share of a hit (0..1) each extra enemy struck takes; always on, base 25%
 }
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
@@ -102,6 +103,7 @@ export function deriveBattleStats(state: GameState): BattleStats {
     lifeRegen: clamp(g.lifeRegen, 0, MAX_LIFE),
     lifeOnKill: clamp(g.lifeOnKill, 0, MAX_LIFE),
     xpMultiplier,
+    cleave: clamp(CLEAVE_BASE + g.cleave, 0, 100) / 100,
   };
 }
 

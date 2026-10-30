@@ -7,7 +7,7 @@ export const MINING_STATS = ['digPower', 'goldYield', 'diamondYield', 'chestFind
   'digPowerPct', 'veinYield', 'oreFind', 'salvageYield', 'sellBonus'] as const;
 export const BATTLE_STATS = ['damage', 'damagePct', 'attackSpeed', 'life', 'armor', 'critChance',
   'resistAll', 'maxResist', 'soulFind', 'magicFind',
-  'elementalDamage', 'critMultiplier', 'lifePct', 'armorPct', 'lifeRegen', 'lifeOnKill', 'xpFind'] as const;
+  'elementalDamage', 'critMultiplier', 'lifePct', 'armorPct', 'lifeRegen', 'lifeOnKill', 'xpFind', 'cleave'] as const;
 export const GEM_TYPES = ['ruby', 'sapphire', 'emerald', 'amethyst', 'starstone'] as const;
 export const GEM_GRADES = ['tiny', 'small', 'big', 'giant', 'perfect'] as const;
 export const RUNE_TYPES = ['fehu', 'uruz', 'thurisaz', 'ansuz', 'raidho', 'kenaz', 'gebo', 'wunjo', 'hagalaz', 'isa'] as const;
@@ -57,21 +57,23 @@ export interface MapItem {
   /** At most one, outside `mods`: never counted toward the six, and no enchant removes it. */
   special?: MapSpecial;
 }
-/** The side a craft or removal orb aims at; a scattering orb has no side. */
+/** The side a craft or removal orb aims at; scattering, socketing and clearing have no side. */
 export type OrbSide = 'prefix' | 'suffix';
-/** The three orb families: craft (add/reroll a line), removal (remove a line), scattering (reroll every value). */
-export type OrbFamily = 'craft' | 'removal' | 'scattering';
-/** The three orb tiers: each prices in a different ore and rolls a wider band than the one below. */
+/** The five orb families: craft (add a line), removal (remove a line), scattering (reroll values), socketing (add a
+ * socket), clearSockets (empty the sockets). */
+export type OrbFamily = 'craft' | 'removal' | 'scattering' | 'socketing' | 'clearSockets';
+/** The three orb tiers: craft and scattering orbs price and roll in a tier band; removal, socketing and clearing are
+ * untiered. */
 export type OrbTier = 'minor' | 'normal' | 'greater';
-export const ORB_FAMILIES = ['craft', 'removal', 'scattering'] as const;
+export const ORB_FAMILIES = ['craft', 'removal', 'scattering', 'socketing', 'clearSockets'] as const;
 export const ORB_TIERS = ['minor', 'normal', 'greater'] as const;
 export const ORB_SIDES = ['prefix', 'suffix'] as const;
 
 /**
- * A crafting orb: a craft orb adds or rerolls a line on its side in a tier band, a removal orb removes a band-scoped
- * line on its side, and a scattering orb rerolls every rolled line's value, keeping the best of 1/2/3 by tier.
+ * A crafting orb. `side` is set for craft and removal, absent for scattering/socketing/clearing; `tier` is set for
+ * craft and scattering, absent for removal/socketing/clearing.
  */
-export interface OrbItem { id: number; type: 'orb'; family: OrbFamily; side?: OrbSide; tier: OrbTier; count: number }
+export interface OrbItem { id: number; type: 'orb'; family: OrbFamily; side?: OrbSide; tier?: OrbTier; count: number }
 export type Item = GearItem | GemItem | RuneItem | MaterialItem | MapItem | OrbItem;
 /** What stacks in a bag cell and counts up in its stash tab. */
 export type Stack = GemItem | RuneItem | MaterialItem | OrbItem;
@@ -80,52 +82,55 @@ export type Cell = Item | null;
 /** Every stat, in mining then battle order. */
 export const ALL_STATS: readonly StatKey[] = [...MINING_STATS, ...BATTLE_STATS];
 
-/** One orb in the catalogue: its family, side (absent for scattering), tier and unique name. */
-export interface OrbDef { family: OrbFamily; side?: OrbSide; tier: OrbTier; name: string }
+/** One orb in the catalogue: its family, side (absent for scattering/socketing/clearing), tier (absent for untiered)
+ * and unique name. */
+export interface OrbDef { family: OrbFamily; side?: OrbSide; tier?: OrbTier; name: string }
 
-/** The 15-orb catalogue: three families × three tiers, each with a unique name. */
+/** The 11-orb catalogue, each with a unique name: craft (add), removal (remove), scattering (reroll), socketing and
+ * clearing. */
 export const ORBS: readonly OrbDef[] = [
-  { family: 'craft', side: 'prefix', tier: 'minor', name: 'Minor Orb of Prefixes' },
-  { family: 'craft', side: 'prefix', tier: 'normal', name: 'Normal Orb of Prefixes' },
-  { family: 'craft', side: 'prefix', tier: 'greater', name: 'Greater Orb of Prefixes' },
-  { family: 'craft', side: 'suffix', tier: 'minor', name: 'Minor Orb of Suffixes' },
-  { family: 'craft', side: 'suffix', tier: 'normal', name: 'Normal Orb of Suffixes' },
-  { family: 'craft', side: 'suffix', tier: 'greater', name: 'Greater Orb of Suffixes' },
-  { family: 'removal', side: 'prefix', tier: 'minor', name: 'Minor Orb of Severance' },
-  { family: 'removal', side: 'prefix', tier: 'normal', name: 'Normal Orb of Severance' },
-  { family: 'removal', side: 'prefix', tier: 'greater', name: 'Greater Orb of Severance' },
-  { family: 'removal', side: 'suffix', tier: 'minor', name: 'Minor Orb of Unmaking' },
-  { family: 'removal', side: 'suffix', tier: 'normal', name: 'Normal Orb of Unmaking' },
-  { family: 'removal', side: 'suffix', tier: 'greater', name: 'Greater Orb of Unmaking' },
-  { family: 'scattering', tier: 'minor', name: 'Minor Scattering Orb' },
-  { family: 'scattering', tier: 'normal', name: 'Normal Scattering Orb' },
-  { family: 'scattering', tier: 'greater', name: 'Greater Scattering Orb' },
+  { family: 'craft', side: 'prefix', tier: 'minor', name: 'Flint Orb' },
+  { family: 'craft', side: 'prefix', tier: 'normal', name: 'Jasper Orb' },
+  { family: 'craft', side: 'prefix', tier: 'greater', name: 'Sunstone Orb' },
+  { family: 'craft', side: 'suffix', tier: 'minor', name: 'Shale Orb' },
+  { family: 'craft', side: 'suffix', tier: 'normal', name: 'Amber Orb' },
+  { family: 'craft', side: 'suffix', tier: 'greater', name: 'Moonstone Orb' },
+  { family: 'removal', side: 'prefix', name: 'Orb of Unwriting' },
+  { family: 'removal', side: 'suffix', name: 'Orb of Undoing' },
+  { family: 'scattering', name: 'Tempest Orb' },
+  { family: 'socketing', name: "Borer's Orb" },
+  { family: 'clearSockets', name: 'Orb of Cleansing' },
 ];
 
 /** The catalogue's unique name for an orb. */
 export function orbName(item: OrbItem): string {
-  return ORBS.find((o) => o.family === item.family && o.side === item.side && o.tier === item.tier)?.name ?? `${item.tier} orb`;
+  return ORBS.find((o) => o.family === item.family && o.side === item.side && o.tier === item.tier)?.name ?? `${item.family} orb`;
 }
 
 const isOrbTier = (x: string): x is OrbTier => (ORB_TIERS as readonly string[]).includes(x);
 const isOrbSide = (x: string): x is OrbSide => (ORB_SIDES as readonly string[]).includes(x);
 
-/** The Orbs-tab key for an orb: `"craft:prefix:minor"`, or `"scattering:greater"` with no side. */
-export function orbKey(family: OrbFamily, side: OrbSide | undefined, tier: OrbTier): string {
-  return side === undefined ? `${family}:${tier}` : `${family}:${side}:${tier}`;
+/** The Orbs-tab key for an orb: `"craft:prefix:minor"`, `"removal:prefix"`, or the family alone when untiered. */
+export function orbKey(family: OrbFamily, side: OrbSide | undefined, tier: OrbTier | undefined): string {
+  if (family === 'craft') return `craft:${side}:${tier}`;
+  if (family === 'removal') return `removal:${side}`;
+  return family;
 }
 
-/** Reads an Orbs-tab key back to its family, side (if any) and tier. */
-export function parseOrbKey(key: string): { family: OrbFamily; side?: OrbSide; tier: OrbTier } | undefined {
+/** Reads an Orbs-tab key back to its family, side (if any) and tier (if any). */
+export function parseOrbKey(key: string): { family: OrbFamily; side?: OrbSide; tier?: OrbTier } | undefined {
   const parts = key.split(':');
-  if (parts.length === 2 && parts[0] === 'scattering' && isOrbTier(parts[1] ?? '')) {
-    return { family: 'scattering', tier: parts[1] as OrbTier };
+  const family = parts[0];
+  if (parts.length === 1 && (family === 'socketing' || family === 'clearSockets' || family === 'scattering')) {
+    return { family };
   }
-  if (
-    parts.length === 3 && (parts[0] === 'craft' || parts[0] === 'removal') &&
-    isOrbSide(parts[1] ?? '') && isOrbTier(parts[2] ?? '')
-  ) {
-    return { family: parts[0] as OrbFamily, side: parts[1] as OrbSide, tier: parts[2] as OrbTier };
+  if (parts.length === 2) {
+    const second = parts[1] ?? '';
+    if (family === 'removal' && isOrbSide(second)) return { family: 'removal', side: second };
+    return undefined;
+  }
+  if (parts.length === 3 && family === 'craft' && isOrbSide(parts[1] ?? '') && isOrbTier(parts[2] ?? '')) {
+    return { family: 'craft', side: parts[1] as OrbSide, tier: parts[2] as OrbTier };
   }
   return undefined;
 }
@@ -154,7 +159,7 @@ export const MOD_SIDE: Readonly<Record<StatKey, 'prefix' | 'suffix'>> = {
   chestFind: 'suffix', gemFind: 'suffix', mapFind: 'suffix', oreFind: 'suffix', lampSight: 'suffix',
   offlineCap: 'suffix', hazardWard: 'suffix', salvageYield: 'suffix',
   damage: 'prefix', damagePct: 'prefix', elementalDamage: 'prefix', attackSpeed: 'prefix', critChance: 'prefix',
-  critMultiplier: 'prefix', life: 'prefix', lifePct: 'prefix',
+  critMultiplier: 'prefix', life: 'prefix', lifePct: 'prefix', cleave: 'prefix',
   armor: 'suffix', armorPct: 'suffix', resistAll: 'suffix', maxResist: 'suffix', lifeRegen: 'suffix', lifeOnKill: 'suffix',
   soulFind: 'suffix', magicFind: 'suffix', xpFind: 'suffix',
 };

@@ -62,15 +62,15 @@ export function rarityOptionsFor(rule: LootRule): readonly Option<Rarity | 'any'
   return rule.kind === 'map' && rule.rarity !== 'legendary' ? MAP_RARITY_OPTIONS : RARITY_OPTIONS;
 }
 
-export type RuleField = 'set' | 'slot' | 'rarity' | 'level' | 'modTier' | 'mods' | 'mapMod' | 'gem' | 'grade' | 'rune' | 'material';
+export type RuleField = 'set' | 'slot' | 'rarity' | 'level' | 'modTier' | 'modTierGap' | 'mods' | 'mapMod' | 'gem' | 'grade' | 'rune' | 'material';
 
 const KIND_FIELDS: Readonly<Record<LootKind | 'any', readonly RuleField[]>> = {
-  gear: ['set', 'slot', 'rarity', 'level', 'modTier', 'mods'],
-  map: ['rarity', 'level', 'modTier', 'mods', 'mapMod'],
+  gear: ['set', 'slot', 'rarity', 'level', 'modTier', 'modTierGap', 'mods'],
+  map: ['rarity', 'level', 'modTier', 'modTierGap', 'mods', 'mapMod'],
   gem: ['gem', 'grade'],
   rune: ['rune'],
   material: ['material'],
-  any: ['rarity', 'level', 'modTier', 'mods'],
+  any: ['rarity', 'level', 'modTier', 'modTierGap', 'mods'],
 };
 
 /** The fields the editor shows for a kind, in order. */
@@ -130,12 +130,19 @@ export function withModTier(rule: LootRule, text: string): LootRule {
   return n === undefined ? rest : { ...rest, modTier: n };
 }
 
-/** The editor's number boxes: each end of the two ranges, and the modifier tier. */
-export type NumberBox = 'level.min' | 'level.max' | 'mods.min' | 'mods.max' | 'modTier';
+/** The rule with a modifier-tier gap typed in: a whole number of 0 or more, else none. */
+export function withModTierGap(rule: LootRule, text: string): LootRule {
+  const { modTierGap: _old, ...rest } = rule;
+  const n = parseCount(text, 0);
+  return n === undefined ? rest : { ...rest, modTierGap: n };
+}
+
+/** The editor's number boxes: each end of the two ranges, the modifier tier, and the modifier-tier gap. */
+export type NumberBox = 'level.min' | 'level.max' | 'mods.min' | 'mods.max' | 'modTier' | 'modTierGap';
 const BOX_FIELD: Readonly<Record<NumberBox, RuleField>> = {
-  'level.min': 'level', 'level.max': 'level', 'mods.min': 'mods', 'mods.max': 'mods', modTier: 'modTier',
+  'level.min': 'level', 'level.max': 'level', 'mods.min': 'mods', 'mods.max': 'mods', modTier: 'modTier', modTierGap: 'modTierGap',
 };
-const BOX_LEAST: Readonly<Record<NumberBox, number>> = { 'level.min': 1, 'level.max': 1, 'mods.min': 0, 'mods.max': 0, modTier: 1 };
+const BOX_LEAST: Readonly<Record<NumberBox, number>> = { 'level.min': 1, 'level.max': 1, 'mods.min': 0, 'mods.max': 0, modTier: 1, modTierGap: 0 };
 
 /** Whether a box's text is something the rule can't take: not empty, and not a whole number at or above its least. */
 export const boxRejects = (box: NumberBox, text: string): boolean => text.trim() !== '' && parseCount(text, BOX_LEAST[box]) === undefined;

@@ -66,6 +66,7 @@ export function collect(
     loot.push(...addMap(state, mapTier(state, tier), depth));
   } else if (roll.feature === 'chest') {
     state.stats.chestsOpened += 1;
+    checkAchievements(state, 'chests');
     // The Gebo rune makes every chest drop one more item.
     const chests = stats.runeFlags.has('extraChest') ? 2 : 1;
     for (let c = 0; c < chests; c++) {
@@ -163,7 +164,7 @@ export function digSpeed(state: GameState, stats: Stats): { metresPerMinute: num
  * is had: a vein pays that many times over, and a chest, gem or map is found again as a bonus from the unique stream.
  */
 export function finishMetre(
-  state: GameState, next: number, done: MetreRoll, stats: Stats, events?: TickEvent[], finds = 1,
+  state: GameState, next: number, done: MetreRoll, stats: Stats, events?: TickEvent[], finds = 1, clicked = false,
 ): void {
   const tier = metreTier(next);
   const vein = done.feature === 'goldVein' || done.feature === 'diamondVein';
@@ -182,8 +183,12 @@ export function finishMetre(
   delete state.ahead[next];
   state.deepest = next;
   state.stats.metresDug += 1;
+  if (clicked) state.stats.metresDugByClick += 1;
+  else state.stats.metresDugAuto += 1;
   checkAchievements(state, 'depth');
   checkAchievements(state, 'dig');
+  checkAchievements(state, 'handMined');
+  checkAchievements(state, 'autoMined');
   fillAhead(state, stats);
   events?.push({ kind: 'metre', depth: next });
 }
@@ -194,18 +199,18 @@ export function isInstant(state: GameState, metre: number): boolean {
 }
 
 /** Finishes the instant metres at the face, each found twice (on top of time away's doubling); false if loot is held. */
-function finishInstant(state: GameState, stats: Stats, events: TickEvent[] | undefined, finds: number): boolean {
+function finishInstant(state: GameState, stats: Stats, events: TickEvent[] | undefined, finds: number, clicked: boolean): boolean {
   while (state.overflow.length === 0 && isInstant(state, state.deepest + 1)) {
     const next = state.deepest + 1;
-    finishMetre(state, next, faceRoll(state, stats), stats, events, 2 * finds);
+    finishMetre(state, next, faceRoll(state, stats), stats, events, 2 * finds, clicked);
   }
   return state.overflow.length === 0;
 }
 
 /** `finds`: how often every metre's find is had (2 while away with Long Voyage worn). */
-function digFace(state: GameState, stats: Stats, events: TickEvent[] | undefined, finds: number): void {
+function digFace(state: GameState, stats: Stats, events: TickEvent[] | undefined, finds: number, clicked: boolean): void {
   // An instant metre is finished before any tick is spent on it.
-  if (!finishInstant(state, stats, events, finds)) return;
+  if (!finishInstant(state, stats, events, finds, clicked)) return;
   const roll = faceRoll(state, stats);
   const m = state.deepest + 1;
   const step = 1 / ticksForMetre(state, m, roll, stats);
@@ -216,8 +221,8 @@ function digFace(state: GameState, stats: Stats, events: TickEvent[] | undefined
     state.progress -= 1;
     const next = state.deepest + 1;
     const done = faceRoll(state, stats);
-    finishMetre(state, next, done, stats, events, finds);
-    if (!finishInstant(state, stats, events, finds)) {
+    finishMetre(state, next, done, stats, events, finds, clicked);
+    if (!finishInstant(state, stats, events, finds, clicked)) {
       state.progress -= Math.floor(state.progress);
       return;
     }
@@ -230,7 +235,7 @@ function digFace(state: GameState, stats: Stats, events: TickEvent[] | undefined
  * are time away from the game, whose finds Long Voyage doubles.
  */
 export function applyTicks(
-  state: GameState, count: number, stats: Stats, events?: TickEvent[], digPaused = false, away = false,
+  state: GameState, count: number, stats: Stats, events?: TickEvent[], digPaused = false, away = false, clicked = false,
 ): void {
   const finds = away && hasUnique(state, 'longVoyage') ? 2 : 1;
   // Each applied tick is 1/autoTicksPerSecond seconds of simulated activity, bucketed by what the tick did. This is
@@ -247,22 +252,33 @@ export function applyTicks(
     }
     // Held loot stops digging only while it has no room, whatever freed a cell: the gate heals itself. A drain draws nothing.
     if (state.overflow.length > 0) drainOverflow(state);
-    if (digPaused || state.overflow.length > 0) {
+    // The player's Pause holds everything new; held loot does too.
+    if (state.paused || state.overflow.length > 0) {
       addTime(state.stats, 'timeIdleMs', dtMs);
       state.tickCount += 1;
       continue;
     }
-    // Away time turns queued maps into XP: auto-mapping starts the next eligible map instead of digging.
-    if (away && tryAutoMap(state)) {
+    // Auto-mapping starts the next eligible queued map on any tick — live or away — so a running chain isn't tied to the
+    // view or to the app being open. The player's Pause above, and the on/off switch, still gate it.
+    if (tryAutoMap(state)) {
       mapTick(state, stats, events);
       addTime(state.stats, 'timeCombatMs', dtMs);
       state.tickCount += 1;
       continue;
     }
+    // The view pause stops digging only: a running map or auto-map keeps going.
+    if (digPaused) {
+      addTime(state.stats, 'timeIdleMs', dtMs);
+      state.tickCount += 1;
+      continue;
+    }
     // Digging pays nothing by the tick and draws nothing: Gold and Diamonds come from the veins it digs into.
-    digFace(state, stats, events, finds);
+    digFace(state, stats, events, finds, clicked);
     addTime(state.stats, 'timeDiggingMs', dtMs);
     state.tickCount += 1;
   }
+  // A map that just ended hands the chain to the next queued map in the same pass, so the run view never blinks back
+  // to digging between auto-mapped maps. The player's Pause and held loot still hold it, as they do within the loop.
+  if (state.activity.kind !== 'map' && !state.paused && state.overflow.length === 0) tryAutoMap(state);
   decayPremiums(state, count);
 }

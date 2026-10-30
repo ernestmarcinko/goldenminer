@@ -94,6 +94,7 @@ function MapsTab({ state, handlers, tier, onTier }: {
       />
       <div className="gm-muted gm-small">
         {tier === null ? 'No maps in the stash. A map moved here joins its own tier.' : mapTierCaption(tier, cells.length)}
+        {state.autoMap.queue.length > 0 && ` · ${formatNumber(state.autoMap.queue.length)} queued for auto-map`}
       </div>
     </div>
   );
@@ -174,16 +175,8 @@ export function InventoryView({ store }: { store: GameStore }) {
     <div className="gm-inv">
       <h2 className="gm-visually-hidden">Inventory</h2>
       <section aria-label="Gear" className="gm-inv__col gm-inv__col--doll">
-        <div className="gm-dolls">
-          <section className="gm-dolls__set" aria-label="Mining gear">
-            <h3 className="gm-dolls__title gm-dolls__title--mining">Mining</h3>
-            <PaperDoll state={state} set="mining" handlers={handlers} flashSlot={flashSlot} />
-          </section>
-          <section className="gm-dolls__set" aria-label="Battle gear">
-            <h3 className="gm-dolls__title gm-dolls__title--battle">Battle</h3>
-            <PaperDoll state={state} set="battle" handlers={handlers} flashSlot={flashSlot} />
-          </section>
-        </div>
+        <h3 className="gm-char__bag">Gear</h3>
+        <PaperDoll state={state} set="both" handlers={handlers} flashSlot={flashSlot} />
         {tapSpot === 'doll' && tapCard}
         <div className="gm-char__stats">
           <CharacterSheet state={state} half="both" />

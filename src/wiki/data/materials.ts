@@ -25,17 +25,18 @@ export function materialRows(): MaterialRow[] {
   }));
 }
 
-/** One orb's recipe: its family, side (absent for scattering), tier, name and the ore that buys it. */
+/** One orb's recipe: its family, side (absent for scattering/socketing/clearing), tier (absent for untiered), name and
+ * the ore that buys it. */
 export interface OrbRecipeRow {
-  family: OrbFamily; side: OrbSide | undefined; tier: OrbTier; name: string; ore: Material; oreLabel: string; cost: number;
+  family: OrbFamily; side: OrbSide | undefined; tier: OrbTier | undefined; name: string; ore: Material; oreLabel: string; cost: number;
 }
 
 export function orbRecipes(): OrbRecipeRow[] {
   return ORBS.map((o) => {
-    const ore = orbOre(o.family, o.tier);
+    const ore = orbOre(o.family, o.side, o.tier);
     return {
       family: o.family, side: o.side, tier: o.tier, name: o.name,
-      ore, oreLabel: MATERIAL_LABELS[ore], cost: orbCost(o.family, o.tier),
+      ore, oreLabel: MATERIAL_LABELS[ore], cost: orbCost(o.family, o.side, o.tier),
     };
   });
 }
@@ -48,7 +49,9 @@ export interface CraftCostRow {
   per: number;
 }
 
-const CRAFT_LABELS: Readonly<Record<CraftKind, string>> = { ...MATERIAL_LABELS, diamond: 'Diamonds' };
+const CRAFT_LABELS: Readonly<Record<CraftKind, string>> = {
+  ...MATERIAL_LABELS, diamond: 'Diamonds', makeMagic: 'Diamonds', makeRare: 'Diamonds',
+};
 
 export function craftCosts(): CraftCostRow[] {
   const rows: CraftCostRow[] = [];

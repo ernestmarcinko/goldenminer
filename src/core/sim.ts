@@ -98,16 +98,45 @@ function nextSurveyorNode(state: GameState): string | undefined {
   return path.find((id) => id !== START_NODE_ID && !state.passives.allocated.includes(id));
 }
 
+/**
+ * The number of nodes on the shortest path from the start to Surveyor, excluding the start. Read off the web rather
+ * than hard-coded, so re-laying out the tree keeps the reference run pacing itself to Surveyor's real depth.
+ */
+function surveyorPathLength(): number {
+  const parent = new Map<string, string | null>();
+  parent.set(START_NODE_ID, null);
+  const queue: string[] = [START_NODE_ID];
+  while (queue.length > 0) {
+    const id = queue.shift();
+    if (id === undefined || id === SURVEYOR_ID) break;
+    const node = PASSIVE_NODE_BY_ID.get(id);
+    if (node === undefined) continue;
+    for (const link of node.links) {
+      if (parent.has(link)) continue;
+      parent.set(link, id);
+      queue.push(link);
+    }
+  }
+  if (!parent.has(SURVEYOR_ID)) return 0;
+  let count = 0;
+  let current: string | null | undefined = SURVEYOR_ID;
+  while (current !== null && current !== undefined) {
+    count++;
+    current = parent.get(current);
+  }
+  return count - 1;
+}
+
 interface PassivePolicy { nextSide: 'battle' | 'mining'; lastPathLevel: number }
 
 /** The level the reference player plans to take Surveyor at, and the level they start saving the path for it. */
 const SURVEYOR_LEVEL = 30;
-const SURVEYOR_PATH = 13;
+const SURVEYOR_PATH = surveyorPathLength();
 
 /**
- * Spends every point. From the level that leaves one point per level-up for the thirteen-node path to Surveyor, it
- * takes one path node a level, so Surveyor lands at about level 30; the rest of each level's points alternate the
- * first allocatable battle node and the first allocatable mining node. Returns whether Surveyor is allocated.
+ * Spends every point. From the level that leaves one point per level-up for the path to Surveyor, it takes one path
+ * node a level, so Surveyor lands at about level 30; the rest of each level's points alternate the first allocatable
+ * battle node and the first allocatable mining node. Returns whether Surveyor is allocated.
  */
 function spendPassives(state: GameState, policy: PassivePolicy): boolean {
   let surveyorAllocated = state.passives.allocated.includes(SURVEYOR_ID);
@@ -157,6 +186,7 @@ function bestAvailableMap(state: GameState, maxTier: number): MapItem | undefine
 /** Queues every stashed map auto-mapping can reach, which is idempotent for maps already queued. */
 function queueStashedMaps(state: GameState): void {
   if (!autoMapping(state)) return;
+  state.autoMap.on = true;   // the reference player keeps auto-mapping on, re-armed when the chain drains
   const maxTier = autoMapMaxTier(state);
   for (const [key, list] of Object.entries(state.stash.maps)) {
     if (Number(key) > maxTier) continue;
@@ -298,6 +328,7 @@ export function runReference(options: SimOptions = {}): SimReport {
   const clickRate = options.clickRate ?? 2;
   const activeMinutes = Math.max(0, Math.min(CHECK_IN_MINUTES, Math.round(CHECK_IN_MINUTES * (options.activeEfficiency ?? 0.65))));
   const state = newGame(seed, 0);
+  state.autoMap.on = true;   // the reference player turns auto-mapping on
 
   const first = simulateRun(state, days, clickRate, activeMinutes);
 

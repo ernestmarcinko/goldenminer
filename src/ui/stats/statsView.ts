@@ -24,6 +24,9 @@ export function statsVMs(state: GameState): StatGroup[] {
       id: 'distance', label: 'Distance & time',
       rows: [
         { label: 'Metres dug', value: num(s.metresDug) },
+        { label: 'Clicks', value: num(s.clicks) },
+        { label: 'Metres dug by hand', value: num(s.metresDugByClick) },
+        { label: 'Metres dug automatically', value: num(s.metresDugAuto) },
         { label: 'Time played', value: time(s.timePlayedMs) },
         { label: 'Time away', value: time(s.timeAwayMs) },
         { label: 'Time mining', value: time(s.timeDiggingMs) },

@@ -1,4 +1,5 @@
 import { MAX_STASH_PAGES, STASH_PAGE_SIZE, stashPagePrice } from './balance';
+import { checkAchievements } from './achievements';
 import { pageCount } from './cells';
 import { freeStashPages } from './passives';
 import type { GameState } from './types';
@@ -11,6 +12,7 @@ export function buyStashPage(state: GameState): 'ok' | 'noGold' | 'full' {
   if (state.gold < price) return 'noGold';
   state.gold -= price;
   state.stats.goldSpent += price;
+  checkAchievements(state, 'goldSpent');
   state.stash.bought.general += 1;
   // A bought page goes before the web's free pages, so those stay the trailing pages a refund removes.
   const free = freeStashPages(state) * STASH_PAGE_SIZE;

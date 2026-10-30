@@ -6,7 +6,7 @@ import { buyStock, stockBand, stockPrice, traderStock } from '../../src/core/tra
 import type { GameState } from '../../src/core/types';
 import { rarityOf } from '../../src/ui/character/itemView';
 import {
-  buyLabel, buyRefusalHolds, buyResultText, exchangeOffers, gambleResultText,
+  buyLabel, buyRefusalHolds, buyResultText, exchangeOffer, exchangeOffers, gambleResultText,
   gambleSlots, gambledLine, MERCHANTS, orbOffers, refinerResultText, stockCaption, stockTiles,
 } from '../../src/ui/merchant/merchantView';
 import { gear } from '../helpers/items';
@@ -123,23 +123,31 @@ describe('the Trader', () => {
 });
 
 describe('the Refiner', () => {
-  it('sells the 15 orbs in three groups, each tile with its sprite, name and ore cost', () => {
+  it('sells the 11 orbs in two groups, each tile with its sprite, name, effect and ore cost', () => {
     const s = newGame(1, 0);
     const groups = orbOffers(s);
-    expect(groups.map((g) => g.family)).toEqual(['craft', 'removal', 'scattering']);
-    expect(groups.map((g) => g.title)).toEqual(['Craft orbs', 'Removal orbs', 'Scattering orbs']);
-    expect(groups.flatMap((g) => g.offers)).toHaveLength(15);
+    expect(groups.map((g) => g.key)).toEqual(['crafting', 'misc']);
+    expect(groups.map((g) => g.title)).toEqual(['Crafting orbs', 'Misc orbs']);
+    expect(groups.flatMap((g) => g.offers)).toHaveLength(11);
     const craft = groups[0]?.offers ?? [];
     expect(craft.map((o) => [o.tier, o.side, o.cost, o.ore])).toEqual([
       ['minor', 'prefix', 2, 'iron'], ['normal', 'prefix', 3, 'mithril'], ['greater', 'prefix', 4, 'voidCrystal'],
       ['minor', 'suffix', 2, 'iron'], ['normal', 'suffix', 3, 'mithril'], ['greater', 'suffix', 4, 'voidCrystal'],
     ]);
     expect(craft.map((o) => o.name)).toEqual([
-      'Minor Orb of Prefixes', 'Normal Orb of Prefixes', 'Greater Orb of Prefixes',
-      'Minor Orb of Suffixes', 'Normal Orb of Suffixes', 'Greater Orb of Suffixes',
+      'Flint Orb', 'Jasper Orb', 'Sunstone Orb', 'Shale Orb', 'Amber Orb', 'Moonstone Orb',
     ]);
     expect(craft[0]?.sprite).toBe('orbPrefixMinor');
-    expect(groups[2]?.offers.map((o) => o.sprite)).toEqual(['orbScatterMinor', 'orbScatterNormal', 'orbScatterGreater']);
+    expect(craft[0]?.effect).toContain('prefix');
+    const misc = groups[1]?.offers ?? [];
+    expect(misc.map((o) => [o.family, o.side, o.tier, o.cost, o.ore])).toEqual([
+      ['removal', 'prefix', undefined, 3, 'mithril'], ['removal', 'suffix', undefined, 3, 'mithril'],
+      ['scattering', undefined, undefined, 6, 'mithril'],
+      ['socketing', undefined, undefined, 2, 'iron'],
+      ['clearSockets', undefined, undefined, 2, 'mithril'],
+    ]);
+    expect(misc.find((o) => o.family === 'scattering')?.sprite).toBe('orbScatterNormal');
+    expect(misc.find((o) => o.family === 'scattering')?.effect).toContain('value');
     expect(groups.flatMap((g) => g.offers).every((o) => !o.affordable)).toBe(true);
     s.stash.materials.iron = 3;
     expect(orbOffers(s).flatMap((g) => g.offers).filter((o) => o.ore === 'iron').every((o) => o.affordable)).toBe(true);
@@ -152,6 +160,15 @@ describe('the Refiner', () => {
     s.oreMarket.premium.tin = 0.25;
     expect(exchangeOffers(s).find((e) => e.up && e.from === 'copper'))
       .toMatchObject({ from: 'copper', to: 'tin', base: 4, cost: 5 });
+  });
+
+  it('offers every ore for every ore, with the ladder rate for the distance', () => {
+    const s = newGame(1, 0);
+    expect(exchangeOffers(s)).toHaveLength(8 * 7);
+    expect(exchangeOffer(s, 'copper', 'copper')).toBeNull();
+    // four rungs up is 4^4 : 1; four rungs down is 1 : 3^4.
+    expect(exchangeOffer(s, 'copper', 'mithril')).toMatchObject({ from: 'copper', to: 'mithril', base: 256, amount: 1, up: true });
+    expect(exchangeOffer(s, 'mithril', 'copper')).toMatchObject({ from: 'mithril', to: 'copper', base: 1, amount: 81, up: false });
   });
 
   it('says why a buy or exchange was refused', () => {

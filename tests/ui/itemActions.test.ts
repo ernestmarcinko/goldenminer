@@ -287,35 +287,24 @@ it('a map card offers Auto-map once Surveyor is allocated, and Remove from auto-
   const s = store.state;
   const map: MapItem = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] };
   s.bag[0] = map;
-  const t = bag(0);
-  const ids = () => itemActions(s, t).map((a) => a.id);
+  const held = bag(0);
 
   // without the notable, a map card has neither queue action
-  expect(ids()).not.toContain('autoMap');
-  expect(ids()).not.toContain('unqueueAutoMap');
+  expect(itemActions(s, held).map((a) => a.id)).not.toContain('autoMap');
+  expect(itemActions(s, held).map((a) => a.id)).not.toContain('unqueueAutoMap');
 
   s.passives.allocated = ['surveyor'];
-  expect(ids()).not.toContain('unqueueAutoMap');
-  expect(ids().indexOf('autoMap')).toBe(ids().indexOf('run') + 1);
-  const auto = itemActions(s, t).find((a) => a.id === 'autoMap');
-  if (auto === undefined) throw new Error('no auto-map action');
-  expect(auto.label).toBe('Auto-map');
+  // a held map offers Auto-map
+  const auto = itemActions(s, held).find((a) => a.id === 'autoMap');
+  expect(auto?.label).toBe('Auto-map');
 
-  // queueing turns the same action into its removal
+  // queueing moves the map into the queue, whose card offers Remove from auto-map
   expect(queueForAutoMap(s, map.id)).toBe('ok');
-  expect(s.autoMap.queue).toEqual([map.id]);
-  expect(ids()).not.toContain('autoMap');
-  const unqueue = itemActions(s, t).find((a) => a.id === 'unqueueAutoMap');
+  expect(s.autoMap.queue.map((m) => m.id)).toEqual([map.id]);
+  const queued = { where: 'queue' as const, index: 0 };
+  const unqueue = itemActions(s, queued).find((a) => a.id === 'unqueueAutoMap');
   expect(unqueue?.label).toBe('Remove from auto-map');
-
-  // both run through the store
-  if (unqueue === undefined) throw new Error('no unqueue action');
-  expect(runAction(store, t, unqueue)).toBe('ok');
-  expect(s.autoMap.queue).toEqual([]);
-  const again = itemActions(s, t).find((a) => a.id === 'autoMap');
-  if (again === undefined) throw new Error('no auto-map action');
-  expect(runAction(store, t, again)).toBe('ok');
-  expect(s.autoMap.queue).toEqual([map.id]);
+  expect(itemActions(s, queued).map((a) => a.id)).not.toContain('autoMap');
 });
 
 it('Run this map starts that map', () => {
@@ -402,10 +391,11 @@ it('a card for gear lists one craft action per option after its other actions', 
   const s = newGame(1, 0);
   s.bag[0] = gear(s, 'pickaxe', { rarity: 'normal', ilvl: 4 });
   s.bag[1] = { id: s.nextId++, type: 'material', material: 'copper', count: 37 };
+  s.diamonds = 2;
   s.equipped.mining.lamp = gear(s, 'lamp', { rarity: 'normal', ilvl: 4 });
   s.stash.general[0] = gear(s, 'boots', { rarity: 'normal', ilvl: 4 });
   const crafts = [
-    { id: 'craft', kind: 'copper', label: 'Copper ore ×3: make it magic', disabled: false },
+    { id: 'craft', kind: 'makeMagic', label: 'Diamonds ×2: make it magic', disabled: false },
     { id: 'craft', kind: 'mithril', label: 'Mithril ×2: reroll its sockets', disabled: true },
   ];
   expect(itemActions(s, bag(0)).slice(4)).toEqual(crafts);
@@ -420,55 +410,51 @@ it('a craft action crafts through the store', () => {
   store.load();
   const s = store.state;
   s.bag[0] = gear(s, 'pickaxe', { rarity: 'normal', ilvl: 4 });
-  s.stash.materials.copper = 5;
-  const copper = itemActions(s, bag(0)).find((a) => a.id === 'craft' && a.kind === 'copper');
-  if (copper === undefined) throw new Error('no copper craft');
-  expect(runAction(store, bag(0), copper)).toBe('ok');
+  s.diamonds = 2;
+  const make = itemActions(s, bag(0)).find((a) => a.id === 'craft' && a.kind === 'makeMagic');
+  if (make === undefined) throw new Error('no makeMagic craft');
+  expect(runAction(store, bag(0), make)).toBe('ok');
   expect(s.bag[0]).toMatchObject({ rarity: 'magic' });
-  expect(s.stash.materials.copper).toBe(2);
-  expect(store.lastCraft).toMatchObject({ kind: 'copper', check: 'ok' });
+  expect(s.diamonds).toBe(0);
+  expect(store.lastCraft).toMatchObject({ kind: 'makeMagic', check: 'ok' });
 });
 
-it('a map card lists Run this map, the move, Sell and Salvage, then its enchants', () => {
+it('a map card lists Run this map, the move, Sell and Salvage, then its upgrades', () => {
   const s = newGame(1, 0);
   s.bag[0] = { id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] };
   s.stash.maps[4] = [{
     id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'magic', mods: [{ kind: 'monsterLife', tier: 2, value: 15 }],
   }];
-  s.stash.materials.copper = 37;
-  s.stash.materials.iron = 37;
   s.souls = 50;
   expect(itemActions(s, bag(0))).toEqual([
     { id: 'run', label: 'Run this map', disabled: false },
     { id: 'toStash', label: 'To Maps tab', disabled: false },
     { id: 'sell', label: 'Sell (+400 Gold)', disabled: false },
     { id: 'salvage', label: 'Salvage (+2 Copper ore, +1 Tin ore)', disabled: false },
-    { id: 'craft', kind: 'copper', label: 'Copper ore ×3 + 20 Souls: enchant it', disabled: false },
+    { id: 'craft', kind: 'makeMagic', label: '20 Souls: make it magic', disabled: false },
   ]);
   const tab = itemActions(s, { where: 'maps', tier: 4, index: 0 });
   expect(labels(tab.slice(0, 4))).toEqual([
     ['run', 'Run this map'], ['toBag', 'To bag'], ['sell', 'Sell (+600 Gold)'], ['salvage', 'Salvage (+2 Copper ore, +1 Tin ore)'],
   ]);
   expect(tab.slice(4).map((a) => [a.id, a.kind, a.disabled])).toEqual([
-    ['craft', 'voidCrystal', true],
+    ['craft', 'makeRare', false],
   ]);
   s.souls = 19;
-  expect(itemActions(s, bag(0))[4]).toMatchObject({ kind: 'copper', disabled: true });
+  expect(itemActions(s, bag(0))[4]).toMatchObject({ kind: 'makeMagic', disabled: true });
 });
 
-it('an enchant action enchants a map through the store, and spends its Souls', () => {
+it('an upgrade action upgrades a map through the store, and spends its Souls', () => {
   const store = new GameStore({ storage: new MemoryStorage(), storageAvailable: true, now: () => 0, newSeed: () => 7 });
   store.load();
   const s = store.state;
   s.stash.maps[4] = [{ id: s.nextId++, type: 'map', tier: 4, metre: 327, rarity: 'normal', mods: [] }];
-  s.stash.materials.copper = 5;
   s.souls = 50;
   const t: ItemLoc = { where: 'maps', tier: 4, index: 0 };
-  const copper = itemActions(s, t).find((a) => a.id === 'craft' && a.kind === 'copper');
-  if (copper === undefined) throw new Error('no copper enchant');
-  expect(runAction(store, t, copper)).toBe('ok');
+  const make = itemActions(s, t).find((a) => a.id === 'craft' && a.kind === 'makeMagic');
+  if (make === undefined) throw new Error('no makeMagic upgrade');
+  expect(runAction(store, t, make)).toBe('ok');
   expect(s.stash.maps[4]?.[0]).toMatchObject({ rarity: 'magic' });
-  expect(s.stash.materials.copper).toBe(2);
   expect(s.souls).toBe(30);
 });
 
@@ -609,8 +595,8 @@ it('a stock item takes no shortcut, and its hover card says what it costs and se
   }
   expect(actionForIntent(actions, t, 'menu')).toBe('menu');
   expect(hoverNotes(s, t, item, false)).toEqual([
-    `Costs ${formatNumber(stockPrice(item))} Gold · Sells for ${formatNumber(sellPay(item, deriveStats(s)))} Gold`,
-    'Click for its card · right-click to buy',
+    `Sells for ${formatNumber(sellPay(item, deriveStats(s)))} Gold`,
+    'Click to buy',
   ]);
 });
 

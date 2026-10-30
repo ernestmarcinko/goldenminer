@@ -1,11 +1,11 @@
 import { baseDamage, hardness, MATERIAL_TABLE, TICKS_PER_METRE_AT_PARITY } from '../../core/balance';
 import { GEM_GRADE_LABELS, gemName, itemName } from '../../core/itemData';
 import { BATTLE_STATS, MOD_SIDE, isGear, orbName, setOfSlot } from '../../core/items';
-import type { GearItem, GemType, Item, MapItem, Material, ModLine, OrbFamily, OrbSide, OrbTier, Slot, StatKey } from '../../core/items';
+import type { GearItem, GemType, Item, MapItem, Material, ModLine, OrbFamily, OrbItem, OrbSide, OrbTier, Slot, StatKey } from '../../core/items';
 import { RUNE_DESCRIPTIONS, RUNE_LABELS } from '../../core/runes';
 import { gemEffect, itemTotals, weaponDamage } from '../../core/stats';
 import type { GameState, LootNote, Stats } from '../../core/types';
-import { UNIQUE_LINES, isLegendaryId } from '../../core/uniques';
+import { UNIQUE_LINES } from '../../core/uniques';
 import type { SpriteName } from '../../sprites/atlas';
 import { formatDuration, formatNumber, formatRate, plural } from '../format';
 import { mapDungeon, mapModLines, mapRewardsText, mapSpecialLine } from '../run/runView';
@@ -45,6 +45,7 @@ export const STAT_LABELS: Readonly<Record<StatKey, { label: string; unit: '' | '
   elementalDamage: { label: 'elemental damage', unit: '' },
   critMultiplier: { label: 'critical damage', unit: '%' },
   lifePct: { label: 'life', unit: '%' },
+  cleave: { label: 'cleave efficiency', unit: '%' },
   armorPct: { label: 'armor', unit: '%' },
   lifeRegen: { label: 'life per second', unit: '' },
   lifeOnKill: { label: 'life per kill', unit: '' },
@@ -143,7 +144,7 @@ export function itemLines(item: Item, level?: number): ViewLine[] {
     return [
       { text: from === 0 ? 'Found at every depth' : `First found below ${formatNumber(from)} m`, tone: 'plain' },
       { text: 'Kept for crafting.', tone: 'muted' },
-      { text: "Drag it onto gear or a map, or pick it under Craft or Enchant in that item's card.", tone: 'muted' },
+      { text: "Drag it onto gear to craft with it, or exchange it at the Refiner.", tone: 'muted' },
     ];
   }
   if (item.type === 'gem') {
@@ -159,16 +160,9 @@ export function itemLines(item: Item, level?: number): ViewLine[] {
     ];
   }
   if (item.type === 'orb') {
-    const tier = item.tier === 'minor' ? 'low' : item.tier === 'normal' ? 'middle' : 'high';
-    const bestOf = item.tier === 'minor' ? 1 : item.tier === 'normal' ? 2 : 3;
-    const effect = item.family === 'craft'
-      ? `Adds a random ${item.side}, or rerolls a chosen ${item.side}, in the ${tier} tier band.`
-      : item.family === 'removal'
-        ? `Removes one random ${item.side} ${item.tier === 'normal' ? 'at any tier' : `in the ${tier} tier band`}.`
-        : `Rerolls every rolled value, keeping the best of ${bestOf}.`;
     return [
-      { text: effect, tone: 'plain' },
-      { text: 'Kept for crafting. Use its Craft action on gear, or the Refiner.', tone: 'muted' },
+      { text: orbEffectText(item), tone: 'plain' },
+      { text: 'Kept for crafting. Use its Craft action on gear or a map, or the Refiner.', tone: 'muted' },
     ];
   }
   const lines: ViewLine[] = [{ text: lineText(item.implicit), tone: item.implicit.value < 0 ? 'down' : 'plain' }];
@@ -182,8 +176,11 @@ export function itemLines(item: Item, level?: number): ViewLine[] {
     });
   }
   for (const a of cardOrder(item.affixes)) lines.push(modLine(a, item.rarity === 'legendary'));
-  // A legendary's unique line has no tier; an id this build doesn't know has no line.
-  if (item.rarity === 'legendary' && isLegendaryId(item.uniqueId)) lines.push({ text: UNIQUE_LINES[item.uniqueId], tone: 'special' });
+  // A signature legendary's unique line has no tier; a stat-only legendary has none.
+  if (item.rarity === 'legendary' && item.uniqueId !== undefined) {
+    const unique = UNIQUE_LINES[item.uniqueId];
+    if (unique !== undefined) lines.push({ text: unique, tone: 'special' });
+  }
   const set = setOfSlot(item.slot);
   for (const g of item.gems) {
     if ('rune' in g) lines.push({ text: `${RUNE_LABELS[g.rune]}: ${RUNE_DESCRIPTIONS[g.rune]}`, tone: 'special' });
@@ -231,6 +228,11 @@ const CARD_PAIR_MIN_VIEWPORT = 900;
 const CARD_GAP = 4;
 /** How far inside the screen's edges a card stays. */
 const SCREEN_MARGIN = 8;
+
+/** A card's width on the screen: the tooltip alone, or twice it plus the gap when the worn item's card sits beside it. */
+export function cardWidth(pair: boolean): number {
+  return pair ? 2 * TOOLTIP_WIDTH + CARD_PAIR_GAP : TOOLTIP_WIDTH;
+}
 
 /** A card's left edge on the screen: at its item's, moved left as far as it takes to keep it inside the screen. */
 export function placeCardLeft(anchorLeft: number, width: number, viewportWidth: number, minLeft = SCREEN_MARGIN): number {
@@ -355,9 +357,9 @@ export function keptHeight(tallest: number, height: number): number {
   return Math.max(tallest, height);
 }
 
-/** The worn item's card goes beside a hover card on a wide screen, and inside any other card. */
-export function cardPairLayout(viewportWidth: number, isMenu: boolean): 'row' | 'column' {
-  return !isMenu && viewportWidth >= CARD_PAIR_MIN_VIEWPORT ? 'row' : 'column';
+/** The worn item's card sits beside a card on a wide screen, and is dropped on a narrow one. */
+export function cardPairLayout(viewportWidth: number): 'row' | 'column' {
+  return viewportWidth >= CARD_PAIR_MIN_VIEWPORT ? 'row' : 'column';
 }
 
 /** The worn item that `item` would replace, when `item` is gear that is not itself worn. */
@@ -393,15 +395,28 @@ export function baseSprite(base: Slot | GemType | Material): SpriteName {
   return base in SLOT_SPRITES ? SLOT_SPRITES[base as Slot] : (base as GemType | Material);
 }
 
-/** The sprite of an orb: one per family, side and tier, recoloured by the tier. */
-export function orbSprite(family: OrbFamily, side: OrbSide | undefined, tier: OrbTier): SpriteName {
-  const base = family === 'craft'
-    ? (side === 'prefix' ? 'orbPrefix' : 'orbSuffix')
-    : family === 'removal'
-      ? (side === 'prefix' ? 'orbSeverance' : 'orbUnmaking')
-      : 'orbScatter';
-  const suffix = tier === 'minor' ? 'Minor' : tier === 'normal' ? 'Normal' : 'Greater';
-  return `${base}${suffix}` as SpriteName;
+/** The sprite of an orb: one per family, side and tier (where tiered), recoloured by the tier. */
+export function orbSprite(family: OrbFamily, side: OrbSide | undefined, tier: OrbTier | undefined): SpriteName {
+  const tierSuffix = tier === 'minor' ? 'Minor' : tier === 'normal' ? 'Normal' : 'Greater';
+  switch (family) {
+    case 'craft': return `${side === 'prefix' ? 'orbPrefix' : 'orbSuffix'}${tierSuffix}` as SpriteName;
+    case 'removal': return (side === 'prefix' ? 'orbSeveranceNormal' : 'orbUnmakingNormal') as SpriteName;
+    case 'scattering': return 'orbScatterNormal';
+    case 'socketing': return 'orbSocket';
+    case 'clearSockets': return 'orbClearSocket';
+  }
+}
+
+/** What an orb does, in one sentence; the orb's card and the merchant's hover tooltip both read it. */
+export function orbEffectText(item: OrbItem): string {
+  if (item.family === 'craft') {
+    const tier = item.tier === 'minor' ? 'low' : item.tier === 'normal' ? 'middle' : 'high';
+    return `Adds a random ${item.side}, rolled in the ${tier} tier band.`;
+  }
+  if (item.family === 'removal') return `Removes one random ${item.side}.`;
+  if (item.family === 'scattering') return 'Rerolls the value of every prefix and suffix.';
+  if (item.family === 'socketing') return 'Adds one socket, up to three.';
+  return 'Destroys every socketed rune; the gems stay.';
 }
 
 export function itemSprite(item: Item): SpriteName {

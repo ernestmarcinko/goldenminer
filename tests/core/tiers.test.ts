@@ -20,10 +20,10 @@ describe('tiers', () => {
   it('tierFor finds the tier a value falls in', () => {
     expect([tierFor('digPower', 3), tierFor('digPower', 4), tierFor('digPower', 11), tierFor('digPower', 1)]).toEqual([1, 2, 5, 1]);
   });
-  it('mining has 8 prefixes and 8 suffixes; battle adds the maxResist suffix for 8 and 9', () => {
+  it('mining has 8 prefixes and 8 suffixes; battle has 9 of each (cleave is a prefix)', () => {
     expect(MINING_STATS.filter((s) => MOD_SIDE[s] === 'prefix')).toHaveLength(8);
     expect(MINING_STATS.filter((s) => MOD_SIDE[s] === 'suffix')).toHaveLength(8);
-    expect(BATTLE_STATS.filter((s) => MOD_SIDE[s] === 'prefix')).toHaveLength(8);
+    expect(BATTLE_STATS.filter((s) => MOD_SIDE[s] === 'prefix')).toHaveLength(9);
     expect(BATTLE_STATS.filter((s) => MOD_SIDE[s] === 'suffix')).toHaveLength(9);
   });
   it('tier weights favour low tiers', () => {

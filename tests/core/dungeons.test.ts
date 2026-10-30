@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { CHAMPION_UNITS, MAX_ROOMS, MIN_ROOMS, MONSTER_BUDGET } from '../../src/core/balance';
+import { CHAMPION_UNITS, MAX_ROOMS, MIN_ROOMS, monsterBudget } from '../../src/core/balance';
 import { dungeonIndexAt, dungeonLayout, dungeonType, spreadUnits, uniqueName } from '../../src/core/dungeons';
 import { DEEP_SPECIES, NAMED_SPECIES, speciesOf } from '../../src/core/species';
 import { seedFromText } from '../../src/core/seed';
@@ -31,13 +31,13 @@ it('every layout spends exactly the budget, champions first', () => {
       expect(rooms).toHaveLength(type.rooms);
       expect(type.rooms).toBeGreaterThanOrEqual(MIN_ROOMS);
       expect(type.rooms).toBeLessThanOrEqual(MAX_ROOMS);
-      expect(rooms.reduce((n, r) => n + units(r), 0)).toBe(MONSTER_BUDGET);
+      expect(rooms.reduce((n, r) => n + units(r), 0)).toBe(monsterBudget(tier) * type.rooms);
       expect(rooms.flat().filter((m) => m.rank === 'champion')).toHaveLength(tier >= 8 ? 2 : 1);
       for (const r of rooms) {
         expect(r.length).toBeGreaterThan(0);
+        expect(r.length).toBeLessThanOrEqual(monsterBudget(tier));   // about the per-room budget, champions included
         expect(r.slice(0, -1).every((m) => m.rank === 'normal')).toBe(true);   // a champion, if any, fights last
       }
-      if (type.rooms === 4) expect(rooms.map(units).every((u) => u === 3 || u === 4)).toBe(true);
       expect(boss).toMatchObject({ rank: 'boss', species: type.bossSpecies, name: type.bossName });
       for (const m of rooms.flat()) {
         expect(type.species).toContain(m.species);
@@ -112,7 +112,7 @@ it('spreads the budget: champions first in order, then each unit to the emptiest
     [[3, 6, 0, 5, 1, 4, 2], 2, [2, 2, 1, 0, 2, 2, 0], [F, F, F, T, F, F, T]],
   ];
   for (const [order, champions, normals, champion] of cases) {
-    expect(spreadUnits(order, order.length, champions)).toEqual({ normals, champion });
+    expect(spreadUnits(order, order.length, champions, 15)).toEqual({ normals, champion });
   }
 });
 
@@ -167,7 +167,7 @@ it('pinned vectors: a seed keeps reproducing its dungeons', () => {
   expect({
     rooms: layout.type.rooms, species: layout.type.species, bossSpecies: layout.type.bossSpecies, bias: layout.type.bias,
     ranks: layout.rooms.map((r) => r.map((m) => m.rank[0]).join('')), bossExtra: layout.boss.extra,
-  }).toEqual({ rooms: 7, species: [0, 2], bossSpecies: 0, bias: 'physical', ranks: ['c', 'nn', 'nn', 'nn', 'nn', 'nn', 'nn'], bossExtra: 3083684602 });
+  }).toEqual({ rooms: 7, species: [0, 2], bossSpecies: 0, bias: 'physical', ranks: ['c', 'nnn', 'nnn', 'nnn', 'nnn', 'nnn', 'nnn'], bossExtra: 3083684602 });
   expect([layout.boss.name, layout.rooms[0]?.find((m) => m.rank === 'champion')?.name])
     .toEqual(['Bramulrin, Warden of the Lonely Diggings', 'Rulilkas the Ravenous']);
   expect([100, 101, 102, 103, 104, 105, 106, 107].map((metre) => championRooms(dungeonLayout(42, { tier: 8, metre }).rooms)))

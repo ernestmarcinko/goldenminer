@@ -216,7 +216,7 @@ it('a map\'s trail: to bag, enchanted, run, lost; a cleared map stops at run', (
   addMap(s, 4, 400);
   const map = s.bag.find((c): c is MapItem => c?.type === 'map');
   if (map === undefined) throw new Error('no map');
-  expect(craft(s, { where: 'bag', index: bagIndex(s, map.id) }, 'copper').check).toBe('ok');
+  expect(craft(s, { where: 'bag', index: bagIndex(s, map.id) }, 'makeMagic').check).toBe('ok');
   expect(startMap(s, map.id)).toBe('ok');
   const stats = deriveStats(s);
   for (let t = 0; t < 5000 && s.activity.kind === 'map'; t++) applyTicks(s, 1, stats);

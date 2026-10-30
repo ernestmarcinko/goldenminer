@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { sameLoc } from '../../core/cells';
 import type { ItemTarget } from './itemActions';
-import { CARD_PAIR_GAP, cardPairLayout, placeCardLeft, TOOLTIP_WIDTH } from './itemView';
+import { cardPairLayout, cardWidth, placeCardLeft } from './itemView';
 import type { CardFit, Span } from './itemView';
 
 /**
@@ -59,11 +59,10 @@ export function useItemPopover(hasWornCard: (target: ItemTarget) => boolean) {
    * screen shows the worn item's card beside it.
    */
   const place = useCallback((target: ItemTarget, el: HTMLElement, canPair: boolean): Placed => {
-    const pair = canPair && cardPairLayout(window.innerWidth, false) === 'row' && hasWornCardNow.current(target);
+    const pair = canPair && cardPairLayout(window.innerWidth) === 'row' && hasWornCardNow.current(target);
     const r = el.getBoundingClientRect();
     const fit: CardFit = { anchor: { top: r.top, bottom: r.bottom }, view: screenView() };
-    const width = pair ? 2 * TOOLTIP_WIDTH + CARD_PAIR_GAP : TOOLTIP_WIDTH;
-    const left = placeCardLeft(r.left, width, document.documentElement.clientWidth);
+    const left = placeCardLeft(r.left, cardWidth(pair), document.documentElement.clientWidth);
     return pair ? { target, left, pair: true, fit } : { target, left, fit };
   }, []);
 
@@ -91,7 +90,7 @@ export function useItemPopover(hasWornCard: (target: ItemTarget) => boolean) {
     setPinned(null);
     setFollow({ by: 0, left: null });
     scrolledAt.current = scrolledAround(el);
-    setMenu(inline ? { target, left: 0, inline: true } : place(target, el, false));
+    setMenu(inline ? { target, left: 0, inline: true } : place(target, el, true));
   }, [place]);
 
   /** With `restoreFocus`, focus goes back to the opener, or to `fallback` when the opener is gone. */
@@ -182,7 +181,7 @@ export function useItemPopover(hasWornCard: (target: ItemTarget) => boolean) {
       const now = scrolledAround(el);
       const by = scrolledAt.current - now;
       scrolledAt.current = now;
-      const left = e.type === 'resize' ? placeCardLeft(r.left, TOOLTIP_WIDTH, document.documentElement.clientWidth) : null;
+      const left = e.type === 'resize' ? placeCardLeft(r.left, cardWidth(menuNow.current?.pair === true), document.documentElement.clientWidth) : null;
       setFollow((f) => ({ by: f.by + by, left: left ?? f.left }));
     };
     document.addEventListener('scroll', onMove, { capture: true, passive: true });

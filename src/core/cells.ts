@@ -90,6 +90,7 @@ export function itemAt(state: GameState, loc: ItemLoc): Item | undefined {
     case 'stash': return state.stash.general[loc.index] ?? undefined;
     case 'maps': return state.stash.maps[loc.tier]?.[loc.index];
     case 'worn': return state.equipped[setOfSlot(loc.slot)][loc.slot];
+    case 'queue': return state.autoMap.queue[loc.index];
     case 'stock': return stockAt(state, loc.index);
     case 'gems': {
       const count = state.stash.gems[loc.gem][loc.grade];
@@ -122,6 +123,7 @@ export function sameLoc(a: ItemLoc, b: ItemLoc): boolean {
     case 'materials': return b.where === 'materials' && a.material === b.material;
     case 'orbs': return b.where === 'orbs' && a.key === b.key;
     case 'worn': return b.where === 'worn' && a.slot === b.slot;
+    case 'queue': return b.where === 'queue' && a.index === b.index;
     case 'stock': return b.where === 'stock' && a.index === b.index;
   }
 }

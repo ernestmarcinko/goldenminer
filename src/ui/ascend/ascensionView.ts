@@ -16,6 +16,7 @@ function effectLine(e: AscendancyEffect): string {
     case 'startingDepth': return `+${formatNumber(e.value)} m starting depth`;
     case 'passivePoints': return `+${plural(e.value, 'passive point', 'passive points')}`;
     case 'autoMapTier': return `+${plural(e.value, 'auto-map tier', 'auto-map tiers')}`;
+    case 'autoMapQueue': return `+${plural(e.value, 'auto-map queue slot', 'auto-map queue slots')}`;
   }
 }
 

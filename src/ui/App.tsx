@@ -4,6 +4,7 @@ import type { TabLock } from '../store/tabLock';
 import { AchievementsView } from './achievements/AchievementsView';
 import { AchievementToastStack } from './achievements/AchievementToast';
 import { AscensionView } from './ascend/AscensionView';
+import { BattleView } from './battle/BattleView';
 import { startGame, type GameLoop } from './gameLoop';
 import { Header } from './Header';
 import { InventoryView } from './inventory/InventoryView';
@@ -20,6 +21,7 @@ import { SkillsView } from './skills/SkillsView';
 import { StartScreen } from './start/StartScreen';
 import { StatsView } from './stats/StatsView';
 import { TabBlocked } from './TabBlocked';
+import { TestTool } from './testTool/TestTool';
 import { Toast } from './Toast';
 import { useGame } from './useGame';
 
@@ -69,6 +71,7 @@ export function App({ store, lock }: { store: GameStore; lock: TabLock }) {
 
 function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: () => void) => boolean }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [testOpen, setTestOpen] = useState(false);
   const mineTab = useRef<HTMLButtonElement>(null);
   const runTab = useRef<HTMLButtonElement>(null);
   const { offlineSummary, state } = useGame(store);
@@ -97,13 +100,15 @@ function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: ()
   useEffect(() => store.setViewPaused(shown !== 'mine'), [shown, store]);
   return (
     <div className="gm-app">
-      <Header store={store} onOpenSettings={() => setSettingsOpen(true)} />
+      <Header store={store} onOpenSettings={() => setSettingsOpen(true)} onOpenTest={() => setTestOpen((v) => !v)} />
       <Nav store={store} view={shown} onView={openView} mineRef={mineTab} runRef={runTab} />
       <Notices store={store} />
       <AchievementToastStack store={store} />
       <main className="gm-app__main">
         {shown === 'mine' ? (
           <MineView store={store} onBackToMap={() => openView('run')} />
+        ) : shown === 'battle' ? (
+          <BattleView store={store} />
         ) : shown === 'inventory' ? (
           <InventoryView store={store} />
         ) : shown === 'skills' ? (
@@ -133,6 +138,7 @@ function Game({ store, runAsOwner }: { store: GameStore; runAsOwner: (action: ()
         }}
       />
       {settingsOpen && <SettingsDialog store={store} runAsOwner={runAsOwner} onClose={() => setSettingsOpen(false)} />}
+      {import.meta.env.DEV && testOpen && <TestTool store={store} onClose={() => setTestOpen(false)} />}
       {offlineSummary && <OfflineSummary summary={offlineSummary} onClose={() => store.dismissSummary()} />}
     </div>
   );

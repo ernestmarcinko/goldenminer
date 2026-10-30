@@ -16,15 +16,15 @@ describe('the achievements tab view model', () => {
 
   it('marks earned achievements and reports per-family progress', () => {
     const s = newGame(1, 0);
-    s.stats.goldFound = 1000;
+    s.stats.goldFound = 2_000_000;
     checkAchievements(s, 'gold');
     const gold = achievementVMs(s).find((f) => f.family === 'gold');
     expect(gold?.earned).toBeGreaterThan(0);
-    expect(gold?.achievements.find((a) => a.id === 'gold.100')?.earned).toBe(true);
+    expect(gold?.achievements.find((a) => a.id === 'gold.1000000')?.earned).toBe(true);
     expect(gold?.achievements.some((a) => !a.earned)).toBe(true);
   });
 
-  it('the boost percent is 0.5 × earned', () => {
+  it('the boost percent is 1 × earned', () => {
     const s = newGame(1, 0);
     expect(achievementBoostPercent(s)).toBe(0);
     s.achievements.earned = ACHIEVEMENTS.slice(0, 100).map((a) => a.id);
@@ -45,16 +45,16 @@ describe('the achievement toast queue', () => {
     expect(store.notifications).toEqual([]);
   });
 
-  it('crossing one threshold enqueues exactly one toast with the right name, desc and icon', () => {
+  it('crossing one threshold enqueues exactly one toast with the right desc and icon', () => {
     const { store } = make();
     store.load();
-    store.state.stats.goldFound = 100;
+    store.state.stats.goldFound = 1000;
     checkAchievements(store.state, 'gold');
     store.setMotion({}); // any counter-free mutation runs the store's single changed() path
     expect(store.notifications).toHaveLength(1);
     expect(store.notifications[0]).toMatchObject({
-      name: 'Earn 100 Gold',
-      desc: 'Earn 100 Gold over your lifetime.',
+      name: ACHIEVEMENTS.find((a) => a.family === 'gold')?.name,
+      desc: 'Earn 1,000 Gold over your lifetime.',
       icon: 'goldYield',
     });
   });
@@ -80,7 +80,7 @@ describe('the achievement toast queue', () => {
   it('repeating the same action enqueues nothing', () => {
     const { store } = make();
     store.load();
-    store.state.stats.goldFound = 100;
+    store.state.stats.goldFound = 1000;
     checkAchievements(store.state, 'gold');
     store.setMotion({});
     expect(store.notifications).toHaveLength(1);
@@ -115,7 +115,7 @@ describe('the achievement toast queue', () => {
   it('reloading a save that already earned an achievement never re-toasts', () => {
     const { store, storage, now } = make();
     store.load();
-    store.state.stats.goldFound = 100;
+    store.state.stats.goldFound = 1000;
     checkAchievements(store.state, 'gold');
     store.setMotion({});
     expect(store.notifications).toHaveLength(1);

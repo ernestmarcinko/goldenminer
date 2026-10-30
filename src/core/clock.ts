@@ -1,4 +1,5 @@
 import { MAX_CLICKS_PER_SECOND } from './balance';
+import { checkAchievements } from './achievements';
 import { applyTicks } from './dig';
 import type { GameState, Stats, TickEvent } from './types';
 
@@ -32,11 +33,16 @@ export function advance(
   // a death is stamped with the batch's start; it happened at the end of its own tick
   for (const d of state.deaths) if (d.tick >= tick0) d.at = from + (d.tick - tick0 + 1) * interval;
   state.lastTickAt = capped ? nowMs : state.lastTickAt + due * interval;
+  // Time achievements are checked after the ticks, so earning one never shifts the boost mid-batch.
+  checkAchievements(state, 'timePlayed');
+  checkAchievements(state, 'timeAway');
   return due;
 }
 
 export function clickTicks(state: GameState, stats: Stats, events?: TickEvent[]): void {
-  applyTicks(state, stats.ticksPerClick, stats, events);
+  state.stats.clicks += 1;
+  checkAchievements(state, 'clicks');
+  applyTicks(state, stats.ticksPerClick, stats, events, false, false, true);
 }
 
 export class ClickLimiter {

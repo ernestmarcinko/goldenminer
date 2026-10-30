@@ -8,7 +8,8 @@ export type SpriteName = 'miner' | 'coin' | 'diamond' | 'chest' | 'map' | 'gem' 
   | 'orbSuffixMinor' | 'orbSuffixNormal' | 'orbSuffixGreater'
   | 'orbSeveranceMinor' | 'orbSeveranceNormal' | 'orbSeveranceGreater'
   | 'orbUnmakingMinor' | 'orbUnmakingNormal' | 'orbUnmakingGreater'
-  | 'orbScatterMinor' | 'orbScatterNormal' | 'orbScatterGreater';
+  | 'orbScatterMinor' | 'orbScatterNormal' | 'orbScatterGreater'
+  | 'orbSocket' | 'orbClearSocket';
 
 export const PALETTE: Record<string, string> = { k: '#1b1410', w: '#8a5a32', W: '#b07a45', s: '#9aa4ad', S: '#d5dde3', g: '#e8b44a', G: '#f5d68a', o: '#b8741c', r: '#c8453a', R: '#ff8a7a', b: '#3f6fc8', c: '#7fd3e8', C: '#c9f1fa', l: '#6b4429', L: '#9a6a40', y: '#ffe08a', p: '#d9c39a', P: '#a88d5c', v: '#8a6fe0', n: '#e0b08a', d: '#3b3550', D: '#5a5278', m: '#5f8a6a', M: '#8fb89a' };
 
@@ -92,6 +93,36 @@ const ORB_BURST = [
   '.....SS.....',
   '.....SS.....',
   '............',
+  '............',
+  '............',
+];
+// A plus: the socketing orb.
+const ORB_PLUS = [
+  '............',
+  '............',
+  '.....SS.....',
+  '.....SS.....',
+  '.....SS.....',
+  '..SSSSSSSS..',
+  '.....SS.....',
+  '.....SS.....',
+  '.....SS.....',
+  '............',
+  '............',
+  '............',
+];
+// A hollow ring: the socket-clearing orb.
+const ORB_CLEAR = [
+  '............',
+  '............',
+  '....SSSS....',
+  '..SS....SS..',
+  '.S........S.',
+  '.S........S.',
+  '.S........S.',
+  '.S........S.',
+  '..SS....SS..',
+  '....SSSS....',
   '............',
   '............',
 ];
@@ -246,6 +277,7 @@ export const GRIDS: Record<SpriteName, string[]> = {
   orbSeveranceMinor: orbGrid(ORB_SLASH), orbSeveranceNormal: orbGrid(ORB_SLASH), orbSeveranceGreater: orbGrid(ORB_SLASH),
   orbUnmakingMinor: orbGrid(ORB_SLASH), orbUnmakingNormal: orbGrid(ORB_SLASH), orbUnmakingGreater: orbGrid(ORB_SLASH),
   orbScatterMinor: orbGrid(ORB_BURST), orbScatterNormal: orbGrid(ORB_BURST), orbScatterGreater: orbGrid(ORB_BURST),
+  orbSocket: orbGrid(ORB_PLUS), orbClearSocket: orbGrid(ORB_CLEAR),
 };
 
 export const PALETTE_OVERRIDES: Partial<Record<SpriteName, Record<string, string>>> = {
@@ -273,5 +305,8 @@ export const PALETTE_OVERRIDES: Partial<Record<SpriteName, Record<string, string
   starsteel: { C: '#eef5ff', c: '#a8c8f0', b: '#5a7aa8' },
   obsidian: { C: '#6a6478', c: '#2a2630', b: '#141118' },
   voidCrystal: { C: '#e4c8ff', c: '#9a4fe0', b: '#4e2286' },
+  // The untiered socket orbs: the socketing orb in iron-grey, the cleansing orb in mithril-blue.
+  orbSocket: { C: '#9a9ea4', c: '#5e6268', b: '#383b40' },
+  orbClearSocket: { C: '#b8f2e6', c: '#3fb8a4', b: '#1f6e62' },
   ...Object.fromEntries(ORB_SPRITES.map((s) => [s.name, s.colours])) as Partial<Record<SpriteName, Record<string, string>>>,
 };

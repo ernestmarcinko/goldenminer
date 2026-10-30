@@ -2,6 +2,7 @@ import {
   EXCHANGE_DOWN, EXCHANGE_UP, ORB_BAG_STACK, ORB_STASH_STACK, PREMIUM_CAP,
   PREMIUM_DECAY_KEEP, PREMIUM_STEP, orbCost, orbOre,
 } from './balance';
+import { checkAchievements } from './achievements';
 import { firstEmpty } from './cells';
 import { MATERIALS, orbKey, type Material, type OrbFamily, type OrbItem, type OrbSide, type OrbTier } from './items';
 import { stashMaterials } from './loot';
@@ -58,28 +59,32 @@ function spendMaterial(state: GameState, m: Material, n: number): void {
 }
 
 /**
- * Exchanges `amount` units of `from` ore into `to` ore, adjacent rungs only: up-ladder 4 : 1, down-ladder 1 : 3.
- * `amount` is how many units of `to` the player receives; its cost is premium-scaled via `costOf`, and a successful
- * exchange raises `to`'s premium. A refusal (short holdings, or a non-adjacent pair) changes nothing.
+ * Exchanges `amount` units of `from` ore into `to` ore — every ore trades for every ore. Up the ladder costs
+ * EXCHANGE_UP per rung (so 4 : 1 one rung up, 16 : 1 two rungs up, …); down the ladder pays 1 for EXCHANGE_DOWN per rung
+ * (1 : 3 one rung down, 1 : 9 two rungs down, …). `amount` is how many units of `to` the player receives; its cost is
+ * premium-scaled via `costOf`, and a successful exchange raises `to`'s premium. A refusal (short holdings, the same ore,
+ * or a bad amount) changes nothing.
  */
 export function tradeOres(state: GameState, from: Material, to: Material, amount: number): MarketResult {
   if (!Number.isInteger(amount) || amount <= 0) return 'invalid';
   const f = materialIndex(from);
   const t = materialIndex(to);
-  let cost: number;
-  if (t === f + 1) cost = Math.ceil(costOf(state, to, amount * EXCHANGE_UP));        // 4 from : 1 to
-  else if (t === f - 1) cost = Math.ceil(costOf(state, to, amount / EXCHANGE_DOWN)); // 1 from : 3 to
-  else return 'invalid';
+  const d = t - f;
+  if (d === 0) return 'invalid';
+  const cost = d > 0
+    ? Math.ceil(costOf(state, to, amount * EXCHANGE_UP ** d))
+    : Math.ceil(costOf(state, to, amount / EXCHANGE_DOWN ** -d));
   if (heldMaterial(state, from) < cost) return 'short';
   spendMaterial(state, from, cost);
   stashMaterials(state, { [to]: amount });
   state.stats.oresTraded[to] += amount;
+  checkAchievements(state, 'oresTraded');
   raisePremium(state, to);
   return 'ok';
 }
 
 /** Puts one bought orb into the bag (topping a stack, then an empty cell), then the Orbs tab. */
-function stowOrb(state: GameState, family: OrbFamily, side: OrbSide | undefined, tier: OrbTier): void {
+function stowOrb(state: GameState, family: OrbFamily, side: OrbSide | undefined, tier: OrbTier | undefined): void {
   const same = (c: OrbItem): boolean => c.family === family && c.side === side && c.tier === tier;
   for (const c of state.bag) {
     if (c !== null && c.type === 'orb' && same(c) && c.count < ORB_BAG_STACK) {
@@ -97,9 +102,9 @@ function stowOrb(state: GameState, family: OrbFamily, side: OrbSide | undefined,
 }
 
 /** Buys one orb of `family`/`side`/`tier`, paying its ore; adds it to the bag or the Orbs tab. Buying never draws from state.rng. */
-export function buyOrb(state: GameState, family: OrbFamily, side: OrbSide | undefined, tier: OrbTier): MarketResult {
-  const ore = orbOre(family, tier);
-  const cost = orbCost(family, tier);
+export function buyOrb(state: GameState, family: OrbFamily, side: OrbSide | undefined, tier: OrbTier | undefined): MarketResult {
+  const ore = orbOre(family, side, tier);
+  const cost = orbCost(family, side, tier);
   if (heldMaterial(state, ore) < cost) return 'short';
   spendMaterial(state, ore, cost);
   stowOrb(state, family, side, tier);

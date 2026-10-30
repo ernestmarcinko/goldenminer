@@ -1,7 +1,7 @@
 import { ascend as coreAscend } from '../core/ascend';
 import { allocateAscendancy as coreAllocateAscendancy } from '../core/ascendancy';
 import { ACHIEVEMENT_BY_ID, achievementIcon } from '../core/achievements';
-import { queueForAutoMap as coreQueueForAutoMap, unqueueForAutoMap as coreUnqueueForAutoMap } from '../core/autoMap';
+import { autoMapping, queueForAutoMap as coreQueueForAutoMap, tryAutoMap, unqueueForAutoMap as coreUnqueueForAutoMap } from '../core/autoMap';
 import { LONG_GAP_MS, MAX_LOOT_RULES, OFFLINE_SUMMARY_MIN_TICKS } from '../core/balance';
 import { deriveBattleStats, type BattleStats } from '../core/battle';
 import { advance, ClickLimiter, clickTicks } from '../core/clock';
@@ -24,6 +24,7 @@ import {
 } from '../core/respec';
 import { soulUpgrade as coreSoulUpgrade, type SoulUpgradeCheck } from '../core/soulUpgrade';
 import { buyStashPage as coreBuyStashPage } from '../core/stashPages';
+import { testCheat as coreTestCheat, type TestCheat } from '../core/testCheat';
 import { decodeSave, encodeSave, type DecodeResult } from '../core/save';
 import { freshWorld, isValidSeedText, randomSeedText as coreRandomSeedText, seedFromText } from '../core/seed';
 import { buyStock as coreBuyStock, type BuyResult } from '../core/trader';
@@ -382,7 +383,7 @@ export class GameStore {
   }
 
   /** Buys an orb from the Refiner; only an 'ok' changes anything, and records the buy for the fly-in animation. */
-  buyOrb(family: OrbFamily, side: OrbSide | undefined, tier: OrbTier): MarketResult {
+  buyOrb(family: OrbFamily, side: OrbSide | undefined, tier: OrbTier | undefined): MarketResult {
     const result = coreBuyOrb(this._state, family, side, tier);
     if (result === 'ok') {
       this._lastBuy = {
@@ -508,6 +509,28 @@ export class GameStore {
     const result = coreUnqueueForAutoMap(this._state, id);
     if (result === 'ok') this.changed();
     return result;
+  }
+
+  /** Turns auto-mapping on or off; only a real change notifies. */
+  setAutoMap(on: boolean): void {
+    if (this._state.autoMap.on === on) return;
+    this._state.autoMap.on = on;
+    this.changed();
+  }
+
+  /** Turns auto-mapping on and starts the first eligible queued map at once, so the trigger begins the battle now. */
+  startAutoMap(): 'ok' | 'locked' | 'nothing' {
+    if (!autoMapping(this._state)) return 'locked';
+    this._state.autoMap.on = true;
+    const started = tryAutoMap(this._state);
+    this.changed();
+    return started ? 'ok' : 'nothing';   // 'nothing' means the chain found nothing eligible and switched itself off
+  }
+
+  /** Applies a test cheat (dev-only Test tool); always notifies. */
+  testCheat(action: TestCheat): void {
+    coreTestCheat(this._state, action);
+    this.changed();
   }
 
   setLootFilter(rules: LootRule[]): void {

@@ -71,6 +71,7 @@ function ascendancyEffectText(node: AscendancyNode): string {
       case 'startingDepth': return `${e.value} m starting depth`;
       case 'passivePoints': return `+${e.value} passive point${e.value === 1 ? '' : 's'}`;
       case 'autoMapTier': return `+${e.value} auto-map tier${e.value === 1 ? '' : 's'}`;
+      case 'autoMapQueue': return `+${e.value} auto-map queue slot${e.value === 1 ? '' : 's'}`;
     }
   }).join(', ');
 }
@@ -211,7 +212,7 @@ export function WikiApp() {
   return (
     <div className="wiki">
       <header className="wiki__header">
-        <div className="wiki__title">Golden Miner</div>
+        <div className="wiki__title">The Golden Minder</div>
         <div className="wiki__subtitle">The reference — generated from the game&apos;s own data</div>
         <a className="wiki__back" href="./index.html">Back to the mine</a>
       </header>
@@ -234,7 +235,7 @@ export function WikiApp() {
         <main className="wiki__content">
           <Section id="getting-started" title="Getting started">
             <p>
-              Golden Miner is an idle mining game. You dig a shaft straight down, metre by metre, earning Gold and Diamonds
+              The Golden Minder is an idle mining game. You dig a shaft straight down, metre by metre, earning Gold and Diamonds
               from veins, finding gear, gems and maps, and running the maps as little dungeons. Progress is saved in your
               browser; there is no backend.
             </p>
@@ -375,10 +376,10 @@ export function WikiApp() {
               item is then sealed.
             </p>
             <p>
-              Crafting orbs add or reroll a prefix or suffix in a tier band; removal orbs take a band-scoped line away; a
-              scattering orb rerolls every rolled value, keeping the best. Battle gear can be raised one item level with
-              Souls (costing {SOUL_UPGRADE_BASE} × ilvl² each), and enchanting a map also spends {MAP_CRAFT_SOULS_PER_TIER}{' '}
-              Souls per tier.
+              Craft orbs add a random prefix or suffix in a tier band; removal orbs take a random prefix or suffix away;
+              a scattering orb rerolls every rolled value; a socket orb adds a socket and a cleansing orb empties the
+              sockets. Battle gear can be raised one item level with Souls (costing {SOUL_UPGRADE_BASE} × ilvl² each),
+              and enchanting a map also spends {MAP_CRAFT_SOULS_PER_TIER} Souls per tier.
             </p>
           </Section>
 
@@ -399,7 +400,8 @@ export function WikiApp() {
                 ))}
               </tbody>
             </Table>
-            <p>At the Refiner, ore buys the 15 orbs of the catalogue (Minor in Iron, Normal in Mithril, Greater in Void crystal):</p>
+            <p>At the Refiner, ore buys the 11 orbs of the catalogue (craft orbs in Minor/Normal/Greater tiers of Iron,
+              Mithril and Void crystal; the rest untiered):</p>
             <Table>
               <thead>
                 <tr><th>Orb</th><th className="wiki__num">Tier</th><th>Ore</th><th className="wiki__num">Cost</th></tr>
@@ -408,7 +410,7 @@ export function WikiApp() {
                 {ORB_RECIPES.map((r) => (
                   <tr key={r.name}>
                     <td>{r.name}</td>
-                    <td className="wiki__num">{r.tier}</td>
+                    <td className="wiki__num">{r.tier ?? '—'}</td>
                     <td>{r.oreLabel}</td>
                     <td className="wiki__num">{r.cost}</td>
                   </tr>
@@ -426,17 +428,19 @@ export function WikiApp() {
           <Section id="uniques" title="Uniques">
             <p>
               Each legendary has a unique line — shown in the legendary colour — that works only while it is worn. Its
-              hand-written lines carry no tier, and no craft can change them.
+              hand-written lines carry no tier, and no craft can change them. Legendaries come in five tiers: tier 1 drops
+              from the shallowest metres, tier 5 only from deep, high-level finds and is far rarer.
             </p>
             <Table wide>
               <thead>
-                <tr><th>Unique</th><th>Slot</th><th>Lines</th><th>Unique effect</th></tr>
+                <tr><th>Unique</th><th>Slot</th><th>Tier</th><th>Lines</th><th>Unique effect</th></tr>
               </thead>
               <tbody>
                 {UNIQUES.map((u) => (
                   <tr key={u.id}>
                     <td>{u.name}</td>
                     <td>{u.slotLabel}</td>
+                    <td className="wiki__num">{u.tier}</td>
                     <td>{u.lines.map((l) => `${l.statName} ${l.kind === 'fixed' ? l.value : `×${l.value}`}`).join(', ')}</td>
                     <td className="wiki__word">{u.effect}</td>
                   </tr>
@@ -620,7 +624,7 @@ export function WikiApp() {
                   { label: 'Prefixes + suffixes per item', value: `${MAX_SIDE_LINES} + ${MAX_SIDE_LINES}` },
                   { label: 'Crafted lines per item', value: `${MAX_CRAFTED_LINES}` },
                   { label: 'Sockets per item', value: `${MAX_SOCKETS}` },
-                  { label: 'Orb catalogue', value: '15 orbs · 3 families × 3 tiers' },
+                  { label: 'Orb catalogue', value: '11 orbs · craft, removal, scattering, sockets' },
                   { label: 'Maps kept per tier', value: `${MAP_TIER_CAP}` },
                   { label: 'Map modifiers per map', value: `${MAX_MAP_MODS}` },
                   { label: 'Max lamp sight', value: `${MAX_LAMP_SIGHT} m` },

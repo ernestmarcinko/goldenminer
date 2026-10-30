@@ -1,8 +1,9 @@
 import { checkAchievements } from './achievements';
+import { autoMapContinues } from './autoMapRule';
 import {
-  ARMORED_TAKEN, BAND_OF_THE_DEEP_HEAL, BOSS_DROPS, CHAMPION_DROPS, CHAMPION_MAGIC_FIND, COMBAT_LOG_LIMIT, COMBAT_STEP_S,
-  DROP_CHANCE, MAP_DROP_BATTLE_CHANCE, MAP_GEM_CHANCE, MAP_MATERIAL_CHANCE, PEACEMAKER_EVERY, ROOM_REGEN_TOTAL,
-  RUN_LOOT_LIMIT, SLOW_MONSTERS_INTERVAL, TREASURE_CHESTS, VAMPIRIC_HEAL, WOLF_EYE_DROPS, goldPerKill, soulsPerKill,
+  ARMORED_TAKEN, BAND_OF_THE_DEEP_HEAL, BOSS_DROPS, CHAMPION_DROPS, CHAMPION_MAGIC_FIND, CLEAVE_TARGETS, COMBAT_LOG_LIMIT, COMBAT_STEP_S,
+  DROP_CHANCE, MAP_DROP_BATTLE_CHANCE, MAP_GEM_CHANCE, MAP_MATERIAL_CHANCE, MONSTER_ATTACKER_DAMAGE_SHARE, PEACEMAKER_EVERY, ROOM_REGEN_TOTAL,
+  RUN_LOOT_LIMIT, SLOW_MONSTERS_INTERVAL, TREASURE_CHESTS, VAMPIRIC_HEAL, WOLF_EYE_DROPS, goldPerKill, monsterAttackers, soulsPerKill,
 } from './balance';
 import { deriveBattleStats, mitigate, type BattleStats } from './battle';
 import { dungeonLayout } from './dungeons';
@@ -57,6 +58,9 @@ export function endRun(state: GameState, run: MapRun, outcome: RunOutcome, event
     map: run.map, outcome, room: run.room, bossRoom: run.bossRoom, gained: { ...run.gained },
     items: run.items, seen: false,
   };
+  // A cleared or lost auto-mapped map hands straight to the next queued one, so its result stays off the screen while
+  // the chain continues; only the last map of the chain, or a manual stop, is worth a dialog. Leaving is always manual.
+  if (outcome !== 'left' && run.auto === true && autoMapContinues(state)) result.seen = true;
   state.lastRun = result;
   if (outcome === 'cleared') {
     state.mapTally.cleared += 1;
@@ -65,6 +69,7 @@ export function endRun(state: GameState, run: MapRun, outcome: RunOutcome, event
   } else {
     state.mapTally.lost += 1;
     state.stats.mapsLost += 1;
+    checkAchievements(state, 'mapsLost');
     trail(state, run.map.id, { event: 'lost' });
   }
   if (outcome === 'died') {
@@ -109,6 +114,7 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
   const levels = gainXp(state, xp);
   run.gained.xp += xp;
   state.stats.levelsGained += levels;
+  checkAchievements(state, 'levelsGained');
   let { maxLife } = b;
   if (levels > 0) {
     maxLife = deriveBattleStats(state).maxLife;
@@ -122,6 +128,7 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
   state.souls += souls;
   run.gained.souls += souls;
   state.stats.soulsEarned += souls;
+  checkAchievements(state, 'soulsEarned');
   logLine(run, { kind: 'kill', monster: monster.name, xp, souls });
 
   const gold = goldPerKill(tier) * rankReward(monster.rank) * (hasKeystone(state, 'bloodMoney') ? 2 : 1);
@@ -131,7 +138,10 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
   checkAchievements(state, 'gold');
   state.stats.monstersKilled += 1;
   checkAchievements(state, 'kills');
-  if (monster.rank === 'champion') state.stats.championKills += 1;
+  if (monster.rank === 'champion') {
+    state.stats.championKills += 1;
+    checkAchievements(state, 'champions');
+  }
   if (monster.rank === 'boss') {
     state.stats.bossKills += 1;
     checkAchievements(state, 'bosses');
@@ -182,21 +192,44 @@ function strike(state: GameState, run: MapRun, b: BattleStats, events?: TickEven
     physical = Math.max(1, Math.round(physical * 0.6));
     elemental = Math.round(elemental * 0.6);
   }
-  // Armored softens only the physical part.
-  if (m.mods.includes('armored')) physical = Math.max(1, Math.round(physical * ARMORED_TAKEN));
-  // A hardened map softens the whole hit, after everything else.
-  const amount = Math.max(1, Math.round((physical + elemental) * mapEffects(run.map).takenMult));
-  m.life -= amount;
-  events?.push({ kind: 'strike', amount, crit });
-  logLine(run, { kind: 'hit', monster: m.name, amount, crit });
+  const fx = mapEffects(run.map);
+  // Armored softens only the physical part; a hardened map softens the whole hit, after everything else. `share` is 1 for
+  // the main target and the cleave share for the extra enemies the strike also hits.
+  const hitMonster = (target: MonsterState, share: number): number => {
+    const phys = target.mods.includes('armored') ? Math.max(1, Math.round(physical * ARMORED_TAKEN)) : physical;
+    return Math.max(1, Math.round((phys + elemental) * fx.takenMult * share));
+  };
+
+  const mainAmount = hitMonster(m, 1);
+  m.life -= mainAmount;
+  events?.push({ kind: 'strike', amount: mainAmount, crit });
+  logLine(run, { kind: 'hit', monster: m.name, amount: mainAmount, crit });
+  const frontDied = m.life <= 0;
+
+  // Cleave is always on: the main target takes full damage, and the next ones take a share (the cleave efficiency).
+  for (let i = 1; i <= CLEAVE_TARGETS && i < run.queue.length; i++) {
+    const target = run.queue[i];
+    if (target === undefined) break;
+    const splash = hitMonster(target, b.cleave);
+    target.life -= splash;
+    logLine(run, { kind: 'hit', monster: target.name, amount: splash, crit });
+  }
+
   if (crit && hasUnique(state, 'bandOfTheDeep')) {
     run.life = Math.min(b.maxLife, run.life + Math.round(BAND_OF_THE_DEEP_HEAL * b.maxLife));
   }
-  if (m.life > 0) return 'fight';
 
-  run.queue.shift();
-  run.monsterCarry = 0;
-  onKill(state, run, m, b);
+  // Remove every monster the strike (or its cleave) felled, front to back, and pay each kill.
+  if (run.queue.some((target) => target.life <= 0)) {
+    const survivors: MonsterState[] = [];
+    for (const target of run.queue) {
+      if (target.life > 0) survivors.push(target);
+      else onKill(state, run, target, b);
+    }
+    run.queue = survivors;
+    if (frontDied) run.monsterCarry = 0;
+  }
+
   if (run.queue.length > 0) return 'fight';
   if (run.room >= run.bossRoom) {
     endRun(state, run, 'cleared', events);
@@ -209,6 +242,7 @@ function strike(state: GameState, run: MapRun, b: BattleStats, events?: TickEven
     // The Gebo rune makes the treasure room drop one more chest.
     const chests = runeTotals(state).flags.has('extraChest') ? TREASURE_CHESTS + 1 : TREASURE_CHESTS;
     state.stats.chestsOpened += chests;
+    checkAchievements(state, 'chests');
     for (let i = 0; i < chests; i++) {
       for (const item of rollChest(state, run.map.tier)) takeDrop(run, receiveItem(state, item, origin));
     }
@@ -251,32 +285,44 @@ function combatStep(state: GameState, run: MapRun, b: BattleStats, dt: number, e
     if (state.level !== level) b = deriveBattleStats(state);
   }
 
-  const m = run.queue[0];
-  if (m === undefined) return b;
+  const front = run.queue[0];
+  if (front === undefined) return b;
+  const attackers = Math.min(run.queue.length, monsterAttackers(run.map.tier));
   // The Isa rune makes monsters attack 20 % slower: their interval stretches by 1 / 0.8.
-  const intervalS = m.intervalS * (runeTotals(state).flags.has('slowMonsters') ? SLOW_MONSTERS_INTERVAL : 1);
+  const intervalS = front.intervalS * (runeTotals(state).flags.has('slowMonsters') ? SLOW_MONSTERS_INTERVAL : 1);
   run.monsterCarry += dt / intervalS;
   while (run.monsterCarry >= 1) {
     run.monsterCarry -= 1;
-    const hurt = hasKeystone(state, 'bloodMoney')
-      ? Math.max(1, Math.round(mitigate(m.damage, m.element, b, state.level) * 1.25))
-      : mitigate(m.damage, m.element, b, state.level);
-    run.life -= hurt;
-    events?.push({ kind: 'hurt', amount: hurt });
-    logLine(run, { kind: 'hurt', monster: m.name, amount: hurt });
-    if (m.mods.includes('vampiric')) {
-      const healed = Math.min(m.maxLife, m.life + Math.round(hurt * VAMPIRIC_HEAL)) - m.life;
-      m.life += healed;
-      if (healed > 0) logLine(run, { kind: 'heal', monster: m.name, amount: healed });
+    // Several monsters attack at once: the front ones each land their own hit, each after the first at a reduced share.
+    let killer: string | undefined;
+    for (let i = 0; i < attackers; i++) {
+      const m = run.queue[i];
+      if (m === undefined) break;
+      const raw = m.damage * (i === 0 ? 1 : MONSTER_ATTACKER_DAMAGE_SHARE);
+      const hurt = hasKeystone(state, 'bloodMoney')
+        ? Math.max(1, Math.round(mitigate(raw, m.element, b, state.level) * 1.25))
+        : mitigate(raw, m.element, b, state.level);
+      run.life -= hurt;
+      events?.push({ kind: 'hurt', amount: hurt });
+      logLine(run, { kind: 'hurt', monster: m.name, amount: hurt });
+      if (m.mods.includes('vampiric')) {
+        const healed = Math.min(m.maxLife, m.life + Math.round(hurt * VAMPIRIC_HEAL)) - m.life;
+        m.life += healed;
+        if (healed > 0) logLine(run, { kind: 'heal', monster: m.name, amount: healed });
+      }
+      if (run.life <= 0) {
+        killer = m.name;
+        break;
+      }
     }
     // Kraken Leather turns the first killing blow of a run into 1 life left.
     if (run.life <= 0 && run.saved !== true && hasUnique(state, 'krakenLeather')) {
       run.life = 1;
       run.saved = true;
-      logLine(run, { kind: 'saved', monster: m.name });
+      logLine(run, { kind: 'saved', monster: killer ?? front.name });
     }
     if (run.life <= 0) {
-      endRun(state, run, 'died', events, m.name);
+      endRun(state, run, 'died', events, killer ?? front.name);
       return b;
     }
   }

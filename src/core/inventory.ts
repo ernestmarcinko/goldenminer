@@ -1,4 +1,5 @@
 import { checkAchievements } from './achievements';
+import { queueForAutoMap, unqueueForAutoMap } from './autoMap';
 import { GEM_STASH_STACK, MATERIAL_STASH_STACK, ORB_STASH_STACK, RUNE_STASH_STACK } from './balance';
 import { firstEmpty, itemAt, mapTierCount, sameLoc } from './cells';
 import { craft } from './crafting';
@@ -67,6 +68,7 @@ function fits(item: Item, loc: ItemLoc): InvResult {
     case 'materials': return item.type === 'material' ? 'ok' : 'materialsOnly';
     case 'orbs': return item.type === 'orb' ? 'ok' : 'orbsOnly';
     case 'worn': return isGear(item) ? (item.slot === loc.slot ? 'ok' : 'wrongSlot') : 'invalid';
+    case 'queue': return isMap(item) ? 'ok' : 'mapsOnly';
     case 'stock': return 'invalid';
   }
 }
@@ -206,6 +208,22 @@ function moveMap(state: GameState, from: ItemLoc, item: Item, to: CellLoc | Extr
   return 'ok';
 }
 
+/** Into the queue appends a map; out of the queue returns it to the stash. Only maps move this way. */
+function moveToQueue(state: GameState, from: ItemLoc, item: Item): InvResult {
+  if (!isMap(item)) return 'mapsOnly';
+  if (from.where === 'queue') {
+    return unqueueForAutoMap(state, item.id) === 'ok' ? 'ok' : 'invalid';
+  }
+  const result = queueForAutoMap(state, item.id);
+  switch (result) {
+    case 'ok':
+    case 'alreadyQueued': return 'ok';
+    case 'queueFull': return 'queueFull';
+    case 'locked': return 'locked';
+    case 'noSuchMap': return 'invalid';
+  }
+}
+
 /** Cell to cell: a move, a swap, a stack merge, or a put into or take from a Gems or Materials stack. */
 export function moveItem(state: GameState, from: ItemLoc, to: ItemLoc): InvResult {
   if (isStock(from) || isStock(to)) return 'invalid';
@@ -213,6 +231,8 @@ export function moveItem(state: GameState, from: ItemLoc, to: ItemLoc): InvResul
   if (item === undefined) return 'invalid';
   if (sameLoc(from, to)) return 'ok';
   if (from.where === 'worn' || to.where === 'worn') return 'invalid';
+  // The queue is a map-only FIFO: moving in appends, moving out returns the map to the stash.
+  if (to.where === 'queue' || from.where === 'queue') return moveToQueue(state, from, item);
   if (to.where === 'gems') return item.type === 'gem' ? putInTab(state, from, item) : 'gemsOnly';
   if (to.where === 'runes') {
     if (item.type !== 'rune') return 'runesOnly';
@@ -332,6 +352,10 @@ function discard(state: GameState, from: ItemLoc): Loot | undefined {
   if (from.where === 'gems') state.stash.gems[from.gem][from.grade] = 0;
   else if (from.where === 'runes') state.stash.runes[from.rune] = 0;
   else if (from.where === 'maps') takeMapAt(state, from);
+  else if (from.where === 'queue') {
+    const index = state.autoMap.queue.findIndex((m) => m.id === item.id);
+    if (index >= 0) state.autoMap.queue.splice(index, 1);
+  }
   else if (isCellLoc(from)) writeCell(state, from, null);
   else return undefined;
   return item;
@@ -342,6 +366,7 @@ export function sell(state: GameState, from: ItemLoc): InvResult {
   if (item === undefined) return 'invalid';
   trail(state, item.id, { event: 'sold', gold: sellFind(state, item).value });
   state.stats.itemsSold += 1;
+  checkAchievements(state, 'itemsSold');
   return 'ok';
 }
 
@@ -350,6 +375,7 @@ export function salvage(state: GameState, from: ItemLoc): InvResult {
   if (item === undefined) return 'invalid';
   trail(state, item.id, { event: 'salvaged', materials: stashMaterials(state, salvagePay(item, deriveStats(state))) });
   state.stats.itemsSalvaged += 1;
+  checkAchievements(state, 'itemsSalvaged');
   return 'ok';
 }
 

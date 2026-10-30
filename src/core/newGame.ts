@@ -26,7 +26,7 @@ export function newGame(seed: number, nowMs: number, options: NewGameOptions = {
     runeRng: hash2(options.lootSeed ?? seed, RUNE_RNG_SALT),
     oreMarket: { premium: emptyPremium() },
     passives: { allocated: [] },
-    ascendancy: { points: 0, allocated: [] }, autoMap: { queue: [] }, lifetime: { ascensions: 0, deepest: 0 },
+    ascendancy: { points: 0, allocated: [] }, autoMap: { queue: [], on: false }, lifetime: { ascensions: 0, deepest: 0 },
     stats: emptyLifetimeStats(), achievements: { earned: [] },
   };
   fillAhead(state, deriveStats(state));

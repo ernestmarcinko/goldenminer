@@ -8,6 +8,14 @@ const MIN_SCALE = 0.25;
 const MAX_SCALE = 2.5;
 const ZOOM_STEP = 1.25;
 
+/** The on-screen footprint of each node kind: smalls keep their size, notables are larger, keystones largest. */
+const NODE_DIMS: Record<SkillNodeVM['kind'], { size: number; hit: number; halo: number }> = {
+  start: { size: 56, hit: 26, halo: 30 },
+  small: { size: 48, hit: 22, halo: 24 },
+  notable: { size: 64, hit: 28, halo: 32 },
+  keystone: { size: 80, hit: 34, halo: 38 },
+};
+
 interface Props {
   nodes: SkillNodeVM[];
   onNode: (id: string) => void;
@@ -212,38 +220,42 @@ export function Web({
               y2={e.y2}
             />
           ))}
-          {nodes.map((n) => (
-            <g
-              key={n.id}
-              className="gm-web__node"
-              data-side={n.side}
-              data-allocated={n.allocated}
-              data-kind={n.kind}
-              data-allocatable={n.allocatable || undefined}
-              data-refundable={n.refundable || undefined}
-              data-staged={n.staged || undefined}
-              data-refunding={n.refunding || undefined}
-              transform={`translate(${n.x} ${n.y})`}
-              onPointerDown={(e) => e.stopPropagation()}
-              onPointerEnter={() => enterNode(n.id)}
-              onPointerLeave={leaveNode}
-              onClick={() => onNode(n.id)}
-            >
-              {/* the click target is at least 44 px, even for a small node */}
-              <circle className="gm-web__hit" r={22} fill="transparent" />
-              <circle className="gm-web__halo" r={24} />
-              <image
-                className="gm-web__icon"
-                href={iconUris.get(n.id) ?? ''}
-                x={-24}
-                y={-24}
-                width={48}
-                height={48}
-                preserveAspectRatio="none"
-              />
-              <title>{n.tip}</title>
-            </g>
-          ))}
+          {nodes.map((n) => {
+            const d = NODE_DIMS[n.kind];
+            return (
+              <g
+                key={n.id}
+                className="gm-web__node"
+                data-side={n.side}
+                data-allocated={n.allocated}
+                data-kind={n.kind}
+                data-allocatable={n.allocatable || undefined}
+                data-refundable={n.refundable || undefined}
+                data-staged={n.staged || undefined}
+                data-refunding={n.refunding || undefined}
+                transform={`translate(${n.x} ${n.y})`}
+                onPointerDown={(e) => e.stopPropagation()}
+                onPointerEnter={() => enterNode(n.id)}
+                onPointerLeave={leaveNode}
+                onClick={() => onNode(n.id)}
+              >
+                {/* the click target is at least 44 px, even for a small node */}
+                <circle className="gm-web__hit" r={d.hit} fill="transparent" />
+                <circle className="gm-web__halo" r={d.halo} />
+                {n.kind === 'keystone' && <circle className="gm-web__keystone" r={d.halo + 4} />}
+                <image
+                  className="gm-web__icon"
+                  href={iconUris.get(n.id) ?? ''}
+                  x={-d.size / 2}
+                  y={-d.size / 2}
+                  width={d.size}
+                  height={d.size}
+                  preserveAspectRatio="none"
+                />
+                <title>{n.tip}</title>
+              </g>
+            );
+          })}
         </g>
       </svg>
       {cardNode !== undefined && renderCard !== undefined && cardBox !== null && (

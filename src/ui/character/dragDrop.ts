@@ -49,6 +49,8 @@ export function parseDrop(attr: string | null): DropTarget | null {
       return typeof o.key === 'string' && parseOrbKey(o.key) !== undefined ? { where: 'orbs', key: o.key } : null;
     case 'worn':
       return oneOf(SLOTS, o.slot) ? { where: 'worn', slot: o.slot } : null;
+    case 'queue':
+      return cellIndex(o.index) ? { where: 'queue', index: o.index } : null;
     case 'stock':
       return cellIndex(o.index, STOCK_SIZE) ? { where: 'stock', index: o.index } : null;
     case 'stashTab':

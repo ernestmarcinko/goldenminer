@@ -381,7 +381,7 @@ it('a material item reads as a crafting material and where it is first found', (
   expect(itemLines(tin)).toEqual([
     { text: 'Found at every depth', tone: 'plain' },
     { text: 'Kept for crafting.', tone: 'muted' },
-    { text: "Drag it onto gear or a map, or pick it under Craft or Enchant in that item's card.", tone: 'muted' },
+    { text: "Drag it onto gear to craft with it, or exchange it at the Refiner.", tone: 'muted' },
   ]);
   expect(itemLines(iron)[0]).toEqual({ text: 'First found below 50 m', tone: 'plain' });
   expect(itemSprite({ id: 4, type: 'material', material: 'voidCrystal', count: 1 })).toBe('voidCrystal');

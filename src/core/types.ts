@@ -24,6 +24,7 @@ export type ItemLoc =
   | { where: 'materials'; material: Material }          // a Materials-tab stack (virtual, id 0, while its count > 0)
   | { where: 'orbs'; key: string }                     // an Orbs-tab stack, keyed by orbKey(family, side?, tier)
   | { where: 'worn'; slot: Slot }
+  | { where: 'queue'; index: number }                     // a map in the auto-map queue, oldest first
   | { where: 'stock'; index: number };
 export type DropTarget = ItemLoc | { where: 'stashTab'; tab: 'general' | 'gems' | 'runes' | 'maps' | 'materials' | 'orbs' | 'auto' };
 export const LOOT_ACTIONS = ['keep', 'sell', 'salvage', 'stash'] as const;
@@ -39,6 +40,8 @@ export interface LootRange { min?: number; max?: number }
 export interface LootRule {
   kind: LootKind | 'any'; action: LootAction;
   set?: GearSet; slot?: Slot; rarity?: Rarity; level?: LootRange; modTier?: number; mods?: LootRange;
+  /** Every modifier within this many tiers of the item's top tier (0 = all at the top). */
+  modTierGap?: number;
   mapMod?: MapModKind; gem?: GemType; grade?: GemGrade; rune?: RuneType; material?: Material;
 }
 export const SHAFT_MOTIONS = ['step', 'smooth', 'off'] as const;
@@ -102,6 +105,9 @@ export interface RunGains { xp: number; souls: number; gold: number; levels: num
 export interface LifetimeStats {
   // Distance & time
   metresDug: number;                       // metres completed, all ascensions
+  clicks: number;                          // total manual clicks
+  metresDugByClick: number;                // metres finished by a click (hand-mined)
+  metresDugAuto: number;                   // metres finished by auto-ticks (auto-mined)
   timePlayedMs: number;                    // wall-clock live elapsed
   timeAwayMs: number;                      // wall-clock away/offline elapsed
   timeDiggingMs: number;                   // simulated dig ticks × dt
@@ -140,6 +146,7 @@ export interface MapRun {
   items: number;                                   // gear and gems dropped this run, every one counted (material stacks are not items)
   strikes: number;                                 // every strike of the run, for the Peacemaker
   saved?: true;                                    // Kraken Leather has fired this run
+  auto?: true;                                     // started by the auto-map chain (its result dialog is suppressed while the chain continues)
 }
 export interface RunResult { map: MapItem; outcome: RunOutcome; room: number; bossRoom: number; gained: RunGains; items: number; seen: boolean }
 export type Activity = { kind: 'dig' } | { kind: 'map'; run: MapRun };
@@ -149,20 +156,27 @@ export interface FindRecord {
 }
 export type InvResult =
   | 'ok' | 'bagFull' | 'stashFull' | 'noSocket' | 'invalid' | 'busy'
-  | 'wrongSlot' | 'gemsOnly' | 'runesOnly' | 'gearOnly' | 'mapsOnly' | 'materialsOnly' | 'orbsOnly' | 'stackFull' | 'craftRefused' | 'mapTierFull';
-/** What a craft spends: a material, or Diamonds for the exalt. */
-export type CraftKind = Material | 'diamond';
+  | 'wrongSlot' | 'gemsOnly' | 'runesOnly' | 'gearOnly' | 'mapsOnly' | 'materialsOnly' | 'orbsOnly' | 'stackFull' | 'craftRefused' | 'mapTierFull' | 'queueFull' | 'locked';
 /**
- * A targeted craft on gear: add or reroll a prefix or suffix (a craft orb), remove a random band-scoped prefix or suffix
- * (a removal orb), or scatter every rolled line's value (a scattering orb). `tier` is the orb's tier, which sets the
- * band; `index` names the affix a reroll keeps the stat of.
+ * What a craft is: a material craft (Tin, Silver, Mithril, Void crystal), the Diamond exalt, or a rarity upgrade
+ * (`makeMagic` and `makeRare`, which spend Diamonds on gear and Souls on maps). Copper, Iron, Starsteel and Obsidian
+ * are retired as crafts.
+ */
+export type CraftKind = Material | 'diamond' | 'makeMagic' | 'makeRare';
+/**
+ * A targeted craft on gear: add a random prefix or suffix (a craft orb), remove a random prefix or suffix (a removal
+ * orb), scatter every rolled line's value (the scattering orb), add a socket (the socketing orb), or empty the sockets
+ * (the clearing orb). `tier` is the craft orb's tier; the other orbs are untiered.
  */
 export type TargetedCraft =
-  | { kind: 'addPrefix' | 'addSuffix' | 'removePrefix' | 'removeSuffix' | 'scatter'; tier: OrbTier }
-  | { kind: 'rerollPrefix' | 'rerollSuffix'; index: number; tier: OrbTier };
+  | { kind: 'addPrefix' | 'addSuffix'; tier: OrbTier }
+  | { kind: 'removePrefix' | 'removeSuffix' }
+  | { kind: 'scatter' }
+  | { kind: 'socketing' }
+  | { kind: 'clearSockets' };
 export type CraftCheck =
   | 'ok' | 'notGear' | 'legendary' | 'sealed' | 'wrongRarity' | 'noRoom' | 'nothingToChange' | 'short' | 'gemsFull'
-  | 'notForMaps' | 'noSouls' | 'noSuchAffix';
+  | 'notForMaps' | 'noSouls' | 'socketFull' | 'noSockets' | 'noRunes';
 export type TemperOutcome = 'craftedLine' | 'raiseTiers' | 'nothing' | 'ruin';
 export interface CraftResult { check: CraftCheck; temper?: TemperOutcome }
 export interface GameState {
@@ -207,7 +221,7 @@ export interface GameState {
   runeRng: number;                         // the runes' own stream, so state.rng is the same for a player who finds none
   passives: { allocated: string[] };       // the passive web's allocated node ids, in allocation order
   ascendancy: { points: number; allocated: string[] };   // the permanent tree: unspent points and allocated node ids
-  autoMap: { queue: number[] };                          // queued map ids, oldest first, run only while away
+  autoMap: { queue: MapItem[]; on: boolean };             // maps physically queued (oldest first), and the on/off switch
   lifetime: { ascensions: number; deepest: number };     // across all runs: the ascension count and the best depth
   stats: LifetimeStats;                                  // the lifetime ledger, kept across ascension
   achievements: { earned: string[] };                    // earned achievement ids, kept across ascension

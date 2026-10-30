@@ -1,4 +1,5 @@
 import { RESET_WEB_DIAMONDS, RESPEC_GOLD_BASE, STASH_PAGE_SIZE } from './balance';
+import { checkAchievements } from './achievements';
 import {
   PASSIVE_NODE_BY_ID, START_NODE_ID, canAllocate, freeStashPages, isConnectedWeb, pointsToSpend, type PassiveNode,
 } from './passives';
@@ -76,6 +77,7 @@ export function refundMany(
   if (pages > 0 && refundFreePages(state, pages) === 'occupied') return 'occupied';
   state.gold -= price;
   state.stats.goldSpent += price;
+  checkAchievements(state, 'goldSpent');
   state.passives.allocated = remaining;
   return 'ok';
 }
@@ -92,6 +94,7 @@ export function resetWeb(state: GameState): 'ok' | 'noDiamonds' | 'occupied' {
   if (free > 0 && refundFreePages(state, free) === 'occupied') return 'occupied';
   state.diamonds -= RESET_WEB_DIAMONDS;
   state.stats.diamondsSpent += RESET_WEB_DIAMONDS;
+  checkAchievements(state, 'diamondsSpent');
   state.passives.allocated = [];
   return 'ok';
 }

@@ -32,6 +32,7 @@ export function gamble(state: GameState, slot: Slot): { result: GambleResult; it
   state.bag[cell] = item;
   state.gold -= price;
   state.stats.goldSpent += price;
+  checkAchievements(state, 'goldSpent');
   if (item.rarity === 'legendary') {
     state.stats.legendaries += 1;
     checkAchievements(state, 'legendaries');

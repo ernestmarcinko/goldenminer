@@ -33,6 +33,8 @@ export function ascend(state: GameState): 'ok' | 'notReady' {
   state.ahead = {};
   state.finds = [];
   state.nextId = 1;
+  // Queued maps keep their ids, so new ids start past them.
+  for (const m of state.autoMap.queue) state.nextId = Math.max(state.nextId, m.id + 1);
   state.activity = { kind: 'dig' };
   state.lastRun = null;
   state.mapTally = { cleared: 0, lost: 0 };

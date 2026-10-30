@@ -220,6 +220,7 @@ export function deriveCharacterSheet(state: GameState): CharacterSheet {
       { label: 'Attack speed', value: battle.attacksPerSecond, format: 'perSecond' },
       { label: 'Crit chance', value: battle.critChance * 100, format: 'percent' },
       { label: 'Crit multiplier', value: battle.critMultiplier, format: 'multiplier' },
+      { label: 'Cleave', value: battle.cleave * 100, format: 'percent' },
       { label: 'Elemental damage', value: battle.elementalDamage, format: 'number' },
       { label: 'Life', value: battle.maxLife, format: 'number' },
       { label: 'Armor', value: battle.armor, format: 'number' },

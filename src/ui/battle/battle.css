@@ -1,0 +1,29 @@
+.gm-battle { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.gm-battle__head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.gm-battle__title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 22px; }
+.gm-battle__start { flex: none; }
+.gm-battle__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* the queue beside the stash; stacked on a narrow screen */
+.gm-battle__columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+
+.gm-battle__card {
+  display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px; border-radius: 0;
+  background: var(--gm-panel); border: var(--gm-edge); box-shadow: var(--gm-bevel);
+}
+.gm-battle__head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.gm-battle__name { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 18px; }
+.gm-battle__name:focus { outline: none; }
+
+/* the queue, greyed out and non-interactive until Surveyor is allocated */
+.gm-battle__queue { position: relative; min-height: 60px; }
+.gm-battle__queue--locked .gm-gridbox { opacity: 0.35; pointer-events: none; }
+.gm-battle__lock {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-family: var(--gm-font-display); font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--gm-muted); pointer-events: none;
+}
+
+@media (max-width: 900px) {
+  .gm-battle__columns { grid-template-columns: minmax(0, 1fr); }
+}

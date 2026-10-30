@@ -14,12 +14,12 @@ function plenty(s: GameState): void {
   s.diamonds = 100;
 }
 
-it('a normal ilvl-4 pickaxe offers Copper, and Mithril it cannot pay for', () => {
+it('a normal ilvl-4 pickaxe offers makeMagic, and Mithril it cannot pay for', () => {
   const s = newGame(1, 0);
   s.bag[0] = gear(s, 'pickaxe', { rarity: 'normal', ilvl: 4 });
-  s.bag[1] = { id: s.nextId++, type: 'material', material: 'copper', count: 37 };
+  s.diamonds = 2;
   expect(craftOptions(s, bag(0))).toEqual([
-    { kind: 'copper', label: 'Copper ore ×3: make it magic', cost: 3, souls: 0, have: 37, enabled: true },
+    { kind: 'makeMagic', label: 'Diamonds ×2: make it magic', cost: 2, souls: 0, have: 2, enabled: true },
     { kind: 'mithril', label: 'Mithril ×2: reroll its sockets', cost: 2, souls: 0, have: 0, enabled: false },
   ]);
 });
@@ -65,13 +65,14 @@ it('a non-gear item has no crafts', () => {
 });
 
 it('every craft label', () => {
-  expect(craftLabel('copper', 3, 0, 'gear')).toBe('Copper ore ×3: make it magic');
+  expect(craftLabel('makeMagic', 2, 0, 'gear')).toBe('Diamonds ×2: make it magic');
+  expect(craftLabel('makeRare', 3, 0, 'gear')).toBe('Diamonds ×3: make it rare');
   expect(craftLabel('tin', 2, 0, 'gear')).toBe('Tin ore ×2: reroll its modifiers');
   expect(craftLabel('silver', 2, 0, 'gear')).toBe('Silver ore ×2: reroll its modifiers');
   expect(craftLabel('mithril', 2, 0, 'gear')).toBe('Mithril ×2: reroll its sockets');
   expect(craftLabel('voidCrystal', 1, 0, 'gear')).toBe('Void crystal ×1: temper it (risky)');
   expect(craftLabel('diamond', 1200, 0, 'gear')).toBe('Diamonds ×1,200: add a modifier');
-  for (const kind of ['iron', 'starsteel', 'obsidian'] as const) expect(() => craftLabel(kind, 1, 0, 'gear')).toThrow();
+  for (const kind of ['copper', 'iron', 'starsteel', 'obsidian'] as const) expect(() => craftLabel(kind, 1, 0, 'gear')).toThrow();
 });
 
 it('every craft result text', () => {
@@ -97,43 +98,39 @@ const mods = (n: number): MapMod[] => (
   ['monsterLife', 'monsterDamage', 'monsterSpeed', 'bossPower', 'weakHealing', 'hardened'] as const
 ).slice(0, n).map((kind) => ({ kind, tier: 1, value: 10 }));
 
-it('a normal tier-4 map offers only Copper, for its material and its Souls', () => {
+it('a normal tier-4 map offers only makeMagic, for its Souls', () => {
   const s = newGame(1, 0);
   s.bag[0] = map(s, 'normal');
-  s.bag[1] = { id: s.nextId++, type: 'material', material: 'copper', count: 37 };
   s.souls = 50;
   expect(craftOptions(s, bag(0))).toEqual([
-    { kind: 'copper', label: 'Copper ore ×3 + 20 Souls: enchant it', cost: 3, souls: 20, have: 37, enabled: true },
+    { kind: 'makeMagic', label: '20 Souls: make it magic', cost: 0, souls: 20, have: 50, enabled: true },
   ]);
   plenty(s);
-  expect(craftOptions(s, bag(0)).map((o) => o.kind)).toEqual(['copper']);
+  expect(craftOptions(s, bag(0)).map((o) => o.kind)).toEqual(['makeMagic']);
 });
 
-it('a map craft is off with too little material or too few Souls', () => {
+it('a map upgrade is off with too few Souls', () => {
   const s = newGame(1, 0);
   const inTab = map(s, 'normal');
   s.stash.maps[inTab.tier] = [inTab];
   const tab: ItemLoc = { where: 'maps', tier: inTab.tier, index: 0 };
-  s.stash.materials.copper = 3;
   s.souls = 19;
-  expect(craftOptions(s, tab)).toMatchObject([{ kind: 'copper', souls: 20, enabled: false }]);
+  expect(craftOptions(s, tab)).toMatchObject([{ kind: 'makeMagic', souls: 20, enabled: false }]);
   s.souls = 20;
-  expect(craftOptions(s, tab)).toMatchObject([{ kind: 'copper', enabled: true }]);
-  s.stash.materials.copper = 2;
-  expect(craftOptions(s, tab)).toMatchObject([{ kind: 'copper', have: 2, enabled: false }]);
+  expect(craftOptions(s, tab)).toMatchObject([{ kind: 'makeMagic', enabled: true }]);
 });
 
-it('a magic map offers Obsidian and Void crystal; a rare one Silver too', () => {
+it('a magic map offers makeRare; a rare one no further upgrade', () => {
   const s = newGame(1, 0);
   plenty(s);
   s.souls = 1000;
   s.bag[0] = map(s, 'magic', mods(2));
   s.bag[1] = map(s, 'rare', mods(4));
   s.bag[2] = map(s, 'rare', mods(6));
-  expect(craftOptions(s, bag(0)).map((o) => o.kind)).toEqual(['voidCrystal']);
-  expect(craftOptions(s, bag(1)).map((o) => o.kind)).toEqual(['silver', 'voidCrystal']);
-  expect(craftOptions(s, bag(2)).map((o) => o.kind)).toEqual(['silver', 'voidCrystal']);
-  expect(craftOptions(s, bag(1)).every((o) => o.souls === 20 && o.enabled)).toBe(true);
+  expect(craftOptions(s, bag(0)).map((o) => o.kind)).toEqual(['makeRare']);
+  expect(craftOptions(s, bag(1)).map((o) => o.kind)).toEqual([]);
+  expect(craftOptions(s, bag(2)).map((o) => o.kind)).toEqual([]);
+  expect(craftOptions(s, bag(0)).every((o) => o.souls === 40 && o.enabled)).toBe(true);
 });
 
 it('a sealed map offers nothing', () => {
@@ -145,21 +142,17 @@ it('a sealed map offers nothing', () => {
 });
 
 it('every map craft label', () => {
-  expect(craftLabel('copper', 3, 20, 'map')).toBe('Copper ore ×3 + 20 Souls: enchant it');
-  expect(craftLabel('silver', 2, 20, 'map')).toBe('Silver ore ×2 + 20 Souls: reroll its modifiers');
-  expect(craftLabel('voidCrystal', 1, 1500, 'map')).toBe('Void crystal ×1 + 1,500 Souls: temper it (risky)');
-  for (const kind of ['tin', 'iron', 'mithril', 'starsteel', 'obsidian', 'diamond'] as const) expect(() => craftLabel(kind, 1, 20, 'map')).toThrow();
+  expect(craftLabel('makeMagic', 0, 20, 'map')).toBe('20 Souls: make it magic');
+  expect(craftLabel('makeRare', 0, 40, 'map')).toBe('40 Souls: make it rare');
+  for (const kind of ['copper', 'tin', 'iron', 'silver', 'mithril', 'starsteel', 'obsidian', 'voidCrystal', 'diamond'] as const) {
+    expect(() => craftLabel(kind, 1, 20, 'map')).toThrow();
+  }
 });
 
 it('every map craft result text, and the new refusals', () => {
   expect(craftResultText({ check: 'notForMaps' }, 'map')).toBe("That material doesn't work on maps.");
   expect(craftResultText({ check: 'noSouls' }, 'map')).toBe('Not enough Souls.');
   expect(craftResultText({ check: 'ok' }, 'map')).toBeNull();
-  expect(craftResultText({ check: 'ok', temper: 'craftedLine' }, 'map')).toBe('Tempered: it gained a strong modifier.');
-  expect(craftResultText({ check: 'ok', temper: 'raiseTiers' }, 'map')).toBe('Tempered: every modifier rose a tier.');
-  expect(craftResultText({ check: 'ok', temper: 'nothing' }, 'map')).toBe('Tempered: nothing changed.');
-  expect(craftResultText({ check: 'ok', temper: 'ruin' }, 'map'))
-    .toBe('Tempered: it was ruined, every modifier fell to tier 1.');
   expect(craftResultText({ check: 'sealed' }, 'map')).toBe("It was tempered and can't be enchanted any more.");
   expect(craftResultText({ check: 'wrongRarity' }, 'map')).toBe("That doesn't work on this item.");
   expect(craftResultText({ check: 'noRoom' }, 'map')).toBe('It has no room for another modifier.');

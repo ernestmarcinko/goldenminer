@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ACHIEVEMENTS, ACHIEVEMENT_BOOST, FAMILY_LABELS } from '../../src/core/achievements';
 import { ASCENDANCY_NODES } from '../../src/core/ascendancy';
 import {
-  CRAFT_COST, EXCHANGE_DOWN, EXCHANGE_UP, MAP_MOD_CAPS, MAP_MOD_TIERS, MATERIAL_TABLE, ORB_COSTS,
+  CRAFT_COST, EXCHANGE_DOWN, EXCHANGE_UP, MAP_MOD_CAPS, MAP_MOD_TIERS, MATERIAL_TABLE,
   PREMIUM_CAP, PREMIUM_DECAY_KEEP, PREMIUM_STEP, orbCost, orbOre,
 } from '../../src/core/balance';
 import { LEGENDARIES, MATERIAL_LABELS, STAT_NAMES } from '../../src/core/itemData';
@@ -27,10 +27,10 @@ describe('materials', () => {
     })));
   });
 
-  it('the orb recipes match ORBS and ORB_COSTS', () => {
+  it('the orb recipes match ORBS and their costs', () => {
     const expected = ORBS.map((o) => {
-      const ore = orbOre(o.family, o.tier);
-      return { family: o.family, side: o.side, tier: o.tier, name: o.name, ore, oreLabel: MATERIAL_LABELS[ore], cost: orbCost(o.family, o.tier) };
+      const ore = orbOre(o.family, o.side, o.tier);
+      return { family: o.family, side: o.side, tier: o.tier, name: o.name, ore, oreLabel: MATERIAL_LABELS[ore], cost: orbCost(o.family, o.side, o.tier) };
     });
     expect(orbRecipes()).toEqual(expected);
   });
@@ -65,7 +65,7 @@ describe('uniques', () => {
       expect(row.name).toBe(def.name);
       expect(row.slot).toBe(def.slot);
       expect(row.slotLabel.length).toBeGreaterThan(0);
-      expect(row.effect).toBe(UNIQUE_LINES[def.id]);
+      expect(row.effect).toBe(UNIQUE_LINES[def.id] ?? '');
       expect(row.lines.map((l) => [l.stat, l.kind, l.value, l.statName])).toEqual(
         def.lines.map((line) => {
           const kind = 'scale' in line ? 'scale' : 'fixed';

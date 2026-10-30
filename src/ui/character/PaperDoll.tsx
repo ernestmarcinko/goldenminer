@@ -7,9 +7,11 @@ import { EmptyTarget, ItemButton } from './ItemGrid';
 import type { ItemHandlers } from './ItemGrid';
 import { SLOT_LABELS } from './itemView';
 
-const LAYOUT: Record<GearSet, { left: readonly Slot[]; right: readonly Slot[] }> = {
+const LAYOUT: Record<GearSet | 'both', { left: readonly Slot[]; right: readonly Slot[] }> = {
   mining: { left: [MINING_SLOTS[0], MINING_SLOTS[2]], right: [MINING_SLOTS[1], MINING_SLOTS[3]] },
   battle: { left: [BATTLE_SLOTS[0], BATTLE_SLOTS[1]], right: [BATTLE_SLOTS[2], BATTLE_SLOTS[3], BATTLE_SLOTS[4]] },
+  // One doll holding every slot: the mining set down the left side, the battle set down the right.
+  both: { left: [...MINING_SLOTS], right: [...BATTLE_SLOTS] },
 };
 
 function SlotView({ state, slot, handlers, flash }: { state: GameState; slot: Slot; handlers: ItemHandlers; flash: boolean }) {
@@ -40,7 +42,7 @@ function SlotView({ state, slot, handlers, flash }: { state: GameState; slot: Sl
 
 /** `flashSlot` is the slot an item just went into, which glows for a moment. */
 export function PaperDoll({ state, set, handlers, flashSlot }: {
-  state: GameState; set: GearSet; handlers: ItemHandlers; flashSlot: Slot | null;
+  state: GameState; set: GearSet | 'both'; handlers: ItemHandlers; flashSlot: Slot | null;
 }) {
   const { left, right } = LAYOUT[set];
   return (

@@ -3,6 +3,7 @@ import { ascend } from '../../src/core/ascend';
 import {
   ASCENDANCY_NODE_BY_ID, ASCENDANCY_NODES, ASCENDANCY_START_ID, ascendancyPoints, ascendancyTotals,
 } from '../../src/core/ascendancy';
+import { queueForAutoMap } from '../../src/core/autoMap';
 import { ASCEND_LEVEL, GUARANTEED_FIRST_MAP_METRE } from '../../src/core/balance';
 import { emptyInventory } from '../../src/core/cells';
 import { startMap } from '../../src/core/maps';
@@ -134,7 +135,8 @@ it('keeps the world, the RNG streams, settings, the tree, the auto-map queue and
   s.settings.motion.floats = false;
   s.settings.lootFilter = [{ kind: 'gem', action: 'sell' }];
   s.ascendancy.allocated = ['wealthSmall1'];
-  s.autoMap.queue = [42];
+  s.passives.allocated = ['surveyor'];
+  expect(queueForAutoMap(s, stashMap(s, 2, 10).id)).toBe('ok');
   s.lifetime = { ascensions: 2, deepest: 900 };
   const kept = {
     seed: s.seed,

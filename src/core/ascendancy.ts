@@ -6,12 +6,13 @@ import type { StatKey } from './items';
 import type { GameState } from './types';
 
 export type AscendancyKind = 'small' | 'mid' | 'big' | 'start';
-/** What a node grants: a stat, a starting depth, a passive point, or a map tier auto-mapping reaches. */
+/** What a node grants: a stat, a starting depth, a passive point, or a map tier / queue the auto-mapping reaches. */
 export type AscendancyEffect =
   | { kind: 'stat'; stat: StatKey; value: number }
   | { kind: 'startingDepth'; value: number }
   | { kind: 'passivePoints'; value: number }
-  | { kind: 'autoMapTier'; value: number };
+  | { kind: 'autoMapTier'; value: number }
+  | { kind: 'autoMapQueue'; value: number };
 
 /** The eight ascendancy clusters; each small node's icon is its group's base glyph at a slot tier. */
 export type AscendancyGroupId =
@@ -45,6 +46,7 @@ const stat = (stat: StatKey, value: number): AscendancyEffect => ({ kind: 'stat'
 const startingDepth = (value: number): AscendancyEffect => ({ kind: 'startingDepth', value });
 const passivePoints = (value: number): AscendancyEffect => ({ kind: 'passivePoints', value });
 const autoMapTier = (value: number): AscendancyEffect => ({ kind: 'autoMapTier', value });
+const autoMapQueue = (value: number): AscendancyEffect => ({ kind: 'autoMapQueue', value });
 // A "find" node grants chest, gem and map find together.
 const find = (value: number): AscendancyEffect[] => [
   stat('chestFind', value), stat('gemFind', value), stat('mapFind', value),
@@ -135,8 +137,8 @@ const CLUSTERS: ClusterDef[] = [
       s('Auto-map Tier', [autoMapTier(1)]),
       s('Auto-map Tier', [autoMapTier(1)]),
     ],
-    mid: n('masterSurveyor', 'Master Surveyor', [autoMapTier(2)], '+2 auto-map tiers.'),
-    big: n('worldAtlas', 'World Atlas', [autoMapTier(4)], '+4 auto-map tiers.'),
+    mid: n('masterSurveyor', 'Master Surveyor', [autoMapTier(2), autoMapQueue(20)], '+2 auto-map tiers, +20 auto-map queue.'),
+    big: n('worldAtlas', 'World Atlas', [autoMapTier(4), autoMapQueue(50)], '+4 auto-map tiers, +50 auto-map queue.'),
   },
   {
     prefix: 'endurance', angle: 270, legacySmalls: 4,
@@ -303,12 +305,13 @@ export interface AscendancyTotals {
   startingDepth: number;
   passivePoints: number;
   autoMapTier: number;
+  autoMapQueue: number;
 }
 
 /** The allocated nodes' effects, summed: stats into `stats`, the structural bonuses on their own. */
 export function ascendancyTotals(state: Pick<GameState, 'ascendancy'>): AscendancyTotals {
   const totals: AscendancyTotals = {
-    stats: {} as Record<StatKey, number>, startingDepth: 0, passivePoints: 0, autoMapTier: 0,
+    stats: {} as Record<StatKey, number>, startingDepth: 0, passivePoints: 0, autoMapTier: 0, autoMapQueue: 0,
   };
   for (const id of state.ascendancy.allocated) {
     const node = ASCENDANCY_NODE_BY_ID.get(id);
@@ -319,6 +322,7 @@ export function ascendancyTotals(state: Pick<GameState, 'ascendancy'>): Ascendan
         case 'startingDepth': totals.startingDepth += effect.value; break;
         case 'passivePoints': totals.passivePoints += effect.value; break;
         case 'autoMapTier': totals.autoMapTier += effect.value; break;
+        case 'autoMapQueue': totals.autoMapQueue += effect.value; break;
       }
     }
   }

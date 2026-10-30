@@ -217,7 +217,7 @@ it('allocated nodes add their stats and structural bonuses to the totals', () =>
     throw new Error('the ascendancy tree is missing an effect kind');
   }
   const s = newGame(1, 0);
-  expect(ascendancyTotals(s)).toEqual({ stats: {}, startingDepth: 0, passivePoints: 0, autoMapTier: 0 });
+  expect(ascendancyTotals(s)).toEqual({ stats: {}, startingDepth: 0, passivePoints: 0, autoMapTier: 0, autoMapQueue: 0 });
   s.ascendancy.allocated = [gold.id];
   expect(ascendancyTotals(s).stats.goldYield).toBe(10);
   s.ascendancy.allocated = [passive.id];
@@ -227,5 +227,5 @@ it('allocated nodes add their stats and structural bonuses to the totals', () =>
   s.ascendancy.allocated = [tier.id];
   expect(ascendancyTotals(s).autoMapTier).toBe(1);
   s.ascendancy.allocated = ['notANode'];
-  expect(ascendancyTotals(s)).toEqual({ stats: {}, startingDepth: 0, passivePoints: 0, autoMapTier: 0 });
+  expect(ascendancyTotals(s)).toEqual({ stats: {}, startingDepth: 0, passivePoints: 0, autoMapTier: 0, autoMapQueue: 0 });
 });

@@ -1683,6 +1683,21 @@ const XP_FIND = glyph12([
   '....kkk.....',
 ]);
 
+const CLEAVE = glyph12([
+  '..k..k..k...',
+  '.kSk.kSk.kSk',
+  '.kSk.kSk.kSk',
+  '.kSk.kSk.kSk',
+  '.kSk.kSk.kSk',
+  '.kSk.kSk.kSk',
+  '..k..k..k...',
+  '............',
+  '............',
+  '............',
+  '............',
+  '............',
+]);
+
 const GEM_STACK = glyph12([
   '..kk...kk...',
   '.kCCk.kCCk..',
@@ -1957,6 +1972,7 @@ export const ICON_GLYPHS: Record<IconGlyphId, IconGlyph> = {
   soulFind: SOUL_FIND,
   magicFind: MAGIC_FIND,
   xpFind: XP_FIND,
+  cleave: CLEAVE,
   gemStack: GEM_STACK,
   materialStack: MATERIAL_STACK,
   stashPages: STASH_PAGES,

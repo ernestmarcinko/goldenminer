@@ -16,6 +16,7 @@
 /* the special sits last, in the legendary colour, as on the item card */
 .gm-run__mods > li[data-tone='special'] { color: var(--gm-legendary); }
 .gm-run__rewards { color: var(--gm-normal); overflow-wrap: anywhere; }
+.gm-run__leave { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .gm-rooms { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .gm-rooms__row {
@@ -59,7 +60,12 @@
 .gm-fight__tags { display: flex; flex-wrap: wrap; gap: 4px; }
 .gm-fight__tag { padding: 1px 6px; border-radius: 0; font-size: 11px; background: #3a2a17; color: var(--gm-legendary); border: var(--gm-edge); box-shadow: var(--gm-bevel); }
 .gm-fight__count { font-size: 11px; color: var(--gm-muted); }
-.gm-fight__stage { position: relative; flex: 1 1 auto; display: flex; align-items: flex-end; justify-content: center; padding: 8px 0; }
+.gm-fight__stage { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding: 8px 0; }
+.gm-fight__mobrow { display: flex; flex-direction: row; align-items: flex-end; justify-content: center; flex-wrap: wrap; gap: 6px; padding: 0 10px; margin-bottom: 4px; }
+.gm-fight__minion { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.gm-fight__minion[data-rank='champion'] canvas { filter: drop-shadow(0 0 3px var(--gm-legendary)); }
+.gm-fight__minion[data-rank='boss'] canvas { filter: drop-shadow(0 0 3px var(--gm-enemy-life)); }
+.gm-fight__minionbar { width: 28px; height: 4px; border-radius: 0; background: #2e2722; overflow: hidden; border: var(--gm-edge); }
 .gm-fight__foot {
   position: relative; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px; padding: 0 12px 12px;
 }

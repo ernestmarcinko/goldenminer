@@ -151,22 +151,36 @@ it('rarity, socket and line-count odds follow the weights', () => {
   expect(of('rare', 6)).toBeGreaterThan(0.11); expect(of('rare', 6)).toBeLessThan(0.19);
 });
 
-it('legendaries come from the hand-written list', () => {
+it('legendaries come from the hand-written list, gated by tier', () => {
   const s = newGame(5, 0);
-  const seen = new Map<string, GearItem>();
+  const seen = new Set<string>();
   for (let i = 0; i < 300; i++) {
     const item = rollGear(s, 10, 'mining', 'legendary');
-    seen.set(item.name, item);
+    const def = LEGENDARIES.find((d) => d.id === item.uniqueId);
+    expect(def).toBeDefined();
+    expect(setOfSlot(def!.slot)).toBe('mining');
+    expect(def!.tier).toBeLessThanOrEqual(2);   // item level 10 reaches only tiers 1 and 2
+    seen.add(item.uniqueId ?? '');
   }
-  const mining = LEGENDARIES.filter((d) => setOfSlot(d.slot) === 'mining').map((d) => d.name);
-  expect([...seen.keys()].sort()).toEqual(mining.sort());
-  const dd = seen.get('Deepdelver');
-  expect(dd).toMatchObject({ slot: 'pickaxe', rarity: 'legendary', uniqueId: 'deepdelver' });
-  expect(dd?.affixes.map((a) => a.stat)).toEqual(['digPower', 'ticksPerClick', 'chestFind']);
-  expect(dd?.affixes.slice(1).map((a) => a.value)).toEqual([1, -10]);
-  expect(dd?.affixes.map((a) => a.tier)).toEqual([0, 0, 0]);
-  expect(dd?.affixes[0]?.value).toBeGreaterThanOrEqual(17);
-  expect(dd?.affixes[0]?.value).toBeLessThanOrEqual(33);
+  // At a deep item level every tier of mining legendary is eligible.
+  const deep = newGame(5, 0);
+  const deepSeen = new Set<string>();
+  for (let i = 0; i < 2000; i++) deepSeen.add(rollGear(deep, 100, 'mining', 'legendary').uniqueId ?? '');
+  expect(deepSeen.size).toBe(LEGENDARIES.filter((d) => setOfSlot(d.slot) === 'mining').length);
+});
+
+it('a signature legendary rolls its hand-written lines', () => {
+  const s = newGame(5, 0);
+  let dd: GearItem | undefined;
+  for (let i = 0; i < 500 && dd === undefined; i++) {
+    const item = rollGear(s, 100, 'mining', 'legendary', 'pickaxe');
+    if (item.uniqueId === 'deepdelver') dd = item;
+  }
+  expect(dd).toBeDefined();
+  expect(dd!.affixes.map((a) => a.stat)).toEqual(['digPower', 'ticksPerClick', 'chestFind']);
+  expect(dd!.affixes.slice(1).map((a) => a.value)).toEqual([1, -10]);
+  expect(dd!.affixes.map((a) => a.tier)).toEqual([0, 0, 0]);
+  expect(dd!.affixes[0]!.value).toBeGreaterThan(0);   // the scaled dig power
 });
 
 it('chests hold one or two items, mostly mining gear', () => {

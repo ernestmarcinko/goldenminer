@@ -103,6 +103,7 @@ export function buyStock(state: GameState, index: number): { result: BuyResult; 
   state.bag[cell] = item;
   state.gold -= price;
   state.stats.goldSpent += price;
+  checkAchievements(state, 'goldSpent');
   state.stats.itemsBought += 1;
   checkAchievements(state, 'merchant');
   logDrop(state, item, { kind: 'merchant' }, { event: 'bag' });

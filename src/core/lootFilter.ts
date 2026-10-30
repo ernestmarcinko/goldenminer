@@ -47,8 +47,14 @@ export function ruleMatches(rule: LootRule, item: Item): boolean {
   const level = levelOf(item);
   if (rule.level !== undefined && (level === undefined || !inRange(rule.level, level))) return false;
   const mods = modsOf(item);
-  const { modTier } = rule;
+  const { modTier, modTierGap } = rule;
   if (modTier !== undefined && (mods === undefined || !mods.some((m) => m.tier >= modTier))) return false;
+  // `modTierGap`: every modifier sits at or above the item's top tier (its level for gear, its tier for a map) minus the
+  // gap. A gap of 0 keeps only items whose every modifier rolled the very top tier.
+  if (modTierGap !== undefined) {
+    if (mods === undefined || level === undefined || mods.length === 0) return false;
+    if (!mods.every((m) => m.tier >= level - modTierGap)) return false;
+  }
   if (rule.mods !== undefined && (mods === undefined || !inRange(rule.mods, mods.length))) return false;
   if (rule.mapMod !== undefined && !(item.type === 'map' && item.mods.some((m) => m.kind === rule.mapMod))) return false;
   if (rule.gem !== undefined && !(item.type === 'gem' && item.gem === rule.gem)) return false;
@@ -96,6 +102,11 @@ export function describeRule(rule: LootRule): string {
   const level = rule.level !== undefined ? rangeWords(rule.level) : undefined;
   if (level !== undefined) clauses.push(`${rule.kind === 'map' ? 'tier' : 'item level'} ${level}`);
   if (rule.modTier !== undefined) clauses.push(`with a modifier at T${rule.modTier} or above`);
+  if (rule.modTierGap !== undefined) {
+    clauses.push(rule.modTierGap === 0
+      ? 'with every modifier at the top tier'
+      : `with every modifier within ${rule.modTierGap} ${rule.modTierGap === 1 ? 'tier' : 'tiers'} of the top`);
+  }
   const mods = rule.mods !== undefined ? rangeWords(rule.mods) : undefined;
   if (mods !== undefined) clauses.push(`with ${mods} ${mods === '1' || mods === 'up to 1' ? 'modifier' : 'modifiers'}`);
   if (rule.mapMod !== undefined) clauses.push(`with ${MAP_MOD_LABELS[rule.mapMod]}`);
@@ -107,7 +118,7 @@ const GEAR_OR_MAP: readonly (LootKind | 'any')[] = ['gear', 'map', 'any'];
 // The kinds each field may be set with: a field no item of the kind can have would make the rule dead.
 const FIELD_KINDS: Readonly<Record<RuleField, readonly (LootKind | 'any')[]>> = {
   set: ['gear'], slot: ['gear'],
-  rarity: GEAR_OR_MAP, level: GEAR_OR_MAP, modTier: GEAR_OR_MAP, mods: GEAR_OR_MAP,
+  rarity: GEAR_OR_MAP, level: GEAR_OR_MAP, modTier: GEAR_OR_MAP, modTierGap: GEAR_OR_MAP, mods: GEAR_OR_MAP,
   mapMod: ['map', 'any'], gem: ['gem', 'any'], grade: ['gem', 'any'], rune: ['rune', 'any'], material: ['material', 'any'],
 };
 

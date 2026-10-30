@@ -140,12 +140,15 @@ function tally(state: GameState, notes: LootNote[]): LootNote[] {
     if (n.outcome === 'sold') {
       state.lootTally.sold += 1;
       state.stats.itemsSold += 1;
+      checkAchievements(state, 'itemsSold');
     } else if (n.outcome === 'salvaged') {
       state.lootTally.salvaged += 1;
       state.stats.itemsSalvaged += 1;
+      checkAchievements(state, 'itemsSalvaged');
     } else {
       state.lootTally.kept += 1;
       state.stats.itemsKept += 1;
+      checkAchievements(state, 'itemsKept');
     }
   }
   return notes;

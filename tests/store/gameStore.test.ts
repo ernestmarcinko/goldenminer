@@ -26,6 +26,30 @@ function make(now = { t: 0 }, storage = new MemoryStorage(), available = true) {
   return { store, storage, now };
 }
 
+/** Node ids on a path from the start to `target`, in allocation order (the start excluded, `target` last). */
+function pathTo(target: string): string[] {
+  const prev = new Map<string, string>();
+  const seen = new Set([START_NODE_ID]);
+  const queue = [START_NODE_ID];
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    if (cur === target) break;
+    for (const l of PASSIVE_NODE_BY_ID.get(cur)!.links) {
+      if (seen.has(l)) continue;
+      seen.add(l);
+      prev.set(l, cur);
+      queue.push(l);
+    }
+  }
+  const path: string[] = [];
+  let cur: string | undefined = target;
+  while (cur !== undefined && cur !== START_NODE_ID) {
+    path.unshift(cur);
+    cur = prev.get(cur);
+  }
+  return path;
+}
+
 describe('GameStore', () => {
   it('starts a new game when there is no save', () => {
     const { store } = make();
@@ -342,16 +366,16 @@ describe('crafting', () => {
     store.load();
     const s = store.state;
     s.bag[0] = gear(s, 'pickaxe', { rarity: 'normal', ilvl: 4 });
-    s.stash.materials.copper = 10;
+    s.diamonds = 10;
     expect(store.lastCraft).toBeNull();
     const v = store.version;
-    expect(store.craft({ where: 'bag', index: 0 }, 'copper')).toEqual({ check: 'ok' });
+    expect(store.craft({ where: 'bag', index: 0 }, 'makeMagic')).toEqual({ check: 'ok' });
     expect(store.version).toBe(v + 1);
-    expect(store.lastCraft).toEqual({ id: 1, target: { where: 'bag', index: 0 }, kind: 'copper', check: 'ok' });
-    expect(s.stash.materials.copper).toBe(7);
-    expect(store.craft({ where: 'bag', index: 0 }, 'copper')).toEqual({ check: 'wrongRarity' });
+    expect(store.lastCraft).toEqual({ id: 1, target: { where: 'bag', index: 0 }, kind: 'makeMagic', check: 'ok' });
+    expect(s.diamonds).toBe(8);
+    expect(store.craft({ where: 'bag', index: 0 }, 'makeMagic')).toEqual({ check: 'wrongRarity' });
     expect(store.version).toBe(v + 1);
-    expect(store.lastCraft).toEqual({ id: 2, target: { where: 'bag', index: 0 }, kind: 'copper', check: 'wrongRarity' });
+    expect(store.lastCraft).toEqual({ id: 2, target: { where: 'bag', index: 0 }, kind: 'makeMagic', check: 'wrongRarity' });
   });
 
   it('a material dropped on gear crafts through the store and keeps the check', () => {
@@ -831,13 +855,42 @@ describe('ascendancy and auto-map intents', () => {
   it('a queued map persists across a save and a load', () => {
     const { store, storage, now } = make();
     store.load();
+    const path = pathTo('surveyor');
+    store.state.level = path.length + 1;
+    store.state.xp = 0;
+    store.state.passives.allocated = path;
     const map = stashMap(store.state, 1, 2);
     expect(store.queueForAutoMap(map.id)).toBe('ok');
-    expect(store.state.autoMap.queue).toEqual([map.id]);
+    expect(store.state.autoMap.queue).toEqual([map]);
     store.save();
     const again = make(now, storage).store;
     again.load();
-    expect(again.state.autoMap.queue).toEqual([map.id]);
+    expect(again.state.autoMap.queue).toEqual([map]);
+  });
+
+  it('startAutoMap is a trigger: it starts the first queued map at once', () => {
+    const { store } = make();
+    store.load();
+    const path = pathTo('surveyor');
+    store.state.level = path.length + 1;
+    store.state.passives.allocated = path;
+    const map = stashMap(store.state, 1, 2);
+    expect(store.queueForAutoMap(map.id)).toBe('ok');
+    expect(store.startAutoMap()).toBe('ok');
+    expect(store.state.autoMap.on).toBe(true);
+    expect(store.state.activity.kind).toBe('map');
+    expect(store.state.activity.kind === 'map' && store.state.activity.run.map.id).toBe(map.id);
+  });
+
+  it('startAutoMap is locked without Surveyor, and starts nothing without an eligible map', () => {
+    const { store } = make();
+    store.load();
+    const map = stashMap(store.state, 1, 2);
+    expect(store.startAutoMap()).toBe('locked');
+    store.state.passives.allocated = pathTo('surveyor');
+    expect(store.startAutoMap()).toBe('nothing');   // nothing queued
+    expect(store.state.autoMap.on).toBe(false);
+    expect(store.queueForAutoMap(map.id)).toBe('ok');
   });
 
   it('allocating, queueing and unqueueing leave both RNG streams untouched', () => {
@@ -847,6 +900,7 @@ describe('ascendancy and auto-map intents', () => {
     const uniqueRng = store.state.uniqueRng;
     const map = stashMap(store.state, 1, 2);
     store.state.ascendancy.points = 1;
+    store.state.passives.allocated = ['surveyor'];
     expect(store.allocateAscendancy(ring1)).toBe('ok');
     expect(store.queueForAutoMap(map.id)).toBe('ok');
     expect(store.state.rng).toBe(rng);

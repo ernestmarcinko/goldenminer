@@ -119,6 +119,40 @@ it('matches on every field, and a field that does not apply fails the match', ()
   expect(holds(rule({ kind: 'gear' }), tin)).toBe(false);
 });
 
+it('modTierGap keeps items whose every modifier sits within N tiers of the top', () => {
+  const holds = (r: LootRule, item: Item): boolean => ruleMatches(r, item);
+  const atTop = rule({ kind: 'gear', modTierGap: 0 });
+  const within1 = rule({ kind: 'gear', modTierGap: 1 });
+  const within2 = rule({ kind: 'gear', modTierGap: 2 });
+  const within3 = rule({ kind: 'gear', modTierGap: 3 });
+  // ilvl 10, so the top tier is 10.
+  const allTop = gear(s, 'boots', { ilvl: 10, affixes: [
+    { stat: 'life', value: 5, tier: 10 }, { stat: 'armor', value: 5, tier: 10 },
+  ] });
+  const oneBelow = gear(s, 'boots', { ilvl: 10, affixes: [
+    { stat: 'life', value: 5, tier: 10 }, { stat: 'armor', value: 5, tier: 9 },
+  ] });
+  const threeBelow = gear(s, 'boots', { ilvl: 10, affixes: [
+    { stat: 'life', value: 5, tier: 10 }, { stat: 'armor', value: 5, tier: 7 },
+  ] });
+  const normal = gear(s, 'boots', { ilvl: 10, rarity: 'normal', affixes: [] });
+  expect([holds(atTop, allTop), holds(within1, allTop), holds(within2, allTop)]).toEqual([true, true, true]);
+  expect([holds(atTop, oneBelow), holds(within1, oneBelow), holds(within2, oneBelow)]).toEqual([false, true, true]);
+  expect([holds(atTop, threeBelow), holds(within1, threeBelow), holds(within2, threeBelow), holds(within3, threeBelow)])
+    .toEqual([false, false, false, true]);
+  // a crafted line above the top still counts as at the top
+  const overTop = gear(s, 'boots', { ilvl: 10, affixes: [
+    { stat: 'life', value: 5, tier: 12, crafted: true }, { stat: 'armor', value: 5, tier: 10 },
+  ] });
+  expect(holds(atTop, overTop)).toBe(true);
+  // no modifiers means the item can't be "all at the top", and neither can a gem or a map-less item
+  expect(holds(atTop, normal)).toBe(false);
+  expect(holds(atTop, gem(s, 'ruby'))).toBe(false);
+  // a map's top tier is its tier
+  expect(holds(rule({ kind: 'map', modTierGap: 0 }), mapOf(5, 'rare', [mod('hardened', 5), mod('monsterLife', 5)]))).toBe(true);
+  expect(holds(rule({ kind: 'map', modTierGap: 0 }), mapOf(5, 'rare', [mod('hardened', 5), mod('monsterLife', 4)]))).toBe(false);
+});
+
 it('refuses rules that cannot hold', () => {
   const invalid: LootRule[] = [
     { kind: 'gem', slot: 'boots', action: 'keep' },
@@ -156,6 +190,10 @@ it('describes a rule as a sentence', () => {
   expect(said({ kind: 'gem', action: 'keep' })).toBe('Keep gems');
   expect(said({ kind: 'gear', rarity: 'rare', level: { min: 4 }, modTier: 3, action: 'stash' }))
     .toBe('Stash rare gear, item level 4 or more, with a modifier at T3 or above');
+  expect(said({ kind: 'gear', rarity: 'rare', modTierGap: 0, action: 'salvage' }))
+    .toBe('Salvage rare gear, with every modifier at the top tier');
+  expect(said({ kind: 'gear', rarity: 'rare', modTierGap: 2, action: 'salvage' }))
+    .toBe('Salvage rare gear, with every modifier within 2 tiers of the top');
   expect(said({ kind: 'map', level: { min: 5, max: 8 }, action: 'stash' })).toBe('Stash maps, tier 5 to 8');
   expect(said({ kind: 'material', material: 'tin', action: 'keep' })).toBe('Keep Tin ore');
   expect(said({ kind: 'any', mods: { min: 5 }, action: 'stash' })).toBe('Stash items, with 5 or more modifiers');

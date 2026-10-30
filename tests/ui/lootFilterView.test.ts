@@ -5,7 +5,7 @@ import { ruleValid } from '../../src/core/lootFilter';
 import {
   ACTION_OPTIONS, GEM_OPTIONS, GRADE_OPTIONS, KIND_OPTIONS, MAP_MOD_LABELS, MAP_MOD_OPTIONS, MATERIAL_OPTIONS, NEW_RULE,
   RARITY_OPTIONS, RUNE_OPTIONS, SET_OPTIONS, SLOT_OPTIONS, actionOptionsFor, addRow, boxProblems, boxTextsFor, fieldsFor, levelLabel, moveRow, moveTarget,
-  rarityOptionsFor, removeRow, ruleProblems, rowsOf, rulesOf, setRange, slotOptionsFor, storedRules, withKind, withModTier, withPick,
+  rarityOptionsFor, removeRow, ruleProblems, rowsOf, rulesOf, setRange, slotOptionsFor, storedRules, withKind, withModTier, withModTierGap, withPick,
 } from '../../src/ui/character/lootFilterView';
 
 const values = <T>(options: readonly { value: T }[]): T[] => options.map((o) => o.value);
@@ -26,12 +26,12 @@ it('names the kinds, actions and picks, Any first', () => {
 });
 
 it('shows the fields and actions that fit each kind', () => {
-  expect(fieldsFor('gear')).toEqual(['set', 'slot', 'rarity', 'level', 'modTier', 'mods']);
-  expect(fieldsFor('map')).toEqual(['rarity', 'level', 'modTier', 'mods', 'mapMod']);
+  expect(fieldsFor('gear')).toEqual(['set', 'slot', 'rarity', 'level', 'modTier', 'modTierGap', 'mods']);
+  expect(fieldsFor('map')).toEqual(['rarity', 'level', 'modTier', 'modTierGap', 'mods', 'mapMod']);
   expect(fieldsFor('gem')).toEqual(['gem', 'grade']);
   expect(fieldsFor('rune')).toEqual(['rune']);
   expect(fieldsFor('material')).toEqual(['material']);
-  expect(fieldsFor('any')).toEqual(['rarity', 'level', 'modTier', 'mods']);
+  expect(fieldsFor('any')).toEqual(['rarity', 'level', 'modTier', 'modTierGap', 'mods']);
   expect((['gear', 'map', 'any'] as const).map((k) => levelLabel(k))).toEqual(['Item level', 'Tier', 'Item level or tier']);
   expect(values(actionOptionsFor('material'))).toEqual(['keep', 'stash']);
   for (const kind of ['any', 'gear', 'gem', 'rune', 'map'] as const) expect(actionOptionsFor(kind)).toBe(ACTION_OPTIONS);
@@ -68,6 +68,13 @@ it('takes a modifier tier of 1 or more, and clears it otherwise', () => {
   const rule: LootRule = { kind: 'map', action: 'keep' };
   expect(withModTier(rule, '3')).toEqual({ kind: 'map', modTier: 3, action: 'keep' });
   for (const text of ['', '0', '-2', '2.5', 'T3']) expect(withModTier({ ...rule, modTier: 4 }, text), text).toEqual(rule);
+});
+
+it('takes a modifier-tier gap of 0 or more, and clears it otherwise', () => {
+  const rule: LootRule = { kind: 'gear', action: 'keep' };
+  expect(withModTierGap(rule, '0')).toEqual({ kind: 'gear', modTierGap: 0, action: 'keep' });
+  expect(withModTierGap(rule, '2')).toEqual({ kind: 'gear', modTierGap: 2, action: 'keep' });
+  for (const text of ['', '-1', '1.5', 'T2']) expect(withModTierGap({ ...rule, modTierGap: 3 }, text), text).toEqual(rule);
 });
 
 it('offers only the chosen set\'s slots, and moves the set to a slot of the other one', () => {
@@ -162,8 +169,8 @@ it('stores a new rule only once it is saved, removed or moved: any other write l
 
 it('shows only fields the kind may set, so every field set at once still makes a rule that can match', () => {
   const sample: { [F in RuleField]-?: NonNullable<LootRule[F]> } = {
-    set: 'mining', slot: 'pickaxe', rarity: 'rare', level: { min: 1, max: 5 }, modTier: 2, mods: { min: 1 }, mapMod: 'hardened',
-    gem: 'ruby', grade: 'small', rune: 'fehu', material: 'tin',
+    set: 'mining', slot: 'pickaxe', rarity: 'rare', level: { min: 1, max: 5 }, modTier: 2, modTierGap: 1, mods: { min: 1 },
+    mapMod: 'hardened', gem: 'ruby', grade: 'small', rune: 'fehu', material: 'tin',
   };
   for (const kind of KINDS) {
     for (const field of fieldsFor(kind)) {

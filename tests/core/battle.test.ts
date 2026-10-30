@@ -16,7 +16,7 @@ it('a naked level-1 miner', () => {
   expect(deriveBattleStats(newGame(1, 0))).toEqual({
     maxLife: 60, damageMin: 3, damageMax: 6, attacksPerSecond: 1, critChance: 0.05, critMultiplier: 1.5,
     armor: 0, resistAll: 0, maxResist: 75, baseResist: 0, soulMultiplier: 1, magicFindMultiplier: 1,
-    elementalDamage: 0, lifeRegen: 0, lifeOnKill: 0, xpMultiplier: 1,
+    elementalDamage: 0, lifeRegen: 0, lifeOnKill: 0, xpMultiplier: 1, cleave: 0.25,
   });
 });
 
@@ -151,17 +151,17 @@ it('xp that is negative or not a number is ignored', () => {
 it('monster numbers by rank and modifier', () => {
   const rat = { species: 0, rank: 'normal' as const, name: 'Mole Rat', mods: [], extra: 1 };
   // tier 1's monsters are scaled × 1.38, tier 2's × 1.34 (MAP_MONSTER_SCALE)
-  expect(monsterState(1, rat)).toMatchObject({ life: 17, maxLife: 17, damage: 4, intervalS: 2, xp: 10, element: 'physical' });
+  expect(monsterState(1, rat)).toMatchObject({ life: 17, maxLife: 17, damage: 4, intervalS: 2, xp: 8, element: 'physical' });
   const champ = { ...rat, rank: 'champion' as const, name: 'Gorvash the Hollow', mods: ['thickSkinned', 'fireTouched'] as ChampionMod[] };
-  expect(monsterState(1, champ)).toMatchObject({ life: 75, damage: 7, xp: 30, element: 'elemental' });
+  expect(monsterState(1, champ)).toMatchObject({ life: 75, damage: 7, xp: 24, element: 'elemental' });
   const swift = monsterState(1, { ...champ, mods: ['swift', 'brutal'] });
   expect(swift.intervalS).toBeCloseTo(2 / 1.4);
   expect(swift.damage).toBe(10);
-  expect(monsterState(1, { ...rat, rank: 'boss' })).toMatchObject({ life: 83, damage: 7, xp: 50 });
+  expect(monsterState(1, { ...rat, rank: 'boss' })).toMatchObject({ life: 83, damage: 7, xp: 40 });
   const slime = { species: 1, rank: 'normal' as const, name: 'Mud Slime', mods: [], extra: 1 };
   // re-pinned for Plan 10's tier-2 scale (was life 78, damage 9)
-  expect(monsterState(2, slime)).toMatchObject({ element: 'elemental', life: 49, damage: 6, xp: 28, intervalS: 2 });
-  expect([monsterXp(2), monsterXp(4), monsterXp(10)]).toEqual([28, 80, 316]);
+  expect(monsterState(2, slime)).toMatchObject({ element: 'elemental', life: 49, damage: 6, xp: 23, intervalS: 2 });
+  expect([monsterXp(2), monsterXp(4), monsterXp(10)]).toEqual([23, 64, 253]);
 });
 
 it('monster numbers stop at the save limits, however deep the tier', () => {

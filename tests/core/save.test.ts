@@ -51,8 +51,8 @@ it('a character name round-trips through save and load', () => {
   expect(r.state.characterName).toBe('Gorvash');
 });
 
-it('a schema-16 save migrates to 19 with a generated name', () => {
-  expect(SCHEMA_VERSION).toBe(19);
+it('a schema-16 save migrates to 23 with a generated name', () => {
+  expect(SCHEMA_VERSION).toBe(23);
   const state16 = { ...newGame(12345, 0) };
   delete (state16 as Partial<GameState>).characterName;
   const r = decodeSave(raw({ schema: 16, savedAt: 0, state: state16 }));
@@ -118,6 +118,62 @@ it('a schema-18 save refunds its essences to ore and its old orbs to Minor craft
   expect(st.bag[0]).toBeNull();
   expect(st.bag[1]).toMatchObject({ type: 'orb', family: 'craft', side: 'prefix', tier: 'minor', count: 2 });
   expect((st.stash as Record<string, unknown>).essences).toBeUndefined();
+  expect(validateState(st)).toBe(true);
+});
+
+it('a schema-19 save untiers its removal orbs and keeps its other orbs', () => {
+  const s = newGame(1, 0);
+  const state19 = structuredClone(s) as unknown as Record<string, unknown>;
+  state19.nextId = 2000;
+  const stash19 = state19.stash as Record<string, unknown>;
+  stash19.orbs = {
+    'craft:prefix:minor': 2,
+    'scattering:greater': 3,
+    'removal:prefix:minor': 4,
+    'removal:prefix:greater': 1,
+    'removal:suffix:normal': 2,
+  };
+  const bag = state19.bag as unknown[];
+  bag[0] = { id: 1001, type: 'orb', family: 'removal', side: 'prefix', tier: 'normal', count: 1 };
+  const r = decodeSave(raw({ schema: 19, savedAt: 0, state: state19 }));
+  if (!r.ok) throw new Error(r.reason);
+  const st = r.state;
+  // the removal tiers merged (this migration), and the scattering tiers too (the one after it); craft kept.
+  expect(st.stash.orbs['craft:prefix:minor']).toBe(2);
+  expect(st.stash.orbs.scattering).toBe(3);
+  expect(st.stash.orbs['scattering:greater']).toBeUndefined();
+  expect(st.stash.orbs['removal:prefix']).toBe(5);
+  expect(st.stash.orbs['removal:suffix']).toBe(2);
+  expect(st.stash.orbs['removal:prefix:minor']).toBeUndefined();
+  // the held removal orb lost its tier.
+  expect(st.bag[0]).toMatchObject({ type: 'orb', family: 'removal', side: 'prefix', count: 1 });
+  expect((st.bag[0] as { tier?: unknown }).tier).toBeUndefined();
+  expect(validateState(st)).toBe(true);
+});
+
+it('a schema-20 save untiers its scattering orbs', () => {
+  const s = newGame(1, 0);
+  const state20 = structuredClone(s) as unknown as Record<string, unknown>;
+  state20.nextId = 2000;
+  const stash20 = state20.stash as Record<string, unknown>;
+  stash20.orbs = {
+    'craft:prefix:minor': 2,
+    'scattering:minor': 1,
+    'scattering:normal': 2,
+    'scattering:greater': 4,
+  };
+  const bag = state20.bag as unknown[];
+  bag[0] = { id: 1001, type: 'orb', family: 'scattering', tier: 'normal', count: 1 };
+  const r = decodeSave(raw({ schema: 20, savedAt: 0, state: state20 }));
+  if (!r.ok) throw new Error(r.reason);
+  const st = r.state;
+  // the three scattering tiers merged into one; craft kept.
+  expect(st.stash.orbs['craft:prefix:minor']).toBe(2);
+  expect(st.stash.orbs.scattering).toBe(7);
+  expect(st.stash.orbs['scattering:minor']).toBeUndefined();
+  // the held scattering orb lost its tier.
+  expect(st.bag[0]).toMatchObject({ type: 'orb', family: 'scattering', count: 1 });
+  expect((st.bag[0] as { tier?: unknown }).tier).toBeUndefined();
   expect(validateState(st)).toBe(true);
 });
 
@@ -1258,7 +1314,7 @@ it('a schema-11 save gains an empty ascendancy, auto-map and lifetime record', (
   if (!r.ok) throw new Error(`fixture rejected: ${r.reason}`);
   expect(r.savedAt).toBe(1_762_100_000_000);
   expect(r.state.ascendancy).toEqual({ points: 0, allocated: [] });
-  expect(r.state.autoMap).toEqual({ queue: [] });
+  expect(r.state.autoMap).toEqual({ queue: [], on: false });
   expect(r.state.lifetime).toEqual({ ascensions: 0, deepest: 0 });
   const {
     ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, oreMarket: _oreMarket, stats: _stats,
@@ -1355,8 +1411,9 @@ it('the validator refuses a broken ascendancy, auto-map and lifetime', () => {
     ['a duplicate ascendancy id', (s) => { s.ascendancy.allocated = ['wealthSmall1', 'wealthSmall1']; }],
     ['an unknown ascendancy id', (s) => { s.ascendancy.allocated = ['notANode']; }],
     ['a detached ascendancy id', (s) => { s.ascendancy.allocated = ['wealthSmall3']; }],
-    ['a duplicate queued id', (s) => { s.autoMap.queue = [1, 1]; }],
-    ['a negative queued id', (s) => { s.autoMap.queue = [-1]; }],
+    ['a duplicate queued id', (s) => { const m = stashMap(s, 2, 10); s.autoMap.queue = [m, { ...m }]; }],
+    ['a non-map in the queue', (s) => { s.autoMap.queue = [gear(s, 'ring') as unknown as MapItem]; }],
+    ['a missing auto-map switch', (s) => { (s.autoMap as { on?: boolean }).on = undefined as never; }],
     ['negative ascensions', (s) => { s.lifetime.ascensions = -1; }],
     ['a negative deepest depth', (s) => { s.lifetime.deepest = -1; }],
   ];

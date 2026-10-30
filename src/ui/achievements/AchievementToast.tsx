@@ -71,6 +71,13 @@ export function AchievementToastStack({ store }: { store: GameStore }) {
   if (visible.length === 0) return null;
   return (
     <div className="gm-ach-toasts" data-motion={motion.floats ? 'on' : 'off'}>
+      <button
+        type="button"
+        className="gm-ach-toasts__clear"
+        onClick={() => store.dismissAll()}
+      >
+        Dismiss all
+      </button>
       {visible.map((notification) => (
         <AchievementToast
           key={notification.id}

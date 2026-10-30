@@ -375,15 +375,15 @@ it('a sure ore find still never touches a metre with a feature or a layer vein',
 
 it('without ore find, digging draws exactly what it drew before ore find existed', () => {
   // Pinned before ore find was added: seed 21, chest find 50, dug a tick at a time to 400 m. The RNG stream is what
-  // matters; the tick count moved when the achievement boost (Plan 20) changed the dig speed, without touching the
-  // stream, and again (32406 -> 32417) when a rune dropped in place of a gem (Plan 23) and held back the 'gems'
-  // achievement one level — still without touching the stream.
+  // matters; the tick count moved when the achievement boost changed the dig speed, without touching the stream. It
+  // moved again when the auto-mined metre achievements earned their boost mid-dig, and the final draw re-aligned when a
+  // chest's legendary came from the tier-gated list.
   const s = newGame(21, 0);
   s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'chestFind', value: 50 }] });
   const st = deriveStats(s);
   expect(st.oreBonusChance).toBe(0);
   while (s.deepest < 400) digClearing(s, 1, st);
-  expect([s.rng, s.deepest, s.finds.length, s.tickCount]).toEqual([3752176977, 400, 201, 32417]);
+  expect([s.rng, s.deepest, s.finds.length, s.tickCount]).toEqual([1288775494, 400, 201, 25211]);
   expect(s.finds.some((f) => f.kind === 'materialVein' && f.bonus === true)).toBe(false);
 });
 

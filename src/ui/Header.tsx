@@ -7,7 +7,7 @@ import { xpBar } from './run/runView';
 import { useGame } from './useGame';
 import './mine/mine.css';
 
-export function Header({ store, onOpenSettings }: { store: GameStore; onOpenSettings: () => void }) {
+export function Header({ store, onOpenSettings, onOpenTest }: { store: GameStore; onOpenSettings: () => void; onOpenTest?: () => void }) {
   const { state } = useGame(store);
   const bar = xpBar(state.level, state.xp);
   const run = state.activity.kind === 'map' ? state.activity.run : null;
@@ -17,7 +17,7 @@ export function Header({ store, onOpenSettings }: { store: GameStore; onOpenSett
     <header className="gm-header">
       <div className="gm-header__title">
         <span className="gm-header__title-name">{state.characterName}</span>
-        <span className="gm-header__title-game">Golden Miner</span>
+        <span className="gm-header__title-game">The Golden Minder</span>
       </div>
       <div className="gm-header__pills">
         <div className="gm-pill">
@@ -61,9 +61,22 @@ export function Header({ store, onOpenSettings }: { store: GameStore; onOpenSett
         {run !== null && <div className="gm-muted gm-header__paused">Digging paused while in a map</div>}
         <div className="gm-header__depth-now">{formatNumber(state.deepest)} m</div>
       </div>
+      <a
+        className="gm-header__wiki"
+        href="https://github.com/ernestmarcinko/goldenminer"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Source
+      </a>
       <a className="gm-header__wiki" href="./wiki.html">
         Wiki
       </a>
+      {import.meta.env.DEV && onOpenTest !== undefined && (
+        <button type="button" className="gm-header__settings" onClick={onOpenTest}>
+          Test
+        </button>
+      )}
       <button type="button" className="gm-header__settings" onClick={onOpenSettings}>
         Settings
       </button>

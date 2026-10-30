@@ -5,20 +5,82 @@
 
 .gm-ach__family { min-width: 0; }
 .gm-ach__family-label {
-  margin: 0 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--gm-line);
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--gm-line);
   font-family: var(--gm-font-display); font-weight: 400; font-size: 16px;
 }
-.gm-ach__family-label .gm-muted { font-family: var(--gm-font-mono); font-size: 12px; }
+.gm-ach__family-icon { flex: none; display: block; }
+.gm-ach__family-label .gm-muted { font-family: var(--gm-font-mono); font-size: 12px; margin-left: auto; }
 
-.gm-ach__list { list-style: none; margin: 0; padding: 0; }
-.gm-ach__row {
-  display: flex; align-items: baseline; gap: 4px 12px; flex-wrap: wrap;
-  min-height: 44px; padding: 8px 0; border-bottom: 1px solid var(--gm-line); font-size: 14px;
+/* The achievements render as a group of small badges, one per threshold, in family order. Each badge wears a progress
+   tone (bronze → silver → gold → diamond) so the ramp is visible at a glance; an earned badge is filled, an unearned
+   one a dim outline. Hovering shows the achievement's name and description. */
+.gm-ach__grid {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 4px 2px;   /* room for the tooltip to peek out of the grid */
 }
-.gm-ach__name { font-weight: 700; color: var(--gm-muted); }
-.gm-ach__desc { font-size: 13px; }
-.gm-ach__row[data-earned='true'] .gm-ach__name { color: var(--gm-gold-bright); }
-.gm-ach__row[data-earned='true'] .gm-ach__desc { color: var(--gm-text); }
+.gm-ach__badge {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; box-sizing: border-box;
+  border: 1px solid var(--gm-line);
+  border-radius: 0;
+  cursor: default;
+}
+.gm-ach__badge-icon { display: block; }
+
+/* The progress tone sets the badge's border (and fill when earned). */
+.gm-ach__badge[data-tone='bronze'] { --gm-ach-tone: #c08a4a; }
+.gm-ach__badge[data-tone='silver'] { --gm-ach-tone: #b9c4cf; }
+.gm-ach__badge[data-tone='gold'] { --gm-ach-tone: #e8b44a; }
+.gm-ach__badge[data-tone='diamond'] { --gm-ach-tone: #7fd3e8; }
+
+.gm-ach__badge[data-earned='false'] {
+  background: var(--gm-ground);
+  border-color: color-mix(in srgb, var(--gm-ach-tone) 45%, var(--gm-line));
+}
+.gm-ach__badge[data-earned='false'] .gm-ach__badge-icon {
+  filter: brightness(0.5) grayscale(0.55);
+}
+.gm-ach__badge[data-earned='true'] {
+  background: color-mix(in srgb, var(--gm-ach-tone) 22%, var(--gm-panel));
+  border-color: var(--gm-ach-tone);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gm-ach-tone) 35%, transparent);
+}
+.gm-ach__badge[data-earned='true'] .gm-ach__badge-icon {
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--gm-ach-tone) 70%, transparent));
+}
+
+.gm-ach__badge:hover .gm-ach__badge-icon { filter: brightness(1.3); }
+.gm-ach__badge:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
+
+/* The hover tooltip: a small plaque above the badge, reading the achievement's name and description. */
+.gm-ach__badge:hover::after,
+.gm-ach__badge:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 260px;
+  box-sizing: border-box;
+  padding: 6px 9px;
+  border: 1px solid var(--gm-gold-dim);
+  border-radius: 0;
+  background: var(--gm-ink);
+  color: var(--gm-text);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+  white-space: normal;
+  box-shadow: var(--gm-bevel), 0 8px 20px rgba(0, 0, 0, 0.6);
+  z-index: 5;
+  pointer-events: none;
+}
+/* Keep the tooltip on-screen at the row's edges. */
+.gm-ach__badge:first-child:hover::after { left: 0; transform: none; }
+.gm-ach__badge:last-child:hover::after { left: auto; right: 0; transform: none; }
 
 /* ---- Achievement toasts (Plan 32) ---- */
 
@@ -41,10 +103,11 @@
 
 .gm-ach-toast {
   pointer-events: auto;
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 10px 40px 10px 12px;
   border: 1px solid var(--gm-gold-dim);
   border-radius: 0;
   background: var(--gm-panel-raised);
@@ -94,11 +157,12 @@
 .gm-ach-toast__desc { font-size: 13px; color: var(--gm-muted); }
 
 .gm-ach-toast__close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
   flex: none;
-  align-self: flex-start;
   min-width: 28px;
   min-height: 28px;
-  margin: -2px -4px 0 0;
   padding: 0 6px;
   box-sizing: border-box;
   cursor: pointer;
@@ -113,6 +177,27 @@
 
 .gm-ach-toast__close:hover { border-color: var(--gm-gold-dim); color: var(--gm-text); }
 .gm-ach-toast__close:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
+
+/* The "clear all" pill floats above the stack and dismisses every queued toast at once. */
+.gm-ach-toasts__clear {
+  pointer-events: auto;
+  align-self: flex-end;
+  min-height: 28px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid var(--gm-gold-dim);
+  border-radius: 0;
+  background: var(--gm-panel-raised);
+  color: var(--gm-gold);
+  box-shadow: var(--gm-bevel), 0 6px 16px rgba(0, 0, 0, 0.45);
+}
+.gm-ach-toasts__clear:hover { border-color: var(--gm-gold-bright); color: var(--gm-gold-bright); }
+.gm-ach-toasts__clear:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
 
 /* The player's "Floating numbers" switch off, or the system asking for reduced motion, drops the slide entirely. */
 .gm-ach-toasts[data-motion='off'] .gm-ach-toast { animation: none; }

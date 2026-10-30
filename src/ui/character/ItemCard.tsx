@@ -4,6 +4,7 @@ import { itemAt } from '../../core/cells';
 import { isGear } from '../../core/items';
 import type { GearItem } from '../../core/items';
 import { itemName } from '../../core/itemData';
+import { stockPrice } from '../../core/trader';
 import type { GameState } from '../../core/types';
 import { formatNumber } from '../format';
 import { IS_MAC } from '../platform';
@@ -57,16 +58,14 @@ function EquippedContent({ worn, level }: { worn: GearItem; level: number }) {
 /** The Soul upgrade's slot, kept and anchored with the craft slots below it, by its action id. */
 const UPGRADE: ActionSpec['id'] = 'soulUpgrade';
 
-/** `card`'s Soul upgrade slot and craft slots, measured down the card, or null when it has none. */
+/** `card`'s craft slots, measured down the card, or null when it has none. The Soul upgrade is the grid's first slot. */
 function craftGrid(card: HTMLElement): CraftGrid | null {
-  const upgrade = card.querySelector<HTMLElement>('[data-upgrade]');
   const grid = card.querySelector('.gm-card__crafts');
-  const first = upgrade ?? grid;
-  if (first === null) return null;
+  if (grid === null) return null;
   const top = card.getBoundingClientRect().top;
-  const slots = [...(upgrade === null ? [] : [upgrade]), ...(grid === null ? [] : grid.children)] as HTMLElement[];
+  const slots = [...grid.children] as HTMLElement[];
   return {
-    top: first.getBoundingClientRect().top - top,
+    top: grid.getBoundingClientRect().top - top,
     kinds: slots.map((b) => b.dataset.craft ?? b.dataset.upgrade ?? ''),
     tops: slots.map((b) => b.getBoundingClientRect().top - top),
   };
@@ -199,7 +198,6 @@ export function ItemCard({
   const kinds = upgrade === undefined ? craftKinds : [UPGRADE, ...craftKinds];
   const slots = fit === undefined ? kinds : craftSlots(slotOrder.current, kinds);
   useLayoutEffect(() => { slotOrder.current = slots; });
-  const craftSlotKinds = slots.filter((k) => k !== UPGRADE);
   const anchorOn = (kind: string): void => {
     const card = ref.current;
     const grid = card === null ? null : craftGrid(card);
@@ -234,9 +232,13 @@ export function ItemCard({
   const item = itemAt(state, target);
   if (item === undefined) return null;
   const { name, kind } = cardHead(state.seed, item);
+  // A stock slot's price leads the card, so a buy is read before the item's own lines.
+  const stockPriceLine = target.where === 'stock' && (item.type === 'gear' || item.type === 'map')
+    ? `${formatNumber(stockPrice(item))} Gold`
+    : null;
   const worn = wornToCompare(state, item, target.where === 'worn');
   const compare = isGear(item) && target.where !== 'worn' ? compareLines(item, worn) : null;
-  const beside = pair && !isMenu && worn !== undefined;
+  const beside = pair && worn !== undefined;
   const note = isMenu ? menuNote(item) : null;
   const others = actions.filter((a) => a.id !== 'craft' && a.id !== UPGRADE);
   const lines = isMenu ? itemLines(item, state.level) : [...itemLines(item, state.level), ...hoverLines(item)];
@@ -266,17 +268,19 @@ export function ItemCard({
       onKeyDown={onKeyDown}
       onBlur={onBlur}
     >
+      {stockPriceLine !== null && <div className="gm-card__price">{stockPriceLine}</div>}
       <div className="gm-card__name">{name}</div>
       <div className="gm-card__kind">{kind}</div>
       <div className="gm-card__lines"><Lines lines={lines} /></div>
       {note !== null && <div className="gm-card__note">{note}</div>}
-      {compare !== null && compare.lines.length > 0 && !beside && (
+      {!isMenu && compare !== null && compare.lines.length > 0 && !beside && (
         <div className="gm-card__compare">
           <div className="gm-card__kind">{compare.title}</div>
           <Lines lines={compare.lines} />
         </div>
       )}
-      {!inline && wornBlock}
+      {/* the equipped info is hover/pinned-only inside; on the action card it sits in the side pair (wide) or is dropped */}
+      {!inline && !isMenu && wornBlock}
       {menu?.onPutBack !== undefined && (
         <div className="gm-card__note">Picked up: tap a cell, a slot or a tab to put it there.</div>
       )}
@@ -293,26 +297,28 @@ export function ItemCard({
               {a.label}
             </button>
           ))}
-          {/* the upgrade's slot stays, empty, when a temper seals the item, so the crafts below don't move up */}
-          {slots.includes(UPGRADE) && (upgrade === undefined ? (
-            <div className="gm-card__slot" data-upgrade="" aria-hidden="true" onMouseDown={(e) => e.preventDefault()} />
-          ) : (
-            <button
-              type="button"
-              className="gm-card__btn"
-              data-upgrade={UPGRADE}
-              aria-disabled={upgrade.disabled || undefined}
-              onClick={() => { anchorOn(UPGRADE); menu.onAction(upgrade); }}
-            >
-              {upgrade.label}
-            </button>
-          ))}
-          {/* kept while the card is open, even when a temper seals the item and every slot is empty */}
-          {craftSlotKinds.length > 0 && (
+          {/* the Soul upgrade and every craft share the one header; a sealed item keeps its slot empty so nothing moves up */}
+          {slots.length > 0 && (
             <>
               <div className="gm-card__label gm-card__craft">{item.type === 'map' ? 'Enchant' : 'Craft'}</div>
               <div className="gm-card__crafts">
-                {craftSlotKinds.map((k) => {
+                {slots.map((k) => {
+                  if (k === UPGRADE) {
+                    return upgrade === undefined ? (
+                      <div key={UPGRADE} className="gm-card__slot" data-upgrade="" aria-hidden="true" onMouseDown={(e) => e.preventDefault()} />
+                    ) : (
+                      <button
+                        key={UPGRADE}
+                        type="button"
+                        className="gm-card__btn"
+                        data-upgrade={UPGRADE}
+                        aria-disabled={upgrade.disabled || undefined}
+                        onClick={() => { anchorOn(UPGRADE); menu.onAction(upgrade); }}
+                      >
+                        {upgrade.label}
+                      </button>
+                    );
+                  }
                   const a = crafts.find((c) => craftKeyOf(c) === k);
                   // a click on an empty slot keeps focus where it is, in the card
                   if (a === undefined) {
@@ -346,7 +352,6 @@ export function ItemCard({
           {hoverNotes(state, target, item, IS_MAC).map((t) => <div key={t} className="gm-card__line" data-tone="muted">{t}</div>)}
         </div>
       )}
-      {inline && wornBlock}
     </div>
   );
   if (!beside) return card;
