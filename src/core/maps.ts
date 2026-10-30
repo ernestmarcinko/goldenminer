@@ -1,4 +1,4 @@
-import { MAP_TIER_CAP } from './balance';
+import { MAP_TIER_CAP, MAX_ITEM_LEVEL } from './balance';
 import { checkAchievements } from './achievements';
 import { deriveBattleStats } from './battle';
 import { endRun } from './combat';
@@ -9,7 +9,8 @@ import type { MapItem } from './items';
 import { receiveItem } from './loot';
 import { mapEffects } from './mapMods';
 import { monsterState } from './monsters';
-import type { GameState, LootNote } from './types';
+import { hasKeystone } from './passives';
+import type { DropOrigin, GameState, LootNote } from './types';
 
 /** Puts a map at the end of its tier's list in the Map stash; a full tier refuses it and nothing changes. */
 export function putMap(state: GameState, map: MapItem): 'ok' | 'mapTierFull' {
@@ -33,11 +34,27 @@ export function takeMapAt(state: GameState, loc: { tier: number; index: number }
   return map;
 }
 
+/** Cartographer finds maps one tier higher; Prospector's Eye one tier lower; never past the item-level cap or below 1. */
+export function mapTier(state: GameState, tier: number): number {
+  const adjustment = (hasKeystone(state, 'cartographer') ? 1 : 0) - (hasKeystone(state, 'prospectorsEye') ? 1 : 0);
+  return Math.max(1, Math.min(MAX_ITEM_LEVEL, tier + adjustment));
+}
+
 /** A found map is a normal one, and goes where every find goes: to the bag, else held, else sold. */
 export function addMap(state: GameState, tier: number, metre: number): LootNote[] {
+  return foundMap(state, tier, metre, { kind: 'metre', metre });
+}
+
+/** A map dropped by a map clear: a normal map found like any other, and also counted as one that came from a clear. */
+export function dropMap(state: GameState, tier: number, metre: number, origin: DropOrigin): LootNote[] {
+  state.stats.mapsFromClears += 1;
+  return foundMap(state, tier, metre, origin);
+}
+
+function foundMap(state: GameState, tier: number, metre: number, origin: DropOrigin): LootNote[] {
   state.stats.mapsFound += 1;
   checkAchievements(state, 'mapsFound');
-  return receiveItem(state, { id: state.nextId++, type: 'map', tier, metre, rarity: 'normal', mods: [] }, { kind: 'metre', metre });
+  return receiveItem(state, { id: state.nextId++, type: 'map', tier, metre, rarity: 'normal', mods: [] }, origin);
 }
 
 /** Takes a map out of its bag cell, its tier list, or the auto-map queue. */

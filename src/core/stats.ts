@@ -77,12 +77,23 @@ export function gearTotals(state: GameState, set: GearSet): Record<StatKey, numb
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 const pct = (n: number) => Math.max(0, 1 + n / 100);
 
-export function deriveStats(state: GameState): Stats {
+/** The mining stat totals: gear, then the passive web, then the ascendancy. */
+function miningTotals(state: GameState): Record<StatKey, number> {
   const g = gearTotals(state, 'mining');
+  for (const [stat, value] of Object.entries(passiveTotals(state).stats) as [StatKey, number][]) g[stat] += value;
+  for (const [stat, value] of Object.entries(ascendancyTotals(state).stats) as [StatKey, number][]) g[stat] += value;
+  return g;
+}
+
+/** How much map find multiplies a map chance: the dig's map find, and a boss kill's map drop. */
+export function mapFindMultiplier(state: GameState): number {
+  return pct(miningTotals(state).mapFind);
+}
+
+export function deriveStats(state: GameState): Stats {
+  const g = miningTotals(state);
   const p = passiveTotals(state);
   const runes = runeTotals(state);
-  for (const [stat, value] of Object.entries(p.stats) as [StatKey, number][]) g[stat] += value;
-  for (const [stat, value] of Object.entries(ascendancyTotals(state).stats) as [StatKey, number][]) g[stat] += value;
   const ks = p.keystones;
   // Prospector's Eye doubles chest find.
   const chestFind = g.chestFind * (ks.has('prospectorsEye') ? 2 : 1);

@@ -186,6 +186,10 @@ export const CHAMPION_DROPS = 1;
 export const CHAMPION_MAGIC_FIND = 3;
 export const MAP_DROP_BATTLE_CHANCE = 0.8;
 export const MAP_GEM_CHANCE = 0.004;
+// A boss kill rolls this chance (times the miner's map find) to drop a map; its tier is the run map's tier plus an offset
+// drawn from these (offset, weight) pairs, so a stuck player can farm the tier below.
+export const MAP_CLEAR_DROP_CHANCE = 0.75;
+export const MAP_CLEAR_TIER_WEIGHTS: readonly (readonly [number, number])[] = [[-1, 25], [0, 50], [1, 25]];
 // A kill rolls this chance rankReward times; each pass drops a material of the map's depth.
 export const MAP_MATERIAL_CHANCE = 0.02;
 // What the room clears of a map heal in all, as a share of max life: each clear heals its part, so every map heals the same.

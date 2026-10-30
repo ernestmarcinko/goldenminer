@@ -1,7 +1,7 @@
 import { tryAutoMap } from './autoMap';
 import { achievementBoost, checkAchievements } from './achievements';
 import {
-  DEEPDELVER_EVERY, FINDS_LOG_LIMIT, HARD_ROCK_MULTIPLIER, LOOT_NOTES_KEPT, MAX_DIG_POWER, MAX_ITEM_LEVEL, TICKS_PER_METRE_AT_PARITY, hardness,
+  DEEPDELVER_EVERY, FINDS_LOG_LIMIT, HARD_ROCK_MULTIPLIER, LOOT_NOTES_KEPT, MAX_DIG_POWER, TICKS_PER_METRE_AT_PARITY, hardness,
 } from './balance';
 import { metreTier } from './bands';
 import { mapTick } from './combat';
@@ -9,20 +9,13 @@ import { rollChest, rollGemOrRune, type Gen } from './itemGen';
 import type { Material } from './items';
 import { hazardFactor, materialAmount, metreLayer, pickMaterial } from './layer';
 import { drainOverflow, receiveItem, receiveMaterial } from './loot';
-import { addMap } from './maps';
+import { addMap, mapTier } from './maps';
 import { fillAhead, metreChances, rollMetre } from './metres';
 import { nextRandom } from './rng';
 import { decayPremiums } from './oreMarket';
-import { hasKeystone } from './passives';
 import { addTime } from './telemetry';
 import type { FindRecord, GameState, LootNote, MetreRoll, Stats, TickEvent } from './types';
 import { hasUnique, uniqueGen } from './uniques';
-
-/** Cartographer finds maps one tier higher; Prospector's Eye one tier lower; never past the item-level cap or below 1. */
-function mapTier(state: GameState, tier: number): number {
-  const adjustment = (hasKeystone(state, 'cartographer') ? 1 : 0) - (hasKeystone(state, 'prospectorsEye') ? 1 : 0);
-  return Math.max(1, Math.min(MAX_ITEM_LEVEL, tier + adjustment));
-}
 
 function logFind(state: GameState, find: FindRecord, events?: TickEvent[]): void {
   state.finds.push(find);

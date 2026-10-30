@@ -163,7 +163,9 @@ describe('effects', () => {
         run.queue = [monster({ rank: 'boss' })];
         const drops = s.drops.length;
         swing(s);
-        return { s, items: s.lastRun?.items ?? 0, logged: s.drops.slice(drops) };
+        // The boss's map drop comes after the legendary and is rolled from a stream the legendary has moved on: leave it out.
+        const logged = s.drops.slice(drops).filter((e) => e.kind !== 'map');
+        return { s, items: (s.lastRun?.items ?? 0) - (s.drops.length - drops - logged.length), logged };
       });
       const [plain, legend] = sides as [typeof sides[0], typeof sides[0]];
       expect(legend.s.lastRun?.outcome).toBe('cleared');

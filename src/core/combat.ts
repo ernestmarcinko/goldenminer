@@ -2,7 +2,7 @@ import { checkAchievements } from './achievements';
 import { autoMapContinues } from './autoMapRule';
 import {
   ARMORED_TAKEN, BAND_OF_THE_DEEP_HEAL, BOSS_DROPS, CHAMPION_DROPS, CHAMPION_MAGIC_FIND, CLEAVE_TARGETS, COMBAT_LOG_LIMIT, COMBAT_STEP_S,
-  DROP_CHANCE, MAP_DROP_BATTLE_CHANCE, MAP_GEM_CHANCE, MAP_MATERIAL_CHANCE, MONSTER_ATTACKER_DAMAGE_SHARE, PEACEMAKER_EVERY, ROOM_REGEN_TOTAL,
+  DROP_CHANCE, MAP_CLEAR_DROP_CHANCE, MAP_CLEAR_TIER_WEIGHTS, MAP_DROP_BATTLE_CHANCE, MAP_GEM_CHANCE, MAP_MATERIAL_CHANCE, MONSTER_ATTACKER_DAMAGE_SHARE, PEACEMAKER_EVERY, ROOM_REGEN_TOTAL,
   RUN_LOOT_LIMIT, SLOW_MONSTERS_INTERVAL, TREASURE_CHESTS, VAMPIRIC_HEAL, WOLF_EYE_DROPS, goldPerKill, monsterAttackers, soulsPerKill,
 } from './balance';
 import { deriveBattleStats, mitigate, type BattleStats } from './battle';
@@ -15,9 +15,11 @@ import { materialAmount, pickMaterial } from './layer';
 import { receiveItem, receiveMaterial } from './loot';
 import { mapEffects } from './mapMods';
 import { monsterState, rankReward } from './monsters';
-import { nextRandom } from './rng';
+import { dropMap, mapTier } from './maps';
+import { nextRandom, pickWeighted } from './rng';
 import { hasKeystone } from './passives';
 import { runeTotals } from './runes';
+import { mapFindMultiplier } from './stats';
 import type {
   CombatLine, GameState, LootNote, MapRun, MonsterState, Rank, RunOutcome, RunResult, Stats, TickEvent,
 } from './types';
@@ -104,7 +106,7 @@ function takeDrop(run: MapRun, notes: LootNote[], isItem = true): void {
  * A monster fell: its XP (levelling up heals by the max-life gained), then Souls, Gold, items, a gem chance and the
  * material chances, in that draw order (exported so the rewards can be pinned per rank). Champions guarantee an item of raised rarity, bosses guarantee BOSS_DROPS, anything may add one more.
  * The map's modifiers raise the Souls, the magic find and the drop chances, but every draw is made as on a normal map.
- * Its special may multiply the Souls and the materials, and on a `bossLegendary` map a boss adds a legendary last.
+ * Its special may multiply the Souls and the materials, and on a `bossLegendary` map a boss adds a legendary; a boss's map drop is the last draw.
  */
 export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: BattleStats): void {
   const tier = run.map.tier;
@@ -176,6 +178,11 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
     takeDrop(run, receiveMaterial(state, material, amount, origin), false);
   }
   if (monster.rank === 'boss' && run.map.special === 'bossLegendary') takeDrop(run, receiveItem(state, rollLegendary(state, tier), origin));
+  // A boss kill may also drop a map a tier or so either way of this one, so a miner stuck at a gate can farm below it.
+  if (monster.rank === 'boss' && nextRandom(state) < Math.min(1, MAP_CLEAR_DROP_CHANCE * mapFindMultiplier(state))) {
+    const offset = pickWeighted(state, MAP_CLEAR_TIER_WEIGHTS);
+    takeDrop(run, dropMap(state, mapTier(state, Math.max(1, tier + offset)), metre, origin));
+  }
 }
 
 /** One strike at the fighting monster; its damage and crit draw from `gen` (the unique stream for the Peacemaker's second). */

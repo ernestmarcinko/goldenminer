@@ -1,8 +1,9 @@
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import fixture7 from '../fixtures/save-schema-7.txt?raw';
-import { ARMORED_TAKEN, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, RUN_LOOT_LIMIT, VAMPIRIC_HEAL } from '../../src/core/balance';
+import { ARMORED_TAKEN, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, MAP_CLEAR_DROP_CHANCE, MAP_TIER_CAP, MAX_HELD, RUN_LOOT_LIMIT, VAMPIRIC_HEAL } from '../../src/core/balance';
 import { deriveBattleStats } from '../../src/core/battle';
 import { advance } from '../../src/core/clock';
+import { onKill } from '../../src/core/combat';
 import { applyTicks } from '../../src/core/dig';
 import { dungeonLayout } from '../../src/core/dungeons';
 import { gateWall } from '../../src/core/gates';
@@ -15,7 +16,7 @@ import { newGame } from '../../src/core/newGame';
 import { mulberry32 } from '../../src/core/rng';
 import { decodeSave, validateState } from '../../src/core/save';
 import { deriveStats } from '../../src/core/stats';
-import type { DropEntry, GameState, MapRun, MonsterState, Stats, TickEvent } from '../../src/core/types';
+import type { DropEntry, GameState, LootNote, MapRun, MonsterState, Stats, TickEvent } from '../../src/core/types';
 import { gear, stashMap } from '../helpers/items';
 
 const DROP: DropEntry = {
@@ -540,10 +541,10 @@ it('a saved run in progress plays out exactly as before modifiers existed', () =
   };
   const played = replay();
   expect(replay((run) => { run.map.mods = []; })).toEqual(played);
-  // Pinned before map modifiers touched combat; the achievement boost leaves the stream untouched (it only shifts the
+  // Pinned before map modifiers touched combat (rng re-pinned when a boss kill began rolling a map drop); the achievement boost leaves the stream untouched (it only shifts the
   // amounts the fixture's already-earned achievements multiply).
   expect(played).toMatchObject({
-    rng: 3438939776, gained: { xp: 1048, souls: 16, gold: 144, levels: 1 }, outcome: 'cleared',
+    rng: 975538293, gained: { xp: 1048, souls: 16, gold: 144, levels: 1 }, outcome: 'cleared',
   });
 });
 
@@ -566,7 +567,7 @@ it('logging the run\'s drops and its end makes no draws: the saved run plays out
   expect(played.logged).toBeGreaterThan(0);
   expect(replay(true)).toEqual(played);
   expect(played).toMatchObject({
-    rng: 3438939776, gained: { xp: 1048, souls: 16, gold: 144, levels: 1 }, outcome: 'cleared',
+    rng: 975538293, gained: { xp: 1048, souls: 16, gold: 144, levels: 1 }, outcome: 'cleared',
   });
 });
 
@@ -587,4 +588,86 @@ it('a run on a gate tier fights with the gate\'s wall', () => {
   const run = s.activity.kind === 'map' ? s.activity.run : undefined;
   expect(run?.queue.length).toBeGreaterThan(0);
   expect(run?.queue.every((m) => m.element === gateWall(s.seed, 10) || m.mods.includes('fireTouched'))).toBe(true);
+});
+
+describe('maps from map clears', () => {
+  // A run on a tier-`tier` map; each kill is made directly, so only the kill's own draws are in play.
+  function runAt(tier: number): { s: GameState; run: MapRun } {
+    const s = newGame(1, 0);
+    expect(startMap(s, stashMap(s, tier, 20).id)).toBe('ok');
+    return { s, run: runOf(s) };
+  }
+  /** Kills one monster of `rank` with the loot stream at `rng`; the maps it dropped, by tier. */
+  function kill(s: GameState, run: MapRun, rank: MonsterState['rank'], rng: number): number[] {
+    s.rng = rng;
+    run.loot = [];
+    onKill(s, run, monster({ rank }), deriveBattleStats(s));
+    return run.loot.flatMap((n) => (n.base === 'map' ? [Number(/Tier (\d+) map/.exec(n.name)?.[1])] : []));
+  }
+
+  it('a boss kill in a tier-7 run adds a map of tier 6, 7 or 8 and counts it', () => {
+    const { s, run } = runAt(7);
+    let dropped: number[] = [];
+    for (let rng = 1; rng < 200 && dropped.length === 0; rng++) dropped = kill(s, run, 'boss', rng);
+    expect(dropped).toHaveLength(1);
+    expect([6, 7, 8]).toContain(dropped[0]);
+    expect(s.stats.mapsFromClears).toBe(1);
+    expect(s.stats.mapsFound).toBe(1);
+    expect(validateState(s)).toBe(true);
+  });
+
+  it('the drop rate is 75% and the tiers split 25 / 50 / 25 over 2,000 boss kills', () => {
+    const { s, run } = runAt(7);
+    const tiers: Record<number, number> = {};
+    let drops = 0;
+    for (let rng = 1; rng <= 2000; rng++) {
+      for (const t of kill(s, run, 'boss', rng)) {
+        drops += 1;
+        tiers[t] = (tiers[t] ?? 0) + 1;
+      }
+    }
+    expect(MAP_CLEAR_DROP_CHANCE).toBe(0.75);
+    expect(Math.abs(drops / 2000 - 0.75)).toBeLessThan(0.03);
+    expect(Object.keys(tiers).sort()).toEqual(['6', '7', '8']);
+    for (const [t, share] of [[6, 0.25], [7, 0.5], [8, 0.25]] as const) {
+      expect(Math.abs((tiers[t] ?? 0) / drops - share), `tier ${t}`).toBeLessThan(0.03);
+    }
+    expect(s.stats.mapsFromClears).toBe(drops);
+  });
+
+  it('a tier-1 boss never drops a tier-0 map', () => {
+    const { s, run } = runAt(1);
+    const seen = new Set<number>();
+    for (let rng = 1; rng <= 400; rng++) for (const t of kill(s, run, 'boss', rng)) seen.add(t);
+    expect([...seen].sort()).toEqual([1, 2]);
+  });
+
+  it('with the bag, the held list and the tier list full, the map is sold and noted on the run', () => {
+    const { s, run } = runAt(7);
+    s.bag = s.bag.map(() => gear(s, 'boots'));
+    s.overflow = Array.from({ length: MAX_HELD }, () => gear(s, 'boots'));
+    for (const tier of [6, 7, 8]) {
+      for (let i = 0; i < MAP_TIER_CAP; i++) stashMap(s, tier, 20 + i);
+    }
+    const gold = s.gold;
+    let notes: LootNote[] = [];
+    for (let rng = 1; rng < 200 && notes.length === 0; rng++) {
+      s.rng = rng;
+      run.loot = [];
+      onKill(s, run, monster({ rank: 'boss' }), deriveBattleStats(s));
+      notes = run.loot.filter((n) => n.base === 'map');
+    }
+    expect(notes).toHaveLength(1);
+    expect(notes[0]?.outcome).toBe('sold');
+    expect(s.gold).toBeGreaterThan(gold);
+    expect(s.stats.mapsFromClears).toBe(1);
+  });
+
+  it('a normal or champion kill never drops a map', () => {
+    const { s, run } = runAt(7);
+    for (const rank of ['normal', 'champion'] as const) {
+      for (let rng = 1; rng <= 300; rng++) expect(kill(s, run, rank, rng), `${rank} rng ${rng}`).toEqual([]);
+    }
+    expect(s.stats.mapsFromClears).toBe(0);
+  });
 });

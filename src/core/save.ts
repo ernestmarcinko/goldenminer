@@ -35,7 +35,7 @@ import {
   SHAFT_MOTIONS, TRAIL_EVENTS, type DropEntry, type GameState, type LifetimeStats, type LootRule,
 } from './types';
 
-export const SCHEMA_VERSION = 23;
+export const SCHEMA_VERSION = 24;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
@@ -494,6 +494,11 @@ export const MIGRATIONS: Record<number, Migration> = {
     }
     return { ...state, autoMap: { queue, on: false } };
   },
+  23: (state) => {
+    if (!isObject(state) || !isObject(state.stats)) return state;
+    // Maps from map clears is a new counter: it starts at zero (past drops were not tracked).
+    return { ...state, stats: { ...state.stats, mapsFromClears: 0 } };
+  },
 };
 
 // The passive web the Plan-25 graph leaves connected to the start, in allocation order.
@@ -892,7 +897,7 @@ function isLifetimeStats(x: unknown): x is LifetimeStats {
     'metresDug', 'clicks', 'metresDugByClick', 'metresDugAuto',
     'timePlayedMs', 'timeAwayMs', 'timeDiggingMs', 'timeCombatMs', 'timeIdleMs',
     'goldFound', 'goldFromSales', 'goldSpent', 'diamondsFound', 'diamondsSpent', 'soulsEarned', 'soulsSpent',
-    'chestsOpened', 'mapsFound', 'monstersKilled', 'championKills', 'bossKills', 'deaths', 'mapsCleared', 'mapsLost',
+    'chestsOpened', 'mapsFound', 'mapsFromClears', 'monstersKilled', 'championKills', 'bossKills', 'deaths', 'mapsCleared', 'mapsLost',
     'levelsGained', 'itemsCrafted', 'itemsKept', 'itemsSold', 'itemsSalvaged', 'gems', 'itemsBought', 'gemsSocketed', 'legendaries',
   ];
   if (!scalars.every((k) => isNonNegFinite(x[k]))) return false;

@@ -122,7 +122,8 @@ it('each rank drops its guaranteed items plus one more when the chance draw pass
       seen[chancePasses ? 'pass' : 'miss'] += 1;
       // Gem and material notes are on the run too: items rolled with a rarity draw are counted by the spy.
       expect(spy.rarityArgs.length, `${rank} seed ${seed}`).toBe(GUARANTEED[rank] + (chancePasses ? 1 : 0));
-      const items = run.loot.filter((n) => n.rarity !== 'material');
+      // A boss's map drop is its own roll (see combat.test.ts), not one of these item draws.
+      const items = run.loot.filter((n) => n.rarity !== 'material' && n.base !== 'map');
       expect(items.length, `${rank} seed ${seed}`).toBe(spy.rarityArgs.length + spy.gems + spy.runes);
     }
     expect(seen.pass, rank).toBeGreaterThan(0);
@@ -212,7 +213,8 @@ it('a material drop is noted on the run but not counted as an item', () => {
   for (let seed = 1; seed <= 100; seed++) {
     const { run } = kill(seed, 'boss');
     sawMaterial += materialsOf(run).length;
-    expect(run.items, `seed ${seed}`).toBe(spy.rarityArgs.length + spy.gems + spy.runes);
+    const maps = run.loot.filter((n) => n.base === 'map').length;   // a boss's map drop counts as an item too
+    expect(run.items, `seed ${seed}`).toBe(spy.rarityArgs.length + spy.gems + spy.runes + maps);
     expect(run.loot.length, `seed ${seed}`).toBe(run.items + materialsOf(run).length);
     expect(dropLines(run), `seed ${seed}`).toBe(run.loot.length);
   }

@@ -127,6 +127,7 @@ export interface LifetimeStats {
   gemsFound: Record<GemType, Record<GemGrade, number>>;   // gems found, by type and grade
   chestsOpened: number;
   mapsFound: number;
+  mapsFromClears: number;                  // maps dropped by boss kills (also counted in mapsFound)
   // Combat & runs
   monstersKilled: number; championKills: number; bossKills: number; deaths: number;
   mapsCleared: number; mapsLost: number;

@@ -56,6 +56,7 @@ export function statsVMs(state: GameState): StatGroup[] {
         { label: 'Gems found', value: num(s.gems) },
         { label: 'Chests opened', value: num(s.chestsOpened) },
         { label: 'Maps found', value: num(s.mapsFound) },
+        { label: 'Maps from clears', value: num(s.mapsFromClears) },
       ],
     },
     {

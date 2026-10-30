@@ -33,7 +33,7 @@ export function emptyLifetimeStats(): LifetimeStats {
     goldFound: 0, goldFromSales: 0, goldSpent: 0,
     diamondsFound: 0, diamondsSpent: 0, soulsEarned: 0, soulsSpent: 0,
     oresFound: emptyOres(), oresTraded: emptyOres(), gemsFound: emptyGems(),
-    chestsOpened: 0, mapsFound: 0,
+    chestsOpened: 0, mapsFound: 0, mapsFromClears: 0,
     monstersKilled: 0, championKills: 0, bossKills: 0, deaths: 0, mapsCleared: 0, mapsLost: 0,
     levelsGained: 0, itemsCrafted: 0, itemsKept: 0, itemsSold: 0, itemsSalvaged: 0,
     gems: 0, itemsBought: 0, gemsSocketed: 0, legendaries: 0,

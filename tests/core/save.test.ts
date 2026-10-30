@@ -51,8 +51,8 @@ it('a character name round-trips through save and load', () => {
   expect(r.state.characterName).toBe('Gorvash');
 });
 
-it('a schema-16 save migrates to 23 with a generated name', () => {
-  expect(SCHEMA_VERSION).toBe(23);
+it('a schema-16 save migrates to 24 with a generated name', () => {
+  expect(SCHEMA_VERSION).toBe(24);
   const state16 = { ...newGame(12345, 0) };
   delete (state16 as Partial<GameState>).characterName;
   const r = decodeSave(raw({ schema: 16, savedAt: 0, state: state16 }));
@@ -1480,4 +1480,23 @@ it('the validator accepts runes and refuses malformed ones', () => {
     ['a socketed gem with a rune key', (s) => { s.equipped.mining.pickaxe = gear(s, 'pickaxe', { sockets: 1, gems: [{ gem: 'ruby', grade: 'tiny', rune: 'fehu' } as never] }); }],
   ];
   for (const [name, mutate] of cases) expect(ok(mutate), name).toBe(false);
+});
+
+it('a schema-23 save migrates to 24 with no maps from clears counted', () => {
+  const state23 = newGame(7, 0);
+  delete (state23.stats as Partial<GameState['stats']>).mapsFromClears;
+  const r = decodeSave(raw({ schema: 23, savedAt: 0, state: state23 }));
+  if (!r.ok) throw new Error(r.reason);
+  expect(r.state.stats.mapsFromClears).toBe(0);
+});
+
+it('a schema-24 save round-trips its maps-from-clears count', () => {
+  const s = newGame(7, 0);
+  s.stats.mapsFromClears = 5;
+  const r = decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: s }));
+  if (!r.ok) throw new Error(r.reason);
+  expect(r.state.stats.mapsFromClears).toBe(5);
+  const bad = newGame(7, 0);
+  bad.stats.mapsFromClears = -1;
+  expect(decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: bad })).ok).toBe(false);
 });
