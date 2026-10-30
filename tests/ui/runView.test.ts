@@ -16,7 +16,7 @@ const monster = (over: Partial<MonsterState> = {}): MonsterState => ({
 
 const run = (room: number, left: number, bossRoom = 6): MapRun => ({
   map: { id: 1, type: 'map', tier: 4, metre: 305, rarity: 'normal', mods: [] }, room, bossRoom, life: 50, hitCarry: 0, monsterCarry: 0, regenCarry: 0,
-  gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [],  loot: [], items: 0, strikes: 0, minLife: 50, elapsedS: 0, attempt: 0,
+  gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [],  loot: [], items: 0, strikes: 0, minLife: 50, elapsedS: 0, attempt: 0, startedWith: { emptySlot: false, plainGear: false, noBattleGear: false, noPassives: false },
   queue: Array.from({ length: left }, () => monster({ rank: room === bossRoom ? 'boss' : 'normal' })),
 });
 

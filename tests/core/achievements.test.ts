@@ -26,7 +26,7 @@ import { emptyLifetimeStats } from '../../src/core/telemetry';
 import { gear, stashMap } from '../helpers/items';
 import { gateWall } from '../../src/core/gates';
 import { dungeonLayout } from '../../src/core/dungeons';
-import { BATTLE_SLOTS, type GemGrade, type GemType } from '../../src/core/items';
+import { BATTLE_SLOTS, MAP_MOD_KINDS, type GemGrade, type GemType } from '../../src/core/items';
 
 const LADDER_FAMILIES = [
   'depth', 'dig', 'clicks', 'handMined', 'autoMined', 'gold', 'goldSpent', 'diamonds', 'diamondsSpent', 'soulsEarned', 'soulsSpent',
@@ -326,9 +326,10 @@ function spy(on: FeatEvent['kind']): { feat: FeatDef; seen: FeatEvent[] } {
 const streams = (s: GameState): number[] => [s.rng, s.uniqueRng, s.runeRng];
 
 /** A fresh game running a tier-1 map, whose lowest life so far is a share of max life. */
-function inMap(lifeShare = 1, tier = 1): { s: GameState; run: MapRun } {
+function inMap(lifeShare = 1, tier = 1, metre = 2, prepare?: (s: GameState) => void): { s: GameState; run: MapRun } {
   const s = newGame(1, 0);
-  expect(startMap(s, stashMap(s, tier, 2).id)).toBe('ok');
+  prepare?.(s);
+  expect(startMap(s, stashMap(s, tier, metre).id)).toBe('ok');
   if (s.activity.kind !== 'map') throw new Error('no map is running');
   const run = s.activity.run;
   run.minLife = Math.max(1, Math.round(deriveBattleStats(s).maxLife * lifeShare));
@@ -685,6 +686,11 @@ describe('the real feats', () => {
     untimed.run.elapsedS = 0;
     endRun(untimed.s, untimed.run, 'cleared');
     expect(untimed.s.achievements.earned).not.toContain('feat.bossRush.5');
+    const slow = inMap(1, 5);
+    slow.run.elapsedS = 30;
+    slow.run.bossSinceS = 27.75;   // 2.25 s against the 2 s a tier-5 boss rush allows
+    endRun(slow.s, slow.run, 'cleared');
+    expect(slow.s.achievements.earned).not.toContain('feat.bossRush.5');
   });
 
   it('a gear feat reads the battle set: an empty slot, or normal gear in every slot', () => {
@@ -692,31 +698,106 @@ describe('the real feats', () => {
     endRun(empty.s, empty.run, 'cleared');
     expect(empty.s.achievements.earned).toContain('feat.emptySlot.5');
     expect(empty.s.achievements.earned).not.toContain('feat.plainGear.5');
-    const plain = inMap(1, 5);
-    for (const slot of BATTLE_SLOTS) plain.s.equipped.battle[slot] = gear(plain.s, slot, { rarity: 'normal' });
+    const wearPlain = (s: GameState) => { for (const slot of BATTLE_SLOTS) s.equipped.battle[slot] = gear(s, slot, { rarity: 'normal' }); };
+    const plain = inMap(1, 5, 2, wearPlain);
     endRun(plain.s, plain.run, 'cleared');
     expect(plain.s.achievements.earned).toContain('feat.plainGear.5');
     expect(plain.s.achievements.earned).not.toContain('feat.emptySlot.5');
   });
 
-  it('a champion-packed map of seven rooms earns every pack feat once it is cleared', () => {
-    const { s, run } = inMap(1, 10);
-    run.map.special = 'championPacks';
-    const rooms = dungeonLayout(s.seed, run.map).rooms.length;
-    endRun(s, run, 'cleared');
-    for (const n of [4, 5, 6, 7]) expect(s.achievements.earned.includes(`feat.championPack.${n}`), `${n}`).toBe(n <= rooms);
+  it('a gear or passive handicap must hold from the run’s start to its end: a swap before the boss falls earns nothing', () => {
+    const wearPlain = (s: GameState) => { for (const slot of BATTLE_SLOTS) s.equipped.battle[slot] = gear(s, slot, { rarity: 'normal' }); };
+    // began empty-handed, dressed in plain gear before the end: neither the empty slot nor the plain gear held throughout
+    const dressed = inMap(1, 5);
+    wearPlain(dressed.s);
+    endRun(dressed.s, dressed.run, 'cleared');
+    expect(dressed.s.achievements.earned).not.toContain('feat.emptySlot.5');
+    expect(dressed.s.achievements.earned).not.toContain('feat.plainGear.5');
+    expect(dressed.s.achievements.earned).not.toContain('secret.naked');
+    // began in plain gear, stripped a slot before the end
+    const stripped = inMap(1, 5, 2, wearPlain);
+    delete stripped.s.equipped.battle.ring;
+    endRun(stripped.s, stripped.run, 'cleared');
+    expect(stripped.s.achievements.earned).not.toContain('feat.plainGear.5');
+    expect(stripped.s.achievements.earned).not.toContain('feat.emptySlot.5');
+    // began with a passive allocated, refunded before the end; and the other way round
+    const refunded = inMap(1, 5, 2, (s) => { s.passives.allocated.push('somewhere'); });
+    refunded.s.passives.allocated = [];
+    endRun(refunded.s, refunded.run, 'cleared');
+    expect(refunded.s.achievements.earned).not.toContain('feat.unskilled.5');
+    const learnt = inMap(1, 5);
+    learnt.s.passives.allocated.push('somewhere');
+    endRun(learnt.s, learnt.run, 'cleared');
+    expect(learnt.s.achievements.earned).not.toContain('feat.unskilled.5');
   });
 
-  it('an old pickaxe counts by depth, and no pickaxe counts as the oldest', () => {
+  it('positive clears: fully modded, under-level, no passives, flawless and naked', () => {
+    const { s, run } = inMap(1, 5);
+    run.map.rarity = 'rare';
+    run.map.mods = MAP_MOD_KINDS.map((kind) => ({ kind, tier: 1, value: 10 }));
+    endRun(s, run, 'cleared');
+    for (const id of ['feat.fullyModded.5', 'feat.underlevel.5', 'feat.unskilled.5', 'feat.flawless.5', 'secret.naked']) {
+      expect(s.achievements.earned, id).toContain(id);
+    }
+    expect(s.achievements.earned).not.toContain('feat.fullyModded.10');
+    const fiveMods = inMap(1, 5);
+    fiveMods.run.map.mods = MAP_MOD_KINDS.slice(1).map((kind) => ({ kind, tier: 1, value: 10 }));
+    fiveMods.s.level = 5;
+    endRun(fiveMods.s, fiveMods.run, 'cleared');
+    expect(fiveMods.s.achievements.earned).not.toContain('feat.fullyModded.5');
+    expect(fiveMods.s.achievements.earned).not.toContain('feat.underlevel.5');
+    const hurt = inMap(0.85, 5);
+    endRun(hurt.s, hurt.run, 'cleared');
+    expect(hurt.s.achievements.earned).not.toContain('feat.flawless.5');
+    const low = inMap(1, 4);
+    endRun(low.s, low.run, 'cleared');
+    expect(low.s.achievements.earned).not.toContain('secret.naked');
+  });
+
+  it('a champion-packed map of seven rooms earns every pack feat once it is cleared', () => {
+    // the first tier-10 metre of world 1 whose dungeon has seven rooms
+    const metre = Array.from({ length: 200 }, (_, i) => i + 1).find((m) => dungeonLayout(1, { tier: 10, metre: m }).rooms.length === 7);
+    if (metre === undefined) throw new Error('no seven-room dungeon at tier 10');
+    const { s, run } = inMap(1, 10, metre);
+    run.map.special = 'championPacks';
+    expect(dungeonLayout(s.seed, run.map).rooms.length).toBe(7);
+    const died = inMap(1, 10, metre);
+    died.run.map.special = 'championPacks';
+    endRun(died.s, died.run, 'died');
+    expect(died.s.achievements.earned.filter((id) => id.startsWith('feat.championPack.'))).toEqual([]);
+    endRun(s, run, 'cleared');
+    for (const n of [4, 5, 6, 7]) expect(s.achievements.earned, `${n}`).toContain(`feat.championPack.${n}`);
+  });
+
+  it('an old pickaxe counts the best pickaxe worn all run: no pickaxe counts as the oldest, and the mark never falls', () => {
+    const empty = { feature: null, amount: 0, hardRock: false } as const;
+    const dig = (s: GameState, depth: number) => finishMetre(s, depth, empty, deriveStats(s));
+    // only ever an item-level-1 pickaxe, or none: the tier is earned
     const s = newGame(1, 0);
-    checkFeats(s, { kind: 'metre', depth: 1000 });
+    dig(s, 999);
+    s.equipped.mining.pickaxe = gear(s, 'pickaxe', { ilvl: 1 });
+    dig(s, 1000);
+    expect(s.pickaxeHighWater).toBe(1);
     expect(s.achievements.earned).toContain('feat.oldPick.1000');
+    // an item-level-2 pickaxe is too new for 1,000 m but old enough for 2,500 m
     const t = newGame(1, 0);
     t.equipped.mining.pickaxe = gear(t, 'pickaxe', { ilvl: 2 });
-    checkFeats(t, { kind: 'metre', depth: 1000 });
+    dig(t, 1000);
     expect(t.achievements.earned).not.toContain('feat.oldPick.1000');
-    checkFeats(t, { kind: 'metre', depth: 2500 });
+    dig(t, 2500);
     expect(t.achievements.earned).toContain('feat.oldPick.2500');
+    // a deep miner who takes a good pickaxe off for the last metre earns nothing
+    const u = newGame(1, 0);
+    u.equipped.mining.pickaxe = gear(u, 'pickaxe', { ilvl: 120 });
+    dig(u, 49_999);
+    delete u.equipped.mining.pickaxe;
+    dig(u, 50_000);
+    expect(u.pickaxeHighWater).toBe(120);
+    expect(u.achievements.earned.filter((id) => id.startsWith('feat.oldPick.'))).toEqual([]);
+    // ascending starts the mark again
+    u.level = ASCEND_LEVEL;
+    expect(ascend(u)).toBe('ok');
+    expect(u.pickaxeHighWater).toBe(0);
   });
 
   it('secrets: a legendary sold, a thousand paused clicks, the game’s own name', () => {
@@ -747,14 +828,63 @@ describe('the real feats', () => {
     expect(fallen.s.achievements.earned).toContain('secret.humbled');
   });
 
+  it('secrets that read the run: so close, wrong door, speed bump, asleep, kraken, tenth time, head meets wall, growth spurt, bully', () => {
+    const earns = (id: string, outcome: 'cleared' | 'died' | 'left', setup: (s: GameState, run: MapRun) => void, tier = 1): boolean => {
+      const { s, run } = inMap(0.5, tier);
+      setup(s, run);
+      endRun(s, run, outcome);
+      return s.achievements.earned.includes(id);
+    };
+    const boss = (run: MapRun, share: number): MonsterState => {
+      const base = run.queue[0] as MonsterState;
+      return { ...base, rank: 'boss', maxLife: 1000, life: Math.round(1000 * share) };
+    };
+    const inBossRoom = (share: number) => (_s: GameState, run: MapRun) => { run.room = run.bossRoom; run.queue = [boss(run, share)]; };
+    expect(earns('secret.soClose', 'died', inBossRoom(0.05))).toBe(true);
+    expect(earns('secret.soClose', 'died', inBossRoom(0.5))).toBe(false);
+    expect(earns('secret.soClose', 'died', (_s, run) => { run.queue = [boss(run, 0.05)]; })).toBe(false);   // not in the boss room
+    expect(earns('secret.wrongDoor', 'left', () => {})).toBe(true);
+    expect(earns('secret.wrongDoor', 'left', (_s, run) => { run.gained.xp = 5; })).toBe(false);
+    expect(earns('secret.wrongDoor', 'died', () => {})).toBe(false);
+    expect(earns('secret.speedBump', 'died', () => {}, 5)).toBe(true);
+    expect(earns('secret.speedBump', 'died', () => {}, 4)).toBe(false);
+    expect(earns('secret.speedBump', 'died', (_s, run) => { run.room = 2; }, 5)).toBe(false);
+    expect(earns('secret.asleep', 'died', (s) => { s.paused = true; })).toBe(true);
+    expect(earns('secret.asleep', 'died', () => {})).toBe(false);
+    expect(earns('secret.kraken', 'cleared', (_s, run) => { run.saved = true; })).toBe(true);
+    expect(earns('secret.kraken', 'died', (_s, run) => { run.saved = true; })).toBe(false);
+    expect(earns('secret.tenthTime', 'cleared', (_s, run) => { run.attempt = 10; }, 5)).toBe(true);
+    expect(earns('secret.tenthTime', 'cleared', (_s, run) => { run.attempt = 9; }, 5)).toBe(false);
+    expect(earns('secret.headMeetWall', 'died', (_s, run) => { run.attempt = 25; }, 5)).toBe(true);
+    expect(earns('secret.headMeetWall', 'died', (_s, run) => { run.attempt = 24; }, 5)).toBe(false);
+    expect(earns('secret.growthSpurt', 'cleared', (_s, run) => { run.gained.levels = 10; })).toBe(true);
+    expect(earns('secret.growthSpurt', 'died', (_s, run) => { run.gained.levels = 10; })).toBe(false);
+    expect(earns('secret.bully', 'cleared', (s) => { s.level = 100; s.xp = 0; })).toBe(true);
+    expect(earns('secret.bully', 'cleared', (s) => { s.level = 99; })).toBe(false);
+  });
+
+  it('a champion carrying a joke pair of mods is a secret when it dies', () => {
+    const { s, run } = inMap();
+    const m: MonsterState = { ...(run.queue[0] as MonsterState), rank: 'champion', mods: ['vampiric', 'fireTouched'] };
+    onKill(s, run, m, deriveBattleStats(s));
+    expect(s.achievements.earned).toContain('secret.sunburntVampire');
+    expect(s.achievements.earned).not.toContain('secret.toughNut');
+  });
+
   it('judging every deed reads and advances no random stream', () => {
     const { s, run } = inMap(0.05, 10);
     run.map.special = 'championPacks';
     const before = streams(s);
+    const champion: MonsterState = { ...(run.queue[0] as MonsterState), rank: 'champion', mods: ['swift', 'brutal'] };
+    checkFeats(s, { kind: 'kill', run, monster: champion });
     endRun(s, run, 'cleared');
     checkFeats(s, { kind: 'metre', depth: 5000 });
     checkFeats(s, { kind: 'click', paused: true });
     checkFeats(s, { kind: 'rename', name: 'Steve' });
+    checkFeats(s, { kind: 'sell', item: legendary(s, 'molesbane') });
+    checkFeats(s, { kind: 'salvage', item: legendary(s, 'wolfEye') });
+    checkFeats(s, { kind: 'sell', item: stashMap(s, 3, 2) });
+    expect(s.achievements.earned).toEqual(expect.arrayContaining(['secret.fastAndFurious', 'secret.sellLegendary', 'secret.salvageLegendary', 'secret.sellMap']));
     expect(streams(s)).toEqual(before);
     expect(earnedDeeds(s).every((id) => deeds().includes(id))).toBe(true);
   });

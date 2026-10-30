@@ -498,7 +498,7 @@ function running(): GameState {
   const s = newGame(1, 0);
   const map = looseMap(s, 2, 2);
   s.activity = { kind: 'map', run: {
-    map, room: 1, bossRoom: 6, life: 40, hitCarry: 0, monsterCarry: 0, regenCarry: 0, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [], items: 0, strikes: 0, minLife: 40, elapsedS: 0, attempt: 0,
+    map, room: 1, bossRoom: 6, life: 40, hitCarry: 0, monsterCarry: 0, regenCarry: 0, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [], items: 0, strikes: 0, minLife: 40, elapsedS: 0, attempt: 0, startedWith: { emptySlot: false, plainGear: false, noBattleGear: false, noPassives: false },
     queue: [{ name: 'Mud Slime', species: 1, rank: 'normal', mods: [], extra: 7, element: 'elemental', life: 30, maxLife: 37, damage: 4, intervalS: 2, xp: 28 }],
   } };
   return s;
@@ -901,7 +901,7 @@ it('the schema-8 fixture migrates to hold mode, keeps its held gear, groups its 
     expect(list).toEqual(oldTab.filter((m: MapItem) => m.tier === Number(tier)));
   }
   // schema 10 starts the run's strike count
-  const activity = { ...old.activity, run: { ...old.activity.run, strikes: 0, minLife: old.activity.run.life, elapsedS: 0, attempt: 0 } };
+  const activity = { ...old.activity, run: { ...old.activity.run, strikes: 0, minLife: old.activity.run.life, elapsedS: 0, attempt: 0, startedWith: { emptySlot: false, plainGear: false, noBattleGear: false, noPassives: false } } };
   expect([s.bag, s.equipped, s.stash.general, s.activity, s.lastRun, s.finds])
     .toEqual([old.bag, old.equipped, old.stash.general, activity, old.lastRun, old.finds]);
   // the run in progress plays on to its end
@@ -1082,7 +1082,7 @@ it('the schema-9 fixture migrates its rules, gains an empty bought record and a 
   const run = s.activity.kind === 'map' ? s.activity.run : null;
   expect(run?.strikes).toBe(0);
   expect(run?.saved).toBeUndefined();
-  expect(run).toEqual({ ...old.activity.run, strikes: 0, minLife: old.activity.run.life, elapsedS: 0, attempt: 0 });
+  expect(run).toEqual({ ...old.activity.run, strikes: 0, minLife: old.activity.run.life, elapsedS: 0, attempt: 0, startedWith: { emptySlot: false, plainGear: false, noBattleGear: false, noPassives: false } });
   const { orbs: _orbs9, runes: _runes9, ...stash9 } = s.stash;
   expect([s.bag, s.equipped, stash9, s.overflow, s.drops, s.deaths, s.lastRun, s.gold, s.deepest])
     .toEqual([old.bag, old.equipped, old.stash, old.overflow, old.drops, old.deaths, old.lastRun, old.gold, old.deepest]);
@@ -1199,7 +1199,8 @@ it('a schema-10 save gains an empty passive web and keeps everything else', () =
   expect(r.state.level).toBe(4);
   const {
     passives: _passives, ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, oreMarket: _oreMarket,
-    stats: _stats, achievements: _achievements, lastWallAt: _lastWallAt, runeRng: _runeRng, characterName: _characterName, ...rest
+    stats: _stats, achievements: _achievements, lastWallAt: _lastWallAt, runeRng: _runeRng, characterName: _characterName,
+    pickaxeHighWater: _pickaxeHighWater, ...rest
   } = r.state;
   const { orbs: _orbs10, runes: _runes10, ...restStash } = r.state.stash;
   expect({ ...rest, stash: restStash }).toEqual(raw);   // nothing else changes
@@ -1319,7 +1320,8 @@ it('a schema-11 save gains an empty ascendancy, auto-map and lifetime record', (
   expect(r.state.lifetime).toEqual({ ascensions: 0, deepest: 0 });
   const {
     ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, oreMarket: _oreMarket, stats: _stats,
-    achievements: _achievements, lastWallAt: _lastWallAt, runeRng: _runeRng, characterName: _characterName, ...rest
+    achievements: _achievements, lastWallAt: _lastWallAt, runeRng: _runeRng, characterName: _characterName,
+    pickaxeHighWater: _pickaxeHighWater, ...rest
   } = r.state;
   const { orbs: _orbs11, runes: _runes11, ...restStash } = r.state.stash;
   expect({ ...rest, stash: restStash }).toEqual(raw);   // nothing else changes
@@ -1507,13 +1509,15 @@ describe('schema 25: the feat and collection ledger', () => {
 
   it('a schema-24 save gains an empty ledger and live-run tracking', () => {
     const s = newGame(7, 0);
+    s.equipped.mining.pickaxe = gear(s, 'pickaxe', { ilvl: 7 });
     expect(startMap(s, stashMap(s, 1, 2).id)).toBe('ok');
     const old = JSON.parse(JSON.stringify(s)) as GameState;
+    delete (old as unknown as Record<string, unknown>).pickaxeHighWater;
     for (const k of ['legendariesFound', 'runesFound', 'championModsKilled', 'specialsCleared', 'dungeonTypesCleared', 'gateAttempts', 'gatesFirstTry', 'clicksPaused']) {
       delete (old.stats as unknown as Record<string, unknown>)[k];
     }
     if (old.activity.kind !== 'map') throw new Error('no map is running');
-    for (const k of ['minLife', 'elapsedS', 'bossSinceS', 'attempt']) delete (old.activity.run as unknown as Record<string, unknown>)[k];
+    for (const k of ['minLife', 'elapsedS', 'bossSinceS', 'attempt', 'startedWith']) delete (old.activity.run as unknown as Record<string, unknown>)[k];
     const r = decodeSave(raw({ schema: 24, savedAt: 0, state: old }));
     if (!r.ok) throw new Error(r.reason);
     expect(r.state.stats).toMatchObject({
@@ -1522,6 +1526,23 @@ describe('schema 25: the feat and collection ledger', () => {
     if (r.state.activity.kind !== 'map') throw new Error('no map is running');
     expect(r.state.activity.run).toMatchObject({ minLife: r.state.activity.run.life, elapsedS: 0, attempt: 0 });
     expect(r.state.activity.run.bossSinceS).toBeUndefined();
+    // a run already under way began with no handicap the feats can trust, and the pickaxe mark starts at the worn one
+    expect(r.state.activity.run.startedWith).toEqual({ emptySlot: false, plainGear: false, noBattleGear: false, noPassives: false });
+    expect(r.state.pickaxeHighWater).toBe(7);
+  });
+
+  it('a schema-25 save refuses a broken pickaxe mark or run handicaps', () => {
+    const s = newGame(7, 0);
+    expect(startMap(s, stashMap(s, 1, 2).id)).toBe('ok');
+    expect(save25(s).ok).toBe(true);
+    expect(save25({ ...s, pickaxeHighWater: -1 }).ok).toBe(false);
+    expect(save25({ ...s, pickaxeHighWater: 1.5 }).ok).toBe(false);
+    if (s.activity.kind !== 'map') throw new Error('no map is running');
+    const run = s.activity.run;
+    const broken = (startedWith: unknown) => ({ ...s, activity: { kind: 'map', run: { ...run, startedWith } } }) as unknown as GameState;
+    expect(save25(broken({ ...run.startedWith, plainGear: 1 })).ok).toBe(false);
+    expect(save25(broken({ emptySlot: true })).ok).toBe(false);
+    expect(save25(broken(undefined)).ok).toBe(false);
   });
 
   it('a schema-24 save drops earned ids the list no longer has and re-earns the ones its ledger passes', () => {

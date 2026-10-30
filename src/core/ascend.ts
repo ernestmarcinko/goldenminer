@@ -29,6 +29,7 @@ export function ascend(state: GameState): 'ok' | 'notReady' {
   state.diamonds = 0;
   state.souls = 0;
   state.deepest = startingDepth;
+  state.pickaxeHighWater = 0;
   state.progress = 0;
   state.ahead = {};
   state.finds = [];

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { registerFeatsForTest } from '../../src/core/achievements';
 import fixture7 from '../fixtures/save-schema-7.txt?raw';
 import { ARMORED_TAKEN, COMBAT_STEP_S, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, MAP_CLEAR_DROP_CHANCE, MAP_TIER_CAP, MAX_HELD, RUN_LOOT_LIMIT, VAMPIRIC_HEAL } from '../../src/core/balance';
 import { deriveBattleStats } from '../../src/core/battle';
@@ -544,6 +545,13 @@ it('a saved run in progress plays out exactly as before modifiers existed', () =
   };
   const played = replay();
   expect(replay((run) => { run.map.mods = []; })).toEqual(played);
+  // The feats only observe: with none registered the run draws the very same stream.
+  registerFeatsForTest([]);
+  try {
+    expect(replay().rng).toBe(played.rng);
+  } finally {
+    registerFeatsForTest(null);
+  }
   // Pinned before map modifiers touched combat (rng re-pinned when a boss kill began rolling a map drop). Loading re-earns what the old ledger already passes
   // (schema 25), so the Souls are one higher. Plan 34's harder ladders leave the fixture with 4 achievements where it had 26, so the weaker miner needs more
   // strikes and the stream ends further on (975538293 before); the feats draw nothing, so the stream is the same with none registered.

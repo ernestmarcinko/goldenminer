@@ -159,9 +159,12 @@ export interface MapRun {
   elapsedS: number;                                // simulated seconds fought
   bossSinceS?: number;                             // elapsedS when the boss room began
   attempt: number;                                 // the gate attempt count of this run (0 off-gate)
+  startedWith: RunHandicaps;                       // the handicaps as the run began (none for a run migrated mid-flight)
   saved?: true;                                    // Kraken Leather has fired this run
   auto?: true;                                     // started by the auto-map chain (its result dialog is suppressed while the chain continues)
 }
+/** The build handicaps a clear feat asks for, read at the start and again at the end of a run. */
+export interface RunHandicaps { emptySlot: boolean; plainGear: boolean; noBattleGear: boolean; noPassives: boolean }
 export interface RunResult { map: MapItem; outcome: RunOutcome; room: number; bossRoom: number; gained: RunGains; items: number; seen: boolean }
 export type Activity = { kind: 'dig' } | { kind: 'map'; run: MapRun };
 export interface FindRecord {
@@ -203,6 +206,7 @@ export interface GameState {
   lastWallAt: number;
   gold: number; diamonds: number;
   deepest: number;                         // whole metres dug; 0 = surface; the miner works the face below it
+  pickaxeHighWater: number;                // the highest item level of the pickaxe worn at any metre finished this run (0 for none)
   progress: number;                        // 0..1 toward metre deepest+1 (the dig face)
   ahead: Record<number, MetreRoll>;        // pre-rolled metres deepest+1 .. deepest+lampSight
   finds: FindRecord[];                     // notable finds, oldest first, at most FINDS_LOG_LIMIT

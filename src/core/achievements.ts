@@ -8,7 +8,9 @@ import {
 } from './items';
 import { addToSet } from './ledger';
 import type { IconGlyphId } from './skillIcons';
-import { CHAMPION_MODS, type ChampionMod, type GameState, type MapRun, type MonsterState, type RunResult } from './types';
+import {
+  CHAMPION_MODS, type ChampionMod, type GameState, type MapRun, type MonsterState, type RunHandicaps, type RunResult,
+} from './types';
 
 /**
  * The permanent, global boost each earned achievement grants: +1% per achievement, applied to the final derived
@@ -158,7 +160,7 @@ const FAMILY_DEFS: readonly FamilyDef[] = [
 
   { family: 'legendaries', label: 'Legendaries',
     thresholds: [5, 10, 25, 50, 100, 250, 500, 1000],
-    desc: (n) => `Own ${commas(n)} legendary items.` },
+    desc: (n) => `Find ${commas(n)} legendary items.` },
   { family: 'sockets', label: 'Sockets',
     thresholds: [10, 25, 50, 100, 250, 500, 1000, 2500, 5000],
     desc: (n) => `Socket ${commas(n)} gems into gear over your lifetime.` },
@@ -670,10 +672,15 @@ interface FeatFamilyDef { family: string; label: string; icon: IconGlyphId }
 
 type RunEnd = Extract<FeatEvent, { kind: 'runEnd' }>;
 
-const GATE_TIERS: readonly number[] = Array.from({ length: 100 / GATE_EVERY }, (_, i) => (i + 1) * GATE_EVERY);
+/** The highest gate the tiered feats reach; the gates go on past it, the feats do not. */
+const TOP_FEAT_GATE = 100;
+const GATE_TIERS: readonly number[] = Array.from({ length: TOP_FEAT_GATE / GATE_EVERY }, (_, i) => (i + 1) * GATE_EVERY);
 /** The gate pairs by their upper tier (10, 20, … 100): each pair holds one physical and one elemental wall. */
 const GATE_PAIRS: readonly number[] = GATE_TIERS.filter((_, i) => i % 2 === 1);
-/** The depths an old pickaxe is carried to; the pickaxe may be at most a thousandth of the depth in item level. */
+/**
+ * The depths an old pickaxe is carried to: no pickaxe worn at any metre of the run (the high-water mark, which never
+ * falls) may be above a thousandth of the depth in item level, so taking the pickaxe off for the last metre earns nothing.
+ */
 const OLD_PICK_DEPTHS: readonly number[] = [1000, 2500, 5000, 10000, 15000, 20000, 25000, 50000, 75000, 100000];
 const oldPickLevel = (depth: number): number => Math.floor(depth / 1000);
 /** The seconds a boss rush allows from the boss room's start: 2 up to tier 25, one more each 25 tiers above. */
@@ -707,7 +714,20 @@ function championsOf(state: GameState, e: RunEnd): { champions: number; mods: nu
   return pack;
 }
 
-const battleGear = (state: GameState) => BATTLE_SLOTS.map((slot) => state.equipped.battle[slot]);
+/** The build handicaps the clear feats ask for, as the state stands: read when a run starts and again when it ends. */
+export function runHandicaps(state: GameState): RunHandicaps {
+  const gear = BATTLE_SLOTS.map((slot) => state.equipped.battle[slot]);
+  return {
+    emptySlot: gear.some((item) => item === undefined),
+    plainGear: gear.every((item) => item?.rarity === 'normal'),
+    noBattleGear: gear.every((item) => item === undefined),
+    noPassives: state.passives.allocated.length === 0,
+  };
+}
+
+/** A clear of tier `tier` or higher whose run began with the handicap and still has it at the end. */
+const clearedWith = (state: GameState, e: FeatEvent, tier: number, handicap: keyof RunHandicaps): e is RunEnd =>
+  clearedAtLeast(e, tier) && e.run.startedWith[handicap] && runHandicaps(state)[handicap];
 
 const FEAT_FAMILIES = {
   gateFirstTry: { family: 'feat.gateFirstTry', label: 'First-Try Gates', icon: 'vanguard' },
@@ -746,6 +766,7 @@ function secret(slug: string, name: string, desc: string, on: FeatEvent['kind'],
 const killedChampionWith = (e: FeatEvent, a: ChampionMod, b: ChampionMod): boolean =>
   e.kind === 'kill' && e.monster.rank === 'champion' && e.monster.mods.includes(a) && e.monster.mods.includes(b);
 const renamedTo = (e: FeatEvent, name: string): boolean => e.kind === 'rename' && e.name.trim().toLowerCase() === name;
+/** A legendary sold or salvaged (each secret waits only for its own event kind). */
 const soldLegendary = (e: FeatEvent): boolean =>
   (e.kind === 'sell' || e.kind === 'salvage') && isGear(e.item) && e.item.rarity === 'legendary';
 
@@ -757,7 +778,7 @@ const FEATS: readonly FeatDef[] = [
     'No Rehearsal', 'Opening Night', 'Unrehearsed', 'Flawless Debut', 'Natural Talent', 'One-Take Wonder',
     'First Impressions',
   ], 'runEnd', (t) => `Clear the tier ${t} gate on your first attempt at it.`,
-  (t, state) => state.stats.gatesFirstTry.includes(t)),
+  (t, state, e) => clearedRun(e) && e.run.map.tier === t && state.stats.gatesFirstTry.includes(t)),
 
   ...tiered(FEAT_FAMILIES.physicalWall, GATE_PAIRS, [
     'Brick by Brick', 'Stonewalled', 'Wrecking Ball', 'Battering Ram', 'Tear Down This Wall', 'Siege Engine',
@@ -811,16 +832,16 @@ const FEATS: readonly FeatDef[] = [
     'Half-Dressed', 'Bare Essentials', 'Spare Slot', 'Underdressed', 'Wardrobe Malfunction', 'Forgot Something',
     'Packed Light', 'Missing Link', 'Hole in the Plan', 'Gap Year', 'Empty-Handed', 'Who Needs Rings',
     'Capsule Wardrobe', 'Ultralight',
-  ], 'runEnd', (t) => `Clear a map of tier ${t} or higher with a battle gear slot left empty.`,
-  (t, state, e) => clearedAtLeast(e, t) && battleGear(state).some((item) => item === undefined)),
+  ], 'runEnd', (t) => `Clear a map of tier ${t} or higher with a battle gear slot left empty from start to finish.`,
+  (t, state, e) => clearedWith(state, e, t, 'emptySlot')),
 
   ...tiered(FEAT_FAMILIES.plainGear, GATE_TIERS, [
     'Plain Jane', 'Off the Rack', 'No Frills', 'Vanilla', 'Basic Training', 'Generic Brand', 'Bargain Bin',
     'Hand-Me-Downs', 'Standard Issue', 'Plain and Simple', 'Unremarkable', 'Charity Shop Chic', 'Common Sense',
     'Utilitarian', 'Ordinary Joe', 'No Name Brand', 'Factory Settings', 'Stock Parts', 'Unenchanted',
     'Humble Means',
-  ], 'runEnd', (t) => `Clear a map of tier ${t} or higher with normal-rarity gear in every battle slot.`,
-  (t, state, e) => clearedAtLeast(e, t) && battleGear(state).every((item) => item?.rarity === 'normal')),
+  ], 'runEnd', (t) => `Clear a map of tier ${t} or higher with normal-rarity gear in every battle slot from start to finish.`,
+  (t, state, e) => clearedWith(state, e, t, 'plainGear')),
 
   ...tiered(FEAT_FAMILIES.fullyModded, GATE_TIERS, [
     'Glutton for Punishment', 'Maxed Out', 'All the Trimmings', 'Hard Mode', 'Extra Spicy', 'Hot Sauce',
@@ -842,8 +863,8 @@ const FEATS: readonly FeatDef[] = [
     'Unskilled Labour', 'Raw Talent', 'Self-Taught', 'Unschooled', 'No Tricks', 'Hold My Points', 'Saving for Later',
     'Points Hoarder', 'Natural Ability', 'Blank Slate', 'Tabula Rasa', 'Untrained', 'Street Smarts', 'Just Muscle',
     'Who Needs Skills', 'No Talent Required', 'Doing It the Hard Way', 'Bare Bones', 'Purist', 'Do It Yourself',
-  ], 'runEnd', (t) => `Clear a map of tier ${t} or higher with no passive skill allocated.`,
-  (t, state, e) => clearedAtLeast(e, t) && state.passives.allocated.length === 0),
+  ], 'runEnd', (t) => `Clear a map of tier ${t} or higher with no passive skill allocated from start to finish.`,
+  (t, state, e) => clearedWith(state, e, t, 'noPassives')),
 
   ...tiered(FEAT_FAMILIES.championPack, CHAMPION_PACKS, ['Pack Hunter', 'Champion Sweep', 'Rogues’ Gallery', 'Seven Samurai'],
     'runEnd', (n) => `Clear a map holding ${n} or more champions.`,
@@ -858,7 +879,7 @@ const FEATS: readonly FeatDef[] = [
     'Old Faithful', 'Trusty Rusty', 'If It Ain’t Broke', 'Vintage Tools', 'Grandpa’s Pickaxe', 'Heirloom',
     'Sentimental Value', 'Antiques Roadshow', 'Museum Piece', 'Relic of the Deep',
   ], 'metre', (d) => `Reach ${commas(d)} metres with no pickaxe above item level ${oldPickLevel(d)}.`,
-  (d, state, e) => e.kind === 'metre' && e.depth >= d && (state.equipped.mining.pickaxe?.ilvl ?? 0) <= oldPickLevel(d)),
+  (d, state, e) => e.kind === 'metre' && e.depth >= d && state.pickaxeHighWater <= oldPickLevel(d)),
 
   // The secrets: harmless jokes, each a surprise. None asks for a regret, a deleted save or time away past the cap.
   secret('hello', 'Is This Thing On?', 'Click the miner 100 times while the game is paused.', 'click',
@@ -874,8 +895,8 @@ const FEATS: readonly FeatDef[] = [
     (state, e) => e.kind === 'metre' && e.depth >= 1000 && state.equipped.mining.pickaxe === undefined),
   secret('handsOff', 'Hands-Off Management', 'Reach 1,000 metres without ever clicking the miner.', 'metre',
     (state, e) => e.kind === 'metre' && e.depth >= 1000 && state.stats.clicks === 0),
-  secret('sellLegendary', 'Legend for Sale', 'Sell a legendary item.', 'sell', (_state, e) => e.kind === 'sell' && soldLegendary(e)),
-  secret('salvageLegendary', 'Sacrilege', 'Salvage a legendary item.', 'salvage', (_state, e) => e.kind === 'salvage' && soldLegendary(e)),
+  secret('sellLegendary', 'Legend for Sale', 'Sell a legendary item.', 'sell', (_state, e) => soldLegendary(e)),
+  secret('salvageLegendary', 'Sacrilege', 'Salvage a legendary item.', 'salvage', (_state, e) => soldLegendary(e)),
   secret('sellMap', 'Real Estate Agent', 'Sell a map.', 'sell', (_state, e) => e.kind === 'sell' && e.item.type === 'map'),
   secret('garageSale', 'Garage Sale', 'Sell a piece of item level 1 gear.', 'sell',
     (_state, e) => e.kind === 'sell' && isGear(e.item) && e.item.ilvl === 1),
@@ -901,11 +922,11 @@ const FEATS: readonly FeatDef[] = [
     (_state, e) => clearedRun(e) && e.run.attempt >= 10),
   secret('headMeetWall', 'Head, Meet Wall', 'Take on the same gate 25 times.', 'runEnd',
     (_state, e) => e.kind === 'runEnd' && e.run.attempt >= 25),
-  secret('naked', 'Naked and Unafraid', 'Clear a map of tier 5 or higher with no battle gear at all.', 'runEnd',
-    (state, e) => clearedAtLeast(e, 5) && battleGear(state).every((item) => item === undefined)),
+  secret('naked', 'Naked and Unafraid', 'Clear a map of tier 5 or higher with no battle gear at all, start to finish.', 'runEnd',
+    (state, e) => clearedWith(state, e, 5, 'noBattleGear')),
   secret('speedBump', 'Speed Bump', 'Die in the first room of a gate.', 'runEnd',
     (_state, e) => e.kind === 'runEnd' && e.result.outcome === 'died' && isGateTier(e.run.map.tier) && e.run.room === 1),
-  secret('growthSpurt', 'Growth Spurt', 'Gain 10 levels in a single map.', 'runEnd',
+  secret('growthSpurt', 'Growth Spurt', 'Clear a map, gaining 10 levels in it.', 'runEnd',
     (_state, e) => clearedRun(e) && e.run.gained.levels >= 10),
   secret('asleep', 'Asleep at the Wheel', 'Die in a map while the game is paused.', 'runEnd',
     (state, e) => e.kind === 'runEnd' && e.result.outcome === 'died' && state.paused),

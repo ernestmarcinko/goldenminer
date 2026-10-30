@@ -504,8 +504,12 @@ export const MIGRATIONS: Record<number, Migration> = {
   24: (state) => {
     if (!isObject(state)) return state;
     // The feat and collection ledger starts empty (past finds and paused clicks were not tracked), and a run in flight
-    // starts tracking now: its lowest life is its life as it stands, no time is counted and it is not a gate attempt.
+    // starts tracking now: its lowest life is its life as it stands, no time is counted, it is not a gate attempt and it
+    // began with no handicap. The pickaxe high-water mark starts at the pickaxe worn now.
+    const equipped = isObject(state.equipped) && isObject(state.equipped.mining) ? state.equipped.mining : {};
+    const pickaxe = equipped.pickaxe;
     const next: Record<string, unknown> = {
+      pickaxeHighWater: isObject(pickaxe) && typeof pickaxe.ilvl === 'number' ? pickaxe.ilvl : 0,
       ...state,
       stats: isObject(state.stats)
         ? {
@@ -516,7 +520,8 @@ export const MIGRATIONS: Record<number, Migration> = {
     };
     const { activity } = state;
     if (isObject(activity) && activity.kind === 'map' && isObject(activity.run)) {
-      next.activity = { ...activity, run: { minLife: activity.run.life, elapsedS: 0, attempt: 0, ...activity.run } };
+      const startedWith = { emptySlot: false, plainGear: false, noBattleGear: false, noPassives: false };
+      next.activity = { ...activity, run: { minLife: activity.run.life, elapsedS: 0, attempt: 0, startedWith, ...activity.run } };
     }
     return next;
   },
@@ -1052,6 +1057,9 @@ const isBossRoom = (x: unknown, seed: number, map: MapItem): x is number =>
   x === dungeonType(seed, map.tier, dungeonIndexAt(seed, map.metre)).rooms + 1;
 const isRoomIn = (x: unknown, bossRoom: number): x is number => isNonNegInt(x) && x >= 1 && x <= bossRoom;
 
+const isRunHandicaps = (x: unknown): boolean => isObject(x) && Object.keys(x).length === 4
+  && ['emptySlot', 'plainGear', 'noBattleGear', 'noPassives'].every((key) => typeof x[key] === 'boolean');
+
 function isMapRun(x: unknown, seed: number, nextId: number, seen: Set<number>): boolean {
   if (!isObject(x) || !isMapItem(x.map, nextId, seen) || !isBossRoom(x.bossRoom, seed, x.map) || !isRoomIn(x.room, x.bossRoom)) return false;
   const { queue, room, bossRoom } = x;
@@ -1063,6 +1071,7 @@ function isMapRun(x: unknown, seed: number, nextId: number, seen: Set<number>): 
   if (!isGains(x.gained) || !isNonNegInt(x.items)) return false;
   if (!isNonNegInt(x.minLife) || x.minLife < 1 || x.minLife > MAX_LIFE || !isNonNegFinite(x.elapsedS) || !isNonNegInt(x.attempt)) return false;
   if (x.bossSinceS !== undefined && !isNonNegFinite(x.bossSinceS)) return false;
+  if (!isRunHandicaps(x.startedWith)) return false;
   if (!isNonNegInt(x.strikes) || (x.saved !== undefined && x.saved !== true) || (x.auto !== undefined && x.auto !== true)) return false;
   if (!Array.isArray(x.log) || x.log.length > COMBAT_LOG_LIMIT || !x.log.every(isCombatLine)) return false;
   return Array.isArray(x.loot) && x.loot.length <= RUN_LOOT_LIMIT && x.loot.every(isLootNote);
@@ -1148,6 +1157,7 @@ export function validateState(x: unknown): x is GameState {
   if (x.worldGen !== 1 && x.worldGen !== 2) return false;
   if (typeof x.characterName !== 'string' || !isValidCharacterName(x.characterName)) return false;
   if (!isNonNegInt(x.tickCount) || !isNonNegInt(x.deepest)) return false;
+  if (!isNonNegInt(x.pickaxeHighWater) || x.pickaxeHighWater > MAX_ITEM_LEVEL) return false;
   if (!isNonNegFinite(x.lastTickAt) || !isNonNegFinite(x.lastWallAt) || !isNonNegFinite(x.gold) || !isNonNegFinite(x.diamonds)) return false;
   if (!isUnitRange(x.progress)) return false;
   if (!isObject(x.ahead)) return false;

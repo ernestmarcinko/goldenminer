@@ -178,6 +178,7 @@ export function finishMetre(
   state.stats.metresDug += 1;
   if (clicked) state.stats.metresDugByClick += 1;
   else state.stats.metresDugAuto += 1;
+  state.pickaxeHighWater = Math.max(state.pickaxeHighWater, state.equipped.mining.pickaxe?.ilvl ?? 0);
   checkAchievements(state, 'depth');
   checkAchievements(state, 'dig');
   checkAchievements(state, 'handMined');
