@@ -37,6 +37,8 @@ export function emptyLifetimeStats(): LifetimeStats {
     monstersKilled: 0, championKills: 0, bossKills: 0, deaths: 0, mapsCleared: 0, mapsLost: 0,
     levelsGained: 0, itemsCrafted: 0, itemsKept: 0, itemsSold: 0, itemsSalvaged: 0,
     gems: 0, itemsBought: 0, gemsSocketed: 0, legendaries: 0,
+    legendariesFound: [], runesFound: [], championModsKilled: [], specialsCleared: [], dungeonTypesCleared: [],
+    gateAttempts: {}, gatesFirstTry: [],
   };
 }
 

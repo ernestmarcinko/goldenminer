@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import fixture7 from '../fixtures/save-schema-7.txt?raw';
-import { ARMORED_TAKEN, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, MAP_CLEAR_DROP_CHANCE, MAP_TIER_CAP, MAX_HELD, RUN_LOOT_LIMIT, VAMPIRIC_HEAL } from '../../src/core/balance';
+import { ARMORED_TAKEN, COMBAT_STEP_S, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, MAP_CLEAR_DROP_CHANCE, MAP_TIER_CAP, MAX_HELD, RUN_LOOT_LIMIT, VAMPIRIC_HEAL } from '../../src/core/balance';
 import { deriveBattleStats } from '../../src/core/battle';
 import { advance } from '../../src/core/clock';
 import { onKill } from '../../src/core/combat';
 import { applyTicks } from '../../src/core/dig';
-import { dungeonLayout } from '../../src/core/dungeons';
+import { dungeonIndexAt, dungeonLayout } from '../../src/core/dungeons';
 import { gateWall } from '../../src/core/gates';
 import type { MapMod } from '../../src/core/items';
 import { xpToNext } from '../../src/core/levels';
@@ -542,9 +542,9 @@ it('a saved run in progress plays out exactly as before modifiers existed', () =
   const played = replay();
   expect(replay((run) => { run.map.mods = []; })).toEqual(played);
   // Pinned before map modifiers touched combat (rng re-pinned when a boss kill began rolling a map drop); the achievement boost leaves the stream untouched (it only shifts the
-  // amounts the fixture's already-earned achievements multiply).
+  // amounts the fixture's already-earned achievements multiply). Loading re-earns what the old ledger already passes (schema 25), so the Souls are one higher.
   expect(played).toMatchObject({
-    rng: 975538293, gained: { xp: 1048, souls: 16, gold: 144, levels: 1 }, outcome: 'cleared',
+    rng: 975538293, gained: { xp: 1048, souls: 17, gold: 144, levels: 1 }, outcome: 'cleared',
   });
 });
 
@@ -567,7 +567,7 @@ it('logging the run\'s drops and its end makes no draws: the saved run plays out
   expect(played.logged).toBeGreaterThan(0);
   expect(replay(true)).toEqual(played);
   expect(played).toMatchObject({
-    rng: 975538293, gained: { xp: 1048, souls: 16, gold: 144, levels: 1 }, outcome: 'cleared',
+    rng: 975538293, gained: { xp: 1048, souls: 17, gold: 144, levels: 1 }, outcome: 'cleared',
   });
 });
 
@@ -706,5 +706,94 @@ describe('maps from map clears', () => {
       for (let rng = 1; rng <= 300; rng++) expect(kill(s, run, rank, rng), `${rank} rng ${rng}`).toEqual([]);
     }
     expect(s.stats.mapsFromClears).toBe(0);
+  });
+});
+
+describe('run tracking for feats', () => {
+  it('minLife is the lowest life the run reached, however far it healed back', () => {
+    const { s, run } = started({ intervalS: 0.25, damage: 30, life: 1e9, maxLife: 1e9 });
+    expect(run.minLife).toBe(run.life);
+    const start = run.life;
+    applyTicks(s, 1, at(s, 4));
+    expect(run.life).toBeLessThan(start);
+    expect(run.minLife).toBe(run.life);
+    const low = run.life;
+    run.life = start;
+    run.queue = [monster({ intervalS: 1000, life: 1e9, maxLife: 1e9 })];
+    applyTicks(s, 1, at(s, 4));
+    expect(run.life).toBeGreaterThan(low);
+    expect(run.minLife).toBe(low);
+  });
+
+  it('elapsedS grows by one combat step per step, and the boss room stamps bossSinceS', () => {
+    const { s, run } = started();
+    expect(run.elapsedS).toBe(0);
+    expect(run.bossSinceS).toBeUndefined();
+    applyTicks(s, 1, at(s, 4));
+    expect(run.elapsedS).toBeCloseTo(COMBAT_STEP_S, 10);
+    applyTicks(s, 1, at(s, 2));
+    expect(run.elapsedS).toBeCloseTo(COMBAT_STEP_S * 3, 10);
+    run.room = run.bossRoom - 1;
+    run.queue = [monster({ life: 1, maxLife: 1 })];
+    const before = run.elapsedS;
+    swing(s);
+    expect(run.room).toBe(run.bossRoom);
+    expect(run.bossSinceS).toBeGreaterThanOrEqual(before);
+    expect(run.bossSinceS).toBe(run.elapsedS);
+  });
+
+  it('startMap counts the attempt on a gate tier only', () => {
+    const s = newGame(1, 0);
+    s.stats.gateAttempts[10] = 2;
+    expect(startMap(s, stashMap(s, 10, 40).id)).toBe('ok');
+    expect(runOf(s).attempt).toBe(3);
+    expect(s.stats.gateAttempts).toEqual({ 10: 3 });
+    const t = newGame(1, 0);
+    expect(startMap(t, stashMap(t, 9, 40).id)).toBe('ok');
+    expect(runOf(t).attempt).toBe(0);
+    expect(t.stats.gateAttempts).toEqual({});
+  });
+
+  it('killing a champion records every one of its mods', () => {
+    const { s, run } = started();
+    onKill(s, run, monster({ rank: 'champion', mods: ['armored', 'swift'] }), deriveBattleStats(s));
+    onKill(s, run, monster({ rank: 'champion', mods: ['swift', 'brutal'] }), deriveBattleStats(s));
+    expect(s.stats.championModsKilled).toEqual(['armored', 'brutal', 'swift']);
+    onKill(s, run, monster({ rank: 'normal', mods: ['vampiric'] }), deriveBattleStats(s));
+    expect(s.stats.championModsKilled).not.toContain('vampiric');
+  });
+
+  it('clearing a map records its special and its dungeon type, and a gate cleared on attempt one its tier', () => {
+    const s = newGame(1, 0);
+    const map = stashMap(s, 1, 2);
+    map.special = 'treasureRoom';
+    expect(startMap(s, map.id)).toBe('ok');
+    const run = runOf(s);
+    run.room = run.bossRoom;
+    run.queue = [monster({ rank: 'boss', life: 1, maxLife: 1 })];
+    swing(s);
+    expect(s.lastRun?.outcome).toBe('cleared');
+    expect(s.stats.specialsCleared).toEqual(['treasureRoom']);
+    expect(s.stats.dungeonTypesCleared).toEqual([`1:${dungeonIndexAt(s.seed, 2)}`]);
+    expect(s.stats.gatesFirstTry).toEqual([]);
+
+    const g = newGame(1, 0);
+    expect(startMap(g, stashMap(g, 10, 40).id)).toBe('ok');
+    const gate = runOf(g);
+    gate.room = gate.bossRoom;
+    gate.queue = [monster({ rank: 'boss', life: 1, maxLife: 1 })];
+    swing(g);
+    expect(g.lastRun?.outcome).toBe('cleared');
+    expect(g.stats.gatesFirstTry).toEqual([10]);
+    // A second attempt that clears does not count as a first try.
+    g.stats.gatesFirstTry = [];
+    expect(startMap(g, stashMap(g, 10, 40).id)).toBe('ok');
+    const again = runOf(g);
+    expect(again.attempt).toBe(2);
+    again.room = again.bossRoom;
+    again.queue = [monster({ rank: 'boss', life: 1, maxLife: 1 })];
+    swing(g);
+    expect(g.lastRun?.outcome).toBe('cleared');
+    expect(g.stats.gatesFirstTry).toEqual([]);
   });
 });

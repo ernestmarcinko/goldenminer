@@ -7,7 +7,7 @@ import {
   MONSTER_BUDGET_MAX, ORB_BAG_STACK, ORB_STASH_STACK, PREMIUM_CAP, RUN_LOOT_LIMIT, RUNE_BAG_STACK, RUNE_RNG_SALT, RUNE_STASH_STACK, START_GENERAL_PAGES,
   STASH_PAGE_SIZE, STOCK_SIZE, monsterBudget, stashPagePrice,
 } from './balance';
-import { ACHIEVEMENT_IDS } from './achievements';
+import { ACHIEVEMENT_IDS, checkAchievements, pruneEarned } from './achievements';
 import { ASCENDANCY_NODE_BY_ID, ASCENDANCY_NODE_COUNT, ASCENDANCY_START_ID, MAX_ASCENDANCY_PASSIVE_POINTS, ascendancyTotals } from './ascendancy';
 import { metreTier } from './bands';
 import { emptyGemCounts, emptyMaterialCounts, emptyRuneCounts, pageCount } from './cells';
@@ -28,6 +28,8 @@ import type { Cell, GearItem, GearSet, GemItem, GemType, MapItem, MapMod, MapRar
 import { xpToNext } from './levels';
 import { hash2 } from './rng';
 import { isValidSeedText, seedFromText } from './seed';
+import { isGateTier } from './gates';
+import { isSortedSet } from './ledger';
 import { speciesOf } from './species';
 import { tierFor } from './tiers';
 import {
@@ -35,7 +37,7 @@ import {
   SHAFT_MOTIONS, TRAIL_EVENTS, type DropEntry, type GameState, type LifetimeStats, type LootRule,
 } from './types';
 
-export const SCHEMA_VERSION = 24;
+export const SCHEMA_VERSION = 25;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
@@ -499,6 +501,25 @@ export const MIGRATIONS: Record<number, Migration> = {
     // Maps from map clears is a new counter: it starts at zero (past drops were not tracked).
     return { ...state, stats: { ...state.stats, mapsFromClears: 0 } };
   },
+  24: (state) => {
+    if (!isObject(state)) return state;
+    // The feat and collection ledger starts empty (past finds were not tracked), and a run in flight starts tracking now:
+    // its lowest life is its life as it stands, no time is counted and it is not a gate attempt.
+    const next: Record<string, unknown> = {
+      ...state,
+      stats: isObject(state.stats)
+        ? {
+          legendariesFound: [], runesFound: [], championModsKilled: [], specialsCleared: [], dungeonTypesCleared: [],
+          gateAttempts: {}, gatesFirstTry: [], ...state.stats,
+        }
+        : state.stats,
+    };
+    const { activity } = state;
+    if (isObject(activity) && activity.kind === 'map' && isObject(activity.run)) {
+      next.activity = { ...activity, run: { minLife: activity.run.life, elapsedS: 0, attempt: 0, ...activity.run } };
+    }
+    return next;
+  },
 };
 
 // The passive web the Plan-25 graph leaves connected to the start, in allocation order.
@@ -912,7 +933,22 @@ function isLifetimeStats(x: unknown): x is LifetimeStats {
     if (!isObject(counts) || Object.keys(counts).length !== GEM_GRADES.length) return false;
     if (!GEM_GRADES.every((g) => isNonNegFinite(counts[g]))) return false;
   }
-  return true;
+  return isLedgerSets(x);
+}
+
+// A ledger set: a sorted, duplicate-free list whose every member passes `ok`.
+const isLedgerSet = (x: unknown, ok: (v: unknown) => boolean): boolean =>
+  Array.isArray(x) && x.every(ok) && isSortedSet(x);
+
+// The collections and feats' sets, and the per-gate attempt table.
+function isLedgerSets(x: Record<string, unknown>): boolean {
+  if (!isLedgerSet(x.legendariesFound, (v) => typeof v === 'string' && v.length > 0)) return false;
+  if (!isLedgerSet(x.runesFound, isRuneType) || !isLedgerSet(x.championModsKilled, (v) => isIn(CHAMPION_MODS, v))) return false;
+  if (!isLedgerSet(x.specialsCleared, (v) => isIn(MAP_SPECIALS, v))) return false;
+  if (!isLedgerSet(x.dungeonTypesCleared, (v) => typeof v === 'string' && /^[1-9]\d*:[012]$/.test(v))) return false;
+  if (!isLedgerSet(x.gatesFirstTry, (v) => isNonNegInt(v) && isGateTier(v))) return false;
+  const { gateAttempts } = x;
+  return isObject(gateAttempts) && Object.entries(gateAttempts).every(([tier, n]) => isGateTier(Number(tier)) && String(Number(tier)) === tier && isNonNegInt(n) && n >= 1);
 }
 
 // The earned set: unique ids, each a known achievement.
@@ -1025,6 +1061,8 @@ function isMapRun(x: unknown, seed: number, nextId: number, seen: Set<number>): 
   if (!isNonNegInt(x.life) || x.life < 1 || x.life > MAX_LIFE) return false;
   if (!isUnitRange(x.hitCarry) || !isUnitRange(x.monsterCarry) || !isUnitRange(x.regenCarry)) return false;
   if (!isGains(x.gained) || !isNonNegInt(x.items)) return false;
+  if (!isNonNegInt(x.minLife) || x.minLife < 1 || x.minLife > MAX_LIFE || !isNonNegFinite(x.elapsedS) || !isNonNegInt(x.attempt)) return false;
+  if (x.bossSinceS !== undefined && !isNonNegFinite(x.bossSinceS)) return false;
   if (!isNonNegInt(x.strikes) || (x.saved !== undefined && x.saved !== true) || (x.auto !== undefined && x.auto !== true)) return false;
   if (!Array.isArray(x.log) || x.log.length > COMBAT_LOG_LIMIT || !x.log.every(isCombatLine)) return false;
   return Array.isArray(x.loot) && x.loot.length <= RUN_LOOT_LIMIT && x.loot.every(isLootNote);
@@ -1158,6 +1196,12 @@ export function decodeSave(text: string): DecodeResult {
   } catch {
     return { ok: false, reason: 'invalid' };
   }
+  // A retired achievement id goes before validation (which rejects unknown ids); the ones the ledger now passes are
+  // earned again, silently, since the store only toasts what a mutation after the load adds.
+  if (isObject(migrated) && isObject(migrated.achievements) && Array.isArray(migrated.achievements.earned)) {
+    pruneEarned(migrated as unknown as { achievements: { earned: string[] } });
+  }
   if (!validateState(migrated) || !isNonNegFinite(savedAt)) return { ok: false, reason: 'invalid' };
+  checkAchievements(migrated);
   return { ok: true, state: migrated, savedAt };
 }

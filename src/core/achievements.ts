@@ -10,11 +10,15 @@ import type { GameState } from './types';
  */
 export const ACHIEVEMENT_BOOST = 0.01;
 
-/** One achievement: a generated id `<family>.<value>`, the family it belongs to and its threshold. */
+/** A ladder climbs a counter by thresholds; a feat is a single deed; a collection is a count of distinct finds; a hidden one is a secret feat. */
+export type AchievementKind = 'ladder' | 'feat' | 'collection' | 'hidden';
+
+/** One achievement: its id (a generated `<family>.<value>` for a ladder), the family it belongs to, its kind and its threshold. */
 export interface AchievementDef {
   id: string;
   family: string;
-  value: number;
+  kind: AchievementKind;
+  value: number;            // the threshold for ladders and collections; 1 for feats and hidden
   name: string;
   desc: string;
 }
@@ -575,6 +579,7 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = (() => {
       out.push({
         id: `${def.family}.${value}`,
         family: def.family,
+        kind: 'ladder',
         value,
         name: funkyName(index),
         desc: def.desc(value),
@@ -710,6 +715,11 @@ export function checkAchievements(state: GameState, family?: string): void {
       earnedSet.add(a.id);
     }
   }
+}
+
+/** Drops earned ids the list no longer has, so a retired achievement never survives into a save that must validate. */
+export function pruneEarned(state: { achievements: { earned: string[] } }): void {
+  state.achievements.earned = state.achievements.earned.filter((id) => ACHIEVEMENT_IDS.has(id));
 }
 
 /** How many achievements are earned. */

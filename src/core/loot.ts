@@ -5,6 +5,7 @@ import {
 } from './balance';
 import { firstEmpty } from './cells';
 import { logDrop, trail } from './dropLog';
+import { addToSet } from './ledger';
 import { itemName, MATERIAL_LABELS } from './itemData';
 import { isStack, MATERIALS } from './items';
 import { ruleMatches } from './lootFilter';
@@ -337,7 +338,10 @@ export function receiveItem(state: GameState, item: Loot, origin: DropOrigin): L
     checkAchievements(state, 'gems');
   } else if (item.type === 'gear' && item.rarity === 'legendary') {
     state.stats.legendaries += 1;
+    if (item.uniqueId !== undefined) addToSet(state.stats.legendariesFound, item.uniqueId);
     checkAchievements(state, 'legendaries');
+  } else if (item.type === 'rune') {
+    addToSet(state.stats.runesFound, item.rune);
   }
   const filtered = applyFilter(state, item);
   const rest = unitsOf(item) - (filtered?.count ?? 0);

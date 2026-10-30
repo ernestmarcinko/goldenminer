@@ -918,4 +918,23 @@ describe('ascendancy and auto-map intents', () => {
     expect(store.state.autoMap.queue).toEqual([]);
     expect(store.version).toBe(v);
   });
+
+  it('achievements a load re-earns retroactively are silent', () => {
+    const s = newGame(7, 0);
+    s.deepest = 10;
+    s.ahead = {};
+    s.achievements.earned = ['clicks.7'];   // a retired id: dropped on load
+    const storage = new MemoryStorage();
+    storage.setItem(SAVE_KEY, compressToBase64(JSON.stringify({ schema: 24, savedAt: 0, state: s })));
+    const { store } = make({ t: 0 }, storage);
+    store.load();
+    expect(store.state.achievements.earned).toContain('depth.10');
+    expect(store.state.achievements.earned).not.toContain('clicks.7');
+    expect(store.notifications).toEqual([]);
+    const imported = make().store;
+    imported.load();
+    expect(imported.importSave(compressToBase64(JSON.stringify({ schema: 24, savedAt: 0, state: s }))).ok).toBe(true);
+    expect(imported.state.achievements.earned).toContain('depth.10');
+    expect(imported.notifications).toEqual([]);
+  });
 });

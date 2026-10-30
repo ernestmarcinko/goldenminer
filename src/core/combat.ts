@@ -6,10 +6,11 @@ import {
   RUN_LOOT_LIMIT, SLOW_MONSTERS_INTERVAL, TREASURE_CHESTS, VAMPIRIC_HEAL, WOLF_EYE_DROPS, goldPerKill, monsterAttackers, soulsPerKill,
 } from './balance';
 import { deriveBattleStats, mitigate, type BattleStats } from './battle';
-import { dungeonLayout } from './dungeons';
-import { gateWall } from './gates';
+import { dungeonIndexAt, dungeonLayout } from './dungeons';
+import { gateWall, isGateTier } from './gates';
 import { logDeath, trail } from './dropLog';
 import { gainXp } from './levels';
+import { addToSet } from './ledger';
 import { rollChest, rollGear, rollGemOrRune, rollLegendary, rollRarity, type Gen } from './itemGen';
 import { materialAmount, pickMaterial } from './layer';
 import { receiveItem, receiveMaterial } from './loot';
@@ -69,6 +70,9 @@ export function endRun(state: GameState, run: MapRun, outcome: RunOutcome, event
     state.mapTally.cleared += 1;
     state.stats.mapsCleared += 1;
     checkAchievements(state, 'maps');
+    if (run.map.special !== undefined) addToSet(state.stats.specialsCleared, run.map.special);
+    addToSet(state.stats.dungeonTypesCleared, `${run.map.tier}:${dungeonIndexAt(state.seed, run.map.metre)}`);
+    if (isGateTier(run.map.tier) && run.attempt === 1) addToSet(state.stats.gatesFirstTry, run.map.tier);
   } else {
     state.mapTally.lost += 1;
     state.stats.mapsLost += 1;
@@ -143,6 +147,7 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
   checkAchievements(state, 'kills');
   if (monster.rank === 'champion') {
     state.stats.championKills += 1;
+    for (const mod of monster.mods) addToSet(state.stats.championModsKilled, mod);
     checkAchievements(state, 'champions');
   }
   if (monster.rank === 'boss') {
@@ -256,6 +261,7 @@ function strike(state: GameState, run: MapRun, b: BattleStats, events?: TickEven
     }
   }
   run.room += 1;
+  if (run.room === run.bossRoom) run.bossSinceS = run.elapsedS;
   const { maxLife } = deriveBattleStats(state);
   const heal = mapEffects(run.map).healMult;
   run.life = Math.min(maxLife, run.life + Math.round((maxLife * ROOM_REGEN_TOTAL * heal) / (run.bossRoom - 1)));
@@ -269,6 +275,8 @@ function strike(state: GameState, run: MapRun, b: BattleStats, events?: TickEven
  */
 function combatStep(state: GameState, run: MapRun, b: BattleStats, dt: number, events?: TickEvent[]): BattleStats {
   // Regeneration heals in whole life; the fraction waits in the carry.
+  run.elapsedS += dt;
+  run.minLife = Math.min(run.minLife, run.life);
   run.regenCarry += b.lifeRegen * dt;
   const healed = Math.floor(run.regenCarry);
   run.regenCarry -= healed;
@@ -329,6 +337,7 @@ function combatStep(state: GameState, run: MapRun, b: BattleStats, dt: number, e
       run.saved = true;
       logLine(run, { kind: 'saved', monster: killer ?? front.name });
     }
+    run.minLife = Math.min(run.minLife, run.life);
     if (run.life <= 0) {
       endRun(state, run, 'died', events, killer ?? front.name);
       return b;

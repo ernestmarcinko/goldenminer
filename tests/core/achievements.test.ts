@@ -1,17 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import {
   ACHIEVEMENTS, ACHIEVEMENT_BOOST, ACHIEVEMENT_BY_ID, ACHIEVEMENT_IDS, FAMILY_ICONS, FAMILY_LABELS,
-  achievementBoost, achievementIcon, checkAchievements, earnedCount,
+  achievementBoost, achievementIcon, checkAchievements, earnedCount, pruneEarned,
 } from '../../src/core/achievements';
 import { ASCEND_LEVEL, MAX_DAMAGE, MAX_LIFE } from '../../src/core/balance';
 import { ascend } from '../../src/core/ascend';
 import { deriveBattleStats } from '../../src/core/battle';
 import { collect, faceTicksPerMetre, finishMetre } from '../../src/core/dig';
+import { addToSet } from '../../src/core/ledger';
 import { GEM_GRADES, GEM_TYPES, MATERIALS } from '../../src/core/items';
+import { gamble } from '../../src/core/merchant';
+import { receiveItem } from '../../src/core/loot';
+import type { GearItem } from '../../src/core/items';
 import { newGame } from '../../src/core/newGame';
 import { ICON_GLYPHS } from '../../src/core/skillIcons';
 import { deriveStats } from '../../src/core/stats';
 import { emptyLifetimeStats } from '../../src/core/telemetry';
+import { gear } from '../helpers/items';
 
 describe('the achievement table', () => {
   it('holds a well-spaced set of unique achievements across every family', () => {
@@ -186,5 +191,65 @@ describe('emptyLifetimeStats', () => {
     expect(MATERIALS.every((m) => stats.oresTraded[m] === 0)).toBe(true);
     expect(Object.keys(stats.gemsFound)).toEqual([...GEM_TYPES]);
     expect(GEM_TYPES.every((t) => Object.keys(stats.gemsFound[t]).join() === GEM_GRADES.join())).toBe(true);
+  });
+});
+
+describe('the lifetime ledger sets', () => {
+  it('addToSet inserts in sorted order and reports whether the value was new', () => {
+    const list = [2, 5];
+    expect(addToSet(list, 3)).toBe(true);
+    expect(list).toEqual([2, 3, 5]);
+    expect(addToSet(list, 3)).toBe(false);
+    expect(addToSet(list, 1)).toBe(true);
+    expect(addToSet(list, 9)).toBe(true);
+    expect(list).toEqual([1, 2, 3, 5, 9]);
+    const words = ['molesbane', 'wolfEye'];
+    expect(addToSet(words, 'peacemaker')).toBe(true);
+    expect(words).toEqual(['molesbane', 'peacemaker', 'wolfEye']);
+  });
+
+  it('receiving the same legendary twice records it once, from a drop and from the merchant alike', () => {
+    const s = newGame(1, 0);
+    const item = (): GearItem => ({ ...gear(s, 'pickaxe', { rarity: 'legendary', uniqueId: 'molesbane' }) });
+    receiveItem(s, item(), { kind: 'metre', metre: 1 });
+    receiveItem(s, item(), { kind: 'metre', metre: 1 });
+    expect(s.stats.legendariesFound).toEqual(['molesbane']);
+    expect(s.stats.legendaries).toBe(2);
+    receiveItem(s, { ...item(), uniqueId: 'deepdelver' }, { kind: 'metre', metre: 1 });
+    expect(s.stats.legendariesFound).toEqual(['deepdelver', 'molesbane']);
+  });
+
+  it('a gambled legendary joins the set', () => {
+    const s = newGame(1, 0);
+    s.gold = 1e12;
+    s.deepest = 5000;
+    for (let i = 0; i < 400 && s.stats.legendaries === 0; i++) {
+      const bag = s.bag.findIndex((c) => c === null);
+      if (bag < 0) s.bag.fill(null);
+      gamble(s, 'pickaxe');
+    }
+    expect(s.stats.legendaries).toBeGreaterThan(0);
+    expect(s.stats.legendariesFound.length).toBeGreaterThan(0);
+  });
+
+  it('rune drops join the runes found, once each', () => {
+    const s = newGame(1, 0);
+    receiveItem(s, { id: s.nextId++, type: 'rune', rune: 'isa', count: 2 }, { kind: 'metre', metre: 1 });
+    receiveItem(s, { id: s.nextId++, type: 'rune', rune: 'fehu', count: 1 }, { kind: 'metre', metre: 1 });
+    receiveItem(s, { id: s.nextId++, type: 'rune', rune: 'isa', count: 1 }, { kind: 'metre', metre: 1 });
+    expect(s.stats.runesFound).toEqual(['fehu', 'isa']);
+  });
+});
+
+describe('pruneEarned', () => {
+  it('drops ids the list does not have and keeps the rest in order', () => {
+    const s = newGame(1, 0);
+    s.achievements.earned = ['gold.1000000', 'clicks.7', 'depth.10', 'feat.nope'];
+    pruneEarned(s);
+    expect(s.achievements.earned).toEqual(['gold.1000000', 'depth.10']);
+  });
+
+  it('every ladder is a ladder whose value is its threshold', () => {
+    expect(ACHIEVEMENTS.every((a) => a.kind === 'ladder')).toBe(true);
   });
 });

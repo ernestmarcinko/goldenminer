@@ -3,7 +3,7 @@ import { checkAchievements } from './achievements';
 import { deriveBattleStats } from './battle';
 import { endRun } from './combat';
 import { dungeonLayout } from './dungeons';
-import { gateWall } from './gates';
+import { gateWall, isGateTier } from './gates';
 import { trail } from './dropLog';
 import type { MapItem } from './items';
 import { receiveItem } from './loot';
@@ -85,13 +85,18 @@ export function startMap(state: GameState, mapId: number, auto = false): 'ok' | 
   trail(state, map.id, { event: 'run' });
   const layout = dungeonLayout(state.seed, map);
   const fx = mapEffects(map);
+  const { maxLife } = deriveBattleStats(state);
   const queue = (layout.rooms[0] ?? []).map((m) => monsterState(map.tier, m, fx, gateWall(state.seed, map.tier)));
+  // A gate tier counts the runs started on it; a run remembers which attempt it is.
+  const attempt = isGateTier(map.tier) ? (state.stats.gateAttempts[map.tier] ?? 0) + 1 : 0;
+  if (attempt > 0) state.stats.gateAttempts[map.tier] = attempt;
   state.activity = {
     kind: 'map',
     run: {
       map, room: 1, bossRoom: layout.rooms.length + 1, queue,
-      life: deriveBattleStats(state).maxLife, hitCarry: 0, monsterCarry: 0, regenCarry: 0,
+      life: maxLife, hitCarry: 0, monsterCarry: 0, regenCarry: 0,
       gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [], items: 0, strikes: 0,
+      minLife: maxLife, elapsedS: 0, attempt,
       ...(auto ? { auto: true as const } : {}),
     },
   };

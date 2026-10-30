@@ -1,5 +1,5 @@
 import type {
-  Cell, GearItem, GearSet, GemGrade, GemType, Item, MapItem, MapMod, MapModKind, MapRarity, Material, OrbTier, Rarity, RuneType, Slot,
+  Cell, GearItem, GearSet, GemGrade, GemType, Item, MapItem, MapMod, MapModKind, MapRarity, MapSpecial, Material, OrbTier, Rarity, RuneType, Slot,
 } from './items';
 import type { RuneFlag } from './runes';
 
@@ -138,6 +138,14 @@ export interface LifetimeStats {
   itemsBought: number;                     // merchant buys (achievement 'merchant')
   gemsSocketed: number;                    // gems socketed (achievement 'sockets')
   legendaries: number;                     // legendaries owned (achievement 'legendaries')
+  // Collections and feats: sorted, duplicate-free lists (see `addToSet`), so the save stays JSON
+  legendariesFound: string[];              // `uniqueId`s of the legendaries received, dropped or bought
+  runesFound: RuneType[];
+  championModsKilled: ChampionMod[];       // every mod of every champion killed
+  specialsCleared: MapSpecial[];
+  dungeonTypesCleared: string[];           // `${tier}:${index}` of the dungeon types cleared in the world in play
+  gateAttempts: Record<number, number>;    // runs started per gate tier
+  gatesFirstTry: number[];                 // gate tiers cleared on attempt 1
 }
 export interface MapRun {
   map: MapItem; room: number; bossRoom: number;   // rooms 1..bossRoom; bossRoom = regular rooms + 1 (5..8)
@@ -146,6 +154,10 @@ export interface MapRun {
   gained: RunGains; log: CombatLine[]; loot: LootNote[];   // loot keeps the newest RUN_LOOT_LIMIT notes
   items: number;                                   // gear and gems dropped this run, every one counted (material stacks are not items)
   strikes: number;                                 // every strike of the run, for the Peacemaker
+  minLife: number;                                 // the lowest life seen, starting at max life
+  elapsedS: number;                                // simulated seconds fought
+  bossSinceS?: number;                             // elapsedS when the boss room began
+  attempt: number;                                 // the gate attempt count of this run (0 off-gate)
   saved?: true;                                    // Kraken Leather has fired this run
   auto?: true;                                     // started by the auto-map chain (its result dialog is suppressed while the chain continues)
 }

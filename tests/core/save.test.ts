@@ -51,8 +51,8 @@ it('a character name round-trips through save and load', () => {
   expect(r.state.characterName).toBe('Gorvash');
 });
 
-it('a schema-16 save migrates to 24 with a generated name', () => {
-  expect(SCHEMA_VERSION).toBe(24);
+it('a schema-16 save migrates to 25 with a generated name', () => {
+  expect(SCHEMA_VERSION).toBe(25);
   const state16 = { ...newGame(12345, 0) };
   delete (state16 as Partial<GameState>).characterName;
   const r = decodeSave(raw({ schema: 16, savedAt: 0, state: state16 }));
@@ -497,7 +497,7 @@ function running(): GameState {
   const s = newGame(1, 0);
   const map = looseMap(s, 2, 2);
   s.activity = { kind: 'map', run: {
-    map, room: 1, bossRoom: 6, life: 40, hitCarry: 0, monsterCarry: 0, regenCarry: 0, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [], items: 0, strikes: 0,
+    map, room: 1, bossRoom: 6, life: 40, hitCarry: 0, monsterCarry: 0, regenCarry: 0, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [], items: 0, strikes: 0, minLife: 40, elapsedS: 0, attempt: 0,
     queue: [{ name: 'Mud Slime', species: 1, rank: 'normal', mods: [], extra: 7, element: 'elemental', life: 30, maxLife: 37, damage: 4, intervalS: 2, xp: 28 }],
   } };
   return s;
@@ -900,7 +900,7 @@ it('the schema-8 fixture migrates to hold mode, keeps its held gear, groups its 
     expect(list).toEqual(oldTab.filter((m: MapItem) => m.tier === Number(tier)));
   }
   // schema 10 starts the run's strike count
-  const activity = { ...old.activity, run: { ...old.activity.run, strikes: 0 } };
+  const activity = { ...old.activity, run: { ...old.activity.run, strikes: 0, minLife: old.activity.run.life, elapsedS: 0, attempt: 0 } };
   expect([s.bag, s.equipped, s.stash.general, s.activity, s.lastRun, s.finds])
     .toEqual([old.bag, old.equipped, old.stash.general, activity, old.lastRun, old.finds]);
   // the run in progress plays on to its end
@@ -1081,7 +1081,7 @@ it('the schema-9 fixture migrates its rules, gains an empty bought record and a 
   const run = s.activity.kind === 'map' ? s.activity.run : null;
   expect(run?.strikes).toBe(0);
   expect(run?.saved).toBeUndefined();
-  expect(run).toEqual({ ...old.activity.run, strikes: 0 });
+  expect(run).toEqual({ ...old.activity.run, strikes: 0, minLife: old.activity.run.life, elapsedS: 0, attempt: 0 });
   const { orbs: _orbs9, runes: _runes9, ...stash9 } = s.stash;
   expect([s.bag, s.equipped, stash9, s.overflow, s.drops, s.deaths, s.lastRun, s.gold, s.deepest])
     .toEqual([old.bag, old.equipped, old.stash, old.overflow, old.drops, old.deaths, old.lastRun, old.gold, old.deepest]);
@@ -1499,4 +1499,96 @@ it('a schema-24 save round-trips its maps-from-clears count', () => {
   const bad = newGame(7, 0);
   bad.stats.mapsFromClears = -1;
   expect(decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: bad })).ok).toBe(false);
+});
+
+describe('schema 25: the feat and collection ledger', () => {
+  const save25 = (s: GameState) => decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: s }));
+
+  it('a schema-24 save gains an empty ledger and live-run tracking', () => {
+    const s = newGame(7, 0);
+    expect(startMap(s, stashMap(s, 1, 2).id)).toBe('ok');
+    const old = JSON.parse(JSON.stringify(s)) as GameState;
+    for (const k of ['legendariesFound', 'runesFound', 'championModsKilled', 'specialsCleared', 'dungeonTypesCleared', 'gateAttempts', 'gatesFirstTry']) {
+      delete (old.stats as unknown as Record<string, unknown>)[k];
+    }
+    if (old.activity.kind !== 'map') throw new Error('no map is running');
+    for (const k of ['minLife', 'elapsedS', 'bossSinceS', 'attempt']) delete (old.activity.run as unknown as Record<string, unknown>)[k];
+    const r = decodeSave(raw({ schema: 24, savedAt: 0, state: old }));
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.state.stats).toMatchObject({
+      legendariesFound: [], runesFound: [], championModsKilled: [], specialsCleared: [], dungeonTypesCleared: [], gateAttempts: {}, gatesFirstTry: [],
+    });
+    if (r.state.activity.kind !== 'map') throw new Error('no map is running');
+    expect(r.state.activity.run).toMatchObject({ minLife: r.state.activity.run.life, elapsedS: 0, attempt: 0 });
+    expect(r.state.activity.run.bossSinceS).toBeUndefined();
+  });
+
+  it('a schema-24 save drops earned ids the list no longer has and re-earns the ones its ledger passes', () => {
+    const s = newGame(7, 0);
+    s.deepest = 10;
+    s.ahead = {};
+    s.achievements.earned = ['clicks.7'];
+    const r = decodeSave(raw({ schema: 24, savedAt: 0, state: s }));
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.state.achievements.earned).not.toContain('clicks.7');
+    expect(r.state.achievements.earned).toContain('depth.10');
+  });
+
+  it('a schema-25 save round-trips the ledger and the run fields', () => {
+    const s = newGame(7, 0);
+    s.stats.legendariesFound = ['molesbane', 'wolfEye'];
+    s.stats.runesFound = ['fehu', 'isa'];
+    s.stats.championModsKilled = ['armored', 'swift'];
+    s.stats.specialsCleared = ['treasureRoom'];
+    s.stats.dungeonTypesCleared = ['1:0', '2:1'];
+    s.stats.gateAttempts = { 5: 3, 10: 1 };
+    s.stats.gatesFirstTry = [5, 10];
+    expect(startMap(s, stashMap(s, 10, 40).id)).toBe('ok');
+    if (s.activity.kind !== 'map') throw new Error('no map is running');
+    s.activity.run.bossSinceS = 12.5;
+    const r = save25(s);
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.state).toEqual(s);
+  });
+
+  it('rejects a duplicate or unsorted ledger set, an unknown member and a malformed attempt table', () => {
+    const cases: [string, (s: GameState) => void][] = [
+      ['a duplicate rune', (s) => { s.stats.runesFound = ['fehu', 'fehu']; }],
+      ['unsorted runes', (s) => { s.stats.runesFound = ['isa', 'fehu']; }],
+      ['an unknown rune', (s) => { s.stats.runesFound = ['nope' as never]; }],
+      ['unsorted gate tiers', (s) => { s.stats.gatesFirstTry = [10, 5]; }],
+      ['a duplicate gate tier', (s) => { s.stats.gatesFirstTry = [5, 5]; }],
+      ['a non-integer gate tier', (s) => { s.stats.gatesFirstTry = [2.5]; }],
+      ['an unknown champion mod', (s) => { s.stats.championModsKilled = ['nope' as never]; }],
+      ['an unknown map special', (s) => { s.stats.specialsCleared = ['nope' as never]; }],
+      ['a duplicate legendary', (s) => { s.stats.legendariesFound = ['molesbane', 'molesbane']; }],
+      ['a malformed dungeon key', (s) => { s.stats.dungeonTypesCleared = ['nope']; }],
+      ['a negative attempt count', (s) => { s.stats.gateAttempts = { 5: -1 }; }],
+      ['a non-numeric attempt key', (s) => { s.stats.gateAttempts = { five: 1 } as never; }],
+    ];
+    for (const [name, mutate] of cases) {
+      const s = newGame(7, 0);
+      mutate(s);
+      expect(save25(s), name).toEqual({ ok: false, reason: 'invalid' });
+    }
+  });
+
+  it('requires the run fields on a live map run', () => {
+    const cases: [string, (run: MapRun) => void][] = [
+      ['no minLife', (run) => { delete (run as Partial<MapRun>).minLife; }],
+      ['a zero minLife', (run) => { run.minLife = 0; }],
+      ['no elapsedS', (run) => { delete (run as Partial<MapRun>).elapsedS; }],
+      ['a negative elapsedS', (run) => { run.elapsedS = -1; }],
+      ['a negative bossSinceS', (run) => { run.bossSinceS = -1; }],
+      ['no attempt', (run) => { delete (run as Partial<MapRun>).attempt; }],
+      ['a fractional attempt', (run) => { run.attempt = 1.5; }],
+    ];
+    for (const [name, mutate] of cases) {
+      const s = newGame(7, 0);
+      expect(startMap(s, stashMap(s, 1, 2).id)).toBe('ok');
+      if (s.activity.kind !== 'map') throw new Error('no map is running');
+      mutate(s.activity.run);
+      expect(save25(s), name).toEqual({ ok: false, reason: 'invalid' });
+    }
+  });
 });
