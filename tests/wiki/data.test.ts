@@ -13,7 +13,7 @@ import { PASSIVE_NODES } from '../../src/core/passives';
 import { deriveCharacterSheet } from '../../src/core/stats';
 import { UNIQUE_LINES } from '../../src/core/uniques';
 
-import { achievementBoostPercent, achievementFamilies, achievementTotal } from '../../src/wiki/data/achievements';
+import { achievementBoostPercent, achievementFamilies, achievementSecretCount, achievementTotal } from '../../src/wiki/data/achievements';
 import { craftCosts, materialRows, orbRecipes, oreExchange, orePremium } from '../../src/wiki/data/materials';
 import { MAP_MOD_TIERS_SHOWN, mapModRows, mapSpecialRows } from '../../src/wiki/data/maps';
 import { ascendancyNodes, keystoneNodes, notableNodes, smallNodes } from '../../src/wiki/data/skills';
@@ -110,15 +110,23 @@ describe('maps', () => {
 });
 
 describe('achievements', () => {
-  it('the families cover every achievement and match FAMILY_LABELS', () => {
+  it('the families list every ladder, feat and collection, and no secret', () => {
     const families = achievementFamilies();
-    expect(families.map((f) => f.family).sort()).toEqual(Object.keys(FAMILY_LABELS).sort());
-    expect(families.reduce((n, f) => n + f.count, 0)).toBe(ACHIEVEMENTS.length);
+    const open = ACHIEVEMENTS.filter((a) => a.kind !== 'hidden');
+    expect(families.map((f) => f.family).sort()).toEqual([...new Set(open.map((a) => a.family))].sort());
+    expect(families.reduce((n, f) => n + f.count, 0)).toBe(open.length);
     for (const f of families) {
       expect(f.label).toBe(FAMILY_LABELS[f.family]);
       expect(f.count).toBeGreaterThan(0);
       expect(f.min).toBeLessThanOrEqual(f.max);
+      expect(f.kind).not.toBe('hidden');
     }
+    expect(JSON.stringify(families)).not.toContain('Secrets');
+  });
+
+  it('counts the secrets without naming them', () => {
+    expect(achievementSecretCount()).toBe(ACHIEVEMENTS.filter((a) => a.kind === 'hidden').length);
+    expect(achievementSecretCount()).toBeGreaterThan(0);
   });
 
   it('reports the total and the per-achievement boost', () => {

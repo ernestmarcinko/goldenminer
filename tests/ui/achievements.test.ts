@@ -3,25 +3,89 @@ import { ACHIEVEMENTS, ACHIEVEMENT_BOOST, FAMILY_LABELS, checkAchievements } fro
 import { newGame } from '../../src/core/newGame';
 import { GameStore } from '../../src/store/gameStore';
 import { MemoryStorage } from '../../src/store/storage';
-import { achievementBoostPercent, achievementVMs } from '../../src/ui/achievements/achievementsView';
+import { HIDDEN_DESC, HIDDEN_NAME, achievementBoostPercent, achievementVMs, type AchievementVM } from '../../src/ui/achievements/achievementsView';
+
+const flat = (groups: ReturnType<typeof achievementVMs>): AchievementVM[] =>
+  groups.flatMap((g) => g.families.flatMap((f) => f.achievements));
 
 describe('the achievements tab view model', () => {
-  it('groups every achievement by family, nothing earned on a fresh game', () => {
+  it('lists every achievement exactly once, nothing earned on a fresh game', () => {
     const s = newGame(1, 0);
-    const families = achievementVMs(s);
+    const groups = achievementVMs(s);
+    const families = groups.flatMap((g) => g.families);
     expect(families).toHaveLength(Object.keys(FAMILY_LABELS).length);
-    expect(families.reduce((n, f) => n + f.achievements.length, 0)).toBe(ACHIEVEMENTS.length);
+    expect(flat(groups)).toHaveLength(ACHIEVEMENTS.length);
     expect(families.every((f) => f.earned === 0 && f.achievements.every((a) => !a.earned))).toBe(true);
+  });
+
+  it('comes in four groups: Milestones, Feats, Collections, Secrets', () => {
+    const groups = achievementVMs(newGame(1, 0));
+    expect(groups.map((g) => g.label)).toEqual(['Milestones', 'Feats', 'Collections', 'Secrets']);
+    expect(groups.map((g) => g.kind)).toEqual(['ladder', 'feat', 'collection', 'hidden']);
+    for (const g of groups) {
+      expect(g.total).toBe(ACHIEVEMENTS.filter((a) => a.kind === g.kind).length);
+      expect(g.families.every((f) => f.achievements.length > 0)).toBe(true);
+    }
   });
 
   it('marks earned achievements and reports per-family progress', () => {
     const s = newGame(1, 0);
     s.stats.goldFound = 2_000_000;
     checkAchievements(s, 'gold');
-    const gold = achievementVMs(s).find((f) => f.family === 'gold');
+    const gold = achievementVMs(s).flatMap((g) => g.families).find((f) => f.family === 'gold');
     expect(gold?.earned).toBeGreaterThan(0);
     expect(gold?.achievements.find((a) => a.id === 'gold.1000000')?.earned).toBe(true);
     expect(gold?.achievements.some((a) => !a.earned)).toBe(true);
+  });
+
+  it('an unearned secret reads ??? with no real name, description, id or icon anywhere in the view model', () => {
+    const s = newGame(1, 0);
+    const secrets = achievementVMs(s).find((g) => g.kind === 'hidden');
+    const defs = ACHIEVEMENTS.filter((a) => a.kind === 'hidden');
+    expect(defs.length).toBeGreaterThan(0);
+    expect(secrets?.families.flatMap((f) => f.achievements)).toHaveLength(defs.length);
+    for (const vm of secrets?.families.flatMap((f) => f.achievements) ?? []) {
+      expect(vm).toMatchObject({ name: '???', desc: 'A secret. Keep playing.', earned: false, hidden: true, icon: null });
+    }
+    expect(HIDDEN_NAME).toBe('???');
+    expect(HIDDEN_DESC).toBe('A secret. Keep playing.');
+    const dump = JSON.stringify(achievementVMs(s).find((g) => g.kind === 'hidden'));
+    for (const def of defs) {
+      expect(dump).not.toContain(def.name);
+      expect(dump).not.toContain(def.desc);
+      expect(dump).not.toContain(def.id);
+    }
+  });
+
+  it('only feats, collections and ladders are named before they are earned', () => {
+    const groups = achievementVMs(newGame(1, 0));
+    for (const g of groups.filter((x) => x.kind !== 'hidden')) {
+      for (const vm of g.families.flatMap((f) => f.achievements)) {
+        expect(vm.hidden).toBe(false);
+        expect(vm.name).not.toBe('???');
+      }
+    }
+  });
+
+  it('an earned secret shows its real name, description and icon', () => {
+    const s = newGame(1, 0);
+    const def = ACHIEVEMENTS.find((a) => a.kind === 'hidden');
+    if (def === undefined) throw new Error('no hidden achievement');
+    s.achievements.earned.push(def.id);
+    const vm = flat(achievementVMs(s)).find((a) => a.id === def.id);
+    expect(vm).toMatchObject({ name: def.name, desc: def.desc, earned: true, hidden: false, kind: 'hidden' });
+    expect(vm?.icon).not.toBeNull();
+  });
+
+  it('the Secrets group counts earned / total, hidden ones counting toward the total', () => {
+    const s = newGame(1, 0);
+    const defs = ACHIEVEMENTS.filter((a) => a.kind === 'hidden');
+    const find = () => achievementVMs(s).find((g) => g.kind === 'hidden');
+    expect(find()).toMatchObject({ earned: 0, total: defs.length });
+    for (const def of defs.slice(0, 3)) s.achievements.earned.push(def.id);
+    const group = find();
+    expect(group).toMatchObject({ earned: 3, total: defs.length });
+    expect(group?.families.reduce((n, f) => n + f.earned, 0)).toBe(3);
   });
 
   it('the boost percent is 1 × earned', () => {
@@ -57,6 +121,16 @@ describe('the achievement toast queue', () => {
       desc: 'Earn 123,456 Gold over your lifetime.',
       icon: 'goldYield',
     });
+  });
+
+  it('an earned secret toasts with its real name and description', () => {
+    const { store } = make();
+    store.load();
+    const def = ACHIEVEMENTS.find((a) => a.kind === 'hidden');
+    if (def === undefined) throw new Error('no hidden achievement');
+    store.state.achievements.earned.push(def.id);
+    store.setMotion({});
+    expect(store.notifications[0]).toMatchObject({ name: def.name, desc: def.desc });
   });
 
   it('crossing three thresholds at once enqueues three, newest on top', () => {

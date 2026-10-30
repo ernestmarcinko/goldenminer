@@ -15,7 +15,7 @@ import type { AscendancyNode } from '../core/ascendancy';
 import type { SheetRow } from '../core/stats';
 import { formatDuration, formatNumber, formatRate } from '../ui/format';
 
-import { achievementBoostPercent, achievementFamilies, achievementTotal } from './data/achievements';
+import { achievementBoostPercent, achievementFamilies, achievementSecretCount, achievementTotal } from './data/achievements';
 import { AFFIX_TIERS_SHOWN, affixTables, type AffixRow } from './data/affixes';
 import { MAP_MOD_TIERS_SHOWN, mapModRows, mapSpecialRows } from './data/maps';
 import { craftCosts, materialRows, orbRecipes, oreExchange, orePremium } from './data/materials';
@@ -37,6 +37,9 @@ const ASCENDANCY = ascendancyNodes();
 const MAP_MODS = mapModRows();
 const MAP_SPECIALS = mapSpecialRows();
 const FAMILIES = achievementFamilies();
+const MILESTONES = FAMILIES.filter((f) => f.kind === 'ladder');
+const FEATS = FAMILIES.filter((f) => f.kind === 'feat');
+const COLLECTIONS = FAMILIES.filter((f) => f.kind === 'collection');
 const SHEET = freshCharacterSheet();
 
 const SECTIONS = [
@@ -574,14 +577,43 @@ export function WikiApp() {
 
           <Section id="achievements" title="Achievements">
             <p>
-              There are {achievementTotal()} achievements across {FAMILIES.length} families, each marking once when its
-              lifetime threshold is reached. Every earned achievement grants a permanent {achievementBoostPercent()}% global
-              boost, applied to your final offensive, defensive and yield values only.
+              There are {achievementTotal()} achievements in four kinds. Milestones are lifetime counters that mark once each
+              threshold is reached; feats are single deeds; collections count distinct things you have found; and
+              {' '}{achievementSecretCount()} secrets stay hidden as "???" until you earn them. Every earned achievement grants
+              a permanent {achievementBoostPercent()}% global boost, applied to your final offensive, defensive and yield
+              values only.
             </p>
+            <h3>Milestones</h3>
             <Table>
               <thead><tr><th>Family</th><th className="wiki__num">Count</th><th className="wiki__num">First</th><th className="wiki__num">Last</th></tr></thead>
               <tbody>
-                {FAMILIES.map((f) => (
+                {MILESTONES.map((f) => (
+                  <tr key={f.family}>
+                    <td>{f.label}</td>
+                    <td className="wiki__num">{f.count}</td>
+                    <td className="wiki__num">{formatNumber(f.min)}</td>
+                    <td className="wiki__num">{formatNumber(f.max)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+            <h3>Feats</h3>
+            <Table>
+              <thead><tr><th>Family</th><th className="wiki__num">Count</th></tr></thead>
+              <tbody>
+                {FEATS.map((f) => (
+                  <tr key={f.family}>
+                    <td>{f.label}</td>
+                    <td className="wiki__num">{f.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+            <h3>Collections</h3>
+            <Table>
+              <thead><tr><th>Family</th><th className="wiki__num">Count</th><th className="wiki__num">First</th><th className="wiki__num">Last</th></tr></thead>
+              <tbody>
+                {COLLECTIONS.map((f) => (
                   <tr key={f.family}>
                     <td>{f.label}</td>
                     <td className="wiki__num">{f.count}</td>
