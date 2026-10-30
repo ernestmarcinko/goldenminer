@@ -56,9 +56,14 @@ it('records every gate it reaches, and each cleared one after its first attempt'
   expect(cleared.length).toBeGreaterThan(0);
   for (const g of cleared) {
     expect(g.attempts).toBeGreaterThanOrEqual(1);
+    expect(g.reachedDay).toBeLessThanOrEqual(g.firstAttemptDay);
     expect(g.clearedDay).toBeGreaterThanOrEqual(g.firstAttemptDay);
   }
   expect(report.achievementsAtDay1).toBeGreaterThan(0);
-  expect(report.achievementsAtLevel[1]).toBe(0);
-  for (const level of Object.keys(report.levelDays)) expect(report.achievementsAtLevel[Number(level)]).toBeGreaterThanOrEqual(0);
+  // Read at each level as it is first reached: from none at level 1, never fewer at a later level.
+  const levels = Object.keys(report.levelDays).map(Number).sort((a, b) => a - b);
+  const earned = levels.map((level) => report.achievementsAtLevel[level] ?? -1);
+  expect(earned[0]).toBe(0);
+  for (let i = 1; i < earned.length; i++) expect(earned[i]).toBeGreaterThanOrEqual(earned[i - 1] ?? 0);
+  expect(earned.at(-1)).toBeGreaterThan(0);
 });

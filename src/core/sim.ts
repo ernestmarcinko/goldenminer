@@ -37,8 +37,13 @@ export interface SimOptions {
   policy?: GearPolicy;
 }
 
-/** A gate of the first run: when it was first attempted and cleared (in days, -1 if not yet), and the runs it took. */
-export interface GateRecord { tier: number; firstAttemptDay: number; clearedDay: number; attempts: number }
+/**
+ * A gate of the first run, in days (-1 if not yet): when it became the frontier's target (whether or not a gate map was
+ * in hand), when it was first attempted and when cleared, and the runs it took.
+ */
+export interface GateRecord {
+  tier: number; reachedDay: number; firstAttemptDay: number; clearedDay: number; attempts: number;
+}
 
 export interface SimReport {
   firstMapSec: number; autoMapLevel: number; autoMapDay: number; capDay: number;
@@ -71,9 +76,11 @@ const SURVEYOR_ID = 'surveyor';
 const RARITY_SCORE: Readonly<Record<Rarity, number>> = { normal: 1, magic: 1.5, rare: 2, legendary: 2.5 };
 /**
  * How much the power score must rise over the last failed attempt's before a gate is tried again, as a share (0.1 is
- * 10 %). Tuned so a typical gate holds about half a day.
+ * 10 %). A first guess, to be tuned in Task 2 so a typical gate holds about half a day.
  */
 export const GATE_RETRY_MARGIN = 0.1;
+/** A gate not retried for this many check-ins (a day) since its last attempt is retried whatever the score. */
+const GATE_RETRY_FALLBACK_CHECK_INS = 4;
 
 function gearScore(item: GearItem): number {
   return item.ilvl * RARITY_SCORE[item.rarity];
@@ -133,13 +140,21 @@ function scoresWearing(
   return targets.map((target) => powerScore(b, state.level, policy, target));
 }
 
+/** A gate's two targets: its own wall, which the worn gear is fitted to, and the other, kept for by the spares. */
+interface GateTargets { wall: PowerTarget; other: PowerTarget }
+
+function gateTargets(seed: number, tier: number): GateTargets {
+  const wall = gateWall(seed, tier) ?? 'physical';
+  return { wall: powerTarget(tier, wall), other: powerTarget(tier, otherWall(wall)) };
+}
+
 /**
  * Per battle slot, gathers the worn piece, the spare in the General stash and any in the bag, and wears the one that
- * scores best against `wall` at gate `tier`. `defenceAware` keeps the best of the rest against the other wall as the
- * slot's spare in the General stash; everything else is dropped.
+ * scores best against the gate's wall. `defenceAware` keeps the best of the rest against the other wall as the slot's
+ * spare in the General stash; everything else is dropped.
  */
-function fitBattleGear(state: GameState, policy: GearPolicy, wall: Wall, tier: number): void {
-  const targets = [powerTarget(tier, wall), powerTarget(tier, otherWall(wall))];
+function fitBattleGear(state: GameState, policy: GearPolicy, gate: GateTargets): void {
+  const targets = [gate.wall, gate.other];
   for (const slot of BATTLE_SLOTS) {
     const candidates: GearItem[] = [];
     const worn = state.equipped.battle[slot];
@@ -178,7 +193,7 @@ function fitBattleGear(state: GameState, policy: GearPolicy, wall: Wall, tier: n
  * other wall as the spare in the General stash. Everything else in the bag is dropped.
  */
 export function chooseGear(state: GameState, wall: Wall, tier: number = gateAfter(0)): void {
-  fitBattleGear(state, 'defenceAware', wall, tier);
+  fitBattleGear(state, 'defenceAware', { wall: powerTarget(tier, wall), other: powerTarget(tier, otherWall(wall)) });
   state.bag.fill(null);
 }
 
@@ -187,7 +202,7 @@ export function chooseGear(state: GameState, wall: Wall, tier: number = gateAfte
  * rarity), battle drops fitted by the gear policy against the next gate's wall, and everything else dropped.
  * Held loot is dropped too, so the bag never stalls the dig. `refit` fits the battle gear even with none in the bag.
  */
-function settleInventory(state: GameState, policy: GearPolicy, gate: number, refit: boolean): void {
+function settleInventory(state: GameState, policy: GearPolicy, gate: GateTargets, refit: boolean): void {
   let battle = refit;
   for (let i = 0; i < state.bag.length; i++) {
     const item = state.bag[i];
@@ -207,7 +222,7 @@ function settleInventory(state: GameState, policy: GearPolicy, gate: number, ref
     if (worn === undefined || gearScore(item) > gearScore(worn)) state.equipped[set][item.slot] = item;
     state.bag[i] = null;
   }
-  if (battle) fitBattleGear(state, policy, gateWall(state.seed, gate) ?? 'physical', gate);
+  if (battle) fitBattleGear(state, policy, gate);
   state.bag.fill(null);
   state.overflow.length = 0;
 }
@@ -216,9 +231,8 @@ function settleInventory(state: GameState, policy: GearPolicy, gate: number, ref
  * The merchant at a check-in: buys, in stock order, each battle piece it can afford that raises the power score
  * against the next gate's wall, and fits it at once. Gold otherwise accumulates.
  */
-function shopTrader(state: GameState, policy: GearPolicy, gate: number): void {
-  const wall = gateWall(state.seed, gate) ?? 'physical';
-  const target = powerTarget(gate, wall);
+function shopTrader(state: GameState, policy: GearPolicy, gate: GateTargets): void {
+  const target = gate.wall;
   for (let i = 0; i < STOCK_SIZE; i++) {
     const item = stockAt(state, i);
     if (item === undefined || item.type !== 'gear' || setOfSlot(item.slot) !== 'battle') continue;
@@ -227,7 +241,7 @@ function shopTrader(state: GameState, policy: GearPolicy, gate: number): void {
     const [withIt = 0] = scoresWearing(state, slot, item, policy, [target]);
     if (withIt <= currentScore(state, policy, target)) continue;
     if (buyStock(state, i).result !== 'ok') continue;
-    fitBattleGear(state, policy, wall, gate);
+    fitBattleGear(state, policy, gate);
     state.bag.fill(null);
   }
 }
@@ -377,7 +391,8 @@ interface GateProgress { record: GateRecord; attemptScore: number; lastFailScore
  * minute check-ins a day (65 % of each spent playing), offline digging capped per gap, battle gear fitted by the gear
  * policy and bought from the merchant at each check-in, and points spent towards Surveyor so it lands at level 30.
  * Below a gate it runs the best map short of it; at the gate it attempts it, then farms below it and retries once a
- * check-in once its power score has risen by GATE_RETRY_MARGIN. `state` is mutated in place and must be a fresh run.
+ * check-in once its power score has risen by GATE_RETRY_MARGIN, or a day after its last attempt whatever the score.
+ * `state` is mutated in place and must be a fresh run.
  */
 function simulateRun(state: GameState, totalMinutes: number, settings: RunSettings): RunMeasurements {
   const { clickRate, activeMinutes, policy } = settings;
@@ -401,6 +416,7 @@ function simulateRun(state: GameState, totalMinutes: number, settings: RunSettin
 
   // The next gate, and its progress once the frontier has reached it.
   let gateTier = gateAfter(0);
+  let targets = gateTargets(state.seed, gateTier);
   let gate: GateProgress | undefined;
   let fittedFor = -1;
 
@@ -413,7 +429,7 @@ function simulateRun(state: GameState, totalMinutes: number, settings: RunSettin
 
     // Settle last minute's finds before the next one: wear the best drop, stash the maps, spend the points, queue
     // what auto-mapping can run short of the gate.
-    settleInventory(state, policy, gateTier, fittedFor !== gateTier);
+    settleInventory(state, policy, targets, fittedFor !== gateTier);
     fittedFor = gateTier;
     if (spendPassives(state, passivePolicy) && autoMapLevel < 0) {
       autoMapLevel = state.level;
@@ -421,7 +437,9 @@ function simulateRun(state: GameState, totalMinutes: number, settings: RunSettin
     }
     queueStashedMaps(state, gateTier);
     if (gate === undefined && frontier >= gateTier) {
-      const record: GateRecord = { tier: gateTier, firstAttemptDay: -1, clearedDay: -1, attempts: 0 };
+      const record: GateRecord = {
+        tier: gateTier, reachedDay: minute / MINUTES_PER_DAY, firstAttemptDay: -1, clearedDay: -1, attempts: 0,
+      };
       gate = { record, attemptScore: 0, lastFailScore: 0, lastCheckIn: -1 };
       gates.push(gate.record);
     }
@@ -446,20 +464,22 @@ function simulateRun(state: GameState, totalMinutes: number, settings: RunSettin
       }
     } else if (active) {
       inAwayGap = false;
-      if (minuteOfDay === CHECK_IN_STARTS[checkIn]) shopTrader(state, policy, gateTier);   // a look at the merchant first
+      if (minuteOfDay === CHECK_IN_STARTS[checkIn]) shopTrader(state, policy, targets);   // a look at the merchant first
       const checkInId = Math.floor((minute - 1) / MINUTES_PER_DAY) * CHECK_IN_STARTS.length + checkIn;
-      const wall = gateWall(state.seed, gateTier) ?? 'physical';
+      // A gate map in hand, dug or dropped, is run once a check-in: first when reached, then again once the score
+      // has risen by the margin, or a day after the last attempt whatever the score, so a plateau never locks the gate.
       const gateMap = stashedMap(state, gateTier);
       const due = gate !== undefined && gateMap !== undefined && gate.lastCheckIn !== checkInId
         && (gate.record.attempts === 0
-          || currentScore(state, policy, powerTarget(gateTier, wall)) >= gate.lastFailScore * (1 + GATE_RETRY_MARGIN));
+          || checkInId >= gate.lastCheckIn + GATE_RETRY_FALLBACK_CHECK_INS
+          || currentScore(state, policy, targets.wall) >= gate.lastFailScore * (1 + GATE_RETRY_MARGIN));
       if (due && gate !== undefined && gateMap !== undefined) {
         if (state.activity.kind === 'map') {
           state.autoMap.on = false;   // let the running map end, then try the gate rather than the next queued map
         } else {
           // Swap to the gear for this gate's wall, then run it.
-          fitBattleGear(state, policy, wall, gateTier);
-          gate.attemptScore = currentScore(state, policy, powerTarget(gateTier, wall));
+          fitBattleGear(state, policy, targets);
+          gate.attemptScore = currentScore(state, policy, targets.wall);
           if (startMap(state, gateMap.id) === 'ok') {
             gate.record.attempts += 1;
             if (gate.record.firstAttemptDay < 0) gate.record.firstAttemptDay = minute / MINUTES_PER_DAY;
@@ -497,6 +517,7 @@ function simulateRun(state: GameState, totalMinutes: number, settings: RunSettin
           gate.record.clearedDay = minute / MINUTES_PER_DAY;
           gate = undefined;
           gateTier = gateAfter(gateTier);
+          targets = gateTargets(state.seed, gateTier);
         }
       } else if (outcome === 'died') {
         losses[map.tier] = (losses[map.tier] ?? 0) + 1;
@@ -574,8 +595,9 @@ interface RunMeasurements {
 
 /**
  * Plays the reference schedule headlessly: four fifteen-minute check-ins a day, offline digging between, gear fitted by
- * the gear policy, gates attempted and farmed below, and points spent towards Surveyor. The first run reaches the level cap; then a second run, after ascending,
- * measures the level bonus. Pure and deterministic for a given seed and options.
+ * the gear policy, gates attempted and farmed below, and points spent towards Surveyor. The first run reaches the
+ * level cap; then a second run, after ascending, measures the level bonus. Pure and deterministic for a given seed and
+ * options.
  */
 export function runReference(options: SimOptions = {}): SimReport {
   const { state, first, settings } = playFirstRun(options);
