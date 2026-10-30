@@ -1526,13 +1526,14 @@ describe('schema 25: the feat and collection ledger', () => {
 
   it('a schema-24 save drops earned ids the list no longer has and re-earns the ones its ledger passes', () => {
     const s = newGame(7, 0);
-    s.deepest = 10;
+    s.deepest = 1000;
     s.ahead = {};
-    s.achievements.earned = ['clicks.7'];
+    s.achievements.earned = ['clicks.7', 'depth.10'];
     const r = decodeSave(raw({ schema: 24, savedAt: 0, state: s }));
     if (!r.ok) throw new Error(r.reason);
     expect(r.state.achievements.earned).not.toContain('clicks.7');
-    expect(r.state.achievements.earned).toContain('depth.10');
+    expect(r.state.achievements.earned).not.toContain('depth.10');
+    expect(r.state.achievements.earned).toContain('depth.1000');
   });
 
   it('a schema-25 save round-trips the ledger and the run fields', () => {

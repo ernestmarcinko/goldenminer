@@ -49,8 +49,10 @@ function fight(s: GameState): void {
   while (s.activity.kind === 'map') applyTicks(s, 1, stats);
 }
 
+/** A level-3 miner's tier-1 map, fought out: a naked level-1 one no longer has the early achievements to carry it. */
 function clearTier1(seed: number) {
   const s = newGame(seed, 0);
+  s.level = 3;
   startMap(s, stashMap(s, 1, 2).id);
   fight(s);
   return s;
@@ -67,6 +69,7 @@ it('a cleared tier-1 map pays Souls, 40 Gold and at least the boss and champion 
 
 it('a full bag holds map drops but the fight goes on', () => {
   const s = newGame(1, 0);
+  s.level = 3;
   s.bag = s.bag.map((_, i) => gear(s, i % 2 ? 'weapon' : 'pickaxe'));
   startMap(s, stashMap(s, 1, 2).id);
   fight(s);

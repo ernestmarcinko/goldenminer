@@ -57,28 +57,32 @@ it('a fresh tier-N map is cleared by magic item-level-N gear at level 3N: the ho
   const table = rates.map((r, i) => `tier ${i + 1}: ${Math.round(r * 100)}%`).join(', ');
   rates.forEach((r, i) => {
     // The hordes and the softer swarm attacks keep the difficulty curve from snowballing: a plain magic-gear miner wins
-    // often throughout. The bounds guard both an accidental nerf and an accidental buff.
-    const [lo, hi] = i <= 1 ? [0.6, 1] : i <= 6 ? [0.4, 1] : [0.3, 0.8];
+    // often throughout. The bounds guard both an accidental nerf and an accidental buff. A fresh miner here holds no
+    // achievements, and since Plan 34's harder list it earns none mid-map either (it used to pick up a dozen near-free
+    // ones), so the deeper tiers sit lower; Plan 35 retunes the curve against the boost a player should hold.
+    const [lo, hi] = i <= 1 ? [0.6, 1] : i <= 6 ? [0.25, 1] : [0.15, 0.8];
     expect(r >= lo && r <= hi, table).toBe(true);
   });
 }, 120_000);
 
-it('the first map of a new world is won without clicks by a naked level-1 miner, about two times in three', () => {
+it('the first map of a new world is won without clicks by a naked level-1 miner more often than not', () => {
   // maps are the only XP and a new world wears nothing, so the guaranteed first map is played naked at level 1.
   let wins = 0;
   for (let i = 0; i < MAPS; i++) {
     const s = newGame(hashN(0xc1ea7, 1, i), 0, { lootSeed: hashN(0xc1ea7, 99, 1, i) });
     if (cleared(s, 1, i)) wins++;
   }
-  expect(wins).toBeGreaterThanOrEqual(60);
+  // About 55 in 100 since Plan 34: the first map no longer hands out the near-free kill and level achievements mid-fight.
+  expect(wins).toBeGreaterThanOrEqual(50);
   expect(wins).toBeLessThanOrEqual(80);
 });
 
-it('an early miner wins a tier-2 map most of the time: level 3 in normal item-level-2 gear, 85–100 % of the time', () => {
+it('an early miner wins a tier-2 map most of the time: level 3 in normal item-level-2 gear, 70–100 % of the time', () => {
   // the miner fresh from tier 1 has a few levels and the normal gear its maps dropped, not the reference miner's magic
   let wins = 0;
   for (let i = 0; i < MAPS; i++) if (cleared(miner(2, i, 3, 2, 'normal'), 2, i)) wins++;
-  expect(wins).toBeGreaterThanOrEqual(85);
+  // About 78 in 100 since Plan 34, for the same reason as the first map.
+  expect(wins).toBeGreaterThanOrEqual(70);
   expect(wins).toBeLessThanOrEqual(100);
 });
 

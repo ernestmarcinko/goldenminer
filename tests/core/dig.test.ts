@@ -377,13 +377,14 @@ it('without ore find, digging draws exactly what it drew before ore find existed
   // Pinned before ore find was added: seed 21, chest find 50, dug a tick at a time to 400 m. The RNG stream is what
   // matters; the tick count moved when the achievement boost changed the dig speed, without touching the stream. It
   // moved again when the auto-mined metre achievements earned their boost mid-dig, and the final draw re-aligned when a
-  // chest's legendary came from the tier-gated list.
+  // chest's legendary came from the tier-gated list. Plan 34's harder ladders earn far fewer achievements on the way
+  // down, so the slower dig takes more ticks (24735 before).
   const s = newGame(21, 0);
   s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'chestFind', value: 50 }] });
   const st = deriveStats(s);
   expect(st.oreBonusChance).toBe(0);
   while (s.deepest < 400) digClearing(s, 1, st);
-  expect([s.rng, s.deepest, s.finds.length, s.tickCount]).toEqual([1288775494, 400, 201, 24735]);
+  expect([s.rng, s.deepest, s.finds.length, s.tickCount]).toEqual([1288775494, 400, 201, 37568]);
   expect(s.finds.some((f) => f.kind === 'materialVein' && f.bonus === true)).toBe(false);
 });
 

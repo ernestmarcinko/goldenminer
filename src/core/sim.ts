@@ -15,6 +15,8 @@ import type { GameState, TickEvent } from './types';
 
 export interface SimOptions {
   seed?: number; days?: number; clickRate?: number;
+  /** The first run stops after this many minutes, when given, instead of after `days`. */
+  minutes?: number;
   /** The share of each 15-minute check-in spent playing; the rest is inventory and reading, with digging paused. */
   activeEfficiency?: number;
 }
@@ -197,9 +199,8 @@ function queueStashedMaps(state: GameState): void {
  * minute check-ins a day (65 % of each spent playing), offline digging capped per gap, the best drop worn, and points
  * spent towards Surveyor so it lands at level 30. `state` is mutated in place and must be a fresh run.
  */
-function simulateRun(state: GameState, days: number, clickRate: number, activeMinutes: number): RunMeasurements {
+function simulateRun(state: GameState, totalMinutes: number, clickRate: number, activeMinutes: number): RunMeasurements {
   const passivePolicy: PassivePolicy = { nextSide: 'battle', lastPathLevel: -1 };
-  const totalMinutes = Math.max(0, Math.round(days * MINUTES_PER_DAY));
 
   let frontier = 1;
   let firstMapSec = -1;
@@ -308,6 +309,27 @@ function simulateRun(state: GameState, days: number, clickRate: number, activeMi
   };
 }
 
+interface RunSettings { dayMinutes: number; clickRate: number; activeMinutes: number }
+
+/** A fresh reference world played through its first run, which stops after `minutes` or the cap's extra day of `days`. */
+function playFirstRun(options: SimOptions): { state: GameState; first: RunMeasurements; settings: RunSettings } {
+  const settings: RunSettings = {
+    dayMinutes: Math.max(0, Math.round((options.days ?? 24) * MINUTES_PER_DAY)),
+    clickRate: options.clickRate ?? 2,
+    activeMinutes: Math.max(0, Math.min(CHECK_IN_MINUTES, Math.round(CHECK_IN_MINUTES * (options.activeEfficiency ?? 0.65)))),
+  };
+  const state = newGame(options.seed ?? 12345, 0);
+  state.autoMap.on = true;   // the reference player turns auto-mapping on
+  const minutes = options.minutes === undefined ? settings.dayMinutes : Math.max(0, Math.round(options.minutes));
+  const first = simulateRun(state, minutes, settings.clickRate, settings.activeMinutes);
+  return { state, first, settings };
+}
+
+/** The reference world as its first run left it: after `minutes` (or the run's usual end), for reading what it holds. */
+export function playReference(options: SimOptions): GameState {
+  return playFirstRun(options).state;
+}
+
 interface RunMeasurements {
   firstMapSec: number; autoMapLevel: number; autoMapDay: number; capDay: number;
   deepestAtCap: number; frontierTierAtCap: number; frontierTierAfterDay: number;
@@ -321,19 +343,12 @@ interface RunMeasurements {
  * measures the level bonus. Pure and deterministic for a given seed and options.
  */
 export function runReference(options: SimOptions = {}): SimReport {
-  const seed = options.seed ?? 12345;
-  const days = options.days ?? 24;
-  const clickRate = options.clickRate ?? 2;
-  const activeMinutes = Math.max(0, Math.min(CHECK_IN_MINUTES, Math.round(CHECK_IN_MINUTES * (options.activeEfficiency ?? 0.65))));
-  const state = newGame(seed, 0);
-  state.autoMap.on = true;   // the reference player turns auto-mapping on
-
-  const first = simulateRun(state, days, clickRate, activeMinutes);
+  const { state, first, settings } = playFirstRun(options);
 
   let levelBonusSecondRun = 0;
   if (first.capReached) {
     ascend(state);
-    const second = simulateRun(state, days, clickRate, activeMinutes);
+    const second = simulateRun(state, settings.dayMinutes, settings.clickRate, settings.activeMinutes);
     if (second.capReached) {
       levelBonusSecondRun = ascendancyPoints(second.deepestAtCap, LEVEL_CAP, 1)
         - ascendancyPoints(second.deepestAtCap, LEVEL_CAP, 0);

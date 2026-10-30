@@ -247,8 +247,8 @@ it('a level-up mid-run adds the life it grants, before the room regen', () => {
   const newMax = deriveBattleStats(s).maxLife;
   expect(newMax).toBeGreaterThan(oldMax);
   expect(run.room).toBe(2);
-  expect([oldMax, newMax, run.bossRoom]).toEqual([60, 71, 6]);
-  expect(run.life).toBe(67);   // 35 + the 11 the level grants + round(71 × 1.5 / 5) = 21
+  expect([oldMax, newMax, run.bossRoom]).toEqual([60, 70, 6]);
+  expect(run.life).toBe(66);   // 35 + the 10 the level grants + round(70 × 1.5 / 5) = 21
   expect(run.log).toContainEqual({ kind: 'level', level: 2 });
   expect(run.gained).toMatchObject({ xp: 10, levels: 1 });
 });
@@ -385,8 +385,11 @@ it('only one run at a time, and only maps that are held', () => {
   expect(Object.values(s.stash.maps).flat().map((m) => m.id)).toEqual([b.id]);
 });
 
+// A level-3 miner, which clears this tier-1 map: a naked level-1 one no longer has the early achievements to carry it.
+const levelThree = (): GameState => { const s = newGame(1, 0); s.level = 3; startMap(s, stashMap(s, 1, 2).id); return s; };
+
 it('pumped play and one long catch-up give the same run', () => {
-  const mk = () => { const s = newGame(1, 0); startMap(s, stashMap(s, 1, 2).id); return s; };
+  const mk = levelThree;
   const pumped = mk();
   const once = mk();
   const stats = deriveStats(pumped);
@@ -400,7 +403,7 @@ it('pumped play and one long catch-up give the same run', () => {
 
 it('pumped play and one long catch-up give the same run at a fractional tick rate', () => {
   // 0.8 ticks a second: 1.25 s ticks, so the hit carry keeps a fraction between ticks (and 1250 ms is exact).
-  const mk = () => { const s = newGame(1, 0); startMap(s, stashMap(s, 1, 2).id); return s; };
+  const mk = levelThree;
   const pumped = mk();
   const once = mk();
   const stats = at(pumped, 0.8);
@@ -541,10 +544,11 @@ it('a saved run in progress plays out exactly as before modifiers existed', () =
   };
   const played = replay();
   expect(replay((run) => { run.map.mods = []; })).toEqual(played);
-  // Pinned before map modifiers touched combat (rng re-pinned when a boss kill began rolling a map drop); the achievement boost leaves the stream untouched (it only shifts the
-  // amounts the fixture's already-earned achievements multiply). Loading re-earns what the old ledger already passes (schema 25), so the Souls are one higher.
+  // Pinned before map modifiers touched combat (rng re-pinned when a boss kill began rolling a map drop). Loading re-earns what the old ledger already passes
+  // (schema 25), so the Souls are one higher. Plan 34's harder ladders leave the fixture with 4 achievements where it had 26, so the weaker miner needs more
+  // strikes and the stream ends further on (975538293 before); the feats draw nothing, so the stream is the same with none registered.
   expect(played).toMatchObject({
-    rng: 975538293, gained: { xp: 1048, souls: 17, gold: 144, levels: 1 }, outcome: 'cleared',
+    rng: 1479491569, gained: { xp: 1048, souls: 17, gold: 144, levels: 1 }, outcome: 'cleared',
   });
 });
 
@@ -567,7 +571,7 @@ it('logging the run\'s drops and its end makes no draws: the saved run plays out
   expect(played.logged).toBeGreaterThan(0);
   expect(replay(true)).toEqual(played);
   expect(played).toMatchObject({
-    rng: 975538293, gained: { xp: 1048, souls: 17, gold: 144, levels: 1 }, outcome: 'cleared',
+    rng: 1479491569, gained: { xp: 1048, souls: 17, gold: 144, levels: 1 }, outcome: 'cleared',
   });
 });
 

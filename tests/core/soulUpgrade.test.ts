@@ -44,7 +44,7 @@ describe('an upgrade', () => {
     expect(s).toEqual({
       ...before, souls: 820, stats: { ...before.stats, soulsSpent: 180 },
       bag: before.bag.map((c, i) => (i === 0 ? { ...c, ilvl: 7 } : c)),
-      achievements: { earned: ['soulsSpent.1', 'soulsSpent.2', 'soulsSpent.5', 'soulsSpent.10', 'soulsSpent.25', 'soulsSpent.50', 'soulsSpent.100'] },
+      achievements: { earned: ['soulsSpent.100'] },
     });
   });
 
@@ -140,8 +140,7 @@ describe('an upgrade during a run', () => {
     expected.souls -= 80;
     expected.stats.soulsSpent += 80;
     (expected.equipped.battle.weapon as { ilvl: number }).ilvl = 5;
-    // spending Souls also earns the Souls-spent achievements.
-    expected.achievements.earned = ['soulsSpent.1', 'soulsSpent.2', 'soulsSpent.5', 'soulsSpent.10', 'soulsSpent.25', 'soulsSpent.50'];
+    // 80 Souls spent is short of the first Souls-spent achievement (100), so the boost stays as it was.
     expect(soulUpgrade(s, { where: 'worn', slot: 'weapon' })).toBe('ok');
     expect(s).toEqual(expected);
     expect(deriveBattleStats(s)).toEqual(deriveBattleStats(expected));

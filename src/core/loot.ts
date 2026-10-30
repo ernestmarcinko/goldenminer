@@ -341,6 +341,7 @@ export function receiveItem(state: GameState, item: Loot, origin: DropOrigin): L
     countGem(state.stats, item.gem, item.grade, item.count);
     checkAchievements(state, 'gems');
     checkAchievements(state, 'collection.gems');
+    checkAchievements(state, `collection.gemGrade.${item.grade}`);
   } else if (item.type === 'gear' && item.rarity === 'legendary') {
     state.stats.legendaries += 1;
     recordLegendary(state, item.uniqueId);

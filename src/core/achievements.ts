@@ -1,8 +1,14 @@
+import { GATE_EVERY, LEVEL_CAP } from './balance';
+import { deriveBattleStats } from './battle';
+import { dungeonLayout } from './dungeons';
+import { gateWall, isGateTier } from './gates';
 import { LEGENDARIES, MATERIAL_LABELS } from './itemData';
-import { GEM_GRADES, GEM_TYPES, MAP_SPECIALS, MATERIALS, RUNE_TYPES, type Item, type Material } from './items';
+import {
+  BATTLE_SLOTS, GEM_GRADES, GEM_TYPES, MAP_MOD_KINDS, MAP_SPECIALS, MATERIALS, RUNE_TYPES, isGear, type Item, type Material,
+} from './items';
 import { addToSet } from './ledger';
 import type { IconGlyphId } from './skillIcons';
-import { CHAMPION_MODS, type GameState, type MapRun, type MonsterState, type RunResult } from './types';
+import { CHAMPION_MODS, type ChampionMod, type GameState, type MapRun, type MonsterState, type RunResult } from './types';
 
 /**
  * The permanent, global boost each earned achievement grants: +1% per achievement, applied to the final derived
@@ -40,151 +46,150 @@ const commas = (n: number): string => String(Math.round(n)).replace(/\B(?=(\d{3}
 // --------------------------------------------------------------------------------------------------------------------
 // Threshold design.
 //
-// Every family runs from a first achievement reachable in the first few minutes of play to a last one that sits near the
-// top of what a dedicated year of play produces. Between them the values climb in the classic 1–2–5 series (1, 2, 5, 10,
-// 20, 50, …) so each step feels earned but never grinds. A handful of families get a bespoke ladder because their range
-// is naturally small (levels end at 100, legendaries at a handful, deaths are rare), and a few exotic values — 33, 67,
-// 666, 1234, 123456, 1337, 8760 — are salted in as cookie-clicker-style milestones.
+// The +1% each achievement grants is part of the power curve, so the ladders are paced to a first run of about two
+// weeks. A family's first step comes after real play, past what the first night's capped offline digging and the first
+// check-in produce (no "1 chest", "1 gem", "10 clicks"): the reference session pins that it earns a handful at most.
+// About half of each ladder falls inside the first run; the rest sits beyond it, on lifetime totals that take several
+// ascensions. Steps climb in the 1–2.5–5 series, 8–12 to a family, and a few exotic values (42, 666, 1337, 8760,
+// 123456) are salted in as cookie-clicker-style milestones. Only deaths, levels and ascensions start where one is
+// already progress.
 //
-// The caps are read off the game's own numbers, not invented:
-//  • The reference run reaches level 100 at about day 10 and depth ~16,000 m. Digging slows as hardness climbs
-//    (10 + 0.13·m), so a year of hardcore play at near-max dig power settles around 100,000 m — the depth ladder's cap.
-//    (The absolute theoretical ceiling, assuming dig power 5000 and 10 auto-ticks/s from the very first second with no
-//    hazards, integrates to ~985,000 m in a year; that ideal is unreachable in practice, so it is not a target.)
-//  • Total depth is the lifetime sum across every ascension, so it ends a clean order of magnitude higher, at a million.
-//  • Gold's veins pay 200 + 110·tier, so a year of deep digging and selling lands in the hundreds of millions; 1 billion
-//    is the capstone.
-//  • Time played/away cap at 8760 hours — exactly one year of non-stop play.
+// The anchors are the reference run's own numbers at the first level-100 cap: a few hundred map clears, ~150,000
+// kills, ~500,000 Souls and a few million Gold, with a human miner digging some 10,000–15,000 m of the two weeks.
+// Digging slows as hardness climbs (10 + 0.13·m), so a single run's depth tops out near 100,000 m; lifetime totals end
+// an order of magnitude past a first run. Time played/away end at 8760 hours, exactly one year.
 // --------------------------------------------------------------------------------------------------------------------
 
 const FAMILY_DEFS: readonly FamilyDef[] = [
   { family: 'depth', label: 'Maximum Depth',
-    thresholds: [10, 25, 42, 50, 100, 250, 500, 1000, 1337, 2500, 5000, 10000, 25000, 50000, 100000],
+    thresholds: [750, 1000, 1337, 2500, 5000, 7500, 10000, 15000, 25000, 50000, 100000],
     desc: (n) => `Reach a depth of ${commas(n)} metres.` },
   { family: 'dig', label: 'Total Depth',
-    thresholds: [100, 250, 500, 666, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 123456, 250000, 500000, 1000000],
+    thresholds: [1000, 2500, 5000, 10000, 25000, 50000, 100000, 123456, 250000, 500000, 1000000, 2500000],
     desc: (n) => `Dig ${commas(n)} metres over your lifetime.` },
   { family: 'clicks', label: 'Clicks',
-    thresholds: [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000],
+    thresholds: [500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000],
     desc: (n) => `Click ${commas(n)} times over your lifetime.` },
   { family: 'handMined', label: 'Hand Mined',
-    thresholds: [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000],
+    thresholds: [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000],
     desc: (n) => `Dig ${commas(n)} metres by hand over your lifetime.` },
   { family: 'autoMined', label: 'Auto Mined',
-    thresholds: [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000],
+    thresholds: [1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000, 2500000],
     desc: (n) => `Dig ${commas(n)} metres automatically over your lifetime.` },
 
   { family: 'gold', label: 'Gold',
-    thresholds: [
-      1000, 2500, 5000, 10000, 25000, 50000, 100000, 123456, 250000, 500000, 666666, 1000000,
-      2500000, 5000000, 10000000, 25000000, 50000000, 100000000, 250000000, 500000000, 1000000000,
-    ],
+    thresholds: [123456, 250000, 666666, 1000000, 2500000, 5000000, 10000000, 25000000, 100000000, 250000000, 1000000000],
     desc: (n) => `Earn ${commas(n)} Gold over your lifetime.` },
   { family: 'goldSpent', label: 'Gold Spent',
-    thresholds: [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000, 2500000, 5000000, 10000000],
+    thresholds: [10000, 25000, 50000, 100000, 250000, 1000000, 2500000, 10000000, 25000000, 100000000, 250000000],
     desc: (n) => `Spend ${commas(n)} Gold over your lifetime.` },
 
   { family: 'diamonds', label: 'Diamonds',
-    thresholds: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000],
+    thresholds: [250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000],
     desc: (n) => `Earn ${commas(n)} Diamonds over your lifetime.` },
   { family: 'diamondsSpent', label: 'Diamonds Spent',
-    thresholds: [1, 2, 5, 10, 20, 50, 100, 250, 500, 1000],
+    thresholds: [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000],
     desc: (n) => `Spend ${commas(n)} Diamonds over your lifetime.` },
 
   { family: 'soulsEarned', label: 'Souls Earned',
-    thresholds: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000],
+    thresholds: [1000, 5000, 25000, 100000, 250000, 1000000, 2500000, 10000000, 25000000, 100000000, 250000000],
     desc: (n) => `Earn ${commas(n)} Souls over your lifetime.` },
   { family: 'soulsSpent', label: 'Souls Spent',
-    thresholds: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000],
+    thresholds: [100, 500, 1000, 5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000],
     desc: (n) => `Spend ${commas(n)} Souls over your lifetime.` },
 
   { family: 'gems', label: 'Gems',
-    thresholds: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
+    thresholds: [50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000],
     desc: (n) => `Find ${commas(n)} gems over your lifetime.` },
   { family: 'chests', label: 'Chests',
-    thresholds: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
+    thresholds: [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000],
     desc: (n) => `Open ${commas(n)} chests over your lifetime.` },
   { family: 'maps', label: 'Maps Cleared',
-    thresholds: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000],
+    thresholds: [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000],
     desc: (n) => `Clear ${commas(n)} maps over your lifetime.` },
   { family: 'mapsFound', label: 'Maps Found',
-    thresholds: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000],
+    thresholds: [50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000],
     desc: (n) => `Find ${commas(n)} maps over your lifetime.` },
   { family: 'mapsLost', label: 'Maps Lost',
-    thresholds: [1, 2, 5, 10, 25, 50, 100, 250, 500],
+    thresholds: [10, 25, 50, 100, 250, 500, 1000, 2500],
     desc: (n) => `Lose ${commas(n)} maps over your lifetime.` },
 
   { family: 'kills', label: 'Kills',
-    thresholds: [10, 25, 50, 100, 250, 500, 666, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000],
+    thresholds: [1000, 2500, 10000, 25000, 100000, 250000, 1000000, 2500000, 10000000, 25000000, 100000000],
     desc: (n) => `Kill ${commas(n)} monsters over your lifetime.` },
   { family: 'champions', label: 'Champions',
-    thresholds: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
+    thresholds: [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000],
     desc: (n) => `Kill ${commas(n)} champion monsters over your lifetime.` },
   { family: 'bosses', label: 'Bosses',
-    thresholds: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000],
+    thresholds: [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000],
     desc: (n) => `Kill ${commas(n)} bosses over your lifetime.` },
   { family: 'deaths', label: 'Deaths',
-    thresholds: [1, 2, 5, 10, 25, 50, 100],
+    thresholds: [1, 10, 25, 50, 100, 250, 500, 666, 1000],
     desc: (n) => `Die ${commas(n)} times over your lifetime.` },
 
   { family: 'levels', label: 'Levels',
-    thresholds: [2, 3, 5, 10, 15, 20, 25, 30, 33, 40, 45, 50, 55, 60, 67, 70, 75, 80, 85, 90, 95, 100],
+    thresholds: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
     desc: (n) => `Reach level ${commas(n)}.` },
   { family: 'levelsGained', label: 'Levels Gained',
-    thresholds: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000],
+    thresholds: [25, 50, 100, 200, 300, 500, 750, 1000, 1500, 2000, 5000],
     desc: (n) => `Gain ${commas(n)} levels over your lifetime.` },
   { family: 'ascensions', label: 'Ascensions',
-    thresholds: [1, 2, 3, 5, 10, 15, 20, 30, 40, 50],
+    thresholds: [1, 2, 3, 5, 10, 20, 30, 42, 50, 75, 100],
     desc: (n) => `Ascend ${commas(n)} times.` },
 
   { family: 'craft', label: 'Crafting',
-    thresholds: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000],
+    thresholds: [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
     desc: (n) => `Craft ${commas(n)} items over your lifetime.` },
   { family: 'merchant', label: 'Merchant',
-    thresholds: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000],
+    thresholds: [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000],
     desc: (n) => `Buy ${commas(n)} items from the merchant over your lifetime.` },
   { family: 'itemsKept', label: 'Items Kept',
-    thresholds: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
+    thresholds: [250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000],
     desc: (n) => `Keep ${commas(n)} items over your lifetime.` },
   { family: 'itemsSold', label: 'Items Sold',
-    thresholds: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
+    thresholds: [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000],
     desc: (n) => `Sell ${commas(n)} items over your lifetime.` },
   { family: 'itemsSalvaged', label: 'Items Salvaged',
-    thresholds: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
+    thresholds: [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000],
     desc: (n) => `Salvage ${commas(n)} items over your lifetime.` },
   { family: 'oresTraded', label: 'Ores Traded',
-    thresholds: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
+    thresholds: [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000],
     desc: (n) => `Trade ${commas(n)} ores at the Refiner over your lifetime.` },
 
   { family: 'legendaries', label: 'Legendaries',
-    thresholds: [1, 2, 3, 5, 10, 15, 20],
+    thresholds: [5, 10, 25, 50, 100, 250, 500, 1000],
     desc: (n) => `Own ${commas(n)} legendary items.` },
   { family: 'sockets', label: 'Sockets',
-    thresholds: [1, 2, 5, 10, 25, 50, 100, 250, 500],
+    thresholds: [10, 25, 50, 100, 250, 500, 1000, 2500, 5000],
     desc: (n) => `Socket ${commas(n)} gems into gear over your lifetime.` },
 
   { family: 'timePlayed', label: 'Time Played',
-    thresholds: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 8760],
+    thresholds: [2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 8760],
     desc: (n) => `Play for ${commas(n)} hours.` },
   { family: 'timeAway', label: 'Time Away',
-    thresholds: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 8760],
+    thresholds: [10, 24, 50, 100, 250, 500, 1000, 2500, 5000, 8760],
     desc: (n) => `Spend ${commas(n)} hours away from the mine.` },
 ];
 
-// Each ore's cap follows how deep it first appears and how heavily it is weighted: copper is everywhere, void crystal
-// only turns up past 1000 m and one at a time. The ladder is the same 1–2–5 series, shortened for the rarer ores.
-const ORE_CAPS: Readonly<Record<Material, number>> = {
-  copper: 100_000, tin: 50_000, iron: 25_000, silver: 10_000,
-  mithril: 5_000, starsteel: 2_500, obsidian: 1_000, voidCrystal: 500,
+// Each ore's ladder follows how deep it first appears and how heavily it is weighted: copper is everywhere, void crystal
+// only turns up past 1000 m and one at a time. Every one is ten steps of the 1–2.5–5 series, starting past what the
+// first night digs and ending a thousand times higher.
+const ORE_STARTS: Readonly<Record<Material, number>> = {
+  copper: 1000, tin: 500, iron: 250, silver: 100, mithril: 100, starsteel: 25, obsidian: 10, voidCrystal: 10,
 };
+const ORE_STEPS = 10;
 
-/** The 1–2–5 series within `min`..`max`, always including both ends. */
-function oreSeries(max: number): number[] {
+/** `steps` values of the 1–2.5–5 series from `start`, which must itself be on the series. */
+function oreSeries(start: number, steps: number): number[] {
   const out: number[] = [];
-  for (const v of [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000]) {
-    if (v <= max) out.push(v);
+  let decade = 10 ** Math.floor(Math.log10(start));
+  while (out.length < steps) {
+    for (const m of [1, 2.5, 5]) {
+      const v = Math.round(m * decade);
+      if (v >= start && out.length < steps) out.push(v);
+    }
+    decade *= 10;
   }
-  if (out[out.length - 1] !== max) out.push(max);
   return out;
 }
 
@@ -193,7 +198,7 @@ const ORE_DEFS: readonly FamilyDef[] = MATERIALS.map((material) => {
   return {
     family: `ore.${material}`,
     label,
-    thresholds: oreSeries(ORE_CAPS[material]),
+    thresholds: oreSeries(ORE_STARTS[material], ORE_STEPS),
     desc: (n: number) => `Find ${commas(n)} ${label.toLowerCase()} over your lifetime.`,
   };
 });
@@ -235,9 +240,19 @@ const COLLECTION_DEFS: readonly FamilyDef[] = [
   { family: 'collection.specials', label: 'Map Specials Cleared', thresholds: stepsTo(MAP_SPECIALS.length, [1, 2, 3, 4, 5]),
     size: (state) => state.stats.specialsCleared.length,
     desc: (n) => n === MAP_SPECIALS.length ? 'Clear a map of every special.' : `Clear maps of ${n} different specials.` },
-  { family: 'collection.gems', label: 'Gems Found', thresholds: stepsTo(GEM_PAIRS, [1, 2, 3, 5, 8, 10, 13, 15, 18, 20, 22]),
+  { family: 'collection.gems', label: 'Gems Found', thresholds: stepsTo(GEM_PAIRS, [5, 10, 15, 20]),
     size: (state) => GEM_TYPES.reduce((n, type) => n + GEM_GRADES.filter((grade) => state.stats.gemsFound[type][grade] > 0).length, 0),
     desc: (n) => n === GEM_PAIRS ? 'Find every gem of every grade.' : `Find ${n} different gems, each type and grade counting once.` },
+  ...GEM_GRADES.map((grade): FamilyDef => {
+    const label = `${grade[0]?.toUpperCase() ?? ''}${grade.slice(1)}`;
+    return {
+      family: `collection.gemGrade.${grade}`,
+      label: `${label} Gems`,
+      thresholds: stepsTo(GEM_TYPES.length, [3]),
+      size: (state) => GEM_TYPES.filter((type) => state.stats.gemsFound[type][grade] > 0).length,
+      desc: (n) => n === GEM_TYPES.length ? `Find a ${grade} gem of every type.` : `Find ${grade} gems of ${n} different types.`,
+    };
+  }),
   { family: 'collection.dungeons', label: 'Dungeon Types Cleared', thresholds: [5, 10, 25, 50, 100],
     size: (state) => state.stats.dungeonTypesCleared.length,
     desc: (n) => `Clear ${n} different dungeon types in one world.` },
@@ -643,10 +658,263 @@ export interface FeatDef {
   test: (state: GameState, event: FeatEvent) => boolean;
 }
 
-/** Every feat and hidden achievement. The list is written in the next step of the plan. */
-const FEATS: readonly FeatDef[] = [];
+// --------------------------------------------------------------------------------------------------------------------
+// Feats. Each is one deed judged from the event it waits for, never from a counter, and each predicate only reads the
+// state and the event. Most come in tiers, one per gate (5, 10, … 100): a gate feat asks for that gate itself, the rest
+// for a map of that tier or higher, so one clear high up also counts for every tier below it. Every clear feat asks for
+// a run that ended cleared, so dying or leaving never counts, however it went. Names are hand-written, one per tier.
+// --------------------------------------------------------------------------------------------------------------------
 
-/** The full table: the generated ladders and collections (families × thresholds, each with a unique funky name and `<family>.<value>` id), then the feats. */
+/** A feat family as the tab groups it: its label and its icon. */
+interface FeatFamilyDef { family: string; label: string; icon: IconGlyphId }
+
+type RunEnd = Extract<FeatEvent, { kind: 'runEnd' }>;
+
+const GATE_TIERS: readonly number[] = Array.from({ length: 100 / GATE_EVERY }, (_, i) => (i + 1) * GATE_EVERY);
+/** The gate pairs by their upper tier (10, 20, … 100): each pair holds one physical and one elemental wall. */
+const GATE_PAIRS: readonly number[] = GATE_TIERS.filter((_, i) => i % 2 === 1);
+/** The depths an old pickaxe is carried to; the pickaxe may be at most a thousandth of the depth in item level. */
+const OLD_PICK_DEPTHS: readonly number[] = [1000, 2500, 5000, 10000, 15000, 20000, 25000, 50000, 75000, 100000];
+const oldPickLevel = (depth: number): number => Math.floor(depth / 1000);
+/** The seconds a boss rush allows from the boss room's start: 2 up to tier 25, one more each 25 tiers above. */
+const bossRushSeconds = (tier: number): number => 2 + Math.floor((tier - 1) / 25);
+const CHAMPION_PACKS: readonly number[] = [4, 5, 6, 7];
+
+/** A run that ended cleared: dying or leaving never counts as a clear. */
+const clearedRun = (e: FeatEvent): e is RunEnd => e.kind === 'runEnd' && e.result.outcome === 'cleared';
+const clearedAtLeast = (e: FeatEvent, tier: number): e is RunEnd => clearedRun(e) && e.run.map.tier >= tier;
+
+// The lowest life of a run as a share of max life, worked out once per event however many feats ask.
+const lifeShares = new WeakMap<FeatEvent, number>();
+function lifeShare(state: GameState, e: RunEnd): number {
+  let share = lifeShares.get(e);
+  if (share === undefined) {
+    share = e.run.minLife / deriveBattleStats(state).maxLife;
+    lifeShares.set(e, share);
+  }
+  return share;
+}
+
+// A cleared map killed every champion of its layout: their count and the distinct mods they carried, once per event.
+const packs = new WeakMap<FeatEvent, { champions: number; mods: number }>();
+function championsOf(state: GameState, e: RunEnd): { champions: number; mods: number } {
+  let pack = packs.get(e);
+  if (pack === undefined) {
+    const champions = dungeonLayout(state.seed, e.run.map).rooms.flat().filter((m) => m.rank === 'champion');
+    pack = { champions: champions.length, mods: new Set(champions.flatMap((m) => m.mods)).size };
+    packs.set(e, pack);
+  }
+  return pack;
+}
+
+const battleGear = (state: GameState) => BATTLE_SLOTS.map((slot) => state.equipped.battle[slot]);
+
+const FEAT_FAMILIES = {
+  gateFirstTry: { family: 'feat.gateFirstTry', label: 'First-Try Gates', icon: 'vanguard' },
+  physicalWall: { family: 'feat.physicalWall', label: 'Physical Walls', icon: 'bulwark' },
+  elementalWall: { family: 'feat.elementalWall', label: 'Elemental Walls', icon: 'soulWarden' },
+  gateComposed: { family: 'feat.gateComposed', label: 'Composed Gates', icon: 'careful' },
+  clutch: { family: 'feat.clutch', label: 'Clutch Clears', icon: 'heart' },
+  flawless: { family: 'feat.flawless', label: 'Flawless Clears', icon: 'sureFooting' },
+  bossRush: { family: 'feat.bossRush', label: 'Boss Rush', icon: 'berserker' },
+  emptySlot: { family: 'feat.emptySlot', label: 'Missing Pieces', icon: 'allOrNothing' },
+  plainGear: { family: 'feat.plainGear', label: 'Plain Gear', icon: 'steadyHands' },
+  fullyModded: { family: 'feat.fullyModded', label: 'Fully Modded', icon: 'worldAtlas' },
+  underlevel: { family: 'feat.underlevel', label: 'Punching Up', icon: 'gladiator' },
+  unskilled: { family: 'feat.unskilled', label: 'No Passives', icon: 'passivePoints' },
+  championPack: { family: 'feat.championPack', label: 'Champion Packs', icon: 'reckoner' },
+  oldPick: { family: 'feat.oldPick', label: 'Old Pickaxe', icon: 'deepMiner' },
+  secret: { family: 'secret', label: 'Secrets', icon: 'thirdEye' },
+} as const satisfies Record<string, FeatFamilyDef>;
+
+/** One feat per tier of `def`, its id `<family>.<tier>`, named in tier order. */
+function tiered(
+  def: FeatFamilyDef, tiers: readonly number[], names: readonly string[], on: FeatEvent['kind'],
+  desc: (tier: number) => string, test: (tier: number, state: GameState, e: FeatEvent) => boolean,
+): FeatDef[] {
+  return tiers.map((tier, i) => ({
+    id: `${def.family}.${tier}`, family: def.family, kind: 'feat', name: names[i] ?? '', desc: desc(tier), on,
+    test: (state, e) => test(tier, state, e),
+  }));
+}
+
+/** A hidden achievement: shown as "???" until earned. */
+function secret(slug: string, name: string, desc: string, on: FeatEvent['kind'], test: FeatDef['test']): FeatDef {
+  return { id: `secret.${slug}`, family: FEAT_FAMILIES.secret.family, kind: 'hidden', name, desc, on, test };
+}
+
+const killedChampionWith = (e: FeatEvent, a: ChampionMod, b: ChampionMod): boolean =>
+  e.kind === 'kill' && e.monster.rank === 'champion' && e.monster.mods.includes(a) && e.monster.mods.includes(b);
+const renamedTo = (e: FeatEvent, name: string): boolean => e.kind === 'rename' && e.name.trim().toLowerCase() === name;
+const soldLegendary = (e: FeatEvent): boolean =>
+  (e.kind === 'sell' || e.kind === 'salvage') && isGear(e.item) && e.item.rarity === 'legendary';
+
+/** Every feat and hidden achievement. */
+const FEATS: readonly FeatDef[] = [
+  ...tiered(FEAT_FAMILIES.gateFirstTry, GATE_TIERS, [
+    'Knock Knock', 'Beginner’s Luck', 'First Time’s the Charm', 'No Second Takes', 'One and Done', 'Got It in One',
+    'Hole in One', 'Ace of Gates', 'Clean Break', 'Sight Unseen', 'Right First Time', 'Cold Open', 'Walk-In',
+    'No Rehearsal', 'Opening Night', 'Unrehearsed', 'Flawless Debut', 'Natural Talent', 'One-Take Wonder',
+    'First Impressions',
+  ], 'runEnd', (t) => `Clear the tier ${t} gate on your first attempt at it.`,
+  (t, state) => state.stats.gatesFirstTry.includes(t)),
+
+  ...tiered(FEAT_FAMILIES.physicalWall, GATE_PAIRS, [
+    'Brick by Brick', 'Stonewalled', 'Wrecking Ball', 'Battering Ram', 'Tear Down This Wall', 'Siege Engine',
+    'Through the Wall', 'Hard Knocks', 'Wallbreaker', 'Another Brick Gone',
+  ], 'runEnd', (t) => `Clear whichever of the tier ${t - GATE_EVERY} and tier ${t} gates has the physical wall.`,
+  (t, state, e) => clearedRun(e) && (e.run.map.tier === t || e.run.map.tier === t - GATE_EVERY)
+    && gateWall(state.seed, e.run.map.tier) === 'physical'),
+
+  ...tiered(FEAT_FAMILIES.elementalWall, GATE_PAIRS, [
+    'Weather the Storm', 'Fire Walk', 'Cold Shoulder', 'Lightning Rod', 'Grounded', 'Insulated',
+    'Elemental, My Dear', 'Storm Chaser', 'Eye of the Hurricane', 'Force of Nature',
+  ], 'runEnd', (t) => `Clear whichever of the tier ${t - GATE_EVERY} and tier ${t} gates has the elemental wall.`,
+  (t, state, e) => clearedRun(e) && (e.run.map.tier === t || e.run.map.tier === t - GATE_EVERY)
+    && gateWall(state.seed, e.run.map.tier) === 'elemental'),
+
+  ...tiered(FEAT_FAMILIES.gateComposed, GATE_TIERS, [
+    'Cool Customer', 'Calm and Collected', 'Keep Calm and Dig On', 'Composure', 'Steady Nerves', 'Ice in the Veins',
+    'Unflappable', 'Poker Face', 'Half Full', 'Sang-Froid', 'Stiff Upper Lip', 'Unbothered', 'Easy Does It',
+    'Zen Garden', 'Measured Response', 'Nerves of Steel', 'Grace Under Fire', 'Cool as a Cucumber', 'Serenity Now',
+    'Not Even Sweating',
+  ], 'runEnd', (t) => `Clear the tier ${t} gate without dropping below half your life.`,
+  (t, state, e) => clearedRun(e) && e.run.map.tier === t && lifeShare(state, e) >= 0.5),
+
+  ...tiered(FEAT_FAMILIES.clutch, GATE_TIERS, [
+    'Clutch', 'By the Skin of Your Teeth', 'Close Shave', 'Nail-Biter', 'Hanging On', 'White Knuckles',
+    'Down to the Wire', 'Last Legs', 'Living Dangerously', 'Narrow Escape', 'On a Knife’s Edge', 'Barely Standing',
+    'Running on Fumes', 'Cheating Death', 'Near-Death Experience', 'Knocking on Death’s Door', 'Not Today',
+    'Just a Flesh Wound', 'Tis But a Scratch', 'Still Standing',
+  ], 'runEnd', (t) => `Clear a map of tier ${t} or higher after dropping below 10% of your life.`,
+  (t, state, e) => clearedAtLeast(e, t) && lifeShare(state, e) < 0.1),
+
+  ...tiered(FEAT_FAMILIES.flawless, GATE_TIERS, [
+    'Untouchable', 'Not a Hair Out of Place', 'Barely a Scratch', 'Clean Hands', 'Pristine', 'Spotless',
+    'Mint Condition', 'Showroom Shine', 'Textbook', 'Picture Perfect', 'Unscathed', 'Teflon Miner', 'Bulletproof',
+    'Float Like a Butterfly', 'Dodge This', 'Can’t Touch This', 'Ghost Run', 'Immaculate', 'Without a Trace',
+    'Perfectionist',
+  ], 'runEnd', (t) => `Clear a map of tier ${t} or higher without dropping below 90% of your life.`,
+  (t, state, e) => clearedAtLeast(e, t) && lifeShare(state, e) >= 0.9),
+
+  ...tiered(FEAT_FAMILIES.bossRush, GATE_TIERS, [
+    'Boss Rush', 'Speed Dating', 'Hostile Takeover', 'Pink Slip', 'You’re Fired', 'Quick Draw', 'Blink and Miss It',
+    'Express Delivery', 'Short Notice', 'Layoffs', 'Early Retirement', 'Downsized', 'Corporate Restructuring',
+    'Severance Package', 'Board Meeting', 'Coup d’État', 'Regime Change', 'Executive Decision', 'Lightning Round',
+    'Headhunter',
+  ], 'runEnd', (t) => `Clear a map of tier ${t} or higher with its boss room won within ${bossRushSeconds(t)} seconds.`,
+  (t, _state, e) => clearedAtLeast(e, t) && e.run.bossSinceS !== undefined
+    && e.run.elapsedS - e.run.bossSinceS <= bossRushSeconds(t)),
+
+  ...tiered(FEAT_FAMILIES.emptySlot, GATE_TIERS, [
+    'Something Missing', 'Travelling Light', 'Odd Sock', 'One Glove Short', 'Minimalist', 'Less is More',
+    'Half-Dressed', 'Bare Essentials', 'Spare Slot', 'Underdressed', 'Wardrobe Malfunction', 'Forgot Something',
+    'Packed Light', 'Missing Link', 'Hole in the Plan', 'Gap Year', 'Empty-Handed', 'Who Needs Rings',
+    'Capsule Wardrobe', 'Ultralight',
+  ], 'runEnd', (t) => `Clear a map of tier ${t} or higher with a battle gear slot left empty.`,
+  (t, state, e) => clearedAtLeast(e, t) && battleGear(state).some((item) => item === undefined)),
+
+  ...tiered(FEAT_FAMILIES.plainGear, GATE_TIERS, [
+    'Plain Jane', 'Off the Rack', 'No Frills', 'Vanilla', 'Basic Training', 'Generic Brand', 'Bargain Bin',
+    'Hand-Me-Downs', 'Standard Issue', 'Plain and Simple', 'Unremarkable', 'Charity Shop Chic', 'Common Sense',
+    'Utilitarian', 'Ordinary Joe', 'No Name Brand', 'Factory Settings', 'Stock Parts', 'Unenchanted',
+    'Humble Means',
+  ], 'runEnd', (t) => `Clear a map of tier ${t} or higher with normal-rarity gear in every battle slot.`,
+  (t, state, e) => clearedAtLeast(e, t) && battleGear(state).every((item) => item?.rarity === 'normal')),
+
+  ...tiered(FEAT_FAMILIES.fullyModded, GATE_TIERS, [
+    'Glutton for Punishment', 'Maxed Out', 'All the Trimmings', 'Hard Mode', 'Extra Spicy', 'Hot Sauce',
+    'Ghost Pepper', 'Carolina Reaper', 'Everything Bagel', 'Kitchen Sink', 'Deluxe Edition', 'Loaded Fries',
+    'Supersized', 'Masochist', 'Nightmare Mode', 'Ironman Mode', 'Hell Week', 'The Works, Twice', 'Nothing Left to Add',
+    'Fully Loaded',
+  ], 'runEnd', (t) => `Clear a map of tier ${t} or higher carrying all ${MAP_MOD_KINDS.length} kinds of modifier.`,
+  (t, _state, e) => clearedAtLeast(e, t) && MAP_MOD_KINDS.every((kind) => e.run.map.mods.some((m) => m.kind === kind))),
+
+  ...tiered(FEAT_FAMILIES.underlevel, GATE_TIERS, [
+    'Punching Up', 'David and Goliath', 'Small but Mighty', 'Precocious', 'Child Prodigy', 'Ahead of the Curve',
+    'Skipping Grades', 'Overachiever', 'Too Young for This', 'Fast Learner', 'Early Bloomer', 'Wise Beyond Your Years',
+    'Little Big Miner', 'Fun-Sized', 'Out of Your League', 'Above Your Station', 'Giant Slayer', 'Overreach',
+    'Bantamweight', 'The Kid Has Talent',
+  ], 'runEnd', (t) => `Clear a map of tier ${t} or higher while below level ${t}.`,
+  (t, state, e) => clearedAtLeast(e, t) && state.level < t),
+
+  ...tiered(FEAT_FAMILIES.unskilled, GATE_TIERS, [
+    'Unskilled Labour', 'Raw Talent', 'Self-Taught', 'Unschooled', 'No Tricks', 'Hold My Points', 'Saving for Later',
+    'Points Hoarder', 'Natural Ability', 'Blank Slate', 'Tabula Rasa', 'Untrained', 'Street Smarts', 'Just Muscle',
+    'Who Needs Skills', 'No Talent Required', 'Doing It the Hard Way', 'Bare Bones', 'Purist', 'Do It Yourself',
+  ], 'runEnd', (t) => `Clear a map of tier ${t} or higher with no passive skill allocated.`,
+  (t, state, e) => clearedAtLeast(e, t) && state.passives.allocated.length === 0),
+
+  ...tiered(FEAT_FAMILIES.championPack, CHAMPION_PACKS, ['Pack Hunter', 'Champion Sweep', 'Rogues’ Gallery', 'Seven Samurai'],
+    'runEnd', (n) => `Clear a map holding ${n} or more champions.`,
+    (n, state, e) => clearedRun(e) && championsOf(state, e).champions >= n),
+  {
+    id: `${FEAT_FAMILIES.championPack.family}.allMods`, family: FEAT_FAMILIES.championPack.family, kind: 'feat',
+    name: 'Mod Squad', desc: `Clear a map whose champions carry all ${CHAMPION_MODS.length} champion mods between them.`,
+    on: 'runEnd', test: (state, e) => clearedRun(e) && championsOf(state, e).mods >= CHAMPION_MODS.length,
+  },
+
+  ...tiered(FEAT_FAMILIES.oldPick, OLD_PICK_DEPTHS, [
+    'Old Faithful', 'Trusty Rusty', 'If It Ain’t Broke', 'Vintage Tools', 'Grandpa’s Pickaxe', 'Heirloom',
+    'Sentimental Value', 'Antiques Roadshow', 'Museum Piece', 'Relic of the Deep',
+  ], 'metre', (d) => `Reach ${commas(d)} metres with no pickaxe above item level ${oldPickLevel(d)}.`,
+  (d, state, e) => e.kind === 'metre' && e.depth >= d && (state.equipped.mining.pickaxe?.ilvl ?? 0) <= oldPickLevel(d)),
+
+  // The secrets: harmless jokes, each a surprise. None asks for a regret, a deleted save or time away past the cap.
+  secret('hello', 'Is This Thing On?', 'Click the miner 100 times while the game is paused.', 'click',
+    (state, e) => e.kind === 'click' && e.paused && state.stats.clicksPaused >= 100),
+  secret('stillThere', 'Are You Still There?', 'Click the miner 1,000 times while the game is paused.', 'click',
+    (state, e) => e.kind === 'click' && e.paused && state.stats.clicksPaused >= 1000),
+  secret('luckySevens', 'Lucky Sevens', 'Reach a depth of 7,777 metres.', 'metre', (_state, e) => e.kind === 'metre' && e.depth >= 7777),
+  secret('over9000', 'It’s Over Nine Thousand', 'Reach a depth of 9,001 metres.', 'metre',
+    (_state, e) => e.kind === 'metre' && e.depth >= 9001),
+  secret('inTheDark', 'Who Turned Off the Lights?', 'Dig past 2,500 metres with no lamp.', 'metre',
+    (state, e) => e.kind === 'metre' && e.depth >= 2500 && state.equipped.mining.lamp === undefined),
+  secret('bareHands', 'Look, No Pickaxe', 'Dig past 1,000 metres with no pickaxe.', 'metre',
+    (state, e) => e.kind === 'metre' && e.depth >= 1000 && state.equipped.mining.pickaxe === undefined),
+  secret('handsOff', 'Hands-Off Management', 'Reach 1,000 metres without ever clicking the miner.', 'metre',
+    (state, e) => e.kind === 'metre' && e.depth >= 1000 && state.stats.clicks === 0),
+  secret('sellLegendary', 'Legend for Sale', 'Sell a legendary item.', 'sell', (_state, e) => e.kind === 'sell' && soldLegendary(e)),
+  secret('salvageLegendary', 'Sacrilege', 'Salvage a legendary item.', 'salvage', (_state, e) => e.kind === 'salvage' && soldLegendary(e)),
+  secret('sellMap', 'Real Estate Agent', 'Sell a map.', 'sell', (_state, e) => e.kind === 'sell' && e.item.type === 'map'),
+  secret('garageSale', 'Garage Sale', 'Sell a piece of item level 1 gear.', 'sell',
+    (_state, e) => e.kind === 'sell' && isGear(e.item) && e.item.ilvl === 1),
+  secret('sunburntVampire', 'Sunburnt Vampire', 'Kill a champion that is both vampiric and fire-touched.', 'kill',
+    (_state, e) => killedChampionWith(e, 'vampiric', 'fireTouched')),
+  secret('toughNut', 'Tough Nut to Crack', 'Kill a champion that is both armored and thick-skinned.', 'kill',
+    (_state, e) => killedChampionWith(e, 'armored', 'thickSkinned')),
+  secret('fastAndFurious', 'Fast and Furious', 'Kill a champion that is both swift and brutal.', 'kill',
+    (_state, e) => killedChampionWith(e, 'swift', 'brutal')),
+  secret('kraken', 'Release the Kraken', 'Clear a map after Kraken Leather saved you from a killing blow.', 'runEnd',
+    (_state, e) => clearedRun(e) && e.run.saved === true),
+  // A tier-1 map cannot kill a level-50 miner even naked, so the humbling death is any map 50 tiers below the level.
+  secret('humbled', 'Humble Pie', 'Die in a map while your level is at least 50 above its tier.', 'runEnd',
+    (state, e) => e.kind === 'runEnd' && e.result.outcome === 'died' && state.level >= e.run.map.tier + 50),
+  secret('bully', 'Picking on the Little Ones', `Clear a tier 1 map at level ${LEVEL_CAP}.`, 'runEnd',
+    (state, e) => clearedRun(e) && e.run.map.tier === 1 && state.level >= LEVEL_CAP),
+  secret('soClose', 'So Close, Yet So Far', 'Die in a boss room with the boss below 10% of its life.', 'runEnd',
+    (_state, e) => e.kind === 'runEnd' && e.result.outcome === 'died' && e.run.room === e.run.bossRoom
+      && e.run.queue.some((m) => m.rank === 'boss' && m.life < 0.1 * m.maxLife)),
+  secret('wrongDoor', 'Wrong Door', 'Leave a map before killing a single monster in it.', 'runEnd',
+    (_state, e) => e.kind === 'runEnd' && e.result.outcome === 'left' && e.run.room === 1 && e.run.gained.xp === 0),
+  secret('tenthTime', 'Tenth Time Lucky', 'Clear a gate on your tenth attempt at it or later.', 'runEnd',
+    (_state, e) => clearedRun(e) && e.run.attempt >= 10),
+  secret('headMeetWall', 'Head, Meet Wall', 'Take on the same gate 25 times.', 'runEnd',
+    (_state, e) => e.kind === 'runEnd' && e.run.attempt >= 25),
+  secret('naked', 'Naked and Unafraid', 'Clear a map of tier 5 or higher with no battle gear at all.', 'runEnd',
+    (state, e) => clearedAtLeast(e, 5) && battleGear(state).every((item) => item === undefined)),
+  secret('speedBump', 'Speed Bump', 'Die in the first room of a gate.', 'runEnd',
+    (_state, e) => e.kind === 'runEnd' && e.result.outcome === 'died' && isGateTier(e.run.map.tier) && e.run.room === 1),
+  secret('growthSpurt', 'Growth Spurt', 'Gain 10 levels in a single map.', 'runEnd',
+    (_state, e) => clearedRun(e) && e.run.gained.levels >= 10),
+  secret('asleep', 'Asleep at the Wheel', 'Die in a map while the game is paused.', 'runEnd',
+    (state, e) => e.kind === 'runEnd' && e.result.outcome === 'died' && state.paused),
+  secret('goldenMiner', 'Self-Titled', 'Name your miner Golden Miner.', 'rename', (_state, e) => renamedTo(e, 'golden miner')),
+  secret('steve', 'Wrong Game', 'Name your miner Steve.', 'rename', (_state, e) => renamedTo(e, 'steve')),
+  secret('sisyphus', 'One Must Imagine Him Happy', 'Name your miner Sisyphus.', 'rename', (_state, e) => renamedTo(e, 'sisyphus')),
+];
+
+/** The full table: the generated ladders and collections (families × thresholds, each with a unique funky name and `<family>.<value>` id), then the feats and secrets. */
 export const ACHIEVEMENTS: readonly AchievementDef[] = (() => {
   const out: AchievementDef[] = [];
   let index = 0;
@@ -720,6 +988,8 @@ export const FAMILY_ICONS: Readonly<Record<string, IconGlyphId>> = {
   'collection.specials': 'cartographer',
   'collection.gems': 'gemFind',
   'collection.dungeons': 'mapFind',
+  ...Object.fromEntries(GEM_GRADES.map((grade): [string, IconGlyphId] => [`collection.gemGrade.${grade}`, 'gemFind'])),
+  ...Object.fromEntries(Object.values(FEAT_FAMILIES).map((def): [string, IconGlyphId] => [def.family, def.icon])),
 };
 
 /** The icon glyph an achievement's toast and tab row share. */
@@ -739,9 +1009,10 @@ const BY_FAMILY: ReadonlyMap<string, readonly AchievementDef[]> = (() => {
   return map;
 })();
 
-export const FAMILY_LABELS: Readonly<Record<string, string>> = Object.fromEntries(
-  ALL_DEFS.map((def) => [def.family, def.label]),
-);
+export const FAMILY_LABELS: Readonly<Record<string, string>> = Object.fromEntries([
+  ...ALL_DEFS.map((def) => [def.family, def.label]),
+  ...Object.values(FEAT_FAMILIES).map((def) => [def.family, def.label]),
+]);
 
 /** The permanent counters the achievements read: everything that must survive ascension lives in `state.stats`. */
 function familyValue(state: GameState, family: string): number {

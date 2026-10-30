@@ -25,7 +25,7 @@ describe('the stats tab view model', () => {
     s.stats.timePlayedMs = 3_600_000 + 30 * 60_000;
     s.stats.goldFound = 12_345_678;
     s.lifetime.ascensions = 3;
-    s.achievements.earned = ['depth.10', 'dig.10'];
+    s.achievements.earned = ['depth.1000', 'dig.1000'];
     const rows = statsVMs(s).flatMap((g) => g.rows);
     const row = (label: string): string | undefined => rows.find((r) => r.label === label)?.value;
     expect(row('Time played')).toBe(formatDuration(s.stats.timePlayedMs));
