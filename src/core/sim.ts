@@ -75,10 +75,11 @@ const MAX_FRONTIER = 100;
 const SURVEYOR_ID = 'surveyor';
 const RARITY_SCORE: Readonly<Record<Rarity, number>> = { normal: 1, magic: 1.5, rare: 2, legendary: 2.5 };
 /**
- * How much the power score must rise over the last failed attempt's before a gate is tried again, as a share (0.1 is
- * 10 %). A first guess, to be tuned in Task 2 so a typical gate holds about half a day.
+ * How much the power score must rise over the last failed attempt's before a gate is tried again, as a share (0.03 is
+ * 3 %). Small, since the gate step itself is the wall: the reference player retries most check-ins once a farmed
+ * level, item or achievement has moved the score at all.
  */
-export const GATE_RETRY_MARGIN = 0.1;
+export const GATE_RETRY_MARGIN = 0.03;
 /** A gate not retried for this many check-ins (a day) since its last attempt is retried whatever the score. */
 const GATE_RETRY_FALLBACK_CHECK_INS = 4;
 

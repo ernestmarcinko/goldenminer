@@ -79,31 +79,31 @@ const FAMILY_DEFS: readonly FamilyDef[] = [
     desc: (n) => `Dig ${commas(n)} metres automatically over your lifetime.` },
 
   { family: 'gold', label: 'Gold',
-    thresholds: [123456, 250000, 666666, 1000000, 2500000, 5000000, 10000000, 25000000, 100000000, 250000000, 1000000000],
+    thresholds: [50000, 123456, 250000, 666666, 1000000, 2500000, 5000000, 10000000, 25000000, 250000000, 1000000000],
     desc: (n) => `Earn ${commas(n)} Gold over your lifetime.` },
   { family: 'goldSpent', label: 'Gold Spent',
     thresholds: [10000, 25000, 50000, 100000, 250000, 1000000, 2500000, 10000000, 25000000, 100000000, 250000000],
     desc: (n) => `Spend ${commas(n)} Gold over your lifetime.` },
 
   { family: 'diamonds', label: 'Diamonds',
-    thresholds: [250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000],
+    thresholds: [50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 100000, 500000],
     desc: (n) => `Earn ${commas(n)} Diamonds over your lifetime.` },
   { family: 'diamondsSpent', label: 'Diamonds Spent',
     thresholds: [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000],
     desc: (n) => `Spend ${commas(n)} Diamonds over your lifetime.` },
 
   { family: 'soulsEarned', label: 'Souls Earned',
-    thresholds: [1000, 5000, 25000, 100000, 250000, 1000000, 2500000, 10000000, 25000000, 100000000, 250000000],
+    thresholds: [250, 1000, 5000, 25000, 100000, 250000, 1000000, 2500000, 10000000, 25000000, 250000000],
     desc: (n) => `Earn ${commas(n)} Souls over your lifetime.` },
   { family: 'soulsSpent', label: 'Souls Spent',
     thresholds: [100, 500, 1000, 5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000],
     desc: (n) => `Spend ${commas(n)} Souls over your lifetime.` },
 
   { family: 'gems', label: 'Gems',
-    thresholds: [50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000],
+    thresholds: [25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 100000],
     desc: (n) => `Find ${commas(n)} gems over your lifetime.` },
   { family: 'chests', label: 'Chests',
-    thresholds: [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000],
+    thresholds: [50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 100000],
     desc: (n) => `Open ${commas(n)} chests over your lifetime.` },
   { family: 'maps', label: 'Maps Cleared',
     thresholds: [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000],
@@ -116,7 +116,7 @@ const FAMILY_DEFS: readonly FamilyDef[] = [
     desc: (n) => `Lose ${commas(n)} maps over your lifetime.` },
 
   { family: 'kills', label: 'Kills',
-    thresholds: [1000, 2500, 10000, 25000, 100000, 250000, 1000000, 2500000, 10000000, 25000000, 100000000],
+    thresholds: [250, 500, 1000, 2500, 10000, 25000, 100000, 250000, 1000000, 10000000, 100000000],
     desc: (n) => `Kill ${commas(n)} monsters over your lifetime.` },
   { family: 'champions', label: 'Champions',
     thresholds: [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000],
@@ -132,7 +132,7 @@ const FAMILY_DEFS: readonly FamilyDef[] = [
     thresholds: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
     desc: (n) => `Reach level ${commas(n)}.` },
   { family: 'levelsGained', label: 'Levels Gained',
-    thresholds: [25, 50, 100, 200, 300, 500, 750, 1000, 1500, 2000, 5000],
+    thresholds: [10, 25, 50, 100, 200, 300, 500, 750, 1000, 2000, 5000],
     desc: (n) => `Gain ${commas(n)} levels over your lifetime.` },
   { family: 'ascensions', label: 'Ascensions',
     thresholds: [1, 2, 3, 5, 10, 20, 30, 42, 50, 75, 100],
@@ -176,7 +176,7 @@ const FAMILY_DEFS: readonly FamilyDef[] = [
 // only turns up past 1000 m and one at a time. Every one is ten steps of the 1–2.5–5 series, starting past what the
 // first night digs and ending a thousand times higher.
 const ORE_STARTS: Readonly<Record<Material, number>> = {
-  copper: 1000, tin: 500, iron: 250, silver: 100, mithril: 100, starsteel: 25, obsidian: 10, voidCrystal: 10,
+  copper: 250, tin: 250, iron: 100, silver: 50, mithril: 50, starsteel: 5, obsidian: 10, voidCrystal: 10,
 };
 const ORE_STEPS = 10;
 

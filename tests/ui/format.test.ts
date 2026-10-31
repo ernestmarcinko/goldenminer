@@ -2,12 +2,25 @@ import { describe, expect, it } from 'vitest';
 import { formatCompact, formatDuration, formatEta, formatNumber, formatRate, plural } from '../../src/ui/format';
 
 describe('formatNumber', () => {
-  it('uses en-US separators and never exponents', () => {
+  it('uses en-US separators below a million and never exponents', () => {
     expect(formatNumber(2480)).toBe('2,480');
-    expect(formatNumber(1234567)).toBe('1,234,567');
-    expect(formatNumber(1e12)).toBe('1,000,000,000,000');
-    expect(formatNumber(1e21)).toBe('1,000,000,000,000,000,000,000');
+    expect(formatNumber(999_999)).toBe('999,999');
+    expect(formatNumber(-123_456)).toBe('-123,456');
     expect(formatNumber(12.7)).toBe('13');
+  });
+
+  it('shortens a million and more to three significant digits and a suffix', () => {
+    expect(formatNumber(1_000_000)).toBe('1.00M');
+    expect(formatNumber(1234567)).toBe('1.23M');
+    expect(formatNumber(4_600_000)).toBe('4.60M');
+    expect(formatNumber(12_300_000_000)).toBe('12.3B');
+    expect(formatNumber(456_700_000_000)).toBe('457B');
+    expect(formatNumber(1e12)).toBe('1.00T');
+    expect(formatNumber(-2_500_000)).toBe('-2.50M');
+    // rounding up to the next unit moves to its suffix
+    expect(formatNumber(999_999_999)).toBe('1.00B');
+    // past the last suffix the trillions keep their separators, still never an exponent
+    expect(formatNumber(1e21)).toBe('1,000,000,000T');
   });
 });
 

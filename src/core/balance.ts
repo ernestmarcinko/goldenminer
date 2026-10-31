@@ -84,14 +84,15 @@ export const MAX_TIER_OVER_CAP = 2;
 export const MAX_ITEM_LEVEL = 100_000;
 
 export const LEVEL_CAP = 100;
-// XP to leave level L is XP_PER_LEVEL × L^XP_EXPONENT, times a late-game ramp that leaves the tuned early levels alone:
-// 1× up to XP_RAMP_START, rising to XP_RAMP_MULT by XP_RAMP_FULL, then to XP_RAMP_CAP by the cap.
+// XP to leave level L is XP_PER_LEVEL × L^XP_EXPONENT, times a ramp that leaves the tuned early levels alone: 1× up to
+// XP_RAMP_START, then XP_RAMP_STEEP more a level up to XP_RAMP_KNEE (auto-mapping arrives around level 30 and runs maps
+// all night), then XP_RAMP_LATE more a level to the cap, so a first run takes about two weeks.
 export const XP_PER_LEVEL = 100;
 export const XP_EXPONENT = 1.5;
-export const XP_RAMP_START = 10;
-export const XP_RAMP_FULL = 30;
-export const XP_RAMP_MULT = 1.5;
-export const XP_RAMP_CAP = 7.0;
+export const XP_RAMP_START = 20;
+export const XP_RAMP_KNEE = 45;
+export const XP_RAMP_STEEP = 1.2;
+export const XP_RAMP_LATE = 1.055;
 // Ascendancy: the depth each point costs, the level that unlocks ascension, and how many levels above it earn a
 // bonus point (from the second ascension on).
 export const ASCEND_DEPTH_PER_POINT = 250;
@@ -149,14 +150,75 @@ export function monsterLifeBase(tier: number): number {
 export function monsterDamageBase(tier: number): number {
   return 2 + 1.5 * tier ** 1.2;
 }
-// What a map's tier multiplies its monsters' life and damage by (tier 1 first; deeper tiers use the last entry): a new
-// miner with no gear wins the guaranteed first map about two times in three, a level-3 miner in normal gear of tier 2's
-// item level wins a tier-2 map about seven times in ten, and from tier 3 a map of your gear's level is cleared about 40%
-// of the time. Plan 30 (damage types) re-tuned tiers 3–10 down a little: level-scaled armor and the negative base
-// elemental resist make the 3N miner weaker, so the monster scale eases off by a few percent that grows with tier.
-export const MAP_MONSTER_SCALE: readonly number[] = [1.38, 1.34, 2.00, 1.70, 1.58, 1.44, 1.29, 1.27, 1.18, 1.14];
-export function mapMonsterScale(tier: number): number {
-  return MAP_MONSTER_SCALE[Math.min(tier, MAP_MONSTER_SCALE.length) - 1] ?? 1;
+// The achievements a reference player holds on first reaching each level of a first run (Plan 35's tuned reference
+// sim, three seeds). The tier curve below is tuned against the +1 % each one grants, and the balance suite pins the sim
+// to it within ±25 %.
+export const EXPECTED_ACHIEVEMENTS_AT_LEVEL: Readonly<Record<10 | 30 | 60 | 100, number>> = {
+  10: 25, 30: 90, 60: 200, 100: 280,
+};
+const EXPECTED_LEVELS = [10, 30, 60, 100] as const;
+/** The achievements a reference player should hold at `level`: the table, interpolated, from none at level 1. */
+export function expectedAchievements(level: number): number {
+  let lo = 1;
+  let loValue = 0;
+  for (const hi of EXPECTED_LEVELS) {
+    const hiValue = EXPECTED_ACHIEVEMENTS_AT_LEVEL[hi];
+    if (level <= hi) return loValue + ((hiValue - loValue) * (Math.max(level, lo) - lo)) / (hi - lo);
+    lo = hi;
+    loValue = hiValue;
+  }
+  return loValue;
+}
+// The tier curve. Tiers 1 and 2 keep their hand-tuned scale: a naked new miner wins the guaranteed first map about two
+// times in three, and a level-3 miner in normal tier-2 gear wins a tier-2 map about seven times in ten. From tier 3 the
+// base curve keeps pace with the power a reference player should have there. The monster bases and the hordes already
+// grow with the tier, as the gear and levels that come with it do; the curve adds the expected achievement boost at the
+// tier's typical level (TIER_LEVELS × tier, +1 % each), and a growth a tier (life eases off a little, so deep maps stay
+// short enough to farm). Both stop at the cap's tier, past which the bases alone keep the climb going.
+export const EARLY_TIER_SCALE: readonly number[] = [1.38, 1.34];
+export const TIER_LEVELS = 2;
+export const TIER_LIFE_GROWTH = 0.99;
+export const TIER_DAMAGE_GROWTH = 1;
+// A gate tier multiplies the base curve by its step; the tier after it is back on the curve. The first GATE_EASE_IN
+// gates ease in, from about half the step at tier 5 to the whole of it at tier 5 × GATE_EASE_IN, while a new miner
+// still plays only its check-ins.
+export const GATE_LIFE_STEP = 2.2;
+export const GATE_DAMAGE_STEP = 2.2;
+export const GATE_EASE_IN = 3;
+// What a gate's wall adds on top of its step: a physical wall's monsters hit harder and more often, so armour matters
+// most; an elemental wall's hit with elemental damage, so resistances do.
+export const PHYSICAL_WALL: Readonly<{ damageMult: number; speedMult: number }> = { damageMult: 1.25, speedMult: 1.25 };
+export const ELEMENTAL_WALL: Readonly<{ damageMult: number }> = { damageMult: 3 };
+
+/** What a gate tier multiplies the base curve by, eased in over the first gates; 1 off a gate. */
+function gateStep(tier: number, step: number): number {
+  const t = Math.floor(tier);
+  if (t < GATE_EVERY || t % GATE_EVERY !== 0) return 1;
+  return 1 + (step - 1) * Math.min(1, (t / GATE_EVERY + 1) / (GATE_EASE_IN + 1));
+}
+
+/** The expected achievement boost at a tier's typical level. */
+function tierBoost(tier: number): number {
+  return 1 + 0.01 * expectedAchievements(Math.min(LEVEL_CAP, TIER_LEVELS * tier));
+}
+
+/** The base curve: the early scale, then `growth` a tier from tier 3, times the boost expected there over tier 2's. */
+function baseCurve(tier: number, growth: number): number {
+  const t = Math.max(1, Math.floor(tier));
+  const early = EARLY_TIER_SCALE[t - 1];
+  if (early !== undefined) return early;
+  const last = EARLY_TIER_SCALE.length;
+  const steps = Math.min(t, LEVEL_CAP / TIER_LEVELS) - last;
+  return (EARLY_TIER_SCALE[last - 1] ?? 1) * growth ** steps * (tierBoost(t) / tierBoost(last));
+}
+
+/** What a map's tier multiplies its monsters' life by: the base curve, times the gate's step on a gate tier. */
+export function tierLifeMult(tier: number): number {
+  return baseCurve(tier, TIER_LIFE_GROWTH) * gateStep(tier, GATE_LIFE_STEP);
+}
+/** What a map's tier multiplies its monsters' damage by: the base curve, times the gate's step on a gate tier. */
+export function tierDamageMult(tier: number): number {
+  return baseCurve(tier, TIER_DAMAGE_GROWTH) * gateStep(tier, GATE_DAMAGE_STEP);
 }
 export function monsterXp(tier: number): number {
   return Math.round(8 * tier ** 1.5);
@@ -188,7 +250,7 @@ export const MAP_DROP_BATTLE_CHANCE = 0.8;
 export const MAP_GEM_CHANCE = 0.004;
 // A boss kill rolls this chance (times the miner's map find) to drop a map; its tier is the run map's tier plus an offset
 // drawn from these (offset, weight) pairs, so a stuck player can farm the tier below.
-export const MAP_CLEAR_DROP_CHANCE = 0.75;
+export const MAP_CLEAR_DROP_CHANCE = 1;
 export const MAP_CLEAR_TIER_WEIGHTS: readonly (readonly [number, number])[] = [[-1, 25], [0, 50], [1, 25]];
 // A kill rolls this chance rankReward times; each pass drops a material of the map's depth.
 export const MAP_MATERIAL_CHANCE = 0.02;

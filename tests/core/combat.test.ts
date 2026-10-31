@@ -555,8 +555,10 @@ it('a saved run in progress plays out exactly as before modifiers existed', () =
   // Pinned before map modifiers touched combat (rng re-pinned when a boss kill began rolling a map drop). Loading re-earns what the old ledger already passes
   // (schema 25), so the Souls are one higher. Plan 34's harder ladders leave the fixture with 4 achievements where it had 26, so the weaker miner needs more
   // strikes and the stream ends further on (975538293 before); the feats draw nothing, so the stream is the same with none registered.
+  // Plan 35's tier curve softens the fixture's tier-3 monsters (× 2.00 before, × 1.22 now), so the run takes fewer strikes and
+  // its Souls rolls land elsewhere (1479491569 and 17 Souls before).
   expect(played).toMatchObject({
-    rng: 1479491569, gained: { xp: 1048, souls: 17, gold: 144, levels: 1 }, outcome: 'cleared',
+    rng: 4198657840, gained: { xp: 1048, souls: 20, gold: 144, levels: 1 }, outcome: 'cleared',
   });
 });
 
@@ -579,7 +581,7 @@ it('logging the run\'s drops and its end makes no draws: the saved run plays out
   expect(played.logged).toBeGreaterThan(0);
   expect(replay(true)).toEqual(played);
   expect(played).toMatchObject({
-    rng: 1479491569, gained: { xp: 1048, souls: 17, gold: 144, levels: 1 }, outcome: 'cleared',
+    rng: 4198657840, gained: { xp: 1048, souls: 20, gold: 144, levels: 1 }, outcome: 'cleared',
   });
 });
 
@@ -648,7 +650,7 @@ describe('maps from map clears', () => {
     expect(validateState(s)).toBe(true);
   });
 
-  it('the drop rate is 75% and the tiers split 25 / 50 / 25 over 2,000 boss kills', () => {
+  it('every boss kill drops a map, and the tiers split 25 / 50 / 25 over 2,000 boss kills', () => {
     const { s, run } = runAt(7);
     const tiers: Record<number, number> = {};
     let drops = 0;
@@ -658,8 +660,8 @@ describe('maps from map clears', () => {
         tiers[t] = (tiers[t] ?? 0) + 1;
       }
     }
-    expect(MAP_CLEAR_DROP_CHANCE).toBe(0.75);
-    expect(Math.abs(drops / 2000 - 0.75)).toBeLessThan(0.03);
+    expect(MAP_CLEAR_DROP_CHANCE).toBe(1);
+    expect(drops).toBe(2000);
     expect(Object.keys(tiers).sort()).toEqual(['6', '7', '8']);
     for (const [t, share] of [[6, 0.25], [7, 0.5], [8, 0.25]] as const) {
       expect(Math.abs((tiers[t] ?? 0) / drops - share), `tier ${t}`).toBeLessThan(0.03);

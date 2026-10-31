@@ -490,7 +490,7 @@ it('battle gear offers a Soul upgrade after its other actions and before its cra
   (s.bag[0] as { ilvl: number }).ilvl = 7;
   expect(itemActions(s, bag(0))[4]).toMatchObject({ label: 'Upgrade with Souls: item level 7 → 8 · 245 Souls', disabled: false });
   (s.bag[0] as { ilvl: number }).ilvl = 1_234;
-  expect(itemActions(s, bag(0))[4]).toMatchObject({ label: 'Upgrade with Souls: item level 1,234 → 1,235 · 7,613,780 Souls', disabled: true });
+  expect(itemActions(s, bag(0))[4]).toMatchObject({ label: 'Upgrade with Souls: item level 1,234 → 1,235 · 7.61M Souls', disabled: true });
 });
 
 it('a legendary takes a Soul upgrade; sealed gear, mining gear and other items offer none', () => {

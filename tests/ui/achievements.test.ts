@@ -112,13 +112,15 @@ describe('the achievement toast queue', () => {
   it('crossing one threshold enqueues exactly one toast with the right desc and icon', () => {
     const { store } = make();
     store.load();
-    store.state.stats.goldFound = 123456;
+    const first = ACHIEVEMENTS.find((a) => a.family === 'gold');
+    if (first === undefined) throw new Error('no gold achievement');
+    store.state.stats.goldFound = first.value;
     checkAchievements(store.state, 'gold');
     store.setMotion({}); // any counter-free mutation runs the store's single changed() path
     expect(store.notifications).toHaveLength(1);
     expect(store.notifications[0]).toMatchObject({
-      name: ACHIEVEMENTS.find((a) => a.family === 'gold')?.name,
-      desc: 'Earn 123,456 Gold over your lifetime.',
+      name: first.name,
+      desc: `Earn ${first.value.toLocaleString('en-US')} Gold over your lifetime.`,
       icon: 'goldYield',
     });
   });
@@ -154,7 +156,7 @@ describe('the achievement toast queue', () => {
   it('repeating the same action enqueues nothing', () => {
     const { store } = make();
     store.load();
-    store.state.stats.goldFound = 123456;
+    store.state.stats.goldFound = ACHIEVEMENTS.find((a) => a.family === 'gold')?.value ?? 0;
     checkAchievements(store.state, 'gold');
     store.setMotion({});
     expect(store.notifications).toHaveLength(1);
@@ -189,7 +191,7 @@ describe('the achievement toast queue', () => {
   it('reloading a save that already earned an achievement never re-toasts', () => {
     const { store, storage, now } = make();
     store.load();
-    store.state.stats.goldFound = 123456;
+    store.state.stats.goldFound = ACHIEVEMENTS.find((a) => a.family === 'gold')?.value ?? 0;
     checkAchievements(store.state, 'gold');
     store.setMotion({});
     expect(store.notifications).toHaveLength(1);

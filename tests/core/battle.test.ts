@@ -3,13 +3,16 @@ import { deriveBattleStats, mitigate, armorReduction } from '../../src/core/batt
 import { rollRarity } from '../../src/core/itemGen';
 import { gainXp, xpToNext } from '../../src/core/levels';
 import { monsterState } from '../../src/core/monsters';
-import { MAX_DAMAGE, MAX_LIFE, MIN_RESIST, baseResist, monsterXp } from '../../src/core/balance';
+import {
+  ELEMENTAL_WALL, MAX_DAMAGE, MAX_LIFE, MIN_RESIST, PHYSICAL_WALL, baseResist, monsterDamageBase, monsterLifeBase, monsterXp,
+  tierDamageMult, tierLifeMult,
+} from '../../src/core/balance';
 import { dungeonLayout } from '../../src/core/dungeons';
 import { startMap } from '../../src/core/maps';
 import { validateState } from '../../src/core/save';
 import { newGame } from '../../src/core/newGame';
 import type { Slot, StatKey } from '../../src/core/items';
-import type { ChampionMod } from '../../src/core/types';
+import { CHAMPION_MODS, type ChampionMod } from '../../src/core/types';
 import { gear, stashMap } from '../helpers/items';
 
 it('a naked level-1 miner', () => {
@@ -118,8 +121,9 @@ it('elemental resist is taxed by level and can be raised past the base cap', () 
 });
 
 it('xp levels the miner up to the cap', () => {
-  // Levels 1–30 keep the tuned early curve; past 30 a second ramp stage carries the cost up to the 100 cap.
-  expect([1, 2, 10, 30].map(xpToNext)).toEqual([100, 283, 3162, 24_648]);
+  // Levels 1–20 keep the tuned early curve; then each level costs 1.2× more up to 45 (auto-mapping arrives around 30),
+  // and 1.055× more from there to the cap.
+  expect([1, 2, 10, 20, 30, 45, 99].map(xpToNext)).toEqual([100, 283, 3162, 8944, 101_741, 2_879_718, 169_284_332]);
   expect(xpToNext(99)).toBeGreaterThan(0);
   expect(xpToNext(100)).toBe(0);
   const s = newGame(1, 0);
@@ -187,6 +191,59 @@ it('monster numbers stop at the save limits, however deep the tier', () => {
     run.room = run.bossRoom;
     run.queue = [monsterState(tier, dungeonLayout(s.seed, run.map).boss)];
     expect(validateState(s), `tier ${tier} boss`).toBe(true);
+  }
+});
+
+it('a gate tier is a step up the curve, not a steeper slope, and the tier after it is never easier than the one before', () => {
+  for (const mult of [tierLifeMult, tierDamageMult]) {
+    for (const gate of [5, 10, 15, 50, 100, 150]) {
+      expect(mult(gate) / mult(gate - 1), `gate ${gate}`).toBeGreaterThan((mult(gate - 1) / mult(gate - 2)) * 1.5);
+      expect(mult(gate + 1), `after gate ${gate}`).toBeGreaterThanOrEqual(mult(gate - 1));
+    }
+  }
+});
+
+it('a physical wall hits harder and more often; an elemental wall turns the damage elemental', () => {
+  expect(PHYSICAL_WALL.damageMult).toBeGreaterThan(1);
+  expect(PHYSICAL_WALL.speedMult).toBeGreaterThan(1);
+  expect(ELEMENTAL_WALL.damageMult).toBeGreaterThan(0);
+  const rat = { species: 0, rank: 'normal' as const, name: 'Mole Rat', mods: [], extra: 1 };
+  const plain = monsterState(5, rat);
+  const physical = monsterState(5, rat, undefined, 'physical');
+  expect(physical.damage).toBeGreaterThan(plain.damage);
+  expect(physical.intervalS).toBeLessThan(plain.intervalS);
+  expect(monsterState(5, rat, undefined, 'elemental').element).toBe('elemental');
+});
+
+it('deeper tiers keep getting tougher off the gates, past the cap tier too', () => {
+  const life = (tier: number) => monsterLifeBase(tier) * tierLifeMult(tier);
+  const damage = (tier: number) => monsterDamageBase(tier) * tierDamageMult(tier);
+  for (let tier = 2; tier <= 300; tier++) {
+    const before = tier % 5 === 1 ? tier - 2 : tier - 1;   // the tier after a gate is compared with the one before it
+    if (tier % 5 === 0) continue;
+    expect(life(tier), `tier ${tier}`).toBeGreaterThan(life(before));
+    expect(damage(tier), `tier ${tier}`).toBeGreaterThan(damage(before));
+  }
+});
+
+it('monsters of tiers 150 and 300 stay finite and under the save limits, whatever their rank and mods', () => {
+  // every subset of the champion mods, on every rank, a few species, both walls and none
+  const subsets: ChampionMod[][] = Array.from({ length: 2 ** CHAMPION_MODS.length },
+    (_, bits) => CHAMPION_MODS.filter((_, i) => (bits >> i) & 1));
+  for (const tier of [150, 300]) {
+    for (const species of [0, 1, 2]) {
+      for (const rank of ['normal', 'champion', 'boss'] as const) {
+        for (const mods of subsets) {
+          for (const wall of [undefined, 'physical', 'elemental'] as const) {
+            const m = monsterState(tier, { species, rank, name: 'Deep One', mods, extra: 1 }, undefined, wall);
+            const what = `tier ${tier} species ${species} ${rank} ${mods.join('+')} ${wall ?? '-'}`;
+            expect(Number.isFinite(m.maxLife) && Number.isFinite(m.damage), what).toBe(true);
+            expect(m.maxLife, what).toBeLessThan(MAX_LIFE);
+            expect(m.damage, what).toBeLessThan(MAX_DAMAGE);
+          }
+        }
+      }
+    }
   }
 });
 

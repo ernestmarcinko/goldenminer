@@ -5,6 +5,7 @@ import {
   MAX_CRAFTED_LINES, MAX_ITEM_LEVEL, MAX_LAMP_SIGHT, MAX_MAP_MODS, MAX_OFFLINE_CAP_MS, MAX_SIDE_LINES, MAX_SOCKETS,
   MAX_STASH_PAGES, MIN_OFFLINE_CAP_MS, RESET_WEB_DIAMONDS, RESPEC_GOLD_BASE, SOUL_UPGRADE_BASE, STASH_PAGE_SIZE,
   STASH_PAGE_GOLD, START_GENERAL_PAGES, STOCK_BAND_METRES, STOCK_SIZE, TRADER_PRICE_MULT, XP_EXPONENT, XP_PER_LEVEL,
+  XP_RAMP_KNEE, XP_RAMP_LATE, XP_RAMP_START, XP_RAMP_STEEP,
 } from '../core/balance';
 import { ABYSS_BAND_HEIGHT, ABYSS_START, bandAt } from '../core/bands';
 import { BASE_NAMES, GEM_GRADE_LABELS, GEM_LABELS, RARE_FIRST, RARE_SECOND, STAT_NAMES } from '../core/itemData';
@@ -459,9 +460,12 @@ export function WikiApp() {
               rarity, more Souls and more materials. A boss may also drop a map one tier either side of the map&apos;s tier.
             </p>
             <p>
-              Every {GATE_EVERY}th map tier, from tier {GATE_EVERY} on, is a gate: a wall that asks for one kind of defence. A
-              physical wall makes the dungeon&apos;s monsters hit with physical damage, so armour matters most; an
-              elemental wall makes them hit with elemental damage, so resistances matter most. Each pair of gates
+              Every {GATE_EVERY}th map tier, from tier {GATE_EVERY} on, is a gate: a wall that asks for one kind of defence.
+              Monsters grow tougher tier by tier, and a gate&apos;s are a big step tougher still, so a miner fresh from the
+              tier below usually falls there and comes back after some farming; the tier after a gate drops back to the
+              usual climb. A physical wall makes the dungeon&apos;s monsters hit with physical damage, harder and more
+              often, so armour matters most; an elemental wall makes them hit with elemental damage, so resistances
+              matter most. Each pair of gates
               (tiers {GATE_EVERY} and {GATE_EVERY * 2}, then {GATE_EVERY * 3} and {GATE_EVERY * 4}, and so on) has one of each, and your world&apos;s seed decides which comes first.
               The map&apos;s card names its wall. A fire-touched champion still hits with elemental damage.
             </p>
@@ -656,7 +660,10 @@ export function WikiApp() {
                   { label: 'Max stash pages', value: formatNumber(MAX_STASH_PAGES) },
                   { label: 'A stash page costs', value: `${STASH_PAGE_GOLD} Gold × n²` },
                   { label: 'Level cap', value: `${LEVEL_CAP}` },
-                  { label: 'XP to leave level L', value: `${XP_PER_LEVEL} × L^${XP_EXPONENT}` },
+                  {
+                    label: 'XP to leave level L',
+                    value: `${XP_PER_LEVEL} × L^${XP_EXPONENT}, × ${XP_RAMP_STEEP} more a level from ${XP_RAMP_START} to ${XP_RAMP_KNEE}, then × ${XP_RAMP_LATE}`,
+                  },
                   { label: 'Base offline cap', value: hours(BASE_OFFLINE_CAP_MS) },
                   { label: 'Min / max offline cap', value: `${hours(MIN_OFFLINE_CAP_MS)} / ${hours(MAX_OFFLINE_CAP_MS)}` },
                   { label: 'Prefixes + suffixes per item', value: `${MAX_SIDE_LINES} + ${MAX_SIDE_LINES}` },

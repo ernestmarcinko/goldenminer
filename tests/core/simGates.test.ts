@@ -35,7 +35,7 @@ afterEach(() => {
 });
 
 it('a hard gate is retried, farmed below, and cleared; its record runs reached → attempted → cleared', () => {
-  knobs.gateMult = 3;
+  // Plan 35's gate step makes the real gates hard enough; no seam needed.
   const report = runReference({ seed: 1, minutes: 2 * 1440 });
   const first = report.gates[0];
   expect(first?.tier).toBe(5);
