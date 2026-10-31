@@ -122,8 +122,8 @@ it('elemental resist is taxed by level and can be raised past the base cap', () 
 
 it('xp levels the miner up to the cap', () => {
   // Levels 1–20 keep the tuned early curve; then each level costs 1.2× more up to 45 (auto-mapping arrives around 30),
-  // and 1.055× more from there to the cap.
-  expect([1, 2, 10, 20, 30, 45, 99].map(xpToNext)).toEqual([100, 283, 3162, 8944, 101_741, 2_879_718, 169_284_332]);
+  // and 1.06× more from there to the cap.
+  expect([1, 2, 10, 20, 30, 45, 99].map(xpToNext)).toEqual([100, 283, 3162, 8944, 101_741, 2_879_718, 218_524_768]);
   expect(xpToNext(99)).toBeGreaterThan(0);
   expect(xpToNext(100)).toBe(0);
   const s = newGame(1, 0);
@@ -196,7 +196,9 @@ it('monster numbers stop at the save limits, however deep the tier', () => {
 
 it('a gate tier is a step up the curve, not a steeper slope, and the tier after it is never easier than the one before', () => {
   for (const mult of [tierLifeMult, tierDamageMult]) {
-    for (const gate of [5, 10, 15, 50, 100, 150]) {
+    // the first gate is eased in, and still a step well past the slope
+    expect(mult(5) / mult(4)).toBeGreaterThan((mult(4) / mult(3)) * 1.4);
+    for (const gate of [10, 15, 50, 100, 150]) {
       expect(mult(gate) / mult(gate - 1), `gate ${gate}`).toBeGreaterThan((mult(gate - 1) / mult(gate - 2)) * 1.5);
       expect(mult(gate + 1), `after gate ${gate}`).toBeGreaterThanOrEqual(mult(gate - 1));
     }

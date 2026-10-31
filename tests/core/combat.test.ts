@@ -555,10 +555,10 @@ it('a saved run in progress plays out exactly as before modifiers existed', () =
   // Pinned before map modifiers touched combat (rng re-pinned when a boss kill began rolling a map drop). Loading re-earns what the old ledger already passes
   // (schema 25), so the Souls are one higher. Plan 34's harder ladders leave the fixture with 4 achievements where it had 26, so the weaker miner needs more
   // strikes and the stream ends further on (975538293 before); the feats draw nothing, so the stream is the same with none registered.
-  // Plan 35's tier curve softens the fixture's tier-3 monsters (× 2.00 before, × 1.22 now), so the run takes fewer strikes and
+  // Plan 35's tier curve softens the fixture's tier-3 monsters (× 2.00 before, × 1.41 now), so the run takes fewer strikes and
   // its Souls rolls land elsewhere (1479491569 and 17 Souls before).
   expect(played).toMatchObject({
-    rng: 4198657840, gained: { xp: 1048, souls: 20, gold: 144, levels: 1 }, outcome: 'cleared',
+    rng: 2303150830, gained: { xp: 1048, souls: 19, gold: 144, levels: 1 }, outcome: 'cleared',
   });
 });
 
@@ -581,7 +581,7 @@ it('logging the run\'s drops and its end makes no draws: the saved run plays out
   expect(played.logged).toBeGreaterThan(0);
   expect(replay(true)).toEqual(played);
   expect(played).toMatchObject({
-    rng: 4198657840, gained: { xp: 1048, souls: 20, gold: 144, levels: 1 }, outcome: 'cleared',
+    rng: 2303150830, gained: { xp: 1048, souls: 19, gold: 144, levels: 1 }, outcome: 'cleared',
   });
 });
 

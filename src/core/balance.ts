@@ -92,7 +92,7 @@ export const XP_EXPONENT = 1.5;
 export const XP_RAMP_START = 20;
 export const XP_RAMP_KNEE = 45;
 export const XP_RAMP_STEEP = 1.2;
-export const XP_RAMP_LATE = 1.055;
+export const XP_RAMP_LATE = 1.06;
 // Ascendancy: the depth each point costs, the level that unlocks ascension, and how many levels above it earn a
 // bonus point (from the second ascension on).
 export const ASCEND_DEPTH_PER_POINT = 250;
@@ -177,24 +177,26 @@ export function expectedAchievements(level: number): number {
 // short enough to farm). Both stop at the cap's tier, past which the bases alone keep the climb going.
 export const EARLY_TIER_SCALE: readonly number[] = [1.38, 1.34];
 export const TIER_LEVELS = 2;
-export const TIER_LIFE_GROWTH = 0.99;
+export const TIER_LIFE_GROWTH = 1;
 export const TIER_DAMAGE_GROWTH = 1;
-// A gate tier multiplies the base curve by its step; the tier after it is back on the curve. The first GATE_EASE_IN
-// gates ease in, from about half the step at tier 5 to the whole of it at tier 5 × GATE_EASE_IN, while a new miner
-// still plays only its check-ins.
-export const GATE_LIFE_STEP = 2.2;
-export const GATE_DAMAGE_STEP = 2.2;
+// A gate tier multiplies the base curve by its step; the tier after it is back on the curve. The first gates ease in,
+// while a new miner still plays only its check-ins: the first takes GATE_EASE_FROM of the step's rise, and each one
+// after it more, up to the whole step at gate GATE_EASE_IN (tier 15) and past.
+export const GATE_LIFE_STEP = 2;
+export const GATE_DAMAGE_STEP = 2;
 export const GATE_EASE_IN = 3;
+export const GATE_EASE_FROM = 0.5;
 // What a gate's wall adds on top of its step: a physical wall's monsters hit harder and more often, so armour matters
 // most; an elemental wall's hit with elemental damage, so resistances do.
 export const PHYSICAL_WALL: Readonly<{ damageMult: number; speedMult: number }> = { damageMult: 1.25, speedMult: 1.25 };
 export const ELEMENTAL_WALL: Readonly<{ damageMult: number }> = { damageMult: 3 };
 
-/** What a gate tier multiplies the base curve by, eased in over the first gates; 1 off a gate. */
+/** What a gate tier multiplies the base curve by, eased in over a first run's gates; 1 off a gate. */
 function gateStep(tier: number, step: number): number {
   const t = Math.floor(tier);
   if (t < GATE_EVERY || t % GATE_EVERY !== 0) return 1;
-  return 1 + (step - 1) * Math.min(1, (t / GATE_EVERY + 1) / (GATE_EASE_IN + 1));
+  const ease = Math.min(1, (t / GATE_EVERY - 1) / (GATE_EASE_IN - 1));
+  return 1 + (step - 1) * (GATE_EASE_FROM + (1 - GATE_EASE_FROM) * ease);
 }
 
 /** The expected achievement boost at a tier's typical level. */

@@ -73,6 +73,8 @@ const CHECK_IN_MINUTES = 15;
 const MINUTE_TICKS = 60;
 const MAX_FRONTIER = 100;
 const SURVEYOR_ID = 'surveyor';
+// How many maps the reference player queues for its time away: the best few it farms, not the whole stash.
+const AWAY_QUEUE_MAPS = 30;
 const RARITY_SCORE: Readonly<Record<Rarity, number>> = { normal: 1, magic: 1.5, rare: 2, legendary: 2.5 };
 /**
  * How much the power score must rise over the last failed attempt's before a gate is tried again, as a share (0.03 is
@@ -368,17 +370,17 @@ function stashedMap(state: GameState, tier: number): MapItem | undefined {
 }
 
 /**
- * Queues every stashed map below the next gate, which is idempotent for maps already queued; a queued map at or past
- * the gate (one kept across an ascension) goes back to the stash, so auto-mapping never runs into the wall.
+ * Sets the auto-map queue the way a player leaves it at a check-in: the best AWAY_QUEUE_MAPS maps the miner farms,
+ * highest tier first from `top` down (the frontier, or the two tiers below a gate while held there). Everything else,
+ * older and lower stock included, goes back to the stash, and a gate map is never queued: gate attempts are run by hand.
  */
-function queueStashedMaps(state: GameState, gate: number): void {
-  for (const map of [...state.autoMap.queue]) if (map.tier >= gate) unqueueForAutoMap(state, map.id);
+function queueBestMaps(state: GameState, top: number): void {
+  for (const map of [...state.autoMap.queue]) unqueueForAutoMap(state, map.id);
   if (!autoMapping(state)) return;
-  state.autoMap.on = true;   // the reference player keeps auto-mapping on, re-armed when the chain drains
-  for (const [key, list] of Object.entries(state.stash.maps)) {
-    if (Number(key) >= gate) continue;
-    for (const map of [...list]) {
-      if (state.autoMap.queue.length >= autoMapQueueSize(state)) return;
+  const size = Math.min(AWAY_QUEUE_MAPS, autoMapQueueSize(state));
+  for (let tier = Math.floor(top); tier >= 1 && state.autoMap.queue.length < size; tier--) {
+    for (const map of [...(state.stash.maps[tier] ?? [])]) {
+      if (state.autoMap.queue.length >= size) break;
       queueForAutoMap(state, map.id);
     }
   }
@@ -436,7 +438,12 @@ function simulateRun(state: GameState, totalMinutes: number, settings: RunSettin
       autoMapLevel = state.level;
       autoMapDay = minute / MINUTES_PER_DAY;
     }
-    queueStashedMaps(state, gateTier);
+    // At a check-in the player sets the queue for the time away: the frontier's maps, or the farm below a gate.
+    const minuteOfDay = (minute - 1) % MINUTES_PER_DAY;
+    const checkIn = CHECK_IN_STARTS.findIndex((start) => minuteOfDay >= start && minuteOfDay < start + CHECK_IN_MINUTES);
+    const inCheckIn = checkIn >= 0;
+    if (inCheckIn) queueBestMaps(state, Math.min(frontier, gateTier - 1));
+    if (autoMapping(state)) state.autoMap.on = true;   // kept on, re-armed after a gate attempt's pause
     if (gate === undefined && frontier >= gateTier) {
       const record: GateRecord = {
         tier: gateTier, reachedDay: minute / MINUTES_PER_DAY, firstAttemptDay: -1, clearedDay: -1, attempts: 0,
@@ -445,9 +452,6 @@ function simulateRun(state: GameState, totalMinutes: number, settings: RunSettin
       gates.push(gate.record);
     }
 
-    const minuteOfDay = (minute - 1) % MINUTES_PER_DAY;
-    const checkIn = CHECK_IN_STARTS.findIndex((start) => minuteOfDay >= start && minuteOfDay < start + CHECK_IN_MINUTES);
-    const inCheckIn = checkIn >= 0;
     const active = inCheckIn && minuteOfDay < (CHECK_IN_STARTS[checkIn] ?? 0) + activeMinutes;
     const events: TickEvent[] = [];
 

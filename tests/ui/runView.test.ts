@@ -150,7 +150,7 @@ it('xp bar', () => {
   expect(xpBar(100, 0)).toEqual({ label: 'Level 100', text: 'Max level', pct: 1 });
   expect(xpBar(30, 1234).text).toBe('1,234 / 101,741 XP');
   // the late levels cost millions, shown compact
-  expect(xpBar(99, 12_345_678).text).toBe('12.3M / 169M XP');
+  expect(xpBar(99, 12_345_678).text).toBe('12.3M / 219M XP');
   expect(xpBar(1, 0)).toEqual({ label: 'Level 1', text: '0 / 100 XP', pct: 0 });
   // the last xp below a level stays short of a full bar
   expect(xpBar(1, 99).text).toBe('99 / 100 XP');
