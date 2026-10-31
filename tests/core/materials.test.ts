@@ -85,13 +85,13 @@ it('a material stack dropped on gear crafts instead of swapping, and drags out o
   const boots = gear(s, 'boots', { rarity: 'normal' });
   s.bag[0] = { id: s.nextId++, type: 'material', material: 'iron', count: 7 };
   s.bag[1] = boots;
-  expect(dropItem(s, bagLoc(0), bagLoc(1))).toBe('craftRefused');               // Iron needs a magic or rare item
+  expect(dropItem(s, bagLoc(0), bagLoc(1))).toBe('craftRefused');               // Iron is retired as a craft
   expect([s.bag[0]?.type, s.bag[1]]).toEqual(['material', boots]);
-  s.stash.materials.copper = 80;
-  expect(dropItem(s, { where: 'materials', material: 'copper' }, bagLoc(4))).toBe('ok');
-  expect([(s.bag[4] as MaterialItem).count, s.stash.materials.copper]).toEqual([50, 30]);
-  expect(dropItem(s, { where: 'materials', material: 'copper' }, bagLoc(1))).toBe('ok');   // onto gear: Copper crafts
-  expect([s.bag[1], boots.rarity, s.stash.materials.copper]).toEqual([boots, 'magic', 27]);
+  s.stash.materials.mithril = 80;
+  expect(dropItem(s, { where: 'materials', material: 'mithril' }, bagLoc(4))).toBe('ok');
+  expect([(s.bag[4] as MaterialItem).count, s.stash.materials.mithril]).toEqual([50, 30]);
+  expect(dropItem(s, { where: 'materials', material: 'mithril' }, bagLoc(1))).toBe('ok');   // onto gear: Mithril crafts
+  expect([s.bag[1], s.stash.materials.mithril]).toEqual([boots, 28]);
   expect(sendItem(s, bagLoc(0), 'stash')).toBe('ok');
   expect([s.bag[0], s.stash.materials.iron]).toEqual([null, 7]);
 });

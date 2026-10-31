@@ -213,7 +213,14 @@ export function ShaftScene({ store }: { store: GameStore }) {
           <Sprite name="miner" scale={3} />
         </div>
         <div className="gm-shaft__hint">{paused ? 'Digging is paused' : 'Click the rock to dig'}</div>
-        {particles.map((p) => (
+        {particles.map((p) => p.kind === 'dig' ? (
+          <span key={p.id} aria-hidden="true" className="gm-shaft__strike" style={{ left: p.x, top: p.y }}>
+            <span className="gm-shaft__swing"><Sprite name="pickaxe" scale={2} /></span>
+            <span className="gm-shaft__chip gm-shaft__chip--a" />
+            <span className="gm-shaft__chip gm-shaft__chip--b" />
+            <span className="gm-shaft__impact" />
+          </span>
+        ) : (
           <span key={p.id} aria-hidden="true" className="gm-particle" data-kind={p.kind} style={{ left: p.x, top: p.y }}>
             {p.text}
           </span>

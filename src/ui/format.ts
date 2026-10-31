@@ -3,7 +3,24 @@ const numberFormat = new Intl.NumberFormat('en-US', {
   notation: 'standard',
 });
 
+// A million and more reads compact: three significant digits and the unit's suffix (4.60M, 12.3B, 1.00T).
+const UNITS: readonly (readonly [number, string])[] = [[1e6, 'M'], [1e9, 'B'], [1e12, 'T']];
+
 export function formatNumber(n: number): string {
+  // compared on the rounded value: 999,999.5 prints as a million, so it reads as one
+  const abs = Math.round(Math.abs(n));
+  if (!Number.isFinite(n) || abs < 1e6) return numberFormat.format(n);
+  const sign = n < 0 ? '-' : '';
+  for (let i = UNITS.length - 1; i >= 0; i--) {
+    const [unit, suffix] = UNITS[i] ?? [1, ''];
+    if (abs < unit) continue;
+    const value = Number((abs / unit).toPrecision(3));
+    const next = UNITS[i + 1];
+    // 999.9M rounds to 1000M, which is the next unit's 1.00
+    if (value >= 1000 && next !== undefined) return `${sign}${(value / 1000).toFixed(2)}${next[1]}`;
+    if (value >= 1000) return `${sign}${numberFormat.format(abs / unit)}${suffix}`;
+    return `${sign}${value.toFixed(value >= 100 ? 0 : value >= 10 ? 1 : 2)}${suffix}`;
+  }
   return numberFormat.format(n);
 }
 

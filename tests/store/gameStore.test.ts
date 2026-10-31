@@ -4,15 +4,20 @@ import { MemoryStorage, SAVE_KEY, BACKUP_PREFIX, safeStorage } from '../../src/s
 import { decodeSave, encodeSave } from '../../src/core/save';
 import { compressToBase64 } from 'lz-string';
 import fixture5 from '../fixtures/save-schema-5.txt?raw';
+import { registerFeatsForTest } from '../../src/core/achievements';
 import { newGame } from '../../src/core/newGame';
+import { isValidCharacterName } from '../../src/core/names';
+import { PASSIVE_NODE_BY_ID, START_NODE_ID } from '../../src/core/passives';
+import { refundPrice } from '../../src/core/respec';
 import { startMap } from '../../src/core/maps';
 import { advance } from '../../src/core/clock';
 import { freshWorld } from '../../src/core/seed';
 import { deriveBattleStats } from '../../src/core/battle';
 import { deriveStats } from '../../src/core/stats';
 import { xpToNext } from '../../src/core/levels';
-import { seedFromText } from '../../src/core/seed';
-import { MAX_LOOT_RULES } from '../../src/core/balance';
+import { isValidSeedText, seedFromText } from '../../src/core/seed';
+import { ASCEND_LEVEL, MAX_LOOT_RULES } from '../../src/core/balance';
+import { ascendancyPoints, ASCENDANCY_NODE_BY_ID, ASCENDANCY_START_ID } from '../../src/core/ascendancy';
 import type { MapItem } from '../../src/core/items';
 import type { LootRule, TickEvent } from '../../src/core/types';
 import { gear, gem, stashMap } from '../helpers/items';
@@ -20,6 +25,30 @@ import { gear, gem, stashMap } from '../helpers/items';
 function make(now = { t: 0 }, storage = new MemoryStorage(), available = true) {
   const store = new GameStore({ storage, storageAvailable: available, now: () => now.t, newSeed: () => 7 });
   return { store, storage, now };
+}
+
+/** Node ids on a path from the start to `target`, in allocation order (the start excluded, `target` last). */
+function pathTo(target: string): string[] {
+  const prev = new Map<string, string>();
+  const seen = new Set([START_NODE_ID]);
+  const queue = [START_NODE_ID];
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    if (cur === target) break;
+    for (const l of PASSIVE_NODE_BY_ID.get(cur)!.links) {
+      if (seen.has(l)) continue;
+      seen.add(l);
+      prev.set(l, cur);
+      queue.push(l);
+    }
+  }
+  const path: string[] = [];
+  let cur: string | undefined = target;
+  while (cur !== undefined && cur !== START_NODE_ID) {
+    path.unshift(cur);
+    cur = prev.get(cur);
+  }
+  return path;
 }
 
 describe('GameStore', () => {
@@ -96,7 +125,16 @@ describe('GameStore', () => {
     const fb = store.drainFeedback();
     expect(fb.gold).toBe(7);
     expect(fb.finds.map((f) => f.kind)).toEqual(['goldVein']);
-    expect(store.drainFeedback()).toEqual({ gold: 0, diamonds: 0, finds: [], strikes: [], hurt: 0 });
+    expect(store.drainFeedback()).toEqual({ gold: 0, diamonds: 0, finds: [], strikes: [], hurt: 0, digs: 0 });
+  });
+
+  it('fold sums dig ticks into feedback.digs and a drain resets it', () => {
+    const { store, now } = make(); store.load();
+    store.state.ahead[1] = { feature: null, amount: 0, hardRock: false };
+    now.t = 5000; store.pump();   // 5 ticks, all digging
+    const fb = store.drainFeedback();
+    expect(fb.digs).toBe(5);
+    expect(store.drainFeedback().digs).toBe(0);
   });
 
   it('never loses an unreadable save when its backup cannot be written', () => {
@@ -112,7 +150,7 @@ describe('GameStore', () => {
     expect(store.unreadableSave).toBe('garbage');
     store.save();
     expect(storage.getItem(SAVE_KEY)).toBe('garbage');
-    store.newWorld(null);
+    store.newWorld('Miner', null);
     expect(store.unreadableSave).toBeNull();
     expect(storage.getItem(SAVE_KEY)).not.toBe('garbage');
     expect(decodeSave(storage.getItem(SAVE_KEY) ?? '').ok).toBe(true);
@@ -132,7 +170,7 @@ describe('GameStore', () => {
     const again = make(now, storage).store; again.load();
     expect(again.notice).toEqual({ kind: 'loadFailed', reason: 'future', backupKey: BACKUP_PREFIX + '42' });
     expect(storage.getItem(BACKUP_PREFIX + '9000')).toBeNull();
-    store.newWorld(null);
+    store.newWorld('Miner', null);
     expect(store.notice).toBeNull();
     expect(storage.getItem(SAVE_KEY)).not.toBe(future);
     expect(decodeSave(storage.getItem(SAVE_KEY) ?? '').ok).toBe(true);
@@ -148,7 +186,7 @@ describe('GameStore', () => {
     storage.setItem(SAVE_KEY, 'garbage');
     store.load();
     expect(store.notice?.kind).toBe('loadFailed');
-    store.newWorld(null);
+    store.newWorld('Miner', null);
     expect(store.notice).toBeNull();
   });
 });
@@ -205,7 +243,7 @@ describe('inventory intents', () => {
     store.state.bag[0] = gear(store.state, 'lamp');
     store.equip({ where: 'bag', index: 0 });
     expect(store.equipNotice?.id).toBe(2);
-    expect(store.newWorld(null)).toBe(true);
+    expect(store.newWorld('Miner', null)).toBe(true);
     expect(store.equipNotice).toBeNull();
   });
 
@@ -254,14 +292,101 @@ describe('inventory intents', () => {
     expect('setBagFull' in store).toBe(false);
   });
 
-  it('a new world from typed text, or refused when empty', () => {
+  it('naming a new world offers the name to the rename feats, and a feat earned that way is notified', () => {
+    const seen: string[] = [];
+    registerFeatsForTest([{
+      id: 'secret.test-name', family: 'test', kind: 'hidden', name: 'Namesake', desc: 'Name the miner Gorvash.', on: 'rename',
+      test: (_s, e) => { if (e.kind === 'rename') seen.push(e.name); return e.kind === 'rename' && e.name === 'Gorvash'; },
+    }]);
+    try {
+      const { store } = make(); store.load();
+      expect(store.newWorld('Miner', null)).toBe(true);
+      expect(store.state.achievements.earned).not.toContain('secret.test-name');
+      expect(store.newWorld('  Gorvash ', null)).toBe(true);
+      expect(seen).toEqual(['Miner', 'Gorvash']);
+      expect(store.state.achievements.earned).toContain('secret.test-name');
+    } finally {
+      registerFeatsForTest(null);
+    }
+  });
+
+  it('renaming the miner validates the name, keeps the old one on a refusal, and earns the name secrets with a toast', () => {
     const { store } = make(); store.load();
-    expect(store.newWorld('  Golden Mole ')).toBe(true);
-    expect([store.state.worldSeed, store.state.seed]).toEqual(['Golden Mole', 2_552_287_895]);
-    expect(store.newWorld('   ')).toBe(false);
-    expect(store.state.worldSeed).toBe('Golden Mole');
-    expect(store.newWorld(null)).toBe(true);
+    expect(store.newWorld('Miner', null)).toBe(true);
+    for (const n of [...store.notifications]) store.dismissNotification(n.id);
+    for (const bad of ['', '   ', 'x'.repeat(200), 'tab\there']) {
+      expect(store.renameCharacter(bad), JSON.stringify(bad)).toBe(false);
+      expect(store.state.characterName).toBe('Miner');
+    }
+    expect(store.state.achievements.earned).not.toContain('secret.goldenMiner');
+    expect(store.renameCharacter('  Gorvash ')).toBe(true);
+    expect(store.state.characterName).toBe('Gorvash');
+    expect(store.notifications).toEqual([]);
+    expect(store.renameCharacter('Golden Miner')).toBe(true);
+    expect(store.state.characterName).toBe('Golden Miner');
+    expect(store.state.achievements.earned).toContain('secret.goldenMiner');
+    expect(store.notifications.map((n) => n.name)).toContain('Self-Titled');
+    expect(store.renameCharacter('STEVE')).toBe(true);
+    expect(store.state.achievements.earned).toContain('secret.steve');
+  });
+
+  it('a new world from a typed name and seed, or refused when either is empty', () => {
+    const { store } = make(); store.load();
+    expect(store.newWorld('Gorvash', '  Golden Mole ')).toBe(true);
+    expect([store.state.worldSeed, store.state.seed, store.state.characterName]).toEqual(['Golden Mole', 2_552_287_895, 'Gorvash']);
+    expect(store.newWorld('   ', 'Golden Mole')).toBe(false);
+    expect(store.newWorld('Gorvash', '   ')).toBe(false);
+    expect([store.state.worldSeed, store.state.characterName]).toEqual(['Golden Mole', 'Gorvash']);
+    expect(store.newWorld('Miner', null)).toBe(true);
     expect(store.state.worldSeed).toMatch(/^[a-z]+-[a-z]+-\d{1,3}$/);
+    expect(store.state.characterName).toBe('Miner');
+  });
+
+  it('newWorld trims the name and keeps the exact seed text', () => {
+    const { store } = make(); store.load();
+    expect(store.newWorld('  Thulmar  ', 'amber-fox-427')).toBe(true);
+    expect(store.state.characterName).toBe('Thulmar');
+    expect(store.state.worldSeed).toBe('amber-fox-427');
+    expect(store.state.seed).toBe(seedFromText('amber-fox-427'));
+  });
+
+  it('a refused newWorld leaves the world unchanged', () => {
+    const { store } = make(); store.load();
+    const before = structuredClone(store.state);
+    expect(store.newWorld('', 'amber-fox-427')).toBe(false);
+    expect(store.newWorld('   ', 'amber-fox-427')).toBe(false);
+    expect(store.newWorld('Gorvash', '')).toBe(false);
+    expect(store.state).toEqual(before);
+  });
+
+  it('two same-seed worlds with different names build the same mine', () => {
+    const a = make().store; a.load();
+    const b = make().store; b.load();
+    a.newWorld('Gorvash', 'amber-fox-427');
+    b.newWorld('Thulmar', 'amber-fox-427');
+    expect(a.state.characterName).toBe('Gorvash');
+    expect(b.state.characterName).toBe('Thulmar');
+    expect([a.state.seed, a.state.rng, a.state.uniqueRng, a.state.runeRng, a.state.nextId, a.state.ahead]).toEqual(
+      [b.state.seed, b.state.rng, b.state.uniqueRng, b.state.runeRng, b.state.nextId, b.state.ahead],
+    );
+  });
+
+  it('hasSave is true only when a save exists under SAVE_KEY', () => {
+    const storage = new MemoryStorage();
+    expect(make({ t: 0 }, storage).store.hasSave()).toBe(false);
+    storage.setItem(SAVE_KEY, 'x');
+    expect(make({ t: 0 }, storage).store.hasSave()).toBe(true);
+    storage.getItem = () => { throw new Error('blocked'); };
+    expect(make({ t: 0 }, storage).store.hasSave()).toBe(false);
+  });
+
+  it('randomName and randomSeedText draw valid values', () => {
+    const { store } = make(); store.load();
+    const name = store.randomName();
+    const seed = store.randomSeedText();
+    expect(name.length).toBeGreaterThan(0);
+    expect(isValidCharacterName(name)).toBe(true);
+    expect(isValidSeedText(seed)).toBe(true);
   });
 
   it('setMotion applies a patch and skips undefined entries', () => {
@@ -280,16 +405,16 @@ describe('crafting', () => {
     store.load();
     const s = store.state;
     s.bag[0] = gear(s, 'pickaxe', { rarity: 'normal', ilvl: 4 });
-    s.stash.materials.copper = 10;
+    s.diamonds = 10;
     expect(store.lastCraft).toBeNull();
     const v = store.version;
-    expect(store.craft({ where: 'bag', index: 0 }, 'copper')).toEqual({ check: 'ok' });
+    expect(store.craft({ where: 'bag', index: 0 }, 'makeMagic')).toEqual({ check: 'ok' });
     expect(store.version).toBe(v + 1);
-    expect(store.lastCraft).toEqual({ id: 1, target: { where: 'bag', index: 0 }, kind: 'copper', check: 'ok' });
-    expect(s.stash.materials.copper).toBe(7);
-    expect(store.craft({ where: 'bag', index: 0 }, 'copper')).toEqual({ check: 'wrongRarity' });
+    expect(store.lastCraft).toEqual({ id: 1, target: { where: 'bag', index: 0 }, kind: 'makeMagic', check: 'ok' });
+    expect(s.diamonds).toBe(8);
+    expect(store.craft({ where: 'bag', index: 0 }, 'makeMagic')).toEqual({ check: 'wrongRarity' });
     expect(store.version).toBe(v + 1);
-    expect(store.lastCraft).toEqual({ id: 2, target: { where: 'bag', index: 0 }, kind: 'copper', check: 'wrongRarity' });
+    expect(store.lastCraft).toEqual({ id: 2, target: { where: 'bag', index: 0 }, kind: 'makeMagic', check: 'wrongRarity' });
   });
 
   it('a material dropped on gear crafts through the store and keeps the check', () => {
@@ -302,11 +427,11 @@ describe('crafting', () => {
     expect(store.drop({ where: 'bag', index: 1 }, { where: 'bag', index: 0 })).toBe('craftRefused');
     expect(store.version).toBe(v);
     expect(store.lastCraft).toMatchObject({ id: 1, kind: 'tin', check: 'wrongRarity' });
-    s.bag[1] = { id: s.nextId++, type: 'material', material: 'obsidian', count: 5 };
+    s.bag[1] = { id: s.nextId++, type: 'material', material: 'mithril', count: 5 };
     s.bag[0] = gear(s, 'pickaxe', { rarity: 'rare', affixes: [{ stat: 'goldYield', value: 4 }] });
     expect(store.drop({ where: 'bag', index: 1 }, { where: 'bag', index: 0 })).toBe('ok');
     expect(store.version).toBe(v + 1);
-    expect(store.lastCraft).toMatchObject({ id: 2, kind: 'obsidian', check: 'ok' });
+    expect(store.lastCraft).toMatchObject({ id: 2, kind: 'mithril', check: 'ok' });
     expect(store.importSave(store.exportSave()).ok).toBe(true);
     expect(store.lastCraft).toBeNull();
   });
@@ -539,7 +664,7 @@ describe('battle stats', () => {
     expect(store.importSave(encodeSave(other, 0)).ok).toBe(true);
     expect(store.battle).toEqual(deriveBattleStats(store.state));
     expect(store.battle.maxLife).toBeGreaterThan(deriveBattleStats(newGame(2, 0)).maxLife);
-    expect(store.newWorld(null)).toBe(true);
+    expect(store.newWorld('Miner', null)).toBe(true);
     expect(store.battle).toEqual(deriveBattleStats(store.state));
     expect(store.battle.maxLife).toBe(deriveBattleStats(newGame(2, 0)).maxLife);
   });
@@ -661,5 +786,194 @@ describe('pausing', () => {
     const again = make(now, storage).store; again.load();
     expect(again.state.paused).toBe(true);
     expect(dug(again.state)).toEqual(dug(store.state));
+  });
+});
+
+describe('passive web intents', () => {
+  const start = PASSIVE_NODE_BY_ID.get(START_NODE_ID)!;
+  const ring1 = start.links[0]!;
+  const ring2 = PASSIVE_NODE_BY_ID.get(ring1)!.links.find((l) => l !== START_NODE_ID)!;
+
+  it('allocate, refund and reset change the state and re-derive stats', () => {
+    const { store } = make();
+    store.load();
+    store.state.level = 3;
+    store.state.gold = 1000;
+    store.state.diamonds = 100;
+    expect(store.allocate(ring1)).toBe('ok');
+    expect(store.state.passives.allocated).toEqual([ring1]);
+    expect(store.allocate(ring2)).toBe('ok');
+    expect(store.refund(ring2)).toBe('ok');
+    expect(store.state.passives.allocated).toEqual([ring1]);
+    expect(store.resetWeb()).toBe('ok');
+    expect(store.state.passives.allocated).toEqual([]);
+  });
+
+  it('allocateMany and refundMany apply a staged set in one step', () => {
+    const { store } = make();
+    store.load();
+    store.state.level = 5;
+    store.state.gold = 5000;
+    expect(store.allocateMany([ring1, ring2])).toBe('ok');
+    expect(store.state.passives.allocated).toEqual([ring1, ring2]);
+    expect(store.refundMany([ring1, ring2])).toBe('ok');
+    expect(store.state.passives.allocated).toEqual([]);
+    expect(store.state.gold).toBe(5000 - 2 * refundPrice(5));
+  });
+
+  it('an allocation persists across a save and a load', () => {
+    const { store, storage, now } = make();
+    store.load();
+    store.state.level = 3;
+    expect(store.allocate(ring1)).toBe('ok');
+    store.save();
+    const again = make(now, storage).store;
+    again.load();
+    expect(again.state.passives.allocated).toEqual([ring1]);
+  });
+});
+
+describe('ascension intent', () => {
+  it('refuses below the ascend level and resets the store at it', () => {
+    const { store } = make();
+    store.load();
+    store.state.level = ASCEND_LEVEL - 1;
+    store.state.deepest = 1000;
+    const v = store.version;
+    expect(store.ascend()).toBe('notReady');
+    expect(store.version).toBe(v);
+    expect(store.state.level).toBe(ASCEND_LEVEL - 1);
+    expect(store.state.deepest).toBe(1000);
+
+    store.state.level = ASCEND_LEVEL;
+    expect(store.ascend()).toBe('ok');
+    expect(store.version).toBe(v + 1);
+    expect(store.state.level).toBe(1);
+    expect(store.state.deepest).toBe(0);
+    expect(store.state.ascendancy.points).toBe(ascendancyPoints(1000, ASCEND_LEVEL, 0));
+    expect(store.stats).toEqual(deriveStats(store.state));
+    expect(store.battle).toEqual(deriveBattleStats(store.state));
+  });
+});
+
+describe('ascendancy and auto-map intents', () => {
+  const start = ASCENDANCY_NODE_BY_ID.get(ASCENDANCY_START_ID);
+  if (start === undefined) throw new Error('the ascendancy tree has no start');
+  const ring1 = start.links[0];
+  const ring1b = start.links[1];
+  if (ring1 === undefined || ring1b === undefined) throw new Error('the ascendancy start has too few links');
+
+  it('allocates a first-ring node for a point; a repeat and an unaffordable node are refused', () => {
+    const { store } = make();
+    store.load();
+    store.state.ascendancy.points = 1;
+    const v = store.version;
+    expect(store.allocateAscendancy(ring1)).toBe('ok');
+    expect(store.state.ascendancy.allocated).toEqual([ring1]);
+    expect(store.state.ascendancy.points).toBe(0);
+    expect(store.version).toBe(v + 1);
+    expect(store.allocateAscendancy(ring1)).toBe('allocated');
+    expect(store.state.ascendancy.allocated).toEqual([ring1]);
+    expect(store.version).toBe(v + 1);
+    expect(store.allocateAscendancy(ring1b)).toBe('noPoints');
+    expect(store.state.ascendancy.allocated).toEqual([ring1]);
+    expect(store.version).toBe(v + 1);
+  });
+
+  it('an ascendancy allocation persists across a save and a load', () => {
+    const { store, storage, now } = make();
+    store.load();
+    store.state.ascendancy.points = 1;
+    expect(store.allocateAscendancy(ring1)).toBe('ok');
+    store.save();
+    const again = make(now, storage).store;
+    again.load();
+    expect(again.state.ascendancy.allocated).toEqual([ring1]);
+  });
+
+  it('a queued map persists across a save and a load', () => {
+    const { store, storage, now } = make();
+    store.load();
+    const path = pathTo('surveyor');
+    store.state.level = path.length + 1;
+    store.state.xp = 0;
+    store.state.passives.allocated = path;
+    const map = stashMap(store.state, 1, 2);
+    expect(store.queueForAutoMap(map.id)).toBe('ok');
+    expect(store.state.autoMap.queue).toEqual([map]);
+    store.save();
+    const again = make(now, storage).store;
+    again.load();
+    expect(again.state.autoMap.queue).toEqual([map]);
+  });
+
+  it('startAutoMap is a trigger: it starts the first queued map at once', () => {
+    const { store } = make();
+    store.load();
+    const path = pathTo('surveyor');
+    store.state.level = path.length + 1;
+    store.state.passives.allocated = path;
+    const map = stashMap(store.state, 1, 2);
+    expect(store.queueForAutoMap(map.id)).toBe('ok');
+    expect(store.startAutoMap()).toBe('ok');
+    expect(store.state.autoMap.on).toBe(true);
+    expect(store.state.activity.kind).toBe('map');
+    expect(store.state.activity.kind === 'map' && store.state.activity.run.map.id).toBe(map.id);
+  });
+
+  it('startAutoMap is locked without Surveyor, and starts nothing without an eligible map', () => {
+    const { store } = make();
+    store.load();
+    const map = stashMap(store.state, 1, 2);
+    expect(store.startAutoMap()).toBe('locked');
+    store.state.passives.allocated = pathTo('surveyor');
+    expect(store.startAutoMap()).toBe('nothing');   // nothing queued
+    expect(store.state.autoMap.on).toBe(false);
+    expect(store.queueForAutoMap(map.id)).toBe('ok');
+  });
+
+  it('allocating, queueing and unqueueing leave both RNG streams untouched', () => {
+    const { store } = make();
+    store.load();
+    const rng = store.state.rng;
+    const uniqueRng = store.state.uniqueRng;
+    const map = stashMap(store.state, 1, 2);
+    store.state.ascendancy.points = 1;
+    store.state.passives.allocated = ['surveyor'];
+    expect(store.allocateAscendancy(ring1)).toBe('ok');
+    expect(store.queueForAutoMap(map.id)).toBe('ok');
+    expect(store.state.rng).toBe(rng);
+    expect(store.state.uniqueRng).toBe(uniqueRng);
+    expect(store.unqueueForAutoMap(map.id)).toBe('ok');
+    expect(store.state.rng).toBe(rng);
+    expect(store.state.uniqueRng).toBe(uniqueRng);
+  });
+
+  it('unqueueing an id that was never queued is refused and changes nothing', () => {
+    const { store } = make();
+    store.load();
+    const v = store.version;
+    expect(store.unqueueForAutoMap(1234)).toBe('notQueued');
+    expect(store.state.autoMap.queue).toEqual([]);
+    expect(store.version).toBe(v);
+  });
+
+  it('achievements a load re-earns retroactively are silent', () => {
+    const s = newGame(7, 0);
+    s.deepest = 1000;
+    s.ahead = {};
+    s.achievements.earned = ['clicks.7'];   // a retired id: dropped on load
+    const storage = new MemoryStorage();
+    storage.setItem(SAVE_KEY, compressToBase64(JSON.stringify({ schema: 24, savedAt: 0, state: s })));
+    const { store } = make({ t: 0 }, storage);
+    store.load();
+    expect(store.state.achievements.earned).toContain('depth.1000');
+    expect(store.state.achievements.earned).not.toContain('clicks.7');
+    expect(store.notifications).toEqual([]);
+    const imported = make().store;
+    imported.load();
+    expect(imported.importSave(compressToBase64(JSON.stringify({ schema: 24, savedAt: 0, state: s }))).ok).toBe(true);
+    expect(imported.state.achievements.earned).toContain('depth.1000');
+    expect(imported.notifications).toEqual([]);
   });
 });

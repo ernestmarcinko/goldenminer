@@ -7,7 +7,8 @@ import {
   statText, userScrolled,
 } from '../../src/ui/character/itemView';
 import { mapDungeon } from '../../src/ui/run/runView';
-import type { MapItem } from '../../src/core/items';
+import type { MapItem, RuneItem } from '../../src/core/items';
+import { gateWall } from '../../src/core/gates';
 import { gear, gem } from '../helpers/items';
 
 it('stat text', () => {
@@ -26,6 +27,17 @@ it('kind lines', () => {
   expect(itemKindLine(gem(s, 'ruby', { grade: 'small' }))).toBe('Gem · Small · socket into any gear');
   expect(itemKindLine(gem(s, 'ruby', { grade: 'small', count: 12 }))).toBe('Gem · Small · socket into any gear · 12 in this stack');
   expect(itemKindLine(gem(s, 'ruby', { grade: 'small', count: 1234 }))).toBe('Gem · Small · socket into any gear · 1,234 in this stack');
+});
+
+it('a rune card describes its special stat and a socketed rune lists on gear', () => {
+  const s = newGame(1, 0);
+  const rune: RuneItem = { id: s.nextId++, type: 'rune', rune: 'fehu', count: 1 };
+  expect(itemKindLine(rune)).toBe('Rune · Fehu · socket into any gear');
+  expect(itemKindLine({ ...rune, count: 4 })).toBe('Rune · Fehu · socket into any gear · 4 in this stack');
+  expect(itemLines(rune)[0]).toEqual({ text: 'All Gold found is doubled.', tone: 'special' });
+  expect(itemSprite(rune)).toBe('fehu');
+  const worn = gear(s, 'ring', { sockets: 1, gems: [{ rune: 'fehu' }] });
+  expect(itemLines(worn).some((l) => l.tone === 'special' && l.text.includes('Fehu'))).toBe(true);
 });
 
 it('item lines list the implicit, affixes, gems and empty sockets', () => {
@@ -113,7 +125,8 @@ it('summarises each set', () => {
   expect(battleStatLine(gearTotals(s, 'battle'))).toBe('Battle gear: nothing equipped yet');
   s.equipped.battle.weapon = gear(s, 'weapon', { implicit: { stat: 'damage', value: 14 }, affixes: [{ stat: 'critChance', value: 5 }] });
   s.equipped.battle.armor = gear(s, 'armor', { implicit: { stat: 'armor', value: 30 } });
-  expect(battleStatLine(gearTotals(s, 'battle'))).toBe('Battle gear: +14 damage · +30 armor · +5% crit chance');
+  // the weapon's damage and the armor's armor are local now, so the global summary keeps only the crit chance
+  expect(battleStatLine(gearTotals(s, 'battle'))).toBe('Battle gear: +5% crit chance');
 });
 
 it('a card opens below its item, above it when there is more room above, and always inside the screen', () => {
@@ -369,7 +382,7 @@ it('a material item reads as a crafting material and where it is first found', (
   expect(itemLines(tin)).toEqual([
     { text: 'Found at every depth', tone: 'plain' },
     { text: 'Kept for crafting.', tone: 'muted' },
-    { text: "Drag it onto gear or a map, or pick it under Craft or Enchant in that item's card.", tone: 'muted' },
+    { text: "Drag it onto gear to craft with it, or exchange it at the Refiner.", tone: 'muted' },
   ]);
   expect(itemLines(iron)[0]).toEqual({ text: 'First found below 50 m', tone: 'plain' });
   expect(itemSprite({ id: 4, type: 'material', material: 'voidCrystal', count: 1 })).toBe('voidCrystal');
@@ -379,4 +392,22 @@ it('a material loot note reads as how many and where they went', () => {
   const n = { name: 'Copper ore', rarity: 'material', base: 'copper', value: 1240 } as const;
   expect(lootNoteText({ ...n, outcome: 'bag' })).toBe('×1,240 to bag');
   expect(lootNoteText({ ...n, outcome: 'stash' })).toBe('×1,240 to Materials tab');
+});
+
+it('a gate map card names its wall before the modifiers; other tiers have no gate line', () => {
+  const seed = 77;
+  const map: MapItem = { id: 1, type: 'map', tier: 10, metre: 327, rarity: 'magic', mods: [{ kind: 'monsterLife', tier: 4, value: 27 }] };
+  const text = gateWall(seed, 10) === 'physical'
+    ? 'Gate tier: physical wall. Monsters hit harder and faster; armour matters most.'
+    : 'Gate tier: elemental wall. Monsters hit much harder with elemental damage; resistances matter most.';
+  expect(itemLines(map, undefined, seed).slice(0, 2)).toEqual([
+    { text, tone: 'plain' },
+    { text: 'Monsters have +27% life', tone: 'plain', tier: 4 },
+  ]);
+  const both = Array.from({ length: 40 }, (_, i) => i + 1).map((s) => itemLines(map, undefined, s)[0]?.text);
+  expect(both).toContain('Gate tier: physical wall. Monsters hit harder and faster; armour matters most.');
+  expect(both).toContain('Gate tier: elemental wall. Monsters hit much harder with elemental damage; resistances matter most.');
+  const off = itemLines({ ...map, tier: 9 }, undefined, seed).map((l) => l.text);
+  expect(off.some((t) => t.startsWith('Gate tier'))).toBe(false);
+  expect(itemLines(map).some((l) => l.text.startsWith('Gate tier'))).toBe(false);
 });

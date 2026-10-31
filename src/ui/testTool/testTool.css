@@ -1,0 +1,12 @@
+.gm-testtool {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 70;
+  display: flex; flex-direction: column; gap: 12px; width: 280px; max-width: 100vw;
+  padding: 12px; box-sizing: border-box; overflow-y: auto;
+  background: var(--gm-ink); border-left: 1px solid var(--gm-gold-dim); box-shadow: -8px 0 24px rgba(0, 0, 0, 0.6);
+}
+.gm-testtool__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gm-testtool__title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 18px; }
+.gm-testtool__state { line-height: 1.4; }
+.gm-testtool__group { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 6px; border-top: 1px solid var(--gm-line); }
+.gm-testtool__group-title { flex-basis: 100%; margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; }
+.gm-testtool__group .gm-btn { font-size: 12px; }

@@ -13,10 +13,9 @@ test('a single card keeps to the screen', () => {
   expect(placeCardLeft(300, 270, 388)).toBe(110);
 });
 
-test('the equipped card sits beside the compared one only for a hover card on a wide screen', () => {
-  expect(cardPairLayout(1440, false)).toBe('row');
-  expect(cardPairLayout(900, false)).toBe('row');
-  expect(cardPairLayout(1440, true)).toBe('column');
-  expect(cardPairLayout(390, false)).toBe('column');
-  expect(cardPairLayout(899, false)).toBe('column');
+test('the equipped card sits beside the compared one on a wide screen, and is dropped on a narrow one', () => {
+  expect(cardPairLayout(1440)).toBe('row');
+  expect(cardPairLayout(900)).toBe('row');
+  expect(cardPairLayout(390)).toBe('column');
+  expect(cardPairLayout(899)).toBe('column');
 });

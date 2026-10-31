@@ -1,10 +1,12 @@
-import { hardness, MATERIAL_TABLE, TICKS_PER_METRE_AT_PARITY } from '../../core/balance';
+import { baseDamage, hardness, MATERIAL_TABLE, TICKS_PER_METRE_AT_PARITY } from '../../core/balance';
+import { gateWall, type Wall } from '../../core/gates';
 import { GEM_GRADE_LABELS, gemName, itemName } from '../../core/itemData';
-import { BATTLE_STATS, MOD_SIDE, isGear, setOfSlot } from '../../core/items';
-import type { GearItem, GemType, Item, MapItem, Material, ModLine, Slot, StatKey } from '../../core/items';
-import { gemEffect, itemTotals } from '../../core/stats';
+import { BATTLE_STATS, MOD_SIDE, isGear, orbName, setOfSlot } from '../../core/items';
+import type { GearItem, GemType, Item, MapItem, Material, ModLine, OrbFamily, OrbItem, OrbSide, OrbTier, Slot, StatKey } from '../../core/items';
+import { RUNE_DESCRIPTIONS, RUNE_LABELS } from '../../core/runes';
+import { gemEffect, itemTotals, weaponDamage } from '../../core/stats';
 import type { GameState, LootNote, Stats } from '../../core/types';
-import { UNIQUE_LINES, isLegendaryId } from '../../core/uniques';
+import { UNIQUE_LINES } from '../../core/uniques';
 import type { SpriteName } from '../../sprites/atlas';
 import { formatDuration, formatNumber, formatRate, plural } from '../format';
 import { mapDungeon, mapModLines, mapRewardsText, mapSpecialLine } from '../run/runView';
@@ -38,11 +40,13 @@ export const STAT_LABELS: Readonly<Record<StatKey, { label: string; unit: '' | '
   armor: { label: 'armor', unit: '' },
   critChance: { label: 'crit chance', unit: '%' },
   resistAll: { label: 'all resistances', unit: '%' },
+  maxResist: { label: 'maximum resistances', unit: '%' },
   soulFind: { label: 'Soul find', unit: '%' },
   magicFind: { label: 'magic find', unit: '%' },
   elementalDamage: { label: 'elemental damage', unit: '' },
   critMultiplier: { label: 'critical damage', unit: '%' },
   lifePct: { label: 'life', unit: '%' },
+  cleave: { label: 'cleave efficiency', unit: '%' },
   armorPct: { label: 'armor', unit: '%' },
   lifeRegen: { label: 'life per second', unit: '' },
   lifeOnKill: { label: 'life per kill', unit: '' },
@@ -79,9 +83,11 @@ export type Tone = 'plain' | 'up' | 'down' | 'gem' | 'muted' | 'special';
 export interface ViewLine { text: string; tone: Tone; tier?: number }
 
 /** An enchanted map takes the gear colour of its rarity; a normal map keeps the map colour. */
-export function rarityOf(item: Item): GearItem['rarity'] | 'gem' | 'material' | 'map' {
+export function rarityOf(item: Item): GearItem['rarity'] | 'gem' | 'rune' | 'material' | 'map' {
   if (item.type === 'map') return item.rarity === 'normal' ? 'map' : item.rarity;
-  return isGear(item) ? item.rarity : item.type;
+  if (isGear(item)) return item.rarity;
+  if (item.type === 'orb') return 'material';
+  return item.type;
 }
 
 const capitalise = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
@@ -101,6 +107,14 @@ export function itemKindLine(item: Item): string {
     const base = `Gem · ${GEM_GRADE_LABELS[item.grade]} · socket into any gear`;
     return item.count > 1 ? `${base} · ${formatNumber(item.count)} in this stack` : base;
   }
+  if (item.type === 'rune') {
+    const base = `Rune · ${RUNE_LABELS[item.rune]} · socket into any gear`;
+    return item.count > 1 ? `${base} · ${formatNumber(item.count)} in this stack` : base;
+  }
+  if (item.type === 'orb') {
+    const base = orbName(item);
+    return item.count > 1 ? `${base} · ${formatNumber(item.count)} in this stack` : base;
+  }
   const base = gearKindBase(item);
   return item.sockets > 0 ? `${base} · ${formatNumber(item.gems.length)}/${formatNumber(item.sockets)} sockets` : base;
 }
@@ -113,8 +127,16 @@ export function cardHead(seed: number, item: Item): { name: string; kind: string
 }
 
 /** A map's modifiers with their tiers, in their rolled order, and what they pay; then where it was found. */
-function mapLines(map: MapItem): ViewLine[] {
-  const lines = mapModLines(map);
+const GATE_LINES: Readonly<Record<Wall, string>> = {
+  physical: 'Gate tier: physical wall. Monsters hit harder and faster; armour matters most.',
+  elemental: 'Gate tier: elemental wall. Monsters hit much harder with elemental damage; resistances matter most.',
+};
+
+/** A map's gate line (when its tier is a gate, which the world's seed decides), then its modifiers and the rest. */
+function mapLines(map: MapItem, seed?: number): ViewLine[] {
+  const wall = seed === undefined ? undefined : gateWall(seed, map.tier);
+  const lines: ViewLine[] = wall === undefined ? [] : [{ text: GATE_LINES[wall], tone: 'plain' }];
+  lines.push(...mapModLines(map));
   const special = mapSpecialLine(map);
   if (special !== null) lines.push(special);
   const rewards = mapRewardsText(map);
@@ -124,14 +146,14 @@ function mapLines(map: MapItem): ViewLine[] {
   return lines;
 }
 
-export function itemLines(item: Item): ViewLine[] {
-  if (item.type === 'map') return mapLines(item);
+export function itemLines(item: Item, level?: number, seed?: number): ViewLine[] {
+  if (item.type === 'map') return mapLines(item, seed);
   if (item.type === 'material') {
     const from = MATERIAL_TABLE[item.material].from;
     return [
       { text: from === 0 ? 'Found at every depth' : `First found below ${formatNumber(from)} m`, tone: 'plain' },
       { text: 'Kept for crafting.', tone: 'muted' },
-      { text: "Drag it onto gear or a map, or pick it under Craft or Enchant in that item's card.", tone: 'muted' },
+      { text: "Drag it onto gear to craft with it, or exchange it at the Refiner.", tone: 'muted' },
     ];
   }
   if (item.type === 'gem') {
@@ -140,12 +162,39 @@ export function itemLines(item: Item): ViewLine[] {
       { text: `In battle gear: ${lineText(gemEffect(item, 'battle'))}`, tone: 'plain' },
     ];
   }
+  if (item.type === 'rune') {
+    return [
+      { text: RUNE_DESCRIPTIONS[item.rune], tone: 'special' },
+      { text: 'Works for the whole character, once per kind, while worn.', tone: 'muted' },
+    ];
+  }
+  if (item.type === 'orb') {
+    return [
+      { text: orbEffectText(item), tone: 'plain' },
+      { text: 'Kept for crafting. Use its Craft action on gear or a map, or the Refiner.', tone: 'muted' },
+    ];
+  }
   const lines: ViewLine[] = [{ text: lineText(item.implicit), tone: item.implicit.value < 0 ? 'down' : 'plain' }];
+  // A weapon's overall damage: its flat (after its own damage%) laid on the base damage, shown as a range.
+  if (item.slot === 'weapon' && level !== undefined) {
+    const wd = weaponDamage(item);
+    const base = baseDamage(level);
+    lines.unshift({
+      text: `Damage ${formatNumber(Math.round(base.min + wd))}–${formatNumber(Math.round(base.max + wd))}`,
+      tone: 'plain',
+    });
+  }
   for (const a of cardOrder(item.affixes)) lines.push(modLine(a, item.rarity === 'legendary'));
-  // A legendary's unique line has no tier; an id this build doesn't know has no line.
-  if (item.rarity === 'legendary' && isLegendaryId(item.uniqueId)) lines.push({ text: UNIQUE_LINES[item.uniqueId], tone: 'special' });
+  // A signature legendary's unique line has no tier; a stat-only legendary has none.
+  if (item.rarity === 'legendary' && item.uniqueId !== undefined) {
+    const unique = UNIQUE_LINES[item.uniqueId];
+    if (unique !== undefined) lines.push({ text: unique, tone: 'special' });
+  }
   const set = setOfSlot(item.slot);
-  for (const g of item.gems) lines.push({ text: `${gemName(g)}: ${lineText(gemEffect(g, set))}`, tone: 'gem' });
+  for (const g of item.gems) {
+    if ('rune' in g) lines.push({ text: `${RUNE_LABELS[g.rune]}: ${RUNE_DESCRIPTIONS[g.rune]}`, tone: 'special' });
+    else lines.push({ text: `${gemName(g)}: ${lineText(gemEffect(g, set))}`, tone: 'gem' });
+  }
   const empty = item.sockets - item.gems.length;
   if (empty > 0) lines.push({ text: plural(empty, 'empty socket', 'empty sockets'), tone: 'muted' });
   if (item.sealed) lines.push({ text: 'Tempered: it can\'t be crafted any more.', tone: 'muted' });
@@ -188,6 +237,11 @@ const CARD_PAIR_MIN_VIEWPORT = 900;
 const CARD_GAP = 4;
 /** How far inside the screen's edges a card stays. */
 const SCREEN_MARGIN = 8;
+
+/** A card's width on the screen: the tooltip alone, or twice it plus the gap when the worn item's card sits beside it. */
+export function cardWidth(pair: boolean): number {
+  return pair ? 2 * TOOLTIP_WIDTH + CARD_PAIR_GAP : TOOLTIP_WIDTH;
+}
 
 /** A card's left edge on the screen: at its item's, moved left as far as it takes to keep it inside the screen. */
 export function placeCardLeft(anchorLeft: number, width: number, viewportWidth: number, minLeft = SCREEN_MARGIN): number {
@@ -312,9 +366,9 @@ export function keptHeight(tallest: number, height: number): number {
   return Math.max(tallest, height);
 }
 
-/** The worn item's card goes beside a hover card on a wide screen, and inside any other card. */
-export function cardPairLayout(viewportWidth: number, isMenu: boolean): 'row' | 'column' {
-  return !isMenu && viewportWidth >= CARD_PAIR_MIN_VIEWPORT ? 'row' : 'column';
+/** The worn item's card sits beside a card on a wide screen, and is dropped on a narrow one. */
+export function cardPairLayout(viewportWidth: number): 'row' | 'column' {
+  return viewportWidth >= CARD_PAIR_MIN_VIEWPORT ? 'row' : 'column';
 }
 
 /** The worn item that `item` would replace, when `item` is gear that is not itself worn. */
@@ -350,12 +404,38 @@ export function baseSprite(base: Slot | GemType | Material): SpriteName {
   return base in SLOT_SPRITES ? SLOT_SPRITES[base as Slot] : (base as GemType | Material);
 }
 
+/** The sprite of an orb: one per family, side and tier (where tiered), recoloured by the tier. */
+export function orbSprite(family: OrbFamily, side: OrbSide | undefined, tier: OrbTier | undefined): SpriteName {
+  const tierSuffix = tier === 'minor' ? 'Minor' : tier === 'normal' ? 'Normal' : 'Greater';
+  switch (family) {
+    case 'craft': return `${side === 'prefix' ? 'orbPrefix' : 'orbSuffix'}${tierSuffix}` as SpriteName;
+    case 'removal': return (side === 'prefix' ? 'orbSeveranceNormal' : 'orbUnmakingNormal') as SpriteName;
+    case 'scattering': return 'orbScatterNormal';
+    case 'socketing': return 'orbSocket';
+    case 'clearSockets': return 'orbClearSocket';
+  }
+}
+
+/** What an orb does, in one sentence; the orb's card and the merchant's hover tooltip both read it. */
+export function orbEffectText(item: OrbItem): string {
+  if (item.family === 'craft') {
+    const tier = item.tier === 'minor' ? 'low' : item.tier === 'normal' ? 'middle' : 'high';
+    return `Adds a random ${item.side}, rolled in the ${tier} tier band.`;
+  }
+  if (item.family === 'removal') return `Removes one random ${item.side}.`;
+  if (item.family === 'scattering') return 'Rerolls the value of every prefix and suffix.';
+  if (item.family === 'socketing') return 'Adds one socket, up to three.';
+  return 'Destroys every socketed rune; the gems stay.';
+}
+
 export function itemSprite(item: Item): SpriteName {
   switch (item.type) {
     case 'gear': return baseSprite(item.slot);
     case 'gem': return baseSprite(item.gem);
+    case 'rune': return item.rune;
     case 'map': return 'map';
     case 'material': return baseSprite(item.material);
+    case 'orb': return orbSprite(item.family, item.side, item.tier);
   }
 }
 

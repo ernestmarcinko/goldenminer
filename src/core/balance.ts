@@ -1,4 +1,5 @@
-import type { GemGrade, MapModKind, MapRarity, Material, Rarity, StatKey } from './items';
+import { orbKey } from './items';
+import type { GemGrade, MapModKind, MapRarity, Material, OrbFamily, OrbSide, OrbTier, Rarity, StatKey } from './items';
 import type { CraftKind, FeatureKind, Hazard, Stats, TemperOutcome } from './types';
 
 export const BASE_DIG_POWER = 10;
@@ -56,6 +57,16 @@ export const GEM_GRADE_LEVEL: Readonly<Record<GemGrade, number>> = { tiny: 2, sm
 export const GEM_GRADE_FROM_TIER: Readonly<Record<GemGrade, number>> = { tiny: 1, small: 4, big: 7, giant: 10, perfect: 15 };
 export const GEM_BAG_STACK = 25;
 export const GEM_STASH_STACK = 1_000_000;
+// Runes: a second, exotic socketable. Static drop chance, an exponential kind curve, and their own RNG salt.
+export const RUNE_DROP_CHANCE = 0.005;
+export const RUNE_WEIGHT_BASE = 2;
+export const RUNE_BAG_STACK = 10;
+export const RUNE_STASH_STACK = 1000;
+export const RUNE_SELL_GOLD = 500;
+export const RUNE_RNG_SALT = 0x5e11;
+export const RUNE_SALVAGE_VOID_CRYSTAL = 1;
+// The Isa rune's "attack 20 % slower": the monster interval, multiplied by 1 / 0.8.
+export const SLOW_MONSTERS_INTERVAL = 1.25;
 export const MATERIAL_BAG_STACK = 50;
 export const MATERIAL_STASH_STACK = 1_000_000;
 // Twice the old 20: a migrated catch-all splits into a gear rule and a gem rule, so no old filter overflows.
@@ -72,11 +83,32 @@ export const MAX_TIER_OVER_CAP = 2;
 // The highest item level an item, gem or map tier can have; a save holding more is refused.
 export const MAX_ITEM_LEVEL = 100_000;
 
-export const LEVEL_CAP = 60;
+export const LEVEL_CAP = 100;
+// XP to leave level L is XP_PER_LEVEL × L^XP_EXPONENT, times a ramp that leaves the tuned early levels alone: 1× up to
+// XP_RAMP_START, then XP_RAMP_STEEP more a level up to XP_RAMP_KNEE (auto-mapping arrives around level 30 and runs maps
+// all night), then XP_RAMP_LATE more a level to the cap, so a first run takes about two weeks.
+export const XP_PER_LEVEL = 100;
+export const XP_EXPONENT = 1.5;
+export const XP_RAMP_START = 20;
+export const XP_RAMP_KNEE = 45;
+export const XP_RAMP_STEEP = 1.2;
+export const XP_RAMP_LATE = 1.06;
+// Ascendancy: the depth each point costs, the level that unlocks ascension, and how many levels above it earn a
+// bonus point (from the second ascension on).
+export const ASCEND_DEPTH_PER_POINT = 250;
+export const ASCEND_LEVEL = 60;
+export const ASCEND_LEVEL_STEP = 10;
+// What each ascendancy node kind costs in points: minors stay a point, the majors are a multi-ascension save-up.
+export const ASCENDANCY_SMALL_COST = 1;
+export const ASCENDANCY_MID_COST = 6;
+export const ASCENDANCY_BIG_COST = 12;
+export const AUTO_MAP_QUEUE_SIZE = 100;
 export const COMBAT_LOG_LIMIT = 20;
 export const RUN_LOOT_LIMIT = 30;
-export const MAX_LIFE = 1_000_000;
-export const MAX_DAMAGE = 1_000_000;
+export const MAX_LIFE = 1e12;
+export const MAX_DAMAGE = 1e12;
+// Every GATE_EVERY-th map tier is a gate: a physical or an elemental wall (gates.ts).
+export const GATE_EVERY = 5;
 
 // The miner's battle numbers.
 export const BASE_LIFE = 50;
@@ -91,8 +123,25 @@ export const BASE_CRIT_CHANCE = 5;
 export const MAX_CRIT_CHANCE = 75;
 export const CRIT_MULTIPLIER = 1.5;
 export const MAX_RESIST = 75;
+// The base cap can be raised to at most this by the `maxResist` stat (items + skills).
+export const MAX_RESIST_HARD_CAP = 95;
+// The floor of the effective resist: negative resist is allowed and amplifies elemental damage.
+export const MIN_RESIST = -200;
+// Every level past the first pushes the base elemental resist one point further negative.
+export const RESIST_PENALTY_PER_LEVEL = 1;
+// The base elemental resist at a level: 0 at level 1, −49 at 50, −99 at 100. Gear/passive resistAll is unchanged;
+// only the level penalty and the clamp are new.
+export function baseResist(level: number): number {
+  // `0 - …` rather than `-(…)` so level 1 yields +0, not −0.
+  return 0 - (level - 1) * RESIST_PENALTY_PER_LEVEL;
+}
 export const ARMOR_FACTOR = 10;
-export const MAX_ARMOR_REDUCTION = 0.9;
+// The armor divisor rises with level, so a higher level needs more armor for the same reduction.
+export const ARMOR_FACTOR_LEVEL = 0.25;
+export function armorFactor(level: number): number {
+  return ARMOR_FACTOR + ARMOR_FACTOR_LEVEL * (level - 1);
+}
+export const MAX_ARMOR_REDUCTION = 0.95;
 
 // Monster base values by tier (unrounded); species, rank and modifiers scale them.
 export function monsterLifeBase(tier: number): number {
@@ -101,16 +150,81 @@ export function monsterLifeBase(tier: number): number {
 export function monsterDamageBase(tier: number): number {
   return 2 + 1.5 * tier ** 1.2;
 }
-// What a map's tier multiplies its monsters' life and damage by (tier 1 first; deeper tiers use the last entry): a new
-// miner with no gear wins the guaranteed first map about two times in three, a level-3 miner in normal gear of tier 2's
-// item level wins a tier-2 map about seven times in ten, and from tier 3 a map of your gear's level is cleared about 40%
-// of the time.
-export const MAP_MONSTER_SCALE: readonly number[] = [1.38, 1.34, 2.05, 1.8, 1.7, 1.55, 1.4, 1.35, 1.3, 1.25];
-export function mapMonsterScale(tier: number): number {
-  return MAP_MONSTER_SCALE[Math.min(tier, MAP_MONSTER_SCALE.length) - 1] ?? 1;
+// The achievements a reference player holds on first reaching each level of a first run (Plan 35's tuned reference
+// sim, three seeds). The tier curve below is tuned against the +1 % each one grants, and the balance suite pins the sim
+// to it within ±25 %.
+export const EXPECTED_ACHIEVEMENTS_AT_LEVEL: Readonly<Record<10 | 30 | 60 | 100, number>> = {
+  10: 25, 30: 90, 60: 200, 100: 280,
+};
+const EXPECTED_LEVELS = [10, 30, 60, 100] as const;
+/** The achievements a reference player should hold at `level`: the table, interpolated, from none at level 1. */
+export function expectedAchievements(level: number): number {
+  let lo = 1;
+  let loValue = 0;
+  for (const hi of EXPECTED_LEVELS) {
+    const hiValue = EXPECTED_ACHIEVEMENTS_AT_LEVEL[hi];
+    if (level <= hi) return loValue + ((hiValue - loValue) * (Math.max(level, lo) - lo)) / (hi - lo);
+    lo = hi;
+    loValue = hiValue;
+  }
+  return loValue;
+}
+// The tier curve. Tiers 1 and 2 keep their hand-tuned scale: a naked new miner wins the guaranteed first map about two
+// times in three, and a level-3 miner in normal tier-2 gear wins a tier-2 map about seven times in ten. From tier 3 the
+// base curve keeps pace with the power a reference player should have there. The monster bases and the hordes already
+// grow with the tier, as the gear and levels that come with it do; the curve adds the expected achievement boost at the
+// tier's typical level (TIER_LEVELS × tier, +1 % each). The growth a tier on top of that is 1 for both life and damage
+// (the f3 tuning), so the curve is the bases times the boost and the gates' steps below. Both stop at the cap's tier,
+// past which the bases alone keep the climb going.
+export const EARLY_TIER_SCALE: readonly number[] = [1.38, 1.34];
+export const TIER_LEVELS = 2;
+export const TIER_LIFE_GROWTH = 1;
+export const TIER_DAMAGE_GROWTH = 1;
+// A gate tier multiplies the base curve by its step; the tier after it is back on the curve. The first gates ease in,
+// while a new miner still plays only its check-ins: the first takes GATE_EASE_FROM of the step's rise, and each one
+// after it more, up to the whole step at gate GATE_EASE_IN (tier 15) and past.
+export const GATE_LIFE_STEP = 2;
+export const GATE_DAMAGE_STEP = 2;
+export const GATE_EASE_IN = 3;
+export const GATE_EASE_FROM = 0.5;
+// What a gate's wall adds on top of its step: a physical wall's monsters hit harder and more often, so armour matters
+// most; an elemental wall's hit with elemental damage, so resistances do.
+export const PHYSICAL_WALL: Readonly<{ damageMult: number; speedMult: number }> = { damageMult: 1.25, speedMult: 1.25 };
+export const ELEMENTAL_WALL: Readonly<{ damageMult: number }> = { damageMult: 3 };
+
+/** What a gate tier multiplies the base curve by, eased in over a first run's gates; 1 off a gate. */
+function gateStep(tier: number, step: number): number {
+  const t = Math.floor(tier);
+  if (t < GATE_EVERY || t % GATE_EVERY !== 0) return 1;
+  const ease = Math.min(1, (t / GATE_EVERY - 1) / (GATE_EASE_IN - 1));
+  return 1 + (step - 1) * (GATE_EASE_FROM + (1 - GATE_EASE_FROM) * ease);
+}
+
+/** The expected achievement boost at a tier's typical level. */
+function tierBoost(tier: number): number {
+  return 1 + 0.01 * expectedAchievements(Math.min(LEVEL_CAP, TIER_LEVELS * tier));
+}
+
+/** The base curve: the early scale, then `growth` a tier from tier 3, times the boost expected there over tier 2's. */
+function baseCurve(tier: number, growth: number): number {
+  const t = Math.max(1, Math.floor(tier));
+  const early = EARLY_TIER_SCALE[t - 1];
+  if (early !== undefined) return early;
+  const last = EARLY_TIER_SCALE.length;
+  const steps = Math.min(t, LEVEL_CAP / TIER_LEVELS) - last;
+  return (EARLY_TIER_SCALE[last - 1] ?? 1) * growth ** steps * (tierBoost(t) / tierBoost(last));
+}
+
+/** What a map's tier multiplies its monsters' life by: the base curve, times the gate's step on a gate tier. */
+export function tierLifeMult(tier: number): number {
+  return baseCurve(tier, TIER_LIFE_GROWTH) * gateStep(tier, GATE_LIFE_STEP);
+}
+/** What a map's tier multiplies its monsters' damage by: the base curve, times the gate's step on a gate tier. */
+export function tierDamageMult(tier: number): number {
+  return baseCurve(tier, TIER_DAMAGE_GROWTH) * gateStep(tier, GATE_DAMAGE_STEP);
 }
 export function monsterXp(tier: number): number {
-  return Math.round(10 * tier ** 1.5);
+  return Math.round(8 * tier ** 1.5);
 }
 export const CHAMPION_LIFE = 2.5;
 export const CHAMPION_DAMAGE = 1.5;
@@ -131,21 +245,47 @@ export function soulsPerKill(tier: number): number {
 export function goldPerKill(tier: number): number {
   return 2 * tier;
 }
-export const DROP_CHANCE = 0.15;
+export const DROP_CHANCE = 0.01;
 export const BOSS_DROPS = 2;
 export const CHAMPION_DROPS = 1;
 export const CHAMPION_MAGIC_FIND = 3;
 export const MAP_DROP_BATTLE_CHANCE = 0.8;
-export const MAP_GEM_CHANCE = 0.04;
+export const MAP_GEM_CHANCE = 0.004;
+// A boss kill rolls this chance (times the miner's map find) to drop a map; its tier is the run map's tier plus an offset
+// drawn from these (offset, weight) pairs, so a stuck player can farm the tier below.
+export const MAP_CLEAR_DROP_CHANCE = 1;
+export const MAP_CLEAR_TIER_WEIGHTS: readonly (readonly [number, number])[] = [[-1, 25], [0, 50], [1, 25]];
 // A kill rolls this chance rankReward times; each pass drops a material of the map's depth.
-export const MAP_MATERIAL_CHANCE = 0.25;
+export const MAP_MATERIAL_CHANCE = 0.02;
 // What the room clears of a map heal in all, as a share of max life: each clear heals its part, so every map heals the same.
 export const ROOM_REGEN_TOTAL = 1.5;
 // A map tick is fought in equal steps of at most this many seconds, so the tick rate never changes a fight.
 export const COMBAT_STEP_S = 0.25;
-// A map's layout: every map holds the same monster budget; a champion costs CHAMPION_UNITS of it.
-export const MONSTER_BUDGET = 15;
+// A map's layout: each room holds `monsterBudget(tier)` monsters. Lower tiers keep the classic density (~3 a room), and
+// it grows with the tier up to MONSTER_BUDGET_MAX a room. A champion costs CHAMPION_UNITS of a room's budget.
+export const MONSTER_BUDGET_BASE = 3;
+export const MONSTER_BUDGET_MAX = 1000;
+export const MONSTER_BUDGET_LOW_TIERS = 6;
+export const MONSTER_BUDGET_PER_TIER = 20;
+export function monsterBudget(tier: number): number {
+  if (tier <= MONSTER_BUDGET_LOW_TIERS) return MONSTER_BUDGET_BASE;
+  return Math.min(MONSTER_BUDGET_MAX, MONSTER_BUDGET_BASE + (tier - MONSTER_BUDGET_LOW_TIERS) * MONSTER_BUDGET_PER_TIER);
+}
 export const CHAMPION_UNITS = 3;
+// How many monsters attack at once: one at the lowest tiers, a few as the tier climbs, never an overwhelming swarm.
+export const MONSTER_ATTACKERS_BASE = 1;
+export const MONSTER_ATTACKERS_MAX = 3;
+export function monsterAttackers(tier: number): number {
+  return Math.min(MONSTER_ATTACKERS_MAX, MONSTER_ATTACKERS_BASE + Math.floor((tier - 1) / 7));
+}
+// When several monsters attack at once, each one after the first lands a softer blow: this share of its normal damage.
+export const MONSTER_ATTACKER_DAMAGE_SHARE = 0.6;
+// Cleave: every strike hits this many extra enemies beyond its main target, each for the cleave efficiency (see
+// CLEAVE_BASE) of the damage. The main target always takes the full hit.
+export const CLEAVE_TARGETS = 3;
+// Cleave is always on: each extra enemy struck takes this share of the hit by default, raised toward 100% by items and
+// skills (the `cleave` stat adds percentage points on top).
+export const CLEAVE_BASE = 25;
 export const MIN_ROOMS = 4;
 export const MAX_ROOMS = 7;
 
@@ -191,11 +331,13 @@ export const STAT_TIERS: Readonly<Record<StatKey, { base: number; step: number }
   attackSpeed: { base: 3, step: 2 },
   critChance: { base: 1, step: 0.5 },
   critMultiplier: { base: 5, step: 3 },
+  cleave: { base: 5, step: 4 },
   life: { base: 8, step: 6 },
   lifePct: { base: 3, step: 2 },
   armor: { base: 6, step: 5 },
   armorPct: { base: 4, step: 2 },
   resistAll: { base: 3, step: 2 },
+  maxResist: { base: 1, step: 1 },
   lifeRegen: { base: 1, step: 0.5 },
   lifeOnKill: { base: 2, step: 2 },
   soulFind: { base: 4, step: 2 },
@@ -234,13 +376,74 @@ export const CHEST_SECOND_ITEM_CHANCE = 0.2;
 export const CHEST_BATTLE_CHANCE = 0.2;
 
 // A craft costs base + floor(level / per) of its material, or base alone when per is 0. Gear's level is its ilvl, a
-// map's its tier.
-export const CRAFT_COST: Readonly<Record<CraftKind, { base: number; per: number }>> = {
-  copper: { base: 1, per: 2 }, tin: { base: 1, per: 2 }, iron: { base: 1, per: 2 },
-  silver: { base: 1, per: 4 }, mithril: { base: 1, per: 4 }, starsteel: { base: 1, per: 4 },
+// map's its tier. Starsteel and Obsidian are retired as crafts (they are orb currency, Plan 27), and so is Copper (its
+// "make it magic" became a Diamond upgrade), so none of the three has an entry. `makeMagic`/`makeRare` spend Diamonds
+// on gear; on maps they spend Souls instead (no material).
+export const CRAFT_COST: Readonly<Partial<Record<CraftKind, { base: number; per: number }>>> = {
+  tin: { base: 1, per: 2 }, iron: { base: 1, per: 2 },
+  silver: { base: 1, per: 4 }, mithril: { base: 1, per: 4 },
   diamond: { base: 1, per: 3 },
-  obsidian: { base: 1, per: 0 }, voidCrystal: { base: 1, per: 0 },
+  makeMagic: { base: 1, per: 4 },
+  makeRare: { base: 1, per: 2 },
+  voidCrystal: { base: 1, per: 0 },
 };
+
+// The crafting rebalance (Plan 27): the orb catalogue replaces essences and the old two orbs. Copper, Tin, Silver,
+// Mithril and Diamond stay the cheap base crafts; Void crystal still tempers; Iron, Mithril and Void crystal buy the
+// orbs below, and the ore exchange turns any ore into whichever an orb costs.
+export const ORB_BAG_STACK = 50;
+export const ORB_STASH_STACK = 1_000_000;
+
+/**
+ * The ore and cost of each orb, keyed by `orbKey`. Craft orbs are tiered (Minor Iron, Normal Mithril, Greater Void
+ * crystal); removal, scattering, socketing and clearing orbs are untiered.
+ */
+export const ORB_COSTS: Readonly<Record<string, { ore: Material; cost: number }>> = {
+  'craft:prefix:minor': { ore: 'iron', cost: 2 },
+  'craft:prefix:normal': { ore: 'mithril', cost: 3 },
+  'craft:prefix:greater': { ore: 'voidCrystal', cost: 4 },
+  'craft:suffix:minor': { ore: 'iron', cost: 2 },
+  'craft:suffix:normal': { ore: 'mithril', cost: 3 },
+  'craft:suffix:greater': { ore: 'voidCrystal', cost: 4 },
+  'removal:prefix': { ore: 'mithril', cost: 3 },
+  'removal:suffix': { ore: 'mithril', cost: 3 },
+  'scattering': { ore: 'mithril', cost: 6 },
+  'socketing': { ore: 'iron', cost: 2 },
+  'clearSockets': { ore: 'mithril', cost: 2 },
+};
+
+/** The ore an orb is bought with. */
+export function orbOre(family: OrbFamily, side?: OrbSide, tier?: OrbTier): Material {
+  return ORB_COSTS[orbKey(family, side, tier)]?.ore ?? 'iron';
+}
+
+/** What an orb costs, in units of its ore. */
+export function orbCost(family: OrbFamily, side?: OrbSide, tier?: OrbTier): number {
+  return ORB_COSTS[orbKey(family, side, tier)]?.cost ?? 0;
+}
+
+/**
+ * The tier band a craft orb rolls its added or rerolled line in, for an item whose cap is `cap` (C): Minor `[1, ⌊C/3⌋]`,
+ * Normal `[⌊C/3⌋+1, ⌊2C/3⌋]`, Greater `[⌊2C/3⌋+1, C + MAX_TIER_OVER_CAP]`, each end clamped to at least 1.
+ */
+export function orbTierBand(tier: OrbTier, cap: number): [number, number] {
+  const c = Math.max(1, cap);
+  const third = Math.floor(c / 3);
+  const twoThirds = Math.floor((2 * c) / 3);
+  switch (tier) {
+    case 'minor': return [1, Math.max(1, third)];
+    case 'normal': return [Math.max(1, third + 1), Math.max(1, twoThirds)];
+    case 'greater': return [Math.max(1, twoThirds + 1), c + MAX_TIER_OVER_CAP];
+  }
+}
+// Ore exchange: adjacent rungs, up 4 : 1 and down 1 : 3.
+export const EXCHANGE_UP = 4;
+export const EXCHANGE_DOWN = 3;
+// The premium: buying into an ore adds PREMIUM_STEP to its premium (capped at PREMIUM_CAP); every applied tick
+// multiplies each premium by PREMIUM_DECAY_KEEP, so it eases back to 0 within a couple of hours of not buying.
+export const PREMIUM_STEP = 0.1;
+export const PREMIUM_CAP = 1.0;
+export const PREMIUM_DECAY_KEEP = 0.9994;
 export const TEMPER_WEIGHTS: readonly [TemperOutcome, number][] = [['craftedLine', 30], ['raiseTiers', 25], ['nothing', 25], ['ruin', 20]];
 // Enchanting a map also spends Souls, this many for each of its tiers.
 export const MAP_CRAFT_SOULS_PER_TIER = 5;
@@ -297,3 +500,10 @@ export const LONG_VOYAGE_CAP = 2;             // the offline cap's multiplier, a
 export const BAND_OF_THE_DEEP_HEAL = 0.02;    // of max life, on every critical hit
 export const WOLF_EYE_DROPS = 1;              // more items from a champion or a boss
 export const PEACEMAKER_EVERY = 5;            // every 5th strike strikes twice
+
+// The passive web: a refund costs Gold scaling with level, a full reset Diamonds.
+export const RESPEC_GOLD_BASE = 100;
+export const RESET_WEB_DIAMONDS = 20;
+// How far above the base bag stack the passive web can push a gem or material stack (Gem Pouch / Ore Cart).
+export const MAX_PASSIVE_GEM_STACK = 10;
+export const MAX_PASSIVE_MATERIAL_STACK = 25;

@@ -285,14 +285,12 @@ it('every unique has its spec line', () => {
   });
 });
 
-it('rollLegendary gives any of the legendaries, rolled for its own slot', () => {
+it('rollLegendary gives a legendary of its own slot, gated by tier', () => {
   const gen = { rng: 5, nextId: 1 };
-  const seen = new Set<string>();
   for (let i = 0; i < 200; i++) {
-    const item = rollLegendary(gen, 5);
+    const item = rollLegendary(gen, 5);   // low item level: only tier-1 legendaries are eligible
     const def = LEGENDARIES.find((d) => d.id === item.uniqueId);
     expect([item.rarity, item.slot, item.name]).toEqual(['legendary', def?.slot, def?.name]);
-    seen.add(item.uniqueId ?? '');
+    expect(def?.tier).toBe(1);
   }
-  expect(seen.size).toBe(LEGENDARIES.length);
 });

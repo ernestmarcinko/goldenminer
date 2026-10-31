@@ -21,7 +21,9 @@ it('an hour of 250 ms pumps, a save, then a 2 h absence equals one advance over 
   second.load();
 
   const reference = freshWorld(() => 7, 0);
-  advance(reference, 3 * HOUR, deriveStats(reference));
+  const stats = deriveStats(reference);
+  advance(reference, HOUR, stats);                                     // the live hour of pumps
+  advance(reference, 3 * HOUR, stats, undefined, false, true);         // the 2 h absence, away
   expect(second.state).toEqual(reference);
   expect(second.offlineSummary?.ticks).toBe(2 * 3600);
 });
@@ -42,7 +44,9 @@ it('a run left going while away finishes offline and digging resumes, the same a
 
   const reference = freshWorld(() => 7, 0);
   startMap(reference, stashMap(reference, 1, 2).id);
-  advance(reference, now.t, deriveStats(reference));
+  const stats = deriveStats(reference);
+  advance(reference, 10_000, stats);                                   // the 10 s of live pumps
+  advance(reference, now.t, stats, undefined, false, true);            // the 2 h absence, away
   expect(second.state).toEqual(reference);
   expect(second.state.activity.kind).toBe('dig');
   expect(second.state.deepest).toBeGreaterThan(0);

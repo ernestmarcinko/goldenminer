@@ -1,6 +1,6 @@
 import { BAG_SIZE, START_GENERAL_PAGES, STASH_PAGE_SIZE } from './balance';
-import { GEM_GRADES, GEM_TYPES, MATERIALS, setOfSlot } from './items';
-import type { Cell, GemGrade, GemType, Item, Material } from './items';
+import { GEM_GRADES, GEM_TYPES, MATERIALS, RUNE_TYPES, parseOrbKey, setOfSlot } from './items';
+import type { Cell, GemGrade, GemType, Item, Material, RuneType } from './items';
 import { stockAt } from './trader';
 import type { GameState, ItemLoc } from './types';
 
@@ -22,6 +22,18 @@ export function emptyMaterialCounts(): Record<Material, number> {
   return counts;
 }
 
+/** The Runes tab starts empty: one zeroed count per kind. */
+export function emptyRuneCounts(): Record<RuneType, number> {
+  const counts = {} as Record<RuneType, number>;
+  for (const r of RUNE_TYPES) counts[r] = 0;
+  return counts;
+}
+
+/** The Orbs tab starts empty: keys appear as orbs are bought, and go when their count reaches 0. */
+export function emptyOrbCounts(): Record<string, number> {
+  return {};
+}
+
 export function emptyInventory(): Pick<GameState, 'equipped' | 'bag' | 'stash' | 'overflow'> {
   return {
     equipped: { mining: {}, battle: {} },
@@ -29,8 +41,10 @@ export function emptyInventory(): Pick<GameState, 'equipped' | 'bag' | 'stash' |
     stash: {
       general: emptyGrid(START_GENERAL_PAGES * STASH_PAGE_SIZE),
       gems: emptyGemCounts(),
+      runes: emptyRuneCounts(),
       maps: {},
       materials: emptyMaterialCounts(),
+      orbs: emptyOrbCounts(),
       bought: { general: 0 },
     },
     overflow: [],
@@ -76,14 +90,25 @@ export function itemAt(state: GameState, loc: ItemLoc): Item | undefined {
     case 'stash': return state.stash.general[loc.index] ?? undefined;
     case 'maps': return state.stash.maps[loc.tier]?.[loc.index];
     case 'worn': return state.equipped[setOfSlot(loc.slot)][loc.slot];
+    case 'queue': return state.autoMap.queue[loc.index];
     case 'stock': return stockAt(state, loc.index);
     case 'gems': {
       const count = state.stash.gems[loc.gem][loc.grade];
       return count > 0 ? { id: 0, type: 'gem', gem: loc.gem, grade: loc.grade, count } : undefined;
     }
+    case 'runes': {
+      const count = state.stash.runes[loc.rune];
+      return count > 0 ? { id: 0, type: 'rune', rune: loc.rune, count } : undefined;
+    }
     case 'materials': {
       const count = state.stash.materials[loc.material];
       return count > 0 ? { id: 0, type: 'material', material: loc.material, count } : undefined;
+    }
+    case 'orbs': {
+      const count = state.stash.orbs[loc.key];
+      const parsed = parseOrbKey(loc.key);
+      if (count === undefined || count <= 0 || parsed === undefined) return undefined;
+      return { id: 0, type: 'orb', family: parsed.family, side: parsed.side, tier: parsed.tier, count };
     }
   }
 }
@@ -94,8 +119,11 @@ export function sameLoc(a: ItemLoc, b: ItemLoc): boolean {
     case 'stash': return b.where === 'stash' && a.index === b.index;
     case 'maps': return b.where === 'maps' && a.tier === b.tier && a.index === b.index;
     case 'gems': return b.where === 'gems' && a.gem === b.gem && a.grade === b.grade;
+    case 'runes': return b.where === 'runes' && a.rune === b.rune;
     case 'materials': return b.where === 'materials' && a.material === b.material;
+    case 'orbs': return b.where === 'orbs' && a.key === b.key;
     case 'worn': return b.where === 'worn' && a.slot === b.slot;
+    case 'queue': return b.where === 'queue' && a.index === b.index;
     case 'stock': return b.where === 'stock' && a.index === b.index;
   }
 }

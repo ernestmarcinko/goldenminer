@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { DROP_CHANCE, MATERIAL_TABLE, MAX_HELD, soulsPerKill } from '../../src/core/balance';
+import { DROP_CHANCE, MAP_MATERIAL_CHANCE, MATERIAL_TABLE, MAX_HELD, soulsPerKill } from '../../src/core/balance';
 import { deriveBattleStats } from '../../src/core/battle';
 import { onKill, soulsForKill } from '../../src/core/combat';
 import { applyTicks } from '../../src/core/dig';
@@ -16,8 +16,8 @@ import { validateState } from '../../src/core/save';
 import type { GameState, LootNote, MapRun, MonsterState, Rank } from '../../src/core/types';
 import { gear, stashMap } from '../helpers/items';
 
-// Spies that call through: which rarity multiplier each item rolled with, and how many gems were rolled.
-const spy = vi.hoisted(() => ({ rarityArgs: [] as number[], gems: 0 }));
+// Spies that call through: which rarity multiplier each item rolled with, and how many gems and runes were rolled.
+const spy = vi.hoisted(() => ({ rarityArgs: [] as number[], gems: 0, runes: 0 }));
 vi.mock('../../src/core/itemGen', async (importActual) => {
   const actual = await importActual<typeof import('../../src/core/itemGen')>();
   return {
@@ -26,7 +26,12 @@ vi.mock('../../src/core/itemGen', async (importActual) => {
       spy.rarityArgs.push(magicFind ?? 1);
       return actual.rollRarity(state, magicFind);
     },
-    rollGem: (...args: Parameters<typeof actual.rollGem>) => { spy.gems += 1; return actual.rollGem(...args); },
+    rollGemOrRune: (...args: Parameters<typeof actual.rollGemOrRune>) => {
+      const rolled = actual.rollGemOrRune(...args);
+      if (rolled.type === 'gem') spy.gems += 1;
+      else spy.runes += 1;
+      return rolled;
+    },
   };
 });
 
@@ -44,8 +49,10 @@ function fight(s: GameState): void {
   while (s.activity.kind === 'map') applyTicks(s, 1, stats);
 }
 
+/** A level-3 miner's tier-1 map, fought out: a naked level-1 one no longer has the early achievements to carry it. */
 function clearTier1(seed: number) {
   const s = newGame(seed, 0);
+  s.level = 3;
   startMap(s, stashMap(s, 1, 2).id);
   fight(s);
   return s;
@@ -62,6 +69,7 @@ it('a cleared tier-1 map pays Souls, 40 Gold and at least the boss and champion 
 
 it('a full bag holds map drops but the fight goes on', () => {
   const s = newGame(1, 0);
+  s.level = 3;
   s.bag = s.bag.map((_, i) => gear(s, i % 2 ? 'weapon' : 'pickaxe'));
   startMap(s, stashMap(s, 1, 2).id);
   fight(s);
@@ -96,10 +104,11 @@ function kill(
   const b = deriveBattleStats(s);
   spy.rarityArgs.length = 0;
   spy.gems = 0;
+  spy.runes = 0;
   // The draws the kill will make, read ahead on a copy: Souls, then the extra-item chance.
   const ahead = { rng: s.rng };
   nextRandom(ahead);
-  const chancePasses = nextRandom(ahead) < 0.15;
+  const chancePasses = nextRandom(ahead) < DROP_CHANCE;
   onKill(s, run, m, b);
   return { s, run, b, chancePasses };
 }
@@ -111,13 +120,14 @@ const GUARANTEED: Record<Rank, number> = { normal: 0, champion: 1, boss: 2 };
 it('each rank drops its guaranteed items plus one more when the chance draw passes', () => {
   for (const rank of ['normal', 'champion', 'boss'] as const) {
     const seen = { pass: 0, miss: 0 };
-    for (let seed = 1; seed <= 120; seed++) {
+    for (let seed = 1; seed <= 2000; seed++) {
       const { run, chancePasses } = kill(seed, rank);
       seen[chancePasses ? 'pass' : 'miss'] += 1;
       // Gem and material notes are on the run too: items rolled with a rarity draw are counted by the spy.
       expect(spy.rarityArgs.length, `${rank} seed ${seed}`).toBe(GUARANTEED[rank] + (chancePasses ? 1 : 0));
-      const items = run.loot.filter((n) => n.rarity !== 'material');
-      expect(items.length, `${rank} seed ${seed}`).toBe(spy.rarityArgs.length + spy.gems);
+      // A boss's map drop is its own roll (see combat.test.ts), not one of these item draws.
+      const items = run.loot.filter((n) => n.rarity !== 'material' && n.base !== 'map');
+      expect(items.length, `${rank} seed ${seed}`).toBe(spy.rarityArgs.length + spy.gems + spy.runes);
     }
     expect(seen.pass, rank).toBeGreaterThan(0);
     expect(seen.miss, rank).toBeGreaterThan(0);
@@ -158,7 +168,7 @@ it('about 80% of map gear is battle gear, and gems land in the bag', () => {
 
 it('a gem drop is noted on the run and in the log like an item', () => {
   let found = 0;
-  for (let seed = 1; seed <= 400; seed++) {
+  for (let seed = 1; seed <= 5000; seed++) {
     const { run } = kill(seed, 'normal');
     if (spy.gems > 0) {
       found++;
@@ -190,15 +200,15 @@ it('normal kills roll one material chance', () => {
   for (let seed = 1; seed <= 2000; seed++) {
     if (materialsOf(kill(seed, 'normal').run).length > 0) dropped++;
   }
-  expect(Math.abs(dropped / 2000 - 0.25)).toBeLessThan(0.03);
+  expect(Math.abs(dropped / 2000 - MAP_MATERIAL_CHANCE)).toBeLessThan(0.03);
 });
 
 it('bosses roll the material chance five times', () => {
   let drops = 0;
   const kills = 800;
   for (let seed = 1; seed <= kills; seed++) drops += materialsOf(kill(seed, 'boss').run).length;
-  // 5 passes x 0.25 = 1.25 a kill (about 1,000 drops, sd about 27); a single pass would give about 200.
-  expect(Math.abs(drops / kills - 5 * 0.25)).toBeLessThan(0.1);
+  // 5 passes × MAP_MATERIAL_CHANCE a kill; a single pass would give about a fifth as many.
+  expect(Math.abs(drops / kills - 5 * MAP_MATERIAL_CHANCE)).toBeLessThan(0.1);
 });
 
 it('a material drop is noted on the run but not counted as an item', () => {
@@ -206,7 +216,8 @@ it('a material drop is noted on the run but not counted as an item', () => {
   for (let seed = 1; seed <= 100; seed++) {
     const { run } = kill(seed, 'boss');
     sawMaterial += materialsOf(run).length;
-    expect(run.items, `seed ${seed}`).toBe(spy.rarityArgs.length + spy.gems);
+    const maps = run.loot.filter((n) => n.base === 'map').length;   // a boss's map drop counts as an item too
+    expect(run.items, `seed ${seed}`).toBe(spy.rarityArgs.length + spy.gems + spy.runes + maps);
     expect(run.loot.length, `seed ${seed}`).toBe(run.items + materialsOf(run).length);
     expect(dropLines(run), `seed ${seed}`).toBe(run.loot.length);
   }

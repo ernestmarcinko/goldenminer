@@ -1,15 +1,20 @@
 import { expect, it } from 'vitest';
+import { achievementBoost } from '../../src/core/achievements';
 import { newGame } from '../../src/core/newGame';
 import { deriveStats } from '../../src/core/stats';
 import { applyTicks, digSpeed, faceTicksPerMetre } from '../../src/core/dig';
+import { clickTicks } from '../../src/core/clock';
 import { drainOverflow } from '../../src/core/loot';
+import { startMap } from '../../src/core/maps';
 import { digClearing } from '../helpers/dig';
-import { gear } from '../helpers/items';
+import { gear, stashMap } from '../helpers/items';
 import { validateState } from '../../src/core/save';
 import type { GameState, Stats, TickEvent } from '../../src/core/types';
-import { BASE_ROLL_CHANCES, FINDS_LOG_LIMIT, TICKS_PER_METRE_AT_PARITY, goldVeinAmount, hardness } from '../../src/core/balance';
+import type { MapItem } from '../../src/core/items';
+import { BASE_ROLL_CHANCES, FINDS_LOG_LIMIT, RUNE_DROP_CHANCE, TICKS_PER_METRE_AT_PARITY, goldVeinAmount, hardness } from '../../src/core/balance';
 import { metreLayer } from '../../src/core/layer';
 import { rollMetre } from '../../src/core/metres';
+import { nextRandom } from '../../src/core/rng';
 
 const fresh = () => newGame(1, 0);
 const stats = deriveStats(fresh());
@@ -142,6 +147,57 @@ it('hard rock takes 1.5× as long', () => {
   expect(ticksFor(true) / ticksFor(false)).toBeLessThan(1.6);
 });
 
+it('Thurisaz makes hard rock cost no extra ticks', () => {
+  const ticksFor = (hard: boolean, st: Stats) => {
+    const s = newGame(1, 0);
+    s.ahead[1] = { feature: null, amount: 0, hardRock: hard };
+    let t = 0; while (s.deepest < 1) { applyTicks(s, 1, st); t++; } return t;
+  };
+  const s = newGame(1, 0);
+  s.equipped.mining.lamp = gear(s, 'lamp', { sockets: 1, gems: [{ rune: 'thurisaz' }] });
+  const st = deriveStats(s);
+  expect(st.runeFlags.has('ignoreHardRock')).toBe(true);
+  expect(ticksFor(true, st)).toBe(ticksFor(false, st));
+});
+
+it('Kenaz removes hazard slowdown', () => {
+  const s = newGame(1, 0);
+  const m = firstMetre(1, (mm) => metreLayer(1, mm).hazard === 'gas');
+  s.deepest = m - 1;
+  s.ahead = { [m]: { feature: null, amount: 0, hardRock: false } };
+  const base = deriveStats(s);
+  s.equipped.mining.lamp = gear(s, 'lamp', { sockets: 1, gems: [{ rune: 'kenaz' }] });
+  const kenaz = deriveStats(s);
+  expect(kenaz.runeFlags.has('hazardImmune')).toBe(true);
+  const plain = hardness(m) * TICKS_PER_METRE_AT_PARITY / base.digPower;
+  expect(faceTicksPerMetre(s, base)).toBeCloseTo(plain * 2);
+  expect(faceTicksPerMetre(s, kenaz)).toBeCloseTo(plain);
+});
+
+it('Gebo makes a chest roll twice', () => {
+  const s = newGame(1, 0);
+  s.equipped.mining.lamp = gear(s, 'lamp', { sockets: 1, gems: [{ rune: 'gebo' }] });
+  const st = deriveStats(s);
+  expect(st.runeFlags.has('extraChest')).toBe(true);
+  s.ahead[1] = { feature: 'chest', amount: 0, hardRock: false };
+  while (s.deepest < 1) applyTicks(s, 1, st);
+  const loot = s.finds.find((f) => f.kind === 'chest')?.loot ?? [];
+  expect([2, 4]).toContain(loot.length);   // two chest rolls, each 1 or 2 items
+});
+
+it('a gem feature can drop a rune instead', () => {
+  let drop = 0;
+  for (let r = 0; r < 100_000; r++) {
+    if (nextRandom({ rng: r }) < RUNE_DROP_CHANCE) { drop = r; break; }
+  }
+  const s = newGame(1, 0);
+  s.runeRng = drop;
+  s.ahead[1] = { feature: 'gem', amount: 0, hardRock: false };
+  while (s.deepest < 1) applyTicks(s, 1, deriveStats(s));
+  expect(s.finds.at(-1)?.loot?.[0]).toMatchObject({ rarity: 'rune' });
+  expect(s.stats.gems).toBe(0);   // a rune is not a gem
+});
+
 it('digging only works the face', () => {
   const s = fresh();
   applyTicks(s, 400, stats);
@@ -248,7 +304,7 @@ it('a hazard slows the metre it sits on and the carried progress follows', () =>
   expect(s.deepest).toBe(m - 1);
   const leftover = 0.999 + 1 / clear - 1;
   const gas = hardness(m) * TICKS_PER_METRE_AT_PARITY / 10 * 2;
-  expect(faceTicksPerMetre(s, st)).toBeCloseTo(gas);
+  expect(faceTicksPerMetre(s, st)).toBeCloseTo(gas / achievementBoost(s));   // the depth achievements raise dig power
   expect(s.progress).toBeCloseTo(leftover * clear / gas, 9);
 });
 
@@ -318,13 +374,17 @@ it('a sure ore find still never touches a metre with a feature or a layer vein',
 });
 
 it('without ore find, digging draws exactly what it drew before ore find existed', () => {
-  // Pinned before ore find was added: seed 21, chest find 50, dug a tick at a time to 400 m.
+  // Pinned before ore find was added: seed 21, chest find 50, dug a tick at a time to 400 m. The RNG stream is what
+  // matters; the tick count moved when the achievement boost changed the dig speed, without touching the stream. It
+  // moved again when the auto-mined metre achievements earned their boost mid-dig, and the final draw re-aligned when a
+  // chest's legendary came from the tier-gated list. Plan 34's harder ladders earn far fewer achievements on the way
+  // down, so the slower dig takes more ticks (24735 before).
   const s = newGame(21, 0);
   s.equipped.mining.boots = gear(s, 'boots', { affixes: [{ stat: 'chestFind', value: 50 }] });
   const st = deriveStats(s);
   expect(st.oreBonusChance).toBe(0);
   while (s.deepest < 400) digClearing(s, 1, st);
-  expect([s.rng, s.deepest, s.finds.length, s.tickCount]).toEqual([3752176977, 400, 201, 38027]);
+  expect([s.rng, s.deepest, s.finds.length, s.tickCount]).toEqual([1288775494, 400, 201, 37568]);
   expect(s.finds.some((f) => f.kind === 'materialVein' && f.bonus === true)).toBe(false);
 });
 
@@ -374,4 +434,80 @@ it('digging stops while finds are held and resumes when the bag has room', () =>
   expect([s.overflow, s.bag.findIndex((c) => c?.type === 'map')]).toEqual([[], 33]);
   applyTicks(s, 1, stats);
   expect(s.progress).toBeGreaterThan(before.progress);
+});
+
+it('Cartographer finds maps one tier higher, without touching the loot stream', () => {
+  const mapOf = (s: GameState) => s.bag.find((c): c is MapItem => c?.type === 'map');
+  const plain = newGame(3, 0);
+  plain.ahead[1] = { feature: 'map', amount: 0, hardRock: false };
+  const carto = newGame(3, 0);
+  carto.ahead[1] = { feature: 'map', amount: 0, hardRock: false };
+  carto.passives.allocated = ['cartographer'];
+  while (plain.deepest < 1) applyTicks(plain, 1, deriveStats(plain));
+  while (carto.deepest < 1) applyTicks(carto, 1, deriveStats(carto));
+  expect(mapOf(plain)?.tier).toBe(1);
+  expect(mapOf(carto)?.tier).toBe(2);
+  expect(plain.rng).toBe(carto.rng);
+  expect(plain.finds[0]?.kind).toBe('map');
+  expect(carto.finds[0]?.kind).toBe('map');
+});
+
+it('every digging tick emits exactly one dig event', () => {
+  const s = fresh();
+  s.ahead[1] = { feature: null, amount: 0, hardRock: false };
+  const events: TickEvent[] = [];
+  applyTicks(s, 20, stats, events);   // fewer than the ~25 ticks the first metre takes, so no find
+  expect(s.deepest).toBe(0);
+  expect(events.filter((e) => e.kind === 'dig')).toHaveLength(20);
+});
+
+it('a metre-completing tick emits its dig event alongside its metre and find events', () => {
+  const s = fresh();
+  s.ahead[1] = { feature: 'goldVein', amount: 7, hardRock: false };
+  const events: TickEvent[] = [];
+  while (s.deepest < 1) applyTicks(s, 1, stats, events);
+  const digs = events.filter((e) => e.kind === 'dig');
+  expect(digs.length).toBeGreaterThan(0);
+  expect(events.some((e) => e.kind === 'metre' && e.depth === 1)).toBe(true);
+  expect(events).toContainEqual({ kind: 'gold', amount: 7 });
+});
+
+it('clickTicks emits one dig event per tick it digs', () => {
+  const s = fresh();
+  s.ahead[1] = { feature: null, amount: 0, hardRock: false };
+  const events: TickEvent[] = [];
+  clickTicks(s, stats, events);
+  expect(events.filter((e) => e.kind === 'dig')).toHaveLength(stats.ticksPerClick);
+});
+
+it('map, paused and held-loot ticks emit no dig event', () => {
+  const mapS = fresh();
+  startMap(mapS, stashMap(mapS, 1, 2).id);
+  const mapEvents: TickEvent[] = [];
+  applyTicks(mapS, 5, stats, mapEvents);
+  expect(mapEvents.filter((e) => e.kind === 'dig')).toHaveLength(0);
+
+  const pausedS = fresh();
+  const pausedEvents: TickEvent[] = [];
+  applyTicks(pausedS, 5, stats, pausedEvents, true);
+  expect(pausedEvents.filter((e) => e.kind === 'dig')).toHaveLength(0);
+
+  const heldS = fresh();
+  heldS.bag = heldS.bag.map(() => gear(heldS, 'boots'));
+  heldS.overflow.push(gear(heldS, 'boots'));
+  const heldEvents: TickEvent[] = [];
+  applyTicks(heldS, 5, stats, heldEvents);
+  expect(heldEvents.filter((e) => e.kind === 'dig')).toHaveLength(0);
+});
+
+it('collecting dig events leaves the state byte-identical to a run without them', () => {
+  const withEvents = fresh();
+  const without = fresh();
+  withEvents.ahead[1] = { feature: null, amount: 0, hardRock: false };
+  without.ahead[1] = { feature: null, amount: 0, hardRock: false };
+  const events: TickEvent[] = [];
+  applyTicks(withEvents, 20, stats, events);
+  applyTicks(without, 20, stats);
+  expect(events.filter((e) => e.kind === 'dig')).toHaveLength(20);
+  expect(withEvents).toEqual(without);
 });

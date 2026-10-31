@@ -1,18 +1,26 @@
+import { checkAchievements, checkFeats } from './achievements';
+import { autoMapContinues } from './autoMapRule';
 import {
-  ARMORED_TAKEN, BAND_OF_THE_DEEP_HEAL, BOSS_DROPS, CHAMPION_DROPS, CHAMPION_MAGIC_FIND, COMBAT_LOG_LIMIT, COMBAT_STEP_S,
-  DROP_CHANCE, MAP_DROP_BATTLE_CHANCE, MAP_GEM_CHANCE, MAP_MATERIAL_CHANCE, PEACEMAKER_EVERY, ROOM_REGEN_TOTAL,
-  RUN_LOOT_LIMIT, TREASURE_CHESTS, VAMPIRIC_HEAL, WOLF_EYE_DROPS, goldPerKill, soulsPerKill,
+  ARMORED_TAKEN, BAND_OF_THE_DEEP_HEAL, BOSS_DROPS, CHAMPION_DROPS, CHAMPION_MAGIC_FIND, CLEAVE_TARGETS, COMBAT_LOG_LIMIT, COMBAT_STEP_S,
+  DROP_CHANCE, MAP_CLEAR_DROP_CHANCE, MAP_CLEAR_TIER_WEIGHTS, MAP_DROP_BATTLE_CHANCE, MAP_GEM_CHANCE, MAP_MATERIAL_CHANCE, MONSTER_ATTACKER_DAMAGE_SHARE, PEACEMAKER_EVERY, ROOM_REGEN_TOTAL,
+  RUN_LOOT_LIMIT, SLOW_MONSTERS_INTERVAL, TREASURE_CHESTS, VAMPIRIC_HEAL, WOLF_EYE_DROPS, goldPerKill, monsterAttackers, soulsPerKill,
 } from './balance';
 import { deriveBattleStats, mitigate, type BattleStats } from './battle';
-import { dungeonLayout } from './dungeons';
+import { dungeonIndexAt, dungeonLayout } from './dungeons';
+import { gateWall, isGateTier } from './gates';
 import { logDeath, trail } from './dropLog';
 import { gainXp } from './levels';
-import { rollChest, rollGear, rollGem, rollLegendary, rollRarity, type Gen } from './itemGen';
+import { addToSet } from './ledger';
+import { rollChest, rollGear, rollGemOrRune, rollLegendary, rollRarity, type Gen } from './itemGen';
 import { materialAmount, pickMaterial } from './layer';
 import { receiveItem, receiveMaterial } from './loot';
 import { mapEffects } from './mapMods';
 import { monsterState, rankReward } from './monsters';
-import { nextRandom } from './rng';
+import { dropMap, mapTier } from './maps';
+import { nextRandom, pickWeighted } from './rng';
+import { hasKeystone } from './passives';
+import { runeTotals } from './runes';
+import { mapFindMultiplier } from './stats';
 import type {
   CombatLine, GameState, LootNote, MapRun, MonsterState, Rank, RunOutcome, RunResult, Stats, TickEvent,
 } from './types';
@@ -42,7 +50,7 @@ function roomQueue(state: GameState, run: MapRun, room: number): MonsterState[] 
   const fx = mapEffects(run.map);
   const monsters = room < run.bossRoom ? layout.rooms[room - 1] ?? [] : [];
   const fought = monsters.length > 0 ? monsters : layout.boss2 === null ? [layout.boss] : [layout.boss, layout.boss2];
-  return fought.map((m) => monsterState(run.map.tier, m, fx));
+  return fought.map((m) => monsterState(run.map.tier, m, fx, gateWall(state.seed, run.map.tier)));
 }
 
 /**
@@ -54,14 +62,34 @@ export function endRun(state: GameState, run: MapRun, outcome: RunOutcome, event
     map: run.map, outcome, room: run.room, bossRoom: run.bossRoom, gained: { ...run.gained },
     items: run.items, seen: false,
   };
+  // A cleared or lost auto-mapped map hands straight to the next queued one, so its result stays off the screen while
+  // the chain continues; only the last map of the chain, or a manual stop, is worth a dialog. Leaving is always manual.
+  if (outcome !== 'left' && run.auto === true && autoMapContinues(state)) result.seen = true;
   state.lastRun = result;
-  if (outcome === 'cleared') state.mapTally.cleared += 1;
-  else {
+  if (outcome === 'cleared') {
+    state.mapTally.cleared += 1;
+    state.stats.mapsCleared += 1;
+    checkAchievements(state, 'maps');
+    if (run.map.special !== undefined && addToSet(state.stats.specialsCleared, run.map.special)) checkAchievements(state, 'collection.specials');
+    if (addToSet(state.stats.dungeonTypesCleared, `${run.map.tier}:${dungeonIndexAt(state.seed, run.map.metre)}`)) {
+      checkAchievements(state, 'collection.dungeons');
+    }
+    if (isGateTier(run.map.tier) && run.attempt === 1) addToSet(state.stats.gatesFirstTry, run.map.tier);
+  } else {
     state.mapTally.lost += 1;
+    state.stats.mapsLost += 1;
+    checkAchievements(state, 'mapsLost');
     trail(state, run.map.id, { event: 'lost' });
   }
-  if (outcome === 'died') logDeath(state, run, killer ?? run.queue[0]?.name ?? 'a monster');
+  if (outcome === 'died') {
+    logDeath(state, run, killer ?? run.queue[0]?.name ?? 'a monster');
+    state.stats.deaths += 1;
+    checkAchievements(state, 'deaths');
+    // Soul Debt: a death costs 10% of the Souls on hand.
+    if (hasKeystone(state, 'soulDebt')) state.souls = Math.round(state.souls * 0.9);
+  }
   state.activity = { kind: 'dig' };
+  checkFeats(state, { kind: 'runEnd', run, result });
   events?.push({ kind: 'runEnd', result });
 }
 
@@ -85,7 +113,7 @@ function takeDrop(run: MapRun, notes: LootNote[], isItem = true): void {
  * A monster fell: its XP (levelling up heals by the max-life gained), then Souls, Gold, items, a gem chance and the
  * material chances, in that draw order (exported so the rewards can be pinned per rank). Champions guarantee an item of raised rarity, bosses guarantee BOSS_DROPS, anything may add one more.
  * The map's modifiers raise the Souls, the magic find and the drop chances, but every draw is made as on a normal map.
- * Its special may multiply the Souls and the materials, and on a `bossLegendary` map a boss adds a legendary last.
+ * Its special may multiply the Souls and the materials, and on a `bossLegendary` map a boss adds a legendary; a boss's map drop is the last draw.
  */
 export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: BattleStats): void {
   const tier = run.map.tier;
@@ -95,6 +123,8 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
   const xp = Math.round(monster.xp * b.xpMultiplier);
   const levels = gainXp(state, xp);
   run.gained.xp += xp;
+  state.stats.levelsGained += levels;
+  checkAchievements(state, 'levelsGained');
   let { maxLife } = b;
   if (levels > 0) {
     maxLife = deriveBattleStats(state).maxLife;
@@ -107,11 +137,28 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
   const souls = soulsForKill(nextRandom(state), tier, monster.rank, b.soulMultiplier * (1 + fx.souls / 100) * fx.soulsMult);
   state.souls += souls;
   run.gained.souls += souls;
+  state.stats.soulsEarned += souls;
+  checkAchievements(state, 'soulsEarned');
   logLine(run, { kind: 'kill', monster: monster.name, xp, souls });
 
-  const gold = goldPerKill(tier) * rankReward(monster.rank);
+  const gold = goldPerKill(tier) * rankReward(monster.rank) * (hasKeystone(state, 'bloodMoney') ? 2 : 1);
   state.gold += gold;
   run.gained.gold += gold;
+  state.stats.goldFound += gold;
+  checkAchievements(state, 'gold');
+  state.stats.monstersKilled += 1;
+  checkAchievements(state, 'kills');
+  if (monster.rank === 'champion') {
+    state.stats.championKills += 1;
+    let newMod = false;
+    for (const mod of monster.mods) newMod = addToSet(state.stats.championModsKilled, mod) || newMod;
+    if (newMod) checkAchievements(state, 'collection.championMods');
+    checkAchievements(state, 'champions');
+  }
+  if (monster.rank === 'boss') {
+    state.stats.bossKills += 1;
+    checkAchievements(state, 'bosses');
+  }
 
   const guaranteed = monster.rank === 'boss' ? BOSS_DROPS : monster.rank === 'champion' ? CHAMPION_DROPS : 0;
   const count = guaranteed + (nextRandom(state) < more(DROP_CHANCE) ? 1 : 0);
@@ -131,7 +178,7 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
       takeDrop(run, receiveItem(state, rollGear(unique, tier, set, rollRarity(unique, magicFind)), origin));
     }
   }
-  if (nextRandom(state) < more(MAP_GEM_CHANCE)) takeDrop(run, receiveItem(state, rollGem(state, tier), origin));
+  if (nextRandom(state) < more(MAP_GEM_CHANCE)) takeDrop(run, receiveItem(state, rollGemOrRune(state, tier), origin));
   // Materials of the map's depth: rankReward chances, each pass drawing its material and then its amount.
   const metre = run.map.metre;
   for (let i = 0; i < rankReward(monster.rank); i++) {
@@ -141,6 +188,12 @@ export function onKill(state: GameState, run: MapRun, monster: MonsterState, b: 
     takeDrop(run, receiveMaterial(state, material, amount, origin), false);
   }
   if (monster.rank === 'boss' && run.map.special === 'bossLegendary') takeDrop(run, receiveItem(state, rollLegendary(state, tier), origin));
+  // A boss kill may also drop a map a tier or so either way of this one, so a miner stuck at a gate can farm below it.
+  if (monster.rank === 'boss' && nextRandom(state) < Math.min(1, MAP_CLEAR_DROP_CHANCE * mapFindMultiplier(state))) {
+    const offset = pickWeighted(state, MAP_CLEAR_TIER_WEIGHTS);
+    takeDrop(run, dropMap(state, mapTier(state, Math.max(1, tier + offset)), metre, origin));
+  }
+  checkFeats(state, { kind: 'kill', run, monster });
 }
 
 /** One strike at the fighting monster; its damage and crit draw from `gen` (the unique stream for the Peacemaker's second). */
@@ -153,22 +206,49 @@ function strike(state: GameState, run: MapRun, b: BattleStats, events?: TickEven
   if (crit) {
     physical = Math.round(physical * b.critMultiplier);
     elemental = Math.round(elemental * b.critMultiplier);
+  } else if (hasKeystone(state, 'allOrNothing')) {
+    // All or Nothing: a non-critical hit lands for 40% less, never below 1.
+    physical = Math.max(1, Math.round(physical * 0.6));
+    elemental = Math.round(elemental * 0.6);
   }
-  // Armored softens only the physical part.
-  if (m.mods.includes('armored')) physical = Math.max(1, Math.round(physical * ARMORED_TAKEN));
-  // A hardened map softens the whole hit, after everything else.
-  const amount = Math.max(1, Math.round((physical + elemental) * mapEffects(run.map).takenMult));
-  m.life -= amount;
-  events?.push({ kind: 'strike', amount, crit });
-  logLine(run, { kind: 'hit', monster: m.name, amount, crit });
+  const fx = mapEffects(run.map);
+  // Armored softens only the physical part; a hardened map softens the whole hit, after everything else. `share` is 1 for
+  // the main target and the cleave share for the extra enemies the strike also hits.
+  const hitMonster = (target: MonsterState, share: number): number => {
+    const phys = target.mods.includes('armored') ? Math.max(1, Math.round(physical * ARMORED_TAKEN)) : physical;
+    return Math.max(1, Math.round((phys + elemental) * fx.takenMult * share));
+  };
+
+  const mainAmount = hitMonster(m, 1);
+  m.life -= mainAmount;
+  events?.push({ kind: 'strike', amount: mainAmount, crit });
+  logLine(run, { kind: 'hit', monster: m.name, amount: mainAmount, crit });
+  const frontDied = m.life <= 0;
+
+  // Cleave is always on: the main target takes full damage, and the next ones take a share (the cleave efficiency).
+  for (let i = 1; i <= CLEAVE_TARGETS && i < run.queue.length; i++) {
+    const target = run.queue[i];
+    if (target === undefined) break;
+    const splash = hitMonster(target, b.cleave);
+    target.life -= splash;
+    logLine(run, { kind: 'hit', monster: target.name, amount: splash, crit });
+  }
+
   if (crit && hasUnique(state, 'bandOfTheDeep')) {
     run.life = Math.min(b.maxLife, run.life + Math.round(BAND_OF_THE_DEEP_HEAL * b.maxLife));
   }
-  if (m.life > 0) return 'fight';
 
-  run.queue.shift();
-  run.monsterCarry = 0;
-  onKill(state, run, m, b);
+  // Remove every monster the strike (or its cleave) felled, front to back, and pay each kill.
+  if (run.queue.some((target) => target.life <= 0)) {
+    const survivors: MonsterState[] = [];
+    for (const target of run.queue) {
+      if (target.life > 0) survivors.push(target);
+      else onKill(state, run, target, b);
+    }
+    run.queue = survivors;
+    if (frontDied) run.monsterCarry = 0;
+  }
+
   if (run.queue.length > 0) return 'fight';
   if (run.room >= run.bossRoom) {
     endRun(state, run, 'cleared', events);
@@ -178,11 +258,16 @@ function strike(state: GameState, run: MapRun, b: BattleStats, events?: TickEven
   // The treasure room: the last regular room's chests, found there before the boss room opens.
   if (run.map.special === 'treasureRoom' && run.room === run.bossRoom - 1) {
     const origin = { kind: 'map', tier: run.map.tier, room: run.room } as const;
-    for (let i = 0; i < TREASURE_CHESTS; i++) {
+    // The Gebo rune makes the treasure room drop one more chest.
+    const chests = runeTotals(state).flags.has('extraChest') ? TREASURE_CHESTS + 1 : TREASURE_CHESTS;
+    state.stats.chestsOpened += chests;
+    checkAchievements(state, 'chests');
+    for (let i = 0; i < chests; i++) {
       for (const item of rollChest(state, run.map.tier)) takeDrop(run, receiveItem(state, item, origin));
     }
   }
   run.room += 1;
+  if (run.room === run.bossRoom) run.bossSinceS = run.elapsedS;
   const { maxLife } = deriveBattleStats(state);
   const heal = mapEffects(run.map).healMult;
   run.life = Math.min(maxLife, run.life + Math.round((maxLife * ROOM_REGEN_TOTAL * heal) / (run.bossRoom - 1)));
@@ -190,12 +275,17 @@ function strike(state: GameState, run: MapRun, b: BattleStats, events?: TickEven
   return 'room';
 }
 
+/** The run's life as a share of the step's max life, clamped to 0..1. */
+const lifeShareOf = (run: MapRun, b: BattleStats): number => Math.min(1, Math.max(0, run.life / b.maxLife));
+
 /**
  * One combat step of `dt` seconds: life regeneration, the miner's auto hits, then (unless the room fell) the fighting
  * monster's attacks. Returns the battle stats to use next, re-derived after a level-up.
  */
 function combatStep(state: GameState, run: MapRun, b: BattleStats, dt: number, events?: TickEvent[]): BattleStats {
   // Regeneration heals in whole life; the fraction waits in the carry.
+  run.elapsedS += dt;
+  run.minLifeShare = Math.min(run.minLifeShare, lifeShareOf(run, b));
   run.regenCarry += b.lifeRegen * dt;
   const healed = Math.floor(run.regenCarry);
   run.regenCarry -= healed;
@@ -220,28 +310,45 @@ function combatStep(state: GameState, run: MapRun, b: BattleStats, dt: number, e
     if (state.level !== level) b = deriveBattleStats(state);
   }
 
-  const m = run.queue[0];
-  if (m === undefined) return b;
-  run.monsterCarry += dt / m.intervalS;
+  const front = run.queue[0];
+  if (front === undefined) return b;
+  const attackers = Math.min(run.queue.length, monsterAttackers(run.map.tier));
+  // The Isa rune makes monsters attack 20 % slower: their interval stretches by 1 / 0.8.
+  const intervalS = front.intervalS * (runeTotals(state).flags.has('slowMonsters') ? SLOW_MONSTERS_INTERVAL : 1);
+  run.monsterCarry += dt / intervalS;
   while (run.monsterCarry >= 1) {
     run.monsterCarry -= 1;
-    const hurt = mitigate(m.damage, m.element, b);
-    run.life -= hurt;
-    events?.push({ kind: 'hurt', amount: hurt });
-    logLine(run, { kind: 'hurt', monster: m.name, amount: hurt });
-    if (m.mods.includes('vampiric')) {
-      const healed = Math.min(m.maxLife, m.life + Math.round(hurt * VAMPIRIC_HEAL)) - m.life;
-      m.life += healed;
-      if (healed > 0) logLine(run, { kind: 'heal', monster: m.name, amount: healed });
+    // Several monsters attack at once: the front ones each land their own hit, each after the first at a reduced share.
+    let killer: string | undefined;
+    for (let i = 0; i < attackers; i++) {
+      const m = run.queue[i];
+      if (m === undefined) break;
+      const raw = m.damage * (i === 0 ? 1 : MONSTER_ATTACKER_DAMAGE_SHARE);
+      const hurt = hasKeystone(state, 'bloodMoney')
+        ? Math.max(1, Math.round(mitigate(raw, m.element, b, state.level) * 1.25))
+        : mitigate(raw, m.element, b, state.level);
+      run.life -= hurt;
+      events?.push({ kind: 'hurt', amount: hurt });
+      logLine(run, { kind: 'hurt', monster: m.name, amount: hurt });
+      if (m.mods.includes('vampiric')) {
+        const healed = Math.min(m.maxLife, m.life + Math.round(hurt * VAMPIRIC_HEAL)) - m.life;
+        m.life += healed;
+        if (healed > 0) logLine(run, { kind: 'heal', monster: m.name, amount: healed });
+      }
+      if (run.life <= 0) {
+        killer = m.name;
+        break;
+      }
     }
     // Kraken Leather turns the first killing blow of a run into 1 life left.
     if (run.life <= 0 && run.saved !== true && hasUnique(state, 'krakenLeather')) {
       run.life = 1;
       run.saved = true;
-      logLine(run, { kind: 'saved', monster: m.name });
+      logLine(run, { kind: 'saved', monster: killer ?? front.name });
     }
+    run.minLifeShare = Math.min(run.minLifeShare, lifeShareOf(run, b));
     if (run.life <= 0) {
-      endRun(state, run, 'died', events, m.name);
+      endRun(state, run, 'died', events, killer ?? front.name);
       return b;
     }
   }

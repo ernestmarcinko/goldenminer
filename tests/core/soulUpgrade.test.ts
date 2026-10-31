@@ -41,7 +41,11 @@ describe('an upgrade', () => {
     expect(soulUpgrade(s, bag(0))).toBe('ok');
     expect(s.souls).toBe(820);
     expect((s.bag[0] as { ilvl: number }).ilvl).toBe(7);
-    expect(s).toEqual({ ...before, souls: 820, bag: before.bag.map((c, i) => (i === 0 ? { ...c, ilvl: 7 } : c)) });
+    expect(s).toEqual({
+      ...before, souls: 820, stats: { ...before.stats, soulsSpent: 180 },
+      bag: before.bag.map((c, i) => (i === 0 ? { ...c, ilvl: 7 } : c)),
+      achievements: { earned: ['soulsSpent.100'] },
+    });
   });
 
   it('works on worn battle gear, General-tab gear and legendaries', () => {
@@ -134,7 +138,9 @@ describe('an upgrade during a run', () => {
     // what the state should be: the same, with the upgrade written by hand
     const expected = structuredClone(s);
     expected.souls -= 80;
+    expected.stats.soulsSpent += 80;
     (expected.equipped.battle.weapon as { ilvl: number }).ilvl = 5;
+    // 80 Souls spent is short of the first Souls-spent achievement (100), so the boost stays as it was.
     expect(soulUpgrade(s, { where: 'worn', slot: 'weapon' })).toBe('ok');
     expect(s).toEqual(expected);
     expect(deriveBattleStats(s)).toEqual(deriveBattleStats(expected));

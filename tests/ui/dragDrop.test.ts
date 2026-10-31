@@ -104,9 +104,10 @@ it('a keyboard click opens the card and never lifts, even on a touch screen or w
   }
 });
 
-it('mouse clicks keep their shortcuts, held item or not', () => {
+it('a plain mouse click picks the item up; modifier clicks keep their shortcuts', () => {
   const click = { altKey: false, shiftKey: false, ctrlKey: false, metaKey: false, detail: 1, pointerType: 'mouse' };
-  expect(clickRoute(click, true, false)).toEqual({ kind: 'pick', intent: 'card' });
+  expect(clickRoute(click, false, false)).toEqual({ kind: 'hold' });
+  expect(clickRoute(click, true, false)).toEqual({ kind: 'tap' });
   expect(clickRoute({ ...click, altKey: true, pointerType: 'pen' }, false, false)).toEqual({ kind: 'pick', intent: 'salvage' });
   expect(clickRoute({ ...click, shiftKey: true }, false, false)).toEqual({ kind: 'pick', intent: 'move' });
 });
@@ -114,9 +115,10 @@ it('mouse clicks keep their shortcuts, held item or not', () => {
 it('clickRoute passes Ctrl and Cmd through: Ctrl+click sells, and Cmd+click on a Mac', () => {
   const click = { altKey: false, shiftKey: false, ctrlKey: false, metaKey: false, detail: 1, pointerType: 'mouse' };
   expect(clickRoute({ ...click, ctrlKey: true }, false, false)).toEqual({ kind: 'pick', intent: 'sell' });
-  expect(clickRoute({ ...click, metaKey: true }, false, false)).toEqual({ kind: 'pick', intent: 'card' });
+  // the other key is ignored, so the click is the plain pickup
+  expect(clickRoute({ ...click, metaKey: true }, false, false)).toEqual({ kind: 'hold' });
   expect(clickRoute({ ...click, metaKey: true }, true, true)).toEqual({ kind: 'pick', intent: 'sell' });
-  expect(clickRoute({ ...click, ctrlKey: true }, false, true)).toEqual({ kind: 'pick', intent: 'card' });
+  expect(clickRoute({ ...click, ctrlKey: true }, false, true)).toEqual({ kind: 'hold' });
 });
 
 it('a hold lasts only while the lifted item is still where it was', () => {

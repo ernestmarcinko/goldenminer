@@ -1,8 +1,10 @@
 import { expect, it } from 'vitest';
 import { ABYSS_BAND_HEIGHT, ABYSS_START, bandAt, metreTier } from '../../src/core/bands';
-import { BAG_SIZE } from '../../src/core/balance';
+import { ACHIEVEMENTS } from '../../src/core/achievements';
+import { BAG_SIZE, expectedAchievements } from '../../src/core/balance';
 import * as combat from '../../src/core/combat';
 import { applyTicks } from '../../src/core/dig';
+import { isGateTier } from '../../src/core/gates';
 import { rollGear } from '../../src/core/itemGen';
 import { BATTLE_SLOTS, type Rarity } from '../../src/core/items';
 import { startMap } from '../../src/core/maps';
@@ -47,40 +49,50 @@ function cleared(s: GameState, tier: number, i: number): boolean {
 
 const MAPS = 100;
 
-it('a fresh tier-N map is cleared by magic item-level-N gear at level 3N: at least 60 % at tiers 1 and 2, 30–50 % at tiers 3–10', () => {
+it('a fresh tier-N map is cleared by magic item-level-N gear at level 3N, with the achievements expected there; gates hold it', () => {
   const rates: number[] = [];
   for (let tier = 1; tier <= 10; tier++) {
     let wins = 0;
-    for (let i = 0; i < MAPS; i++) if (cleared(miner(tier, i, Math.min(60, 3 * tier), tier, 'magic'), tier, i)) wins++;
+    for (let i = 0; i < MAPS; i++) {
+      const s = miner(tier, i, Math.min(60, 3 * tier), tier, 'magic');
+      s.achievements.earned = ACHIEVEMENTS.slice(0, Math.round(expectedAchievements(s.level))).map((a) => a.id);
+      if (cleared(s, tier, i)) wins++;
+    }
     rates.push(wins / MAPS);
   }
   const table = rates.map((r, i) => `tier ${i + 1}: ${Math.round(r * 100)}%`).join(', ');
   rates.forEach((r, i) => {
-    // tiers 1 and 2 are tuned on the naked new miner and the early miner below, who are the ones that meet them: this
-    // miner only has to win them often
-    const [lo, hi] = i <= 1 ? [0.6, 1] : [0.3, 0.5];
+    // Plan 35's curve keeps pace with the achievement boost a player should hold, so this miner wins the tiers between
+    // gates often (at least 30 %, and 60 % or more on the first two tiers), and a gate tier at most one time in five:
+    // a gate is a wall, not a slope. The bounds
+    // guard both an accidental nerf and an accidental buff.
+    const tier = i + 1;
+    const [lo, hi] = isGateTier(tier) ? [0, 0.2] : tier <= 2 ? [0.6, 1] : [0.3, 1];
     expect(r >= lo && r <= hi, table).toBe(true);
   });
 }, 120_000);
 
-it('the first map of a new world is won without clicks by a naked level-1 miner, 60–80 % of the time', () => {
-  // maps are the only XP and a new world wears nothing, so the guaranteed first map is played naked at level 1
+// The early-tier rule (Ernest, 2026-10-26; Plan 35 restores it): tiers 1 and 2 are gentle and won without clicking.
+const EARLY_MAPS = 500;
+
+it('the first map of a new world is won without clicks by a naked level-1 miner 55–75 % of the time', () => {
+  // maps are the only XP and a new world wears nothing, so the guaranteed first map is played naked at level 1.
   let wins = 0;
-  for (let i = 0; i < MAPS; i++) {
+  for (let i = 0; i < EARLY_MAPS; i++) {
     const s = newGame(hashN(0xc1ea7, 1, i), 0, { lootSeed: hashN(0xc1ea7, 99, 1, i) });
     if (cleared(s, 1, i)) wins++;
   }
-  expect(wins).toBeGreaterThanOrEqual(60);
-  expect(wins).toBeLessThanOrEqual(80);
-});
+  expect(wins / EARLY_MAPS).toBeGreaterThanOrEqual(0.55);
+  expect(wins / EARLY_MAPS).toBeLessThanOrEqual(0.75);
+}, 60_000);
 
 it('an early miner wins a tier-2 map most of the time: level 3 in normal item-level-2 gear, 60–80 % of the time', () => {
   // the miner fresh from tier 1 has a few levels and the normal gear its maps dropped, not the reference miner's magic
   let wins = 0;
-  for (let i = 0; i < MAPS; i++) if (cleared(miner(2, i, 3, 2, 'normal'), 2, i)) wins++;
-  expect(wins).toBeGreaterThanOrEqual(60);
-  expect(wins).toBeLessThanOrEqual(80);
-});
+  for (let i = 0; i < EARLY_MAPS; i++) if (cleared(miner(2, i, 3, 2, 'normal'), 2, i)) wins++;
+  expect(wins / EARLY_MAPS).toBeGreaterThanOrEqual(0.6);
+  expect(wins / EARLY_MAPS).toBeLessThanOrEqual(0.8);
+}, 60_000);
 
 it('clicking in a map does nothing', () => {
   expect('clickHit' in combat).toBe(false);

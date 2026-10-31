@@ -10,7 +10,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "balance": "vitest run --config vitest.balance.config.ts"
   },
   "dependencies": {
     "lz-string": "^1.5.0",

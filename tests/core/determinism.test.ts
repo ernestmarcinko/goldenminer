@@ -33,3 +33,27 @@ it('advance in one span equals the same ticks applied directly', () => {
   expect(a.tickCount).toBe(b.tickCount);
   expect(a.gold).toBe(b.gold);
 });
+
+it('the rune stream never touches the loot stream: a same-seed run with a different runeRng digs the same rng and nextId', () => {
+  // Runes draw their upgrade decision from state.runeRng only, and a rune's kind draw consumes exactly the one
+  // main-stream draw a gem's type would, so state.rng and state.nextId are byte-identical whatever the runes do.
+  const a = newGame(12345, 0);
+  const b = newGame(12345, 0);
+  a.runeRng = 1;
+  b.runeRng = 4_000_000_000;
+  applyTicks(a, 10_000, deriveStats(a));
+  applyTicks(b, 10_000, deriveStats(b));
+  expect(a.rng).toBe(b.rng);
+  expect(a.nextId).toBe(b.nextId);
+  expect(a.runeRng).not.toBe(b.runeRng);
+});
+
+it('the name never changes the world', () => {
+  const a = newGame(12345, 0, { name: 'Gorvash' });
+  const b = newGame(12345, 0, { name: 'Thulmar' });
+  expect(a.characterName).toBe('Gorvash');
+  expect(b.characterName).toBe('Thulmar');
+  expect([a.seed, a.rng, a.uniqueRng, a.runeRng, a.nextId, a.ahead]).toEqual(
+    [b.seed, b.rng, b.uniqueRng, b.runeRng, b.nextId, b.ahead],
+  );
+});

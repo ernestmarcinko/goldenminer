@@ -1,0 +1,306 @@
+.gm-skills {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gm-skills__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.gm-skills__title {
+  margin: 0;
+  font-family: var(--gm-font-display);
+  font-weight: 400;
+  font-size: 24px;
+}
+.gm-skills__points {
+  color: var(--gm-gold-bright);
+  font-weight: 600;
+}
+.gm-skills__hint {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 0;
+  border: 1px solid var(--gm-line);
+  background: var(--gm-panel);
+  color: var(--gm-gold-bright);
+  font-size: 13px;
+}
+
+.gm-skills__bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.gm-skills__search {
+  flex: 1 1 200px;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border-radius: 0;
+  border: 1px solid var(--gm-line);
+  background: var(--gm-ground);
+  color: var(--gm-text);
+  font: inherit;
+  font-size: 16px;
+}
+.gm-skills__search:focus-visible {
+  outline: 2px solid var(--gm-gold-bright);
+  outline-offset: 2px;
+}
+
+.gm-skills__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-radius: 0;
+  border: 1px solid var(--gm-line);
+  background: var(--gm-panel);
+}
+.gm-skills__actions > span:first-child {
+  flex: 1 1 200px;
+}
+.gm-skills__actions--refund {
+  border-color: var(--gm-down);
+}
+
+.gm-skills__legend {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 12px;
+  color: var(--gm-muted);
+}
+.gm-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.gm-legend__dot {
+  display: inline-block;
+  box-sizing: border-box;
+  border: 3px solid var(--gm-skills-off);
+  border-radius: 50%;
+  background: var(--gm-ground);
+}
+.gm-legend__dot--small {
+  width: 16px;
+  height: 16px;
+}
+.gm-legend__dot--notable {
+  width: 22px;
+  height: 22px;
+}
+.gm-legend__dot--keystone {
+  width: 24px;
+  height: 24px;
+}
+
+.gm-web {
+  position: relative;
+  height: clamp(320px, 52vh, 560px);
+  border: 1px solid var(--gm-line);
+  border-radius: 0;
+  background: var(--gm-ground);
+  overflow: hidden;
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+.gm-web__svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+}
+.gm-web__svg:active {
+  cursor: grabbing;
+}
+.gm-web__edge {
+  stroke: var(--gm-skills-edge);
+  stroke-width: 3;
+}
+.gm-web__edge[data-allocated='true'][data-side='mining'] { stroke: var(--gm-skills-mining); }
+.gm-web__edge[data-allocated='true'][data-side='battle'] { stroke: var(--gm-skills-battle); }
+.gm-web__edge[data-allocated='true'][data-side='hybrid'] { stroke: var(--gm-skills-hybrid); }
+.gm-web__edge[data-allocated='true'][data-side='start'] { stroke: var(--gm-skills-start); }
+
+.gm-web__node {
+  cursor: pointer;
+}
+/* The side colour drives the allocated icon's glow. */
+.gm-web__node[data-side='mining'] { color: var(--gm-skills-mining); --gm-node-fill: var(--gm-skills-mining-fill); }
+.gm-web__node[data-side='battle'] { color: var(--gm-skills-battle); --gm-node-fill: var(--gm-skills-battle-fill); }
+.gm-web__node[data-side='hybrid'] { color: var(--gm-skills-hybrid); --gm-node-fill: var(--gm-skills-hybrid-fill); }
+.gm-web__node[data-side='start'] { color: var(--gm-skills-start); --gm-node-fill: var(--gm-panel-raised); }
+.gm-web__icon {
+  image-rendering: pixelated;
+}
+.gm-web__halo {
+  fill: transparent;
+  stroke: none;
+}
+/* Keystones wear a dashed gold ring, so the rule-changing nodes read as the biggest, most important stops. */
+.gm-web__keystone {
+  fill: none;
+  stroke: var(--gm-gold-bright);
+  stroke-width: 2;
+  stroke-dasharray: 3 2;
+  opacity: 0.75;
+}
+/* Allocated: the frame's accent already glows, so just a soft side-coloured drop shadow. */
+.gm-web__node[data-allocated='true'] .gm-web__icon {
+  filter: drop-shadow(0 0 5px currentColor);
+}
+/* Unallocated: dim the icon but keep the frame readable. */
+.gm-web__node[data-allocated='false'] .gm-web__icon {
+  filter: brightness(0.7);
+}
+/* A node you can take now: a dashed gold halo and a soft pulse. */
+.gm-web__node[data-allocatable='true'] .gm-web__halo {
+  stroke: var(--gm-gold-bright);
+  stroke-width: 2;
+  stroke-dasharray: 5 3;
+  fill: rgba(245, 207, 122, 0.08);
+  animation: gm-web-pulse 2.4s ease-in-out infinite;
+}
+.gm-web__node[data-refundable='true'] .gm-web__hit {
+  fill: rgba(255, 138, 122, 0.1);
+}
+/* Staged for allocation: waiting for the one confirm. */
+.gm-web__node[data-staged='true'] .gm-web__halo {
+  stroke: var(--gm-gold-bright);
+  stroke-width: 3;
+  fill: rgba(245, 207, 122, 0.15);
+}
+/* Marked for refund: waiting for the one confirm. */
+.gm-web__node[data-refunding='true'] .gm-web__halo {
+  stroke: var(--gm-down);
+  stroke-width: 3;
+  stroke-dasharray: 4 3;
+  fill: rgba(255, 138, 122, 0.12);
+}
+.gm-web__edge[data-refunding='true'] {
+  stroke: var(--gm-down);
+  stroke-dasharray: 5 3;
+}
+.gm-web__node:hover .gm-web__icon {
+  filter: brightness(1.35);
+}
+.gm-web__node[data-allocated='true']:hover .gm-web__icon {
+  filter: brightness(1.35) drop-shadow(0 0 8px currentColor);
+}
+
+@keyframes gm-web-pulse {
+  50% { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gm-web__node[data-allocatable='true'] .gm-web__halo { animation: none; }
+}
+
+.gm-web__controls {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 6px;
+  z-index: 1;
+}
+.gm-web__zoom {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border-radius: 0;
+  border: 1px solid var(--gm-line);
+  background: var(--gm-panel);
+  color: var(--gm-text);
+  font: inherit;
+  font-size: 18px;
+  cursor: pointer;
+}
+.gm-web__zoom:hover { border-color: var(--gm-gold); }
+.gm-web__zoom:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
+.gm-web__zoom--fit { font-size: 13px; }
+
+/* The hovered or pinned node's card, floating beside the node inside the panel. */
+.gm-web__card {
+  position: absolute;
+  z-index: 2;
+  width: min(280px, calc(100% - 16px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  transform: translate(-50%, calc(-100% - 14px));
+}
+.gm-web__card[data-above='false'] {
+  transform: translate(-50%, 14px);
+}
+.gm-web__card .gm-skills__card,
+.gm-web__card .gm-ascend__card {
+  flex: none;
+  width: 100%;
+  box-sizing: border-box;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+/* Clicking the node already stages or allocates it; the card's duplicate buttons are for touch only. */
+.gm-web__card .gm-web__card-actions { display: none; }
+@media (pointer: coarse) {
+  .gm-web__card .gm-web__card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+}
+
+.gm-skills__footer {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  min-height: 44px;
+}
+/* The icon-and-name row shared by the skill and ascendancy cards. */
+.gm-node-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.gm-skills__card {
+  flex: 1 1 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 0;
+  background: var(--gm-panel);
+  border: 1px solid var(--gm-line);
+}
+.gm-skills__card-name {
+  margin: 0;
+  font-family: var(--gm-font-display);
+  font-weight: 400;
+  font-size: 17px;
+}
+.gm-skills__card-line {
+  color: var(--gm-text);
+}
+.gm-skills__card-desc {
+  font-size: 13px;
+}
+.gm-skills__card .gm-btn {
+  margin-top: 6px;
+  align-self: flex-start;
+}
+.gm-skills__status {
+  flex: 1 1 200px;
+  align-self: center;
+  color: var(--gm-muted);
+}
+
+@media (max-width: 600px) {
+  .gm-skills__legend {
+    gap: 10px;
+  }
+}

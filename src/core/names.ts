@@ -73,6 +73,28 @@ export function creatureName(h: number): string {
   return creatureWord(pick(SYLLABLE_START, h), middle, pick(SYLLABLE_END, h >>> 8));
 }
 
+/** The most characters a character name may hold; `creatureName` tops out around 10, so this is generous. */
+export const MAX_CHARACTER_NAME = 24;
+export const SALT_CHARACTER_NAME = 0x6b6b;
+
+const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/;
+
+/** A character name is trimmed non-empty, at most MAX_CHARACTER_NAME, and free of control characters. */
+export function isValidCharacterName(text: string): boolean {
+  const t = text.trim();
+  return t.length >= 1 && t.length <= MAX_CHARACTER_NAME && !CONTROL_CHARACTER.test(t);
+}
+
+/** A random character name drawn from the generator; `next` returns uint32 values, as `creatureName` expects. */
+export function randomCharacterName(next: () => number): string {
+  return creatureName(next());
+}
+
+/** The deterministic name for a seed: the same seed always names the same miner. */
+export function defaultCharacterName(seed: number): string {
+  return creatureName(hash2(seed, SALT_CHARACTER_NAME));
+}
+
 export function championName(h: number): string {
   return `${creatureName(h)} the ${pick(EPITHETS, hash2(h, SALT_EPITHET))}`;
 }

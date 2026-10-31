@@ -16,7 +16,7 @@ const monster = (over: Partial<MonsterState> = {}): MonsterState => ({
 
 const run = (room: number, left: number, bossRoom = 6): MapRun => ({
   map: { id: 1, type: 'map', tier: 4, metre: 305, rarity: 'normal', mods: [] }, room, bossRoom, life: 50, hitCarry: 0, monsterCarry: 0, regenCarry: 0,
-  gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [],  loot: [], items: 0, strikes: 0,
+  gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [],  loot: [], items: 0, strikes: 0, minLifeShare: 1, elapsedS: 0, attempt: 0, startedWith: { emptySlot: false, plainGear: false, noBattleGear: false, noPassives: false },
   queue: Array.from({ length: left }, () => monster({ rank: room === bossRoom ? 'boss' : 'normal' })),
 });
 
@@ -147,8 +147,10 @@ const plainMap = (id: number, tier: number, metre = 1): MapItem => ({ id, type: 
 
 it('xp bar', () => {
   expect(xpBar(1, 50)).toEqual({ label: 'Level 1', text: '50 / 100 XP', pct: 0.5 });
-  expect(xpBar(60, 0)).toEqual({ label: 'Level 60', text: 'Max level', pct: 1 });
-  expect(xpBar(30, 1234).text).toBe('1,234 / 16,432 XP');
+  expect(xpBar(100, 0)).toEqual({ label: 'Level 100', text: 'Max level', pct: 1 });
+  expect(xpBar(30, 1234).text).toBe('1,234 / 101,741 XP');
+  // the late levels cost millions, shown compact
+  expect(xpBar(99, 12_345_678).text).toBe('12.3M / 219M XP');
   expect(xpBar(1, 0)).toEqual({ label: 'Level 1', text: '0 / 100 XP', pct: 0 });
   // the last xp below a level stays short of a full bar
   expect(xpBar(1, 99).text).toBe('99 / 100 XP');

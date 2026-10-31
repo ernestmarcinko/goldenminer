@@ -1,7 +1,7 @@
 .gm-shaft {
   position: relative; display: block; width: 100%; height: 728px; padding: 0; overflow: hidden;
-  border-radius: 12px; border: 1px solid var(--gm-line); background: #120f0d; cursor: pointer;
-  font: inherit; color: inherit;
+  border-radius: 0; border: var(--gm-edge); background: #120f0d; cursor: pointer;
+  font: inherit; color: inherit; box-shadow: var(--gm-bevel);
   touch-action: manipulation; user-select: none; -webkit-user-select: none;
 }
 .gm-shaft:disabled { cursor: default; }
@@ -59,8 +59,8 @@
 
 .gm-shaft__label {
   position: absolute; left: 324px; top: 50%; transform: translateY(-50%); z-index: 1;
-  padding: 3px 8px; border-radius: 6px; background: rgba(15, 13, 11, 0.85); font-size: 12px; white-space: nowrap;
-  color: var(--gm-muted); pointer-events: none;
+  padding: 3px 8px; border-radius: 0; background: rgba(15, 13, 11, 0.85); font-size: 12px; white-space: nowrap;
+  color: var(--gm-muted); pointer-events: none; border: var(--gm-edge); box-shadow: var(--gm-bevel);
 }
 .gm-shaft__label[data-feature='goldVein'] { color: var(--gm-gold-bright); }
 .gm-shaft__label[data-feature='diamondVein'] { color: var(--gm-diamond-bright); }
@@ -79,6 +79,23 @@
 .gm-shaft__glow[data-flicker='true'] { animation: gmFlicker 2.4s ease-in-out infinite; }
 .gm-shaft__miner { position: absolute; transform: translateX(-50%); line-height: 0; pointer-events: none; }
 .gm-shaft__hint {
-  position: absolute; right: 12px; bottom: 10px; padding: 4px 10px; border-radius: 6px;
+  position: absolute; right: 12px; bottom: 10px; padding: 4px 10px; border-radius: 0;
   background: rgba(15, 13, 11, 0.85); font-size: 12px; color: var(--gm-gold-bright);
+  border: var(--gm-edge); box-shadow: var(--gm-bevel);
+}
+
+/* The per-tick mining strike: a swing, two chip sparks and a flash, all short-lived and pruned. */
+.gm-shaft__strike { position: absolute; pointer-events: none; line-height: 0; transform: translate(-50%, -50%); }
+.gm-shaft__swing { display: inline-block; transform-origin: 50% 30%; animation: gm-swing 0.18s ease-out forwards; }
+.gm-shaft__chip {
+  position: absolute; left: 50%; top: 50%; width: 3px; height: 3px; border-radius: 50%;
+  background: var(--gm-gold-bright); box-shadow: 0 0 4px 1px rgba(255, 214, 120, 0.55);
+  animation: gm-chip 0.26s ease-out forwards;
+}
+.gm-shaft__chip--a { --chip-dx: -10px; --chip-dy: -16px; }
+.gm-shaft__chip--b { --chip-dx: 12px; --chip-dy: -13px; background: var(--gm-bone); }
+.gm-shaft__impact {
+  position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 214, 120, 0.55) 0%, rgba(255, 214, 120, 0) 70%);
+  animation: gm-impact 0.15s ease-out forwards;
 }

@@ -10,11 +10,11 @@
 /* the Trader beside Old Mirela; each card grows on its own, so a gamble's "You got" never moves the stock */
 .gm-merchants { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: start; }
 .gm-merchant__card {
-  display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px; border-radius: 12px;
-  background: var(--gm-panel); border: 1px solid var(--gm-line);
+  display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px; border-radius: 0;
+  background: var(--gm-panel); border: var(--gm-edge); box-shadow: var(--gm-bevel);
 }
 .gm-merchant__who { display: flex; align-items: center; gap: 12px; }
-.gm-merchant__who > [role='img'] { flex: none; border-radius: 8px; }
+.gm-merchant__who > [role='img'] { flex: none; border-radius: 0; border: var(--gm-edge); box-shadow: var(--gm-bevel); }
 .gm-merchant__name { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 18px; }
 .gm-merchant__name:focus { outline: none; }
 
@@ -23,10 +23,10 @@
   list-style: none; margin: 0; padding: 0; display: grid; gap: 8px;
   grid-template-columns: repeat(auto-fill, minmax(max(100px, (100% - 40px) / 6), 1fr));
 }
-/* every part has a fixed height, so a tile bought (Sold, no price) keeps its size and its Buy button its place */
+/* every part has a fixed height, so a tile bought (Sold, no price) keeps its size */
 .gm-stock__tile {
-  display: grid; grid-template-rows: 48px 1.3em 1.4em 44px; gap: 6px; min-width: 0; padding: 8px;
-  border-radius: 10px; background: #241e19; border: 1px solid #33291f;
+  display: grid; grid-template-rows: 48px 1.3em 1.4em; gap: 6px; min-width: 0; padding: 8px;
+  border-radius: 0; background: #241e19; border: var(--gm-edge); box-shadow: var(--gm-bevel);
 }
 .gm-stock__cell.gm-cell { width: 48px; height: 48px; min-width: 0; }
 .gm-stock__name {
@@ -41,25 +41,36 @@
   font-family: var(--gm-font-mono); font-size: 12px; line-height: 1.4; color: var(--gm-muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-/* "Buy ·" and the price, at most two lines in its fixed height, so a long price never makes the tile taller. Doubled
-   class: .gm-btn's font shorthand would reset the size and line height */
-.gm-btn.gm-stock__buy {
-  width: 100%; height: 44px; min-width: 0; padding: 0 2px; overflow: hidden; font-size: 12px; line-height: 1.15;
-  border-color: var(--gm-gold); color: var(--gm-gold-bright);
-}
-.gm-stock__buy[aria-disabled='true'] { opacity: 0.55; border-color: var(--gm-line); color: var(--gm-text); }
 /* a price never breaks inside, so a label wraps only after its dot */
 .gm-merchant__price { white-space: nowrap; }
 
 .gm-merchant__group { display: flex; flex-direction: column; gap: 8px; }
-.gm-merchant__group-title { margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 15px; }
+.gm-merchant__group-title {
+  margin: 0; font-family: var(--gm-font-display); font-weight: 400; font-size: 15px;
+  text-transform: uppercase; letter-spacing: 0.06em; text-shadow: var(--gm-text-shadow);
+  padding-bottom: 4px; border-bottom: 1px solid var(--gm-gold-dim);
+}
 .gm-merchant__slots { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .gm-merchant__slots--mining, .gm-merchant__slots--battle { grid-template-columns: repeat(auto-fit, minmax(116px, 1fr)); }
 .gm-merchant__slot {
   display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; padding: 10px;
-  border-radius: 10px; background: var(--gm-panel); border: 1px solid var(--gm-line);
+  border-radius: 0; background: var(--gm-panel); border: var(--gm-edge); box-shadow: var(--gm-bevel);
 }
+/* a clickable tile (a gamble slot or an orb): the whole tile is the buy control, so it resets the button chrome */
+.gm-merchant__slotwrap { min-width: 0; }
+.gm-merchant__tile {
+  width: 100%; box-sizing: border-box; font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.gm-merchant__tile:hover { border-color: var(--gm-gold); }
+.gm-merchant__tile:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 2px; }
+.gm-merchant__cost { font-family: var(--gm-font-mono); font-size: 12px; color: var(--gm-muted); }
 .gm-merchant__label { font-weight: 700; overflow-wrap: anywhere; }
+/* a tile the miner can't afford yet reads red, like a shop item in an ARPG */
+.gm-stock__tile[data-unaffordable],
+.gm-merchant__tile[data-unaffordable] {
+  background: #3a120d; border-color: #8e2f26;
+}
+.gm-merchant__tile[data-unaffordable] .gm-merchant__cost { color: var(--gm-down); }
 /* each slot is wide enough for "Gamble ·" over a price of up to "3,000,000 Gold". Doubled class: .gm-btn's padding and
    font shorthand would win over these */
 .gm-btn.gm-merchant__gamble { width: 100%; margin-top: auto; padding: 6px; font-size: 13px; line-height: 1.3; }
@@ -67,8 +78,8 @@
 .gm-merchant__gamble[aria-disabled='true']:hover { border-color: var(--gm-line); }
 
 .gm-merchant__got {
-  display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 8px;
-  background: var(--gm-panel-raised); border: 1px solid var(--gm-tone, var(--gm-line));
+  display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 0;
+  background: var(--gm-panel-raised); border: 1px solid var(--gm-tone, var(--gm-line)); box-shadow: var(--gm-bevel);
 }
 .gm-merchant__got[data-rarity='normal'] { --gm-tone: var(--gm-normal); }
 .gm-merchant__got[data-rarity='magic'] { --gm-tone: var(--gm-magic); }
@@ -80,4 +91,80 @@
 @media (max-width: 900px) {
   .gm-merchants { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* The Refiner spans the two merchants' row, stacked below them */
+.gm-refiner { grid-column: 1 / -1; position: relative; }
+.gm-refiner__orbs, .gm-refiner__exchange {
+  list-style: none; margin: 0; padding: 0; display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(max(120px, (100% - 56px) / 8), 1fr));
+}
+.gm-refiner__tiers { display: flex; flex-wrap: wrap; gap: 8px; }
+.gm-refiner__tiers .gm-stash__page[aria-disabled='true'] { opacity: 0.55; }
+/* An orb tile: the sprite above its name, so the graphic leads. */
+.gm-refiner__orb { align-items: center; text-align: center; }
+.gm-refiner__orb .gm-merchant__label { min-height: 2.6em; }
+
+/* The ore exchange matrix: rows give, columns get, and every cell is a direct trade. */
+.gm-refiner__matrix { overflow-x: auto; padding-bottom: 4px; }
+.gm-refiner__matrix-row {
+  display: grid; gap: 2px; min-width: 560px;
+  grid-template-columns: 92px repeat(8, minmax(52px, 1fr));
+}
+.gm-refiner__matrix-ore {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 2px; min-width: 0;
+  border-radius: 0; background: #241e19; border: var(--gm-edge); box-shadow: var(--gm-bevel);
+}
+.gm-refiner__matrix-name {
+  font-size: 10px; line-height: 1.1; color: var(--gm-muted); text-align: center;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+}
+.gm-refiner__matrix-corner {
+  display: flex; align-items: center; justify-content: center; padding: 4px;
+  font-size: 11px; line-height: 1.2; text-align: center; color: var(--gm-muted);
+}
+.gm-refiner__matrix-cell {
+  width: 100%; box-sizing: border-box; font: inherit; color: inherit; text-align: center; cursor: pointer;
+  padding: 8px 2px; border-radius: 0; font-family: var(--gm-font-mono); font-size: 11px; line-height: 1.2;
+  background: var(--gm-panel); border: var(--gm-edge); box-shadow: var(--gm-bevel);
+}
+.gm-refiner__matrix-cell:hover { border-color: var(--gm-gold); }
+.gm-refiner__matrix-cell:focus-visible { outline: 2px solid var(--gm-gold-bright); outline-offset: 1px; }
+.gm-refiner__matrix-cell[data-unaffordable] { background: #3a120d; border-color: #8e2f26; color: var(--gm-down); }
+.gm-refiner__matrix-cell[aria-disabled='true'] { opacity: 0.55; }
+.gm-refiner__matrix-cell[aria-disabled='true']:hover { border-color: var(--gm-line); }
+.gm-refiner__matrix-cell--self { background: transparent; border: none; box-shadow: none; pointer-events: none; }
+.gm-refiner__matrix-cell:active { transform: scale(0.92); }
+
+/* The floating "−4 Copper" / "+1 Tin" that rises from a clicked exchange cell. */
+.gm-refiner__float {
+  position: absolute; z-index: 2; pointer-events: none; white-space: nowrap;
+  font-family: var(--gm-font-mono); font-weight: 600; font-size: 16px;
+  transform: translate(-50%, 0);
+  animation: gm-refiner-float 1.1s ease-out forwards;
+}
+.gm-refiner__float[data-tone='give'] { color: var(--gm-down); }
+.gm-refiner__float[data-tone='get'] { color: var(--gm-gold-bright); }
+@keyframes gm-refiner-float {
+  0% { opacity: 0; transform: translate(-50%, 8px) scale(0.85); }
+  12% { opacity: 1; transform: translate(-50%, 0) scale(1.08); }
+  24% { transform: translate(-50%, -8px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -46px) scale(1); }
+}
+
+/* The buy fly-in: the bought sprite rises and fades from the merchant toward the bag. */
+.gm-buy-fly {
+  position: fixed; left: 50%; top: 42%; pointer-events: none; z-index: 60;
+  animation: gm-buy-fly 420ms ease-out forwards;
+}
+@keyframes gm-buy-fly {
+  0% { opacity: 0; transform: translate(-50%, 0) scale(0.5); }
+  18% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -160px) scale(1.15); }
+}
+.gm-merchant__status--flash { animation: gm-cost-flash 420ms ease-out; }
+@keyframes gm-cost-flash {
+  0%, 100% { color: var(--gm-down); }
+  30% { color: var(--gm-gold-bright); }
+}
+
 

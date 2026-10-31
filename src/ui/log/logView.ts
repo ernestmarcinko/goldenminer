@@ -38,7 +38,7 @@ export function stepText(e: DropEntry, s: TrailStep): string {
   }
 }
 
-const isStack = (e: DropEntry): boolean => e.kind === 'gem' || e.kind === 'material';
+const isStack = (e: DropEntry): boolean => e.kind === 'gem' || e.kind === 'rune' || e.kind === 'material';
 
 /** A gem or material find by its count: "+3 Iron ore". */
 const stackName = (e: DropEntry): string => `+${formatNumber(e.count)} ${e.name}`;
@@ -58,6 +58,7 @@ function kindText(e: DropEntry): string {
     case 'gear': return `${e.rarity} ${SLOT_LABELS[e.base as Slot].toLowerCase()}`;   // a gear entry's base is its slot
     case 'map':
     case 'gem':
+    case 'rune':
     case 'material': return '';
   }
 }

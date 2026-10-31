@@ -7,9 +7,9 @@ import type { GameStore } from '../../store/gameStore';
 import { formatNumber } from '../format';
 import { useDialog } from '../useDialog';
 import {
-  GEM_OPTIONS, GRADE_OPTIONS, KIND_OPTIONS, MAP_MOD_OPTIONS, MATERIAL_OPTIONS, SET_OPTIONS, actionOptionsFor, addRow,
+  GEM_OPTIONS, GRADE_OPTIONS, KIND_OPTIONS, MAP_MOD_OPTIONS, MATERIAL_OPTIONS, RUNE_OPTIONS, SET_OPTIONS, actionOptionsFor, addRow,
   boxProblems, boxRejects, boxTextsFor, fieldsFor, levelLabel, moveRow, moveTarget, rarityOptionsFor, removeRow,
-  ruleProblems, rowsOf, rulesOf, setRange, slotOptionsFor, storedRules, withKind, withModTier, withPick,
+  ruleProblems, rowsOf, rulesOf, setRange, slotOptionsFor, storedRules, withKind, withModTier, withModTierGap, withPick,
 } from './lootFilterView';
 import type { NumberBox as NumberBoxKey, Option, RuleField, RuleRow } from './lootFilterView';
 
@@ -101,6 +101,14 @@ function RuleFields({ rule, onChange, texts, onText }: {
             <span className="gm-pick__word">or above</span>
           </div>
         );
+      case 'modTierGap':
+        return (
+          <div key={f} className="gm-pick" data-wide="" role="group" aria-label="Every modifier within tiers of the top">
+            <span className="gm-pick__cap">Every modifier within</span>
+            {box('modTierGap', 'Every modifier within tiers of the top', rule.modTierGap, (t) => withModTierGap(rule, t))}
+            <span className="gm-pick__word">tiers of the top</span>
+          </div>
+        );
       case 'mapMod':
         return (
           <Pick key={f} caption="Has modifier" label="Has modifier" value={rule.mapMod ?? 'any'} options={MAP_MOD_OPTIONS}
@@ -110,6 +118,8 @@ function RuleFields({ rule, onChange, texts, onText }: {
         return <Pick key={f} caption="Gem" label="Gem" value={rule.gem ?? 'any'} options={GEM_OPTIONS} onChange={(v) => onChange(withPick(rule, 'gem', v))} />;
       case 'grade':
         return <Pick key={f} caption="Grade" label="Grade" value={rule.grade ?? 'any'} options={GRADE_OPTIONS} onChange={(v) => onChange(withPick(rule, 'grade', v))} />;
+      case 'rune':
+        return <Pick key={f} caption="Rune" label="Rune" value={rule.rune ?? 'any'} options={RUNE_OPTIONS} onChange={(v) => onChange(withPick(rule, 'rune', v))} />;
       case 'material':
         return (
           <Pick key={f} caption="Material" label="Material" value={rule.material ?? 'any'} options={MATERIAL_OPTIONS}

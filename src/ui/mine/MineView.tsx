@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import type { GameStore } from '../../store/gameStore';
 import { bandAt } from '../../core/bands';
 import { metreLayer } from '../../core/layer';
 import { bandTitle, worldOf } from '../../core/mineLook';
 import { formatNumber, formatRate, plural } from '../format';
+import { CharacterSheet } from '../character/CharacterSheet';
 import { useGame } from '../useGame';
 import { FindsFeed } from './FindsFeed';
 import { Minimap } from './Minimap';
@@ -12,6 +14,7 @@ import './mine.css';
 
 export function MineView({ store, onBackToMap }: { store: GameStore; onBackToMap: () => void }) {
   const { state, stats } = useGame(store);
+  const [showChar, setShowChar] = useState(false);
   const band = bandAt(state.deepest);
   const pct = Math.round(Math.min(1, Math.max(0, state.progress)) * 100);
   const hazard = hazardText(metreLayer(state.seed, state.deepest + 1).hazard, stats.hazardWard, stats.hazardSlow);
@@ -71,6 +74,20 @@ export function MineView({ store, onBackToMap }: { store: GameStore; onBackToMap
           <FindsFeed store={store} />
         </div>
       </div>
+      <section aria-label="Character" className="gm-mine__char">
+        <div className="gm-mine__char-head">
+          <h2 className="gm-mine__char-title">Character</h2>
+          <button
+            type="button"
+            className="gm-btn"
+            aria-expanded={showChar}
+            onClick={() => setShowChar(!showChar)}
+          >
+            {showChar ? 'Hide' : 'Show'}
+          </button>
+        </div>
+        {showChar && <CharacterSheet state={state} half="both" />}
+      </section>
     </div>
   );
 }

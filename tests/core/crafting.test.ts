@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { GEM_STASH_STACK, MATERIAL_STASH_STACK, MAX_SIDE_LINES } from '../../src/core/balance';
-import { canCraft, craft, craftCost, type CraftKind, type TemperOutcome } from '../../src/core/crafting';
+import { GEM_STASH_STACK, MATERIAL_STASH_STACK, MAX_SOCKETS } from '../../src/core/balance';
+import { canCraft, canTargetedCraft, craft, craftCost, targetedCraft, type CraftKind, type TemperOutcome } from '../../src/core/crafting';
 import { dropItem } from '../../src/core/inventory';
 import { baseName } from '../../src/core/itemData';
 import { magicName, rollGear } from '../../src/core/itemGen';
@@ -45,21 +45,23 @@ const full = (): ModLine[] => [
 ];
 
 describe('craft costs', () => {
-  it('grow with item level', () => {
+  it('grow with item level, and the retired Copper, Starsteel and Obsidian have no cost', () => {
     const s = newGame(1, 0);
     const item = gear(s, 'pickaxe', { ilvl: 9 });
-    const costs = Object.fromEntries((['copper', 'tin', 'iron', 'silver', 'mithril', 'starsteel', 'obsidian', 'voidCrystal', 'diamond'] as CraftKind[])
+    const costs = Object.fromEntries((['tin', 'iron', 'silver', 'mithril', 'voidCrystal', 'diamond', 'makeMagic', 'makeRare'] as CraftKind[])
       .map((k) => [k, craftCost(k, item.ilvl)]));
-    expect(costs).toEqual({ copper: 5, tin: 5, iron: 5, silver: 3, mithril: 3, starsteel: 3, obsidian: 1, voidCrystal: 1, diamond: 4 });
+    expect(costs).toEqual({ tin: 5, iron: 5, silver: 3, mithril: 3, voidCrystal: 1, diamond: 4, makeMagic: 3, makeRare: 5 });
+    expect(() => craftCost('copper', 9)).toThrow();
+    expect(() => craftCost('starsteel', 9)).toThrow();
+    expect(() => craftCost('obsidian', 9)).toThrow();
   });
 });
 
 describe('every effect', () => {
-  it('Copper makes a normal item magic with 1–2 lines and a magic name, for 1 + 2 copper', () => {
+  it('makeMagic makes a normal item magic with 1–2 lines and a magic name, for Diamonds', () => {
     const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'normal', ilvl: 4, name: 'Iron Pick' }));
-    s.stash.materials.copper = 0;
-    s.bag[3] = mat(s, 'copper', 3);
-    expect(craft(s, bagLoc(0), 'copper')).toEqual({ check: 'ok' });
+    s.diamonds = 2;
+    expect(craft(s, bagLoc(0), 'makeMagic')).toEqual({ check: 'ok' });
     const item = at(s, 0);
     expect(item.rarity).toBe('magic');
     expect(item.affixes.length).toBeGreaterThanOrEqual(1);
@@ -67,7 +69,19 @@ describe('every effect', () => {
     expect(new Set(sides(item.affixes)).size).toBe(item.affixes.length);
     expect(item.affixes.every(inTier)).toBe(true);
     expect(item.name).toBe(magicName('pickaxe', 4, item.affixes));
-    expect(s.bag[3]).toBeNull();
+    expect(s.diamonds).toBe(0);
+    expect(validateState(s)).toBe(true);
+  });
+
+  it('makeRare makes a magic item rare with 4–6 lines, for Diamonds', () => {
+    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'magic', ilvl: 4, affixes: [line('goldYield', 4)] }));
+    s.diamonds = 3;
+    expect(craft(s, bagLoc(0), 'makeRare')).toEqual({ check: 'ok' });
+    const item = at(s, 0);
+    expect(item.rarity).toBe('rare');
+    expect(item.affixes.length).toBeGreaterThanOrEqual(4);
+    expect(item.affixes.length).toBeLessThanOrEqual(6);
+    expect(s.diamonds).toBe(0);
     expect(validateState(s)).toBe(true);
   });
 
@@ -84,32 +98,22 @@ describe('every effect', () => {
     expect(validateState(s)).toBe(true);
   });
 
-  it('Iron gives a 1-line magic item its other side, and a 2-line one a third line as a rare', () => {
-    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'magic', name: 'Keep', affixes: [line('goldYield', 4)] }));
-    expect(craft(s, bagLoc(0), 'iron').check).toBe('ok');
-    expect(at(s, 0).rarity).toBe('magic');
-    expect(sides(at(s, 0).affixes)).toEqual(['prefix', 'suffix']);
-    expect(at(s, 0).name).toBe(magicName('pickaxe', 4, at(s, 0).affixes));
-    const two = structuredClone(at(s, 0).affixes);
-    expect(craft(s, bagLoc(0), 'iron').check).toBe('ok');
-    const item = at(s, 0);
-    expect(item.rarity).toBe('rare');
-    expect(item.affixes.slice(0, 2)).toEqual(two);
-    expect(item.affixes).toHaveLength(3);
-    expect(item.name).not.toBe('Keep');
+  it('Copper and Iron are retired: they no longer craft, on gear', () => {
+    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'normal', name: 'Keep' }));
+    const before = snap(s);
+    expect(craft(s, bagLoc(0), 'copper')).toEqual({ check: 'wrongRarity' });
+    expect(craft(s, bagLoc(0), 'iron')).toEqual({ check: 'wrongRarity' });
+    expect(snap(s)).toEqual(before);
     expect(validateState(s)).toBe(true);
   });
 
-  it('Iron and Diamonds add a line to a rare on a side with room', () => {
+  it('Diamond adds a line to a rare on a side with room', () => {
     const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'rare', ilvl: 7, name: 'Grim Pick', affixes: rareLines() }));
     expect(craft(s, bagLoc(0), 'diamond').check).toBe('ok');
-    expect(at(s, 0).affixes).toHaveLength(5);
-    expect(s.diamonds).toBe(100 - (1 + Math.floor(7 / 3)));
-    expect(craft(s, bagLoc(0), 'iron').check).toBe('ok');
     const item = at(s, 0);
-    expect(item.affixes).toHaveLength(6);
+    expect(item.affixes).toHaveLength(5);
     expect(item.affixes.slice(0, 4)).toEqual(rareLines());
-    expect(sides(item.affixes).filter((x) => x === 'prefix')).toHaveLength(MAX_SIDE_LINES);
+    expect(s.diamonds).toBe(100 - (1 + Math.floor(7 / 3)));
     expect(item.name).toBe('Grim Pick');
     expect(validateState(s)).toBe(true);
   });
@@ -126,55 +130,12 @@ describe('every effect', () => {
     expect(validateState(s)).toBe(true);
   });
 
-  it('Starsteel keeps every stat and tier and rerolls the values inside their tiers; crafted lines keep theirs', () => {
-    // T6 ore find is 15–16, so a reroll would always change this value: a crafted line kept as it was is never luck
-    const crafted: ModLine = { stat: 'oreFind', value: 30, tier: 6, crafted: true };
-    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'rare', affixes: [...rareLines(), crafted] }), 9);
-    expect(inTier(crafted)).toBe(false);
-    expect(craft(s, bagLoc(0), 'starsteel').check).toBe('ok');
-    const item = at(s, 0);
-    expect(item.affixes.map((l) => [l.stat, l.tier])).toEqual([...rareLines(), crafted].map((l) => [l.stat, l.tier]));
-    expect(item.affixes.slice(0, 4).every(inTier)).toBe(true);
-    expect(item.affixes[4]).toEqual(crafted);
-    expect(item.affixes.map((l) => l.value)).not.toEqual([...rareLines(), crafted].map((l) => l.value));
-    expect(validateState(s)).toBe(true);
-  });
-
-  it('Obsidian removes exactly one line and keeps the rarity', () => {
+  it('Starsteel and Obsidian are retired: they refuse every gear craft', () => {
     const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'rare', affixes: rareLines() }));
-    expect(craft(s, bagLoc(0), 'obsidian').check).toBe('ok');
-    const item = at(s, 0);
-    expect(item.rarity).toBe('rare');
-    expect(item.affixes).toHaveLength(3);
-    for (const l of item.affixes) expect(rareLines()).toContainEqual(l);
-    expect(s.stash.materials.obsidian).toBe(99);
-  });
-
-  it('Obsidian renames a magic item after the line it keeps', () => {
-    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'magic', name: 'Old', affixes: [line('goldYield', 4), line('chestFind', 5)] }));
-    expect(craft(s, bagLoc(0), 'obsidian').check).toBe('ok');
-    const item = at(s, 0);
-    expect(item.rarity).toBe('magic');
-    expect(item.affixes).toHaveLength(1);
-    expect(item.name).toBe(magicName('pickaxe', 4, item.affixes));
-    expect(item.name).not.toBe(magicName('pickaxe', 4, [line('goldYield', 4), line('chestFind', 5)]));
-    expect(validateState(s)).toBe(true);
-  });
-
-  it('Obsidian taking a magic item\'s last line makes it normal again, under its base name, for Copper', () => {
-    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'magic', ilvl: 9, name: 'Old', affixes: [line('goldYield', 4)] }));
-    expect(craft(s, bagLoc(0), 'obsidian').check).toBe('ok');
-    const item = at(s, 0);
-    expect([item.rarity, item.affixes, item.name]).toEqual(['normal', [], baseName('pickaxe', 9)]);
-    expect(validateState(s)).toBe(true);
-    expect(canCraft(s, bagLoc(0), 'copper')).toBe('ok');
-    expect(canCraft(s, bagLoc(0), 'obsidian')).toBe('nothingToChange');
-  });
-
-  it('Obsidian taking a rare\'s last line leaves it rare, under its own name', () => {
-    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'rare', name: 'Grim Pick', affixes: [line('goldYield', 4)] }));
-    expect(craft(s, bagLoc(0), 'obsidian').check).toBe('ok');
-    expect([at(s, 0).rarity, at(s, 0).affixes, at(s, 0).name]).toEqual(['rare', [], 'Grim Pick']);
+    const before = snap(s);
+    expect(craft(s, bagLoc(0), 'starsteel')).toEqual({ check: 'wrongRarity' });
+    expect(craft(s, bagLoc(0), 'obsidian')).toEqual({ check: 'wrongRarity' });
+    expect(snap(s)).toEqual(before);
   });
 });
 
@@ -223,7 +184,7 @@ describe('temper', () => {
       expect(s.stash.materials.voidCrystal).toBe(99);
       expect(validateState(s)).toBe(true);
       const sealed = snap(s);
-      for (const kind of [...MATERIALS, 'diamond'] as const) {
+      for (const kind of [...MATERIALS, 'diamond', 'makeMagic', 'makeRare'] as const) {
         expect(canCraft(s, bagLoc(0), kind)).toBe('sealed');
         expect(craft(s, bagLoc(0), kind)).toEqual({ check: 'sealed' });
       }
@@ -249,24 +210,27 @@ describe('refusals spend nothing', () => {
   const magic = (s: GameState) => gear(s, 'pickaxe', { rarity: 'magic', affixes: [line('goldYield', 4)] });
   const rare = (s: GameState) => gear(s, 'pickaxe', { rarity: 'rare', affixes: rareLines() });
   const cases: [string, (s: GameState) => GearItem, CraftKind, string][] = [
-    ...(['copper', 'tin', 'iron', 'silver', 'starsteel', 'obsidian', 'voidCrystal', 'diamond'] as const)
+    ...(['makeMagic', 'makeRare', 'tin', 'iron', 'silver', 'starsteel', 'obsidian', 'voidCrystal', 'diamond'] as const)
       .map((k): [string, (s: GameState) => GearItem, CraftKind, string] => [`${k} on a legendary`, legendary, k, 'legendary']),
-    ['copper on magic', magic, 'copper', 'wrongRarity'],
+    ['makeMagic on magic', magic, 'makeMagic', 'wrongRarity'],
+    ['makeMagic on rare', rare, 'makeMagic', 'wrongRarity'],
+    ['makeRare on normal', normal, 'makeRare', 'wrongRarity'],
+    ['makeRare on rare', rare, 'makeRare', 'wrongRarity'],
+    ['copper on normal', normal, 'copper', 'wrongRarity'],
     ['tin on rare', rare, 'tin', 'wrongRarity'],
     ['tin on normal', normal, 'tin', 'wrongRarity'],
     ['iron on normal', normal, 'iron', 'wrongRarity'],
     ['silver on magic', magic, 'silver', 'wrongRarity'],
     ['void crystal on normal', normal, 'voidCrystal', 'wrongRarity'],
     ['diamond on magic', magic, 'diamond', 'wrongRarity'],
-    ['iron on a full rare', (s) => gear(s, 'pickaxe', { rarity: 'rare', affixes: full() }), 'iron', 'noRoom'],
     ['diamond on a full rare', (s) => gear(s, 'pickaxe', { rarity: 'rare', affixes: full() }), 'diamond', 'noRoom'],
-    ['starsteel with no lines', normal, 'starsteel', 'nothingToChange'],
-    ['obsidian with no lines', (s) => gear(s, 'pickaxe', { rarity: 'rare' }), 'obsidian', 'nothingToChange'],
+    ['starsteel on a normal', normal, 'starsteel', 'wrongRarity'],
+    ['obsidian on a rare', (s) => gear(s, 'pickaxe', { rarity: 'rare' }), 'obsidian', 'wrongRarity'],
   ];
   for (const [name, item, kind, check] of cases) {
     it(`${name} → ${check}`, () => {
       const s = withItem(item);
-      s.bag[7] = mat(s, kind === 'diamond' ? 'copper' : kind, 20);
+      s.bag[7] = mat(s, kind === 'diamond' || kind === 'makeMagic' || kind === 'makeRare' ? 'copper' : kind, 20);
       const before = snap(s);
       expect(canCraft(s, bagLoc(0), kind)).toBe(check);
       expect(craft(s, bagLoc(0), kind, bagLoc(7))).toEqual({ check });
@@ -276,12 +240,12 @@ describe('refusals spend nothing', () => {
 
   it('too little material is short; too few Diamonds too', () => {
     const s = withItem(normal);
-    s.stash.materials.copper = 0;
-    s.bag[5] = mat(s, 'copper', 2);
+    s.stash.materials.mithril = 0;
     s.diamonds = 0;
     s.bag[1] = gear(s, 'pickaxe', { rarity: 'rare', affixes: rareLines() });
     const before = snap(s);
-    expect(craft(s, bagLoc(0), 'copper', bagLoc(5))).toEqual({ check: 'short' });
+    expect(craft(s, bagLoc(0), 'mithril')).toEqual({ check: 'short' });
+    expect(craft(s, bagLoc(0), 'makeMagic')).toEqual({ check: 'short' });
     expect(craft(s, bagLoc(1), 'diamond')).toEqual({ check: 'short' });
     expect(snap(s)).toEqual(before);
   });
@@ -290,9 +254,9 @@ describe('refusals spend nothing', () => {
     const s = withItem(normal);
     s.bag[2] = mat(s, 'tin', 5);
     const before = snap(s);
-    expect(craft(s, bagLoc(1), 'copper')).toEqual({ check: 'notGear' });
-    expect(craft(s, bagLoc(2), 'copper')).toEqual({ check: 'notGear' });
-    expect(craft(s, { where: 'worn', slot: 'lamp' }, 'copper')).toEqual({ check: 'notGear' });
+    expect(craft(s, bagLoc(1), 'makeMagic')).toEqual({ check: 'notGear' });
+    expect(craft(s, bagLoc(2), 'makeMagic')).toEqual({ check: 'notGear' });
+    expect(craft(s, { where: 'worn', slot: 'lamp' }, 'makeMagic')).toEqual({ check: 'notGear' });
     expect(snap(s)).toEqual(before);
   });
 });
@@ -300,30 +264,30 @@ describe('refusals spend nothing', () => {
 describe('paying', () => {
   const setup = (): GameState => {
     const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'normal', ilvl: 4 }));
-    s.stash.materials.copper = 50;
-    s.bag[5] = mat(s, 'copper', 2);
-    s.bag[9] = mat(s, 'copper', 10);
+    s.stash.materials.mithril = 50;
+    s.bag[5] = mat(s, 'mithril', 2);
+    s.bag[9] = mat(s, 'mithril', 10);
     return s;
   };
 
   it('takes from the dragged stack first', () => {
     const s = setup();
-    expect(craft(s, bagLoc(0), 'copper', bagLoc(9)).check).toBe('ok');
-    expect([count(s, 5), count(s, 9), s.stash.materials.copper]).toEqual([2, 7, 50]);
+    expect(craft(s, bagLoc(0), 'mithril', bagLoc(9)).check).toBe('ok');
+    expect([count(s, 5), count(s, 9), s.stash.materials.mithril]).toEqual([2, 8, 50]);
   });
 
   it('without a stack, takes from the bag stacks in order', () => {
     const s = setup();
-    expect(craft(s, bagLoc(0), 'copper').check).toBe('ok');
-    expect([count(s, 5), count(s, 9), s.stash.materials.copper]).toEqual([null, 9, 50]);
+    expect(craft(s, bagLoc(0), 'mithril').check).toBe('ok');
+    expect([count(s, 5), count(s, 9), s.stash.materials.mithril]).toEqual([null, 10, 50]);
   });
 
   it('then from the Materials tab', () => {
     const s = setup();
-    s.bag[5] = mat(s, 'copper', 1);
+    s.bag[5] = mat(s, 'mithril', 1);
     s.bag[9] = null;
-    expect(craft(s, bagLoc(0), 'copper').check).toBe('ok');
-    expect([count(s, 5), s.stash.materials.copper]).toEqual([null, 48]);
+    expect(craft(s, bagLoc(0), 'mithril').check).toBe('ok');
+    expect([count(s, 5), s.stash.materials.mithril]).toEqual([null, 49]);
   });
 
   it('pays only once the effect is done, so a craft that fails part-way spends nothing', () => {
@@ -335,8 +299,8 @@ describe('paying', () => {
 
   it('from the tab slot first when that is the stack', () => {
     const s = setup();
-    expect(craft(s, bagLoc(0), 'copper', { where: 'materials', material: 'copper' }).check).toBe('ok');
-    expect([count(s, 5), count(s, 9), s.stash.materials.copper]).toEqual([2, 10, 47]);
+    expect(craft(s, bagLoc(0), 'mithril', { where: 'materials', material: 'mithril' }).check).toBe('ok');
+    expect([count(s, 5), count(s, 9), s.stash.materials.mithril]).toEqual([2, 10, 48]);
   });
 });
 
@@ -370,10 +334,10 @@ describe('Mithril', () => {
 });
 
 describe('worn mining gear', () => {
-  it('Copper on a worn lamp makes it magic', () => {
+  it('makeMagic on a worn lamp makes it magic', () => {
     const s = withItem((s) => gear(s, 'pickaxe'));
     s.equipped.mining.lamp = gear(s, 'lamp', { rarity: 'normal' });
-    expect(craft(s, { where: 'worn', slot: 'lamp' }, 'copper').check).toBe('ok');
+    expect(craft(s, { where: 'worn', slot: 'lamp' }, 'makeMagic').check).toBe('ok');
     expect(s.equipped.mining.lamp?.rarity).toBe('magic');
     expect(validateState(s)).toBe(true);
   });
@@ -385,7 +349,7 @@ describe('worn mining gear', () => {
       const s = withItem((s) => gear(s, 'pickaxe'), rng);
       s.equipped.mining.boots = gear(s, 'boots', { rarity: 'normal' });
       const sight = deriveStats(s).lampSight;
-      expect(craft(s, { where: 'worn', slot: 'boots' }, 'copper').check).toBe('ok');
+      expect(craft(s, { where: 'worn', slot: 'boots' }, 'makeMagic').check).toBe('ok');
       if (!(s.equipped.mining.boots?.affixes ?? []).some((l) => l.stat === 'lampSight')) continue;
       found = true;
       expect(deriveStats(s).lampSight).toBeGreaterThan(sight);
@@ -397,16 +361,16 @@ describe('worn mining gear', () => {
 
 describe('dragging a material onto gear', () => {
   it('crafts, paying from the dragged stack', () => {
-    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'normal', ilvl: 4 }));
-    s.bag[9] = mat(s, 'copper', 10);
+    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'normal', ilvl: 4, sockets: 2 }));
+    s.bag[9] = mat(s, 'mithril', 10);
     expect(dropItem(s, bagLoc(9), bagLoc(0))).toBe('ok');
-    expect(at(s, 0).rarity).toBe('magic');
-    expect(count(s, 9)).toBe(7);
+    expect(at(s, 0).sockets).toBeGreaterThanOrEqual(0);
+    expect(count(s, 9)).toBe(8);
   });
 
   it('a refused craft is craftRefused, and nothing moves or swaps', () => {
     const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'rare', affixes: rareLines() }));
-    s.bag[9] = mat(s, 'copper', 10);
+    s.bag[9] = mat(s, 'tin', 10);
     const before = snap(s);
     expect(dropItem(s, bagLoc(9), bagLoc(0))).toBe('craftRefused');
     expect(snap(s)).toEqual(before);
@@ -416,18 +380,16 @@ describe('dragging a material onto gear', () => {
     const s = withItem((s) => gear(s, 'pickaxe'));
     s.equipped.mining.gloves = gear(s, 'gloves', { rarity: 'normal' });
     s.stash.general[3] = gear(s, 'ring', { rarity: 'normal' });
-    expect(dropItem(s, { where: 'materials', material: 'copper' }, { where: 'worn', slot: 'gloves' })).toBe('ok');
-    expect(s.equipped.mining.gloves?.rarity).toBe('magic');
-    s.bag[4] = mat(s, 'copper', 5);
+    expect(dropItem(s, { where: 'materials', material: 'mithril' }, { where: 'worn', slot: 'gloves' })).toBe('ok');
+    s.bag[4] = mat(s, 'mithril', 5);
     expect(dropItem(s, bagLoc(4), { where: 'stash', index: 3 })).toBe('ok');
-    expect(s.stash.general[3]?.rarity).toBe('magic');
-    expect(count(s, 4)).toBe(2);
+    expect(count(s, 4)).toBe(3);
     expect(validateState(s)).toBe(true);
   });
 });
 
 describe('random craft chains', () => {
-  const KINDS: readonly CraftKind[] = [...MATERIALS, 'diamond'];
+  const KINDS: readonly CraftKind[] = ['makeMagic', 'makeRare', 'tin', 'silver', 'mithril', 'voidCrystal', 'diamond'];
   const GEMS = ['ruby', 'sapphire', 'emerald'] as const;
 
   // Generated gear of several levels, both sets and every rarity, in the bag or worn, crafted on at random with
@@ -464,7 +426,150 @@ describe('random craft chains', () => {
         expect(validateState(s), `chain ${chain} step ${step} ${kind}`).toBe(true);
       }
     }
-    // the chains reached every kind of outcome a held item can have
-    expect([...seen].sort()).toEqual(['legendary', 'noRoom', 'nothingToChange', 'ok', 'sealed', 'wrongRarity']);
+    // the chains reached every kind of outcome a held item can have (Starsteel and Obsidian retired, so no value-only
+    // or remove base crafts remain)
+    expect([...seen].sort()).toEqual(['legendary', 'noRoom', 'ok', 'sealed', 'wrongRarity']);
+  });
+});
+
+describe('targeted crafting', () => {
+  const orb = (
+    s: GameState,
+    family: 'craft' | 'removal' | 'scattering' | 'socketing' | 'clearSockets',
+    side: 'prefix' | 'suffix' | undefined,
+    tier: 'minor' | 'normal' | 'greater' | undefined,
+  ) => ({ id: s.nextId++, type: 'orb' as const, family, side, tier, count: 1 });
+  const rare = (s: GameState, ilvl = 9) => gear(s, 'pickaxe', { rarity: 'rare', ilvl, affixes: rareLines() });
+
+  it('a Greater craft orb adds a prefix at a tier of at least 7 on a cap-9 item', () => {
+    const s = withItem((s) => rare(s, 9));
+    s.bag[9] = orb(s, 'craft', 'prefix', 'greater');
+    expect(targetedCraft(s, bagLoc(0), { kind: 'addPrefix', tier: 'greater' })).toEqual({ check: 'ok' });
+    const added = at(s, 0).affixes[4];
+    if (added === undefined) throw new Error('no line added');
+    expect(MOD_SIDE[added.stat]).toBe('prefix');
+    expect(added.tier).toBeGreaterThanOrEqual(7);
+    expect(added.tier).toBeLessThanOrEqual(11);
+    expect(inTier(added)).toBe(true);
+    expect(s.bag[9]).toBeNull();
+    expect(validateState(s)).toBe(true);
+  });
+
+  it('a craft orb only adds: it never rerolls an existing line', () => {
+    const s = withItem((s) => rare(s, 9));
+    s.bag[9] = orb(s, 'craft', 'prefix', 'minor');
+    const before = structuredClone(at(s, 0).affixes);
+    expect(targetedCraft(s, bagLoc(0), { kind: 'addPrefix', tier: 'minor' })).toEqual({ check: 'ok' });
+    expect(at(s, 0).affixes.slice(0, before.length)).toEqual(before);   // every existing line is untouched
+    expect(at(s, 0).affixes).toHaveLength(before.length + 1);
+  });
+
+  it('a removal orb removes one random prefix of any tier', () => {
+    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'rare', ilvl: 9, affixes: [line('goldYield', 6, 2), line('diamondYield', 20, 9), line('chestFind', 5, 1), line('gemFind', 17, 7)] }));
+    s.bag[9] = orb(s, 'removal', 'prefix', undefined);
+    expect(targetedCraft(s, bagLoc(0), { kind: 'removePrefix' })).toEqual({ check: 'ok' });
+    const after = at(s, 0).affixes;
+    expect(after).toHaveLength(3);
+    // exactly one of the two prefixes went, and both suffixes stay
+    const stats = after.map((l) => l.stat);
+    expect(stats).toContain('chestFind');
+    expect(stats).toContain('gemFind');
+    expect(stats.filter((x) => x === 'goldYield' || x === 'diamondYield')).toHaveLength(1);
+  });
+
+  it('a removal orb refuses nothingToChange when the side has no rolled line', () => {
+    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'rare', ilvl: 9, affixes: [line('chestFind', 5, 1)] }));
+    s.bag[9] = orb(s, 'removal', 'prefix', undefined);
+    const before = snap(s);
+    expect(targetedCraft(s, bagLoc(0), { kind: 'removePrefix' })).toEqual({ check: 'nothingToChange' });
+    expect(snap(s)).toEqual(before);
+  });
+
+  it('a scattering orb keeps stats and tiers and rerolls every value', () => {
+    const lines = (): ModLine[] => [line('goldYield', 6, 2)];
+    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'rare', ilvl: 9, affixes: lines() }), 5);
+    s.bag[9] = orb(s, 'scattering', undefined, undefined);
+    const before = structuredClone(at(s, 0).affixes);
+    expect(targetedCraft(s, bagLoc(0), { kind: 'scatter' })).toEqual({ check: 'ok' });
+    const m = at(s, 0).affixes[0];
+    if (m === undefined) throw new Error('line lost');
+    expect([m.stat, m.tier]).toEqual(['goldYield', 2]);   // the stat and tier stay
+    expect(inTier(m)).toBe(true);
+    expect(at(s, 0).affixes).not.toEqual(before);          // the value rerolled
+    expect(s.bag[9]).toBeNull();
+    expect(validateState(s)).toBe(true);
+  });
+
+  it('a scattering orb leaves crafted lines\' values alone', () => {
+    const crafted: ModLine = { stat: 'oreFind', value: 30, tier: 6, crafted: true };
+    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'rare', ilvl: 9, affixes: [line('goldYield', 6, 2), crafted] }), 5);
+    s.bag[9] = orb(s, 'scattering', undefined, undefined);
+    expect(targetedCraft(s, bagLoc(0), { kind: 'scatter' })).toEqual({ check: 'ok' });
+    expect(at(s, 0).affixes[1]).toEqual(crafted);
+    expect(validateState(s)).toBe(true);
+  });
+
+  it('a socketing orb adds one socket, up to the maximum', () => {
+    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'rare', sockets: 1 }));
+    s.bag[9] = orb(s, 'socketing', undefined, undefined);
+    expect(targetedCraft(s, bagLoc(0), { kind: 'socketing' })).toEqual({ check: 'ok' });
+    expect(at(s, 0).sockets).toBe(2);
+    expect(validateState(s)).toBe(true);
+
+    const full = withItem((s) => gear(s, 'pickaxe', { rarity: 'rare', sockets: MAX_SOCKETS }));
+    full.bag[9] = orb(full, 'socketing', undefined, undefined);
+    const before = snap(full);
+    expect(targetedCraft(full, bagLoc(0), { kind: 'socketing' })).toEqual({ check: 'socketFull' });
+    expect(snap(full)).toEqual(before);
+  });
+
+  it('a cleansing orb destroys the socketed runes and leaves the gems', () => {
+    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'rare', sockets: 3, gems: [{ gem: 'ruby', grade: 'tiny' }, { rune: 'fehu' }, { rune: 'isa' }] }));
+    s.bag[9] = orb(s, 'clearSockets', undefined, undefined);
+    expect(targetedCraft(s, bagLoc(0), { kind: 'clearSockets' })).toEqual({ check: 'ok' });
+    expect(at(s, 0).gems).toEqual([{ gem: 'ruby', grade: 'tiny' }]);
+    expect(at(s, 0).sockets).toBe(3);
+    expect(s.stash.gems.ruby.tiny).toBe(0);
+    expect(s.stash.runes.fehu).toBe(0);   // the runes are destroyed, never returned
+    expect(s.stash.runes.isa).toBe(0);
+    expect(validateState(s)).toBe(true);
+  });
+
+  it('a cleansing orb refuses an item with no runes', () => {
+    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'rare', sockets: 2, gems: [{ gem: 'ruby', grade: 'tiny' }] }));
+    s.bag[9] = orb(s, 'clearSockets', undefined, undefined);
+    const before = snap(s);
+    expect(targetedCraft(s, bagLoc(0), { kind: 'clearSockets' })).toEqual({ check: 'noRunes' });
+    expect(snap(s)).toEqual(before);
+  });
+
+  it('a removal orb taking a magic item\'s last line makes it normal again, under its base name', () => {
+    const s = withItem((s) => gear(s, 'pickaxe', { rarity: 'magic', ilvl: 9, name: 'Old', affixes: [line('goldYield', 6, 2)] }));
+    s.bag[9] = orb(s, 'removal', 'prefix', undefined);
+    expect(targetedCraft(s, bagLoc(0), { kind: 'removePrefix' })).toEqual({ check: 'ok' });
+    const item = at(s, 0);
+    expect([item.rarity, item.affixes, item.name]).toEqual(['normal', [], baseName('pickaxe', 9)]);
+    expect(validateState(s)).toBe(true);
+  });
+
+  it('refusals change nothing', () => {
+    const noOrb = withItem((s) => gear(s, 'pickaxe', { rarity: 'rare', affixes: rareLines() }));
+    const b1 = snap(noOrb);
+    expect(targetedCraft(noOrb, bagLoc(0), { kind: 'addPrefix', tier: 'minor' })).toEqual({ check: 'short' });
+    expect(snap(noOrb)).toEqual(b1);
+
+    const empty = withItem((s) => gear(s, 'pickaxe', { rarity: 'rare', affixes: rareLines() }));
+    empty.bag[9] = orb(empty, 'clearSockets', undefined, undefined);
+    const b2 = snap(empty);
+    expect(targetedCraft(empty, bagLoc(0), { kind: 'clearSockets' })).toEqual({ check: 'noRunes' });
+    expect(snap(empty)).toEqual(b2);
+
+    expect(canTargetedCraft(withItem((x) => gear(x, 'pickaxe', { rarity: 'normal' })), bagLoc(0), { kind: 'addPrefix', tier: 'minor' }))
+      .toBe('wrongRarity');
+    expect(canTargetedCraft(withItem((x) => gear(x, 'pickaxe', { rarity: 'rare', sealed: true, affixes: rareLines() })), bagLoc(0), { kind: 'addPrefix', tier: 'minor' }))
+      .toBe('sealed');
+    // socketing works on a normal item, where modifier orbs don't
+    expect(canTargetedCraft(withItem((x) => gear(x, 'pickaxe', { rarity: 'normal', sockets: 1 })), bagLoc(0), { kind: 'socketing' }))
+      .toBe('short');
   });
 });

@@ -1,8 +1,9 @@
 import { MAX_LOOT_RULES } from '../../core/balance';
 import { GEM_GRADE_LABELS, GEM_LABELS, MATERIAL_LABELS } from '../../core/itemData';
-import { BATTLE_SLOTS, GEM_GRADES, GEM_TYPES, MAP_MOD_KINDS, MATERIALS, MINING_SLOTS, setOfSlot } from '../../core/items';
+import { BATTLE_SLOTS, GEM_GRADES, GEM_TYPES, MAP_MOD_KINDS, MATERIALS, MINING_SLOTS, RUNE_TYPES, setOfSlot } from '../../core/items';
 import type { GearSet, Rarity, Slot } from '../../core/items';
 import { MAP_MOD_LABELS } from '../../core/mapMods';
+import { RUNE_LABELS } from '../../core/runes';
 import type { LootAction, LootKind, LootRange, LootRule } from '../../core/types';
 import { SLOT_LABELS } from './itemView';
 
@@ -15,6 +16,7 @@ export const KIND_OPTIONS: readonly Option<LootKind | 'any'>[] = [
   { value: 'any', label: 'Any item' },
   { value: 'gear', label: 'Gear' },
   { value: 'gem', label: 'Gems' },
+  { value: 'rune', label: 'Runes' },
   { value: 'map', label: 'Maps' },
   { value: 'material', label: 'Materials' },
 ];
@@ -46,6 +48,7 @@ export const RARITY_OPTIONS = anyFirst<Rarity>(['normal', 'magic', 'rare', 'lege
 const MAP_RARITY_OPTIONS = RARITY_OPTIONS.filter((o) => o.value !== 'legendary');
 export const GEM_OPTIONS = anyFirst(GEM_TYPES, (g) => GEM_LABELS[g]);
 export const GRADE_OPTIONS = anyFirst(GEM_GRADES, (g) => GEM_GRADE_LABELS[g]);
+export const RUNE_OPTIONS = anyFirst(RUNE_TYPES, (r) => RUNE_LABELS[r]);
 export const MATERIAL_OPTIONS = anyFirst(MATERIALS, (m) => MATERIAL_LABELS[m]);
 export const MAP_MOD_OPTIONS = anyFirst(MAP_MOD_KINDS, (k) => MAP_MOD_LABELS[k]);
 
@@ -59,14 +62,15 @@ export function rarityOptionsFor(rule: LootRule): readonly Option<Rarity | 'any'
   return rule.kind === 'map' && rule.rarity !== 'legendary' ? MAP_RARITY_OPTIONS : RARITY_OPTIONS;
 }
 
-export type RuleField = 'set' | 'slot' | 'rarity' | 'level' | 'modTier' | 'mods' | 'mapMod' | 'gem' | 'grade' | 'material';
+export type RuleField = 'set' | 'slot' | 'rarity' | 'level' | 'modTier' | 'modTierGap' | 'mods' | 'mapMod' | 'gem' | 'grade' | 'rune' | 'material';
 
 const KIND_FIELDS: Readonly<Record<LootKind | 'any', readonly RuleField[]>> = {
-  gear: ['set', 'slot', 'rarity', 'level', 'modTier', 'mods'],
-  map: ['rarity', 'level', 'modTier', 'mods', 'mapMod'],
+  gear: ['set', 'slot', 'rarity', 'level', 'modTier', 'modTierGap', 'mods'],
+  map: ['rarity', 'level', 'modTier', 'modTierGap', 'mods', 'mapMod'],
   gem: ['gem', 'grade'],
+  rune: ['rune'],
   material: ['material'],
-  any: ['rarity', 'level', 'modTier', 'mods'],
+  any: ['rarity', 'level', 'modTier', 'modTierGap', 'mods'],
 };
 
 /** The fields the editor shows for a kind, in order. */
@@ -85,7 +89,7 @@ export function levelLabel(kind: LootKind | 'any'): string {
   return kind === 'map' ? 'Tier' : kind === 'any' ? 'Item level or tier' : 'Item level';
 }
 
-type PickField = 'set' | 'slot' | 'rarity' | 'mapMod' | 'gem' | 'grade' | 'material';
+type PickField = 'set' | 'slot' | 'rarity' | 'mapMod' | 'gem' | 'grade' | 'rune' | 'material';
 
 /** The rule with one select's pick; Any clears the field. A slot of the other set moves the set with it. */
 export function withPick<F extends PickField>(rule: LootRule, field: F, value: NonNullable<LootRule[F]> | 'any'): LootRule {
@@ -126,12 +130,19 @@ export function withModTier(rule: LootRule, text: string): LootRule {
   return n === undefined ? rest : { ...rest, modTier: n };
 }
 
-/** The editor's number boxes: each end of the two ranges, and the modifier tier. */
-export type NumberBox = 'level.min' | 'level.max' | 'mods.min' | 'mods.max' | 'modTier';
+/** The rule with a modifier-tier gap typed in: a whole number of 0 or more, else none. */
+export function withModTierGap(rule: LootRule, text: string): LootRule {
+  const { modTierGap: _old, ...rest } = rule;
+  const n = parseCount(text, 0);
+  return n === undefined ? rest : { ...rest, modTierGap: n };
+}
+
+/** The editor's number boxes: each end of the two ranges, the modifier tier, and the modifier-tier gap. */
+export type NumberBox = 'level.min' | 'level.max' | 'mods.min' | 'mods.max' | 'modTier' | 'modTierGap';
 const BOX_FIELD: Readonly<Record<NumberBox, RuleField>> = {
-  'level.min': 'level', 'level.max': 'level', 'mods.min': 'mods', 'mods.max': 'mods', modTier: 'modTier',
+  'level.min': 'level', 'level.max': 'level', 'mods.min': 'mods', 'mods.max': 'mods', modTier: 'modTier', modTierGap: 'modTierGap',
 };
-const BOX_LEAST: Readonly<Record<NumberBox, number>> = { 'level.min': 1, 'level.max': 1, 'mods.min': 0, 'mods.max': 0, modTier: 1 };
+const BOX_LEAST: Readonly<Record<NumberBox, number>> = { 'level.min': 1, 'level.max': 1, 'mods.min': 0, 'mods.max': 0, modTier: 1, modTierGap: 0 };
 
 /** Whether a box's text is something the rule can't take: not empty, and not a whole number at or above its least. */
 export const boxRejects = (box: NumberBox, text: string): boolean => text.trim() !== '' && parseCount(text, BOX_LEAST[box]) === undefined;

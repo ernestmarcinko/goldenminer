@@ -1,33 +1,43 @@
 import { compressToBase64, decompressFromBase64 } from 'lz-string';
 import {
-  BAG_SIZE, COMBAT_LOG_LIMIT, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, FINDS_LOG_LIMIT, GEM_BAG_STACK, GEM_STASH_STACK, LEVEL_CAP,
-  MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_CRAFTED_LINES, MAX_DAMAGE, MAX_HELD, MAX_ITEM_LEVEL, MAX_LIFE,
-  MAX_LOOT_RULES, MAX_MAP_MODS, MAX_ROOMS, MAX_SIDE_LINES, MAX_SOCKETS, MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MAX_TRAIL_STEPS,
-  MONSTER_BUDGET, RUN_LOOT_LIMIT, START_GENERAL_PAGES, STASH_PAGE_SIZE, STOCK_SIZE, stashPagePrice,
+  BAG_SIZE, COMBAT_LOG_LIMIT, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, FINDS_LOG_LIMIT,
+  GEM_BAG_STACK, GEM_STASH_STACK, LEVEL_CAP, MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_CRAFTED_LINES,
+  MAX_DAMAGE, MAX_HELD, MAX_ITEM_LEVEL, MAX_LIFE, MAX_LOOT_RULES, MAX_MAP_MODS, MAX_PASSIVE_GEM_STACK,
+  MAX_PASSIVE_MATERIAL_STACK, MAX_ROOMS, MAX_SIDE_LINES, MAX_SOCKETS, MAX_STASH_PAGES, MAX_TIER_OVER_CAP, MAX_TRAIL_STEPS,
+  MONSTER_BUDGET_MAX, ORB_BAG_STACK, ORB_STASH_STACK, PREMIUM_CAP, RUN_LOOT_LIMIT, RUNE_BAG_STACK, RUNE_RNG_SALT, RUNE_STASH_STACK, START_GENERAL_PAGES,
+  STASH_PAGE_SIZE, STOCK_SIZE, monsterBudget, stashPagePrice,
 } from './balance';
+import { ACHIEVEMENT_IDS, checkAchievements, pruneEarned } from './achievements';
+import { ASCENDANCY_NODE_BY_ID, ASCENDANCY_NODE_COUNT, ASCENDANCY_START_ID, MAX_ASCENDANCY_PASSIVE_POINTS, ascendancyTotals } from './ascendancy';
 import { metreTier } from './bands';
-import { emptyGemCounts, emptyMaterialCounts, pageCount } from './cells';
+import { emptyGemCounts, emptyMaterialCounts, emptyRuneCounts, pageCount } from './cells';
 import { dungeonIndexAt, dungeonType } from './dungeons';
 import { gemGradeFor, itemName } from './itemData';
 import { sideCount } from './itemGen';
 import { sellValue } from './loot';
 import { isOldLootFilter, migrateLootFilter, ruleValid } from './lootFilter';
+import { defaultCharacterName, isValidCharacterName } from './names';
+import { emptyPremium } from './oreMarket';
+import { isConnectedWeb, PASSIVE_NODE_BY_ID, START_NODE_ID } from './passives';
+import { emptyLifetimeStats } from './telemetry';
 import {
-  BATTLE_STATS, GEAR_SETS, GEM_GRADES, GEM_TYPES, MAP_MOD_KINDS, MAP_SPECIALS, MATERIALS, MINING_STATS, MOD_SIDE, RARITIES, setOfSlot,
-  slotsOf, statsOf,
+  BATTLE_STATS, GEAR_SETS, GEM_GRADES, GEM_TYPES, MAP_MOD_KINDS, MAP_SPECIALS, MATERIALS, MINING_STATS,
+  MOD_SIDE, ORB_FAMILIES, ORB_SIDES, ORB_TIERS, RARITIES, RUNE_TYPES, orbKey, parseOrbKey, setOfSlot, slotsOf, statsOf,
 } from './items';
-import type { Cell, GearItem, GearSet, GemItem, GemType, MapItem, MapMod, MapRarity, ModLine, Slot, StatKey } from './items';
+import type { Cell, GearItem, GearSet, GemItem, GemType, MapItem, MapMod, MapRarity, Material, ModLine, OrbFamily, OrbItem, RuneItem, RuneType, Slot, StatKey } from './items';
 import { xpToNext } from './levels';
 import { hash2 } from './rng';
 import { isValidSeedText, seedFromText } from './seed';
+import { isGateTier } from './gates';
+import { isSortedSet } from './ledger';
 import { speciesOf } from './species';
 import { tierFor } from './tiers';
 import {
   CHAMPION_MODS, DEFAULT_MOTION, ELEMENTS, FEATURE_KINDS, FIND_KINDS, LOOT_ACTIONS, LOOT_KINDS, LOOT_OUTCOMES, RANKS, RUN_OUTCOMES,
-  SHAFT_MOTIONS, TRAIL_EVENTS, type DropEntry, type GameState, type LootRule,
+  SHAFT_MOTIONS, TRAIL_EVENTS, type DropEntry, type GameState, type LifetimeStats, type LootRule,
 } from './types';
 
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 25;
 
 export type DecodeResult =
   | { ok: true; state: GameState; savedAt: number }
@@ -41,6 +51,10 @@ const OLD_BAG_SIZE = 24;
 const OLD_GENERAL_SIZE = 60;
 const OLD_MAPS_KEPT = 200;
 const OLD_MAP_PAGES = 1;
+
+// Plan 17's essence refund (migration 18): a tier-t essence cost OLD_ESSENCE_COST[t] of OLD_ESSENCE_ORE[t].
+const OLD_ESSENCE_ORE: readonly (Material | undefined)[] = [undefined, 'iron', 'silver', 'mithril', 'starsteel', 'obsidian', 'voidCrystal'];
+const OLD_ESSENCE_COST: readonly number[] = [0, 1, 2, 3, 5, 8, 13];
 
 export const MIGRATIONS: Record<number, Migration> = {
   1: (state) => {
@@ -264,7 +278,267 @@ export const MIGRATIONS: Record<number, Migration> = {
     if (activity.kind === 'map' && isObject(activity.run)) next.activity = { ...activity, run: { ...activity.run, strikes: 0 } };
     return next;
   },
+  10: (state) => {
+    if (!isObject(state)) return state;
+    // The passive web starts empty: old saves keep their level and every point unspent.
+    return { ...state, passives: { allocated: [] } };
+  },
+  11: (state) => {
+    if (!isObject(state)) return state;
+    // Ascension, auto-mapping and the lifetime record start empty; nothing else changes.
+    return {
+      ...state,
+      ascendancy: { points: 0, allocated: [] },
+      autoMap: { queue: [] },
+      lifetime: { ascensions: 0, deepest: 0 },
+    };
+  },
+  12: (state) => {
+    if (!isObject(state) || !isObject(state.stash)) return state;
+    // The ore market starts with every premium at 0, and the Essences tab empty; nothing else changes.
+    return {
+      ...state,
+      stash: { ...state.stash, essences: {} },
+      oreMarket: { premium: emptyPremium() },
+    };
+  },
+  13: (state) => {
+    if (!isObject(state)) return state;
+    // Achievements start empty (past progress is not back-filled), and the Plan-20 lifetime counters at zero.
+    return {
+      ...state,
+      totals: {
+        gold: 0, diamonds: 0, metres: 0, gems: 0, ore: emptyMaterialCounts(),
+        kills: 0, bosses: 0, deaths: 0, maps: 0, crafts: 0, buys: 0, sockets: 0, legendaries: 0,
+      },
+      achievements: { earned: [] },
+    };
+  },
+  14: (state) => {
+    if (!isObject(state)) return state;
+    // The Plan-20 `totals` ledger becomes the lifetime `stats` ledger, carrying every counter it already tracked over
+    // (never resetting) and starting the new counters at zero. Gold earned cannot be split into found vs from-sales, so
+    // it all lands in `goldFound`; the `gold` achievement reads the two together, so its total is unchanged.
+    const stats = emptyLifetimeStats();
+    const totals = isObject(state.totals) ? state.totals : {};
+    const keep = (x: unknown): number => (isNonNegFinite(x) ? x : 0);
+    stats.metresDug = keep(totals.metres);
+    stats.goldFound = keep(totals.gold);
+    stats.diamondsFound = keep(totals.diamonds);
+    stats.gems = keep(totals.gems);
+    stats.monstersKilled = keep(totals.kills);
+    stats.bossKills = keep(totals.bosses);
+    stats.deaths = keep(totals.deaths);
+    stats.mapsCleared = keep(totals.maps);
+    stats.itemsCrafted = keep(totals.crafts);
+    stats.itemsBought = keep(totals.buys);
+    stats.gemsSocketed = keep(totals.sockets);
+    stats.legendaries = keep(totals.legendaries);
+    const ore = isObject(totals.ore) ? totals.ore : {};
+    for (const m of MATERIALS) stats.oresFound[m] = keep(ore[m]);
+    const next: Record<string, unknown> = { ...state, stats, lastWallAt: keep(state.lastTickAt) };
+    delete next.totals;
+    return next;
+  },
+  15: (state) => {
+    if (!isObject(state) || !isUint32(state.rng) || !isObject(state.stash)) return state;
+    // Runes start empty and get their own stream, seeded from the loot stream the same way the uniques are.
+    return {
+      ...state,
+      runeRng: hash2(state.rng, RUNE_RNG_SALT),
+      stash: { ...state.stash, runes: emptyRuneCounts() },
+    };
+  },
+  16: (state) => {
+    if (!isObject(state) || typeof state.seed !== 'number') return state;
+    // Every pre-name save gains a deterministic, pronounceable name from its seed; the world is untouched.
+    return { ...state, characterName: defaultCharacterName(state.seed) };
+  },
+  17: (state) => {
+    if (!isObject(state) || !isObject(state.passives) || !Array.isArray(state.passives.allocated)) return state;
+    // The Plan-25 link change removed the major↔major cross-links, which can strand the tail of an old allocation.
+    // Keep each id in allocation order iff it links to the start or an already-kept node under the new graph; a
+    // disconnected tail drops off and its points return (points are derived from level, so nothing else is lost).
+    return { ...state, passives: { allocated: prunePassives(state.passives.allocated as string[]) } };
+  },
+  18: (state) => {
+    if (!isObject(state) || !isObject(state.stash) || !Array.isArray(state.bag) || !isObject(state.stash.materials)) return state;
+    const stash = state.stash as Record<string, unknown>;
+    const materials = { ...(stash.materials as Record<string, unknown>) };
+    const orbs: Record<string, number> = {};
+    const addOrb = (key: string, n: number): void => { orbs[key] = (orbs[key] ?? 0) + n; };
+    // A held essence refunds its buying ore into the Materials tab; an old orb becomes a Minor craft orb.
+    const refund = (tier: number, n: number): void => {
+      const ore = OLD_ESSENCE_ORE[tier];
+      if (ore === undefined) return;
+      const cur = typeof materials[ore] === 'number' ? materials[ore] : 0;
+      materials[ore] = cur + (OLD_ESSENCE_COST[tier] ?? 0) * n;
+    };
+    // The old Essences tab, keyed "stat:tier" for essences and "prefix"/"suffix" for orbs, re-keys as the Orbs tab.
+    const essences = isObject(stash.essences) ? stash.essences : {};
+    for (const [key, n] of Object.entries(essences)) {
+      if (!isNonNegInt(n)) continue;
+      if (key === 'prefix') addOrb(orbKey('craft', 'prefix', 'minor'), n);
+      else if (key === 'suffix') addOrb(orbKey('craft', 'suffix', 'minor'), n);
+      else {
+        const i = key.lastIndexOf(':');
+        const tier = Number(key.slice(i + 1));
+        if (i > 0 && Number.isInteger(tier) && tier >= 1 && tier <= 6) refund(tier, n);
+      }
+    }
+    // A bag or held cell: an essence refunds to ore (the cell empties), an old two-side orb becomes a Minor craft orb.
+    const migrateCell = (cell: unknown): unknown => {
+      if (!isObject(cell)) return cell;
+      if (cell.type === 'essence' && isNonNegInt(cell.tier) && isNonNegInt(cell.count)) {
+        refund(cell.tier, cell.count);
+        return null;
+      }
+      if (cell.type === 'orb' && (cell.side === 'prefix' || cell.side === 'suffix') && isNonNegInt(cell.count)) {
+        return { ...cell, family: 'craft', tier: 'minor' };
+      }
+      return cell;
+    };
+    const bag = state.bag.map(migrateCell);
+    const overflow = Array.isArray(state.overflow) ? state.overflow.map(migrateCell) : state.overflow;
+    const nextStash: Record<string, unknown> = { ...stash, materials, orbs };
+    delete nextStash.essences;
+    return { ...state, bag, overflow, stash: nextStash };
+  },
+  19: (state) => {
+    if (!isObject(state)) return state;
+    // The crafting follow-up untiered the removal orbs: merge each side's three tiered stacks into one, and drop the
+    // tier off any held removal orb.
+    const untierRemovalCell = (cell: unknown): unknown => {
+      if (isObject(cell) && cell.type === 'orb' && cell.family === 'removal') {
+        const next: Record<string, unknown> = { ...cell };
+        delete next.tier;
+        return next;
+      }
+      return cell;
+    };
+    const bag = Array.isArray(state.bag) ? state.bag.map(untierRemovalCell) : state.bag;
+    const overflow = Array.isArray(state.overflow) ? state.overflow.map(untierRemovalCell) : state.overflow;
+    const orbs: Record<string, unknown> = {};
+    if (isObject(state.stash) && isObject(state.stash.orbs)) {
+      for (const [key, n] of Object.entries(state.stash.orbs)) {
+        const parts = key.split(':');
+        if (parts.length === 3 && parts[0] === 'removal' && (parts[1] === 'prefix' || parts[1] === 'suffix')) {
+          const merged = `removal:${parts[1]}`;
+          const cur = typeof orbs[merged] === 'number' ? orbs[merged] : 0;
+          orbs[merged] = cur + (typeof n === 'number' ? n : 0);
+        } else {
+          orbs[key] = n;
+        }
+      }
+    }
+    return { ...state, bag, overflow, stash: { ...(isObject(state.stash) ? state.stash : {}), orbs } };
+  },
+  20: (state) => {
+    if (!isObject(state)) return state;
+    // The scattering orbs collapsed to one: merge the three tiered stacks into one, and drop the tier off a held one.
+    const untierScatterCell = (cell: unknown): unknown => {
+      if (isObject(cell) && cell.type === 'orb' && cell.family === 'scattering') {
+        const next: Record<string, unknown> = { ...cell };
+        delete next.tier;
+        return next;
+      }
+      return cell;
+    };
+    const bag = Array.isArray(state.bag) ? state.bag.map(untierScatterCell) : state.bag;
+    const overflow = Array.isArray(state.overflow) ? state.overflow.map(untierScatterCell) : state.overflow;
+    const orbs: Record<string, unknown> = {};
+    if (isObject(state.stash) && isObject(state.stash.orbs)) {
+      for (const [key, n] of Object.entries(state.stash.orbs)) {
+        const parts = key.split(':');
+        if (parts.length === 2 && parts[0] === 'scattering') {
+          const cur = typeof orbs.scattering === 'number' ? orbs.scattering : 0;
+          orbs.scattering = cur + (typeof n === 'number' ? n : 0);
+        } else {
+          orbs[key] = n;
+        }
+      }
+    }
+    return { ...state, bag, overflow, stash: { ...(isObject(state.stash) ? state.stash : {}), orbs } };
+  },
+  21: (state) => {
+    if (!isObject(state) || !isObject(state.stats)) return state;
+    // Clicks and the hand/auto mined split are new counters: they start at zero (past metres are not back-filled).
+    return { ...state, stats: { ...state.stats, clicks: 0, metresDugByClick: 0, metresDugAuto: 0 } };
+  },
+  22: (state) => {
+    if (!isObject(state) || !isObject(state.autoMap) || !Array.isArray(state.autoMap.queue)) return state;
+    // The auto-map queue became a physical list of maps. Each old id resolves to the map it pointed at — still in the
+    // bag or the Map stash — which moves into the queue; ids that resolve to nothing are dropped.
+    const queue: unknown[] = [];
+    for (const id of state.autoMap.queue) {
+      if (!isNonNegInt(id)) continue;
+      let moved = false;
+      if (Array.isArray(state.bag)) {
+        const index = state.bag.findIndex((c) => isObject(c) && c.type === 'map' && c.id === id);
+        if (index >= 0) {
+          queue.push(state.bag[index]);
+          state.bag[index] = null;
+          moved = true;
+        }
+      }
+      if (!moved && isObject(state.stash) && isObject(state.stash.maps)) {
+        for (const list of Object.values(state.stash.maps)) {
+          if (!Array.isArray(list)) continue;
+          const index = list.findIndex((m) => isObject(m) && m.type === 'map' && m.id === id);
+          if (index >= 0) {
+            queue.push(list[index]);
+            list.splice(index, 1);
+            moved = true;
+            break;
+          }
+        }
+      }
+    }
+    return { ...state, autoMap: { queue, on: false } };
+  },
+  23: (state) => {
+    if (!isObject(state) || !isObject(state.stats)) return state;
+    // Maps from map clears is a new counter: it starts at zero (past drops were not tracked).
+    return { ...state, stats: { ...state.stats, mapsFromClears: 0 } };
+  },
+  24: (state) => {
+    if (!isObject(state)) return state;
+    // The feat and collection ledger starts empty (past finds and paused clicks were not tracked), and a run in flight
+    // starts tracking now: its lowest life is its life as it stands, no time is counted, it is not a gate attempt and it
+    // began with no handicap. The pickaxe high-water mark starts at the pickaxe worn now.
+    const equipped = isObject(state.equipped) && isObject(state.equipped.mining) ? state.equipped.mining : {};
+    const pickaxe = equipped.pickaxe;
+    const next: Record<string, unknown> = {
+      pickaxeHighWater: isObject(pickaxe) && typeof pickaxe.ilvl === 'number' ? pickaxe.ilvl : 0,
+      ...state,
+      stats: isObject(state.stats)
+        ? {
+          legendariesFound: [], runesFound: [], championModsKilled: [], specialsCleared: [], dungeonTypesCleared: [],
+          gateAttempts: {}, gatesFirstTry: [], clicksPaused: 0, ...state.stats,
+        }
+        : state.stats,
+    };
+    const { activity } = state;
+    if (isObject(activity) && activity.kind === 'map' && isObject(activity.run)) {
+      const startedWith = { emptySlot: false, plainGear: false, noBattleGear: false, noPassives: false };
+      next.activity = { ...activity, run: { minLifeShare: 1, elapsedS: 0, attempt: 0, startedWith, ...activity.run } };
+    }
+    return next;
+  },
 };
+
+// The passive web the Plan-25 graph leaves connected to the start, in allocation order.
+function prunePassives(allocated: string[]): string[] {
+  const kept = new Set<string>([START_NODE_ID]);
+  const out: string[] = [];
+  for (const id of allocated) {
+    const node = PASSIVE_NODE_BY_ID.get(id);
+    if (node === undefined || !node.links.some((l) => kept.has(l))) continue;
+    kept.add(id);
+    out.push(id);
+  }
+  return out;
+}
 
 const ALL_STATS: readonly StatKey[] = [...MINING_STATS, ...BATTLE_STATS];
 /**
@@ -329,6 +603,7 @@ const isUint32 = (x: unknown): x is number => isNonNegInt(x) && x <= 4294967295;
 const isUnitRange = (x: unknown): x is number => isNonNegFinite(x) && x < 1;
 const isFeatureKind = (x: unknown): boolean => isIn(FEATURE_KINDS, x);
 const isMaterial = (x: unknown): boolean => isIn(MATERIALS, x);
+const isRuneType = (x: unknown): x is RuneType => isIn(RUNE_TYPES, x);
 
 function isMetreRoll(x: unknown): boolean {
   return (
@@ -339,7 +614,7 @@ function isMetreRoll(x: unknown): boolean {
   );
 }
 
-const ITEM_RARITIES: readonly string[] = [...RARITIES, 'gem'];
+const ITEM_RARITIES: readonly string[] = [...RARITIES, 'gem', 'rune'];
 const ALL_SLOTS: readonly string[] = GEAR_SETS.flatMap((set) => slotsOf(set));
 const isIn = (list: readonly string[], x: unknown): boolean => typeof x === 'string' && list.includes(x);
 const isIdBelow = (x: unknown, nextId: number): x is number => isNonNegInt(x) && x >= 1 && x < nextId;
@@ -362,7 +637,7 @@ const isName = (x: unknown): x is string => typeof x === 'string' && x.length >=
 function isLootPair(rarity: unknown, base: unknown): boolean {
   if (rarity === 'material') return isMaterial(base);
   if (base === 'map') return isIn(MAP_RARITIES, rarity);
-  return isIn(ITEM_RARITIES, rarity) && (isIn(ALL_SLOTS, base) || isIn(GEM_TYPES, base));
+  return isIn(ITEM_RARITIES, rarity) && (isIn(ALL_SLOTS, base) || isIn(GEM_TYPES, base) || isIn(RUNE_TYPES, base));
 }
 
 function isLootNote(x: unknown): boolean {
@@ -397,20 +672,38 @@ function isLineSet(lines: ModLine[], rarity: string): boolean {
   );
 }
 
-// A socketed gem keeps only its type and grade.
+// A socketed slot keeps a graded gem `{ gem, grade }` or a rune `{ rune }`; a shape that mixes the two is refused.
 function isSocketed(x: unknown): boolean {
-  return isObject(x) && isIn(GEM_TYPES, x.gem) && isIn(GEM_GRADES, x.grade);
+  if (!isObject(x)) return false;
+  if (isRuneType(x.rune)) return x.gem === undefined && x.grade === undefined;
+  return isIn(GEM_TYPES, x.gem) && isIn(GEM_GRADES, x.grade) && x.rune === undefined;
 }
 
 function isGemStack(x: unknown, nextId: number, seen: Set<number>): x is GemItem {
   if (!isObject(x) || x.type !== 'gem' || !isSocketed(x)) return false;
-  if (!isNonNegInt(x.count) || x.count < 1 || x.count > GEM_BAG_STACK) return false;
+  if (!isNonNegInt(x.count) || x.count < 1 || x.count > GEM_BAG_STACK + MAX_PASSIVE_GEM_STACK) return false;
+  return isItemBase(x, nextId, seen, false);
+}
+
+function isRuneStack(x: unknown, nextId: number, seen: Set<number>): x is RuneItem {
+  if (!isObject(x) || x.type !== 'rune' || !isRuneType(x.rune)) return false;
+  if (!isNonNegInt(x.count) || x.count < 1 || x.count > RUNE_BAG_STACK) return false;
   return isItemBase(x, nextId, seen, false);
 }
 
 function isMaterialStack(x: unknown, nextId: number, seen: Set<number>): boolean {
   if (!isObject(x) || x.type !== 'material' || !isMaterial(x.material)) return false;
-  if (!isNonNegInt(x.count) || x.count < 1 || x.count > MATERIAL_BAG_STACK) return false;
+  if (!isNonNegInt(x.count) || x.count < 1 || x.count > MATERIAL_BAG_STACK + MAX_PASSIVE_MATERIAL_STACK) return false;
+  return isItemBase(x, nextId, seen, false);
+}
+
+function isOrbStack(x: unknown, nextId: number, seen: Set<number>): x is OrbItem {
+  if (!isObject(x) || x.type !== 'orb' || !isIn(ORB_FAMILIES, x.family)) return false;
+  const family = x.family as OrbFamily;
+  const sideOk = family === 'craft' || family === 'removal' ? isIn(ORB_SIDES, x.side) : x.side === undefined;
+  const tierOk = family === 'craft' ? isIn(ORB_TIERS, x.tier) : x.tier === undefined;
+  if (!sideOk || !tierOk) return false;
+  if (!isNonNegInt(x.count) || x.count < 1 || x.count > ORB_BAG_STACK) return false;
   return isItemBase(x, nextId, seen, false);
 }
 
@@ -442,7 +735,9 @@ function isBagItem(x: unknown, nextId: number, seen: Set<number>): boolean {
   switch (x.type) {
     case 'gear': return isGearItem(x, nextId, seen);
     case 'gem': return isGemStack(x, nextId, seen);
+    case 'rune': return isRuneStack(x, nextId, seen);
     case 'material': return isMaterialStack(x, nextId, seen);
+    case 'orb': return isOrbStack(x, nextId, seen);
     case 'map': return isMapItem(x, nextId, seen);
     default: return false;
   }
@@ -476,6 +771,14 @@ function isMaterialTab(x: unknown): boolean {
   );
 }
 
+// The Orbs tab: a sparse map keyed by orbKey(family, side?, tier), each count within the cap.
+function isOrbsTab(x: unknown): boolean {
+  return (
+    isObject(x) &&
+    Object.entries(x).every(([key, n]) => parseOrbKey(key) !== undefined && isNonNegInt(n) && n <= ORB_STASH_STACK)
+  );
+}
+
 const isBoughtOf = (n: unknown, tab: unknown[]): boolean => isNonNegInt(n) && n <= pageCount(tab);
 
 // The Gems tab: exactly one count for each type and grade.
@@ -494,6 +797,15 @@ function isGemTab(x: unknown): boolean {
   );
 }
 
+// The Runes tab: exactly one count for each kind, with no grade dimension.
+function isRuneTab(x: unknown): boolean {
+  return (
+    isObject(x) &&
+    Object.keys(x).length === RUNE_TYPES.length &&
+    RUNE_TYPES.every((r) => isNonNegInt(x[r]) && x[r] <= RUNE_STASH_STACK)
+  );
+}
+
 function isMotion(x: unknown): boolean {
   return (
     isObject(x) &&
@@ -507,7 +819,7 @@ const MAX_RULE_LEVEL = MAX_ITEM_LEVEL + MAX_TIER_OVER_CAP;
 // The most modifiers a rule may count: far past what any item holds.
 const MAX_RULE_MODS = 20;
 const LOOT_RULE_KEYS: readonly string[] = [
-  'kind', 'action', 'set', 'slot', 'rarity', 'level', 'modTier', 'mods', 'mapMod', 'gem', 'grade', 'material',
+  'kind', 'action', 'set', 'slot', 'rarity', 'level', 'modTier', 'modTierGap', 'mods', 'mapMod', 'gem', 'grade', 'rune', 'material',
 ];
 const isUpTo = (x: unknown, max: number): boolean => isNonNegInt(x) && x <= max;
 const isOptional = (x: unknown, check: (x: unknown) => boolean): boolean => x === undefined || check(x);
@@ -526,9 +838,10 @@ function isLootRule(x: unknown): x is LootRule {
   if (!(x.kind === 'any' || isIn(LOOT_KINDS, x.kind)) || !isIn(LOOT_ACTIONS, x.action)) return false;
   const fields = isOptional(x.set, (v) => isIn(GEAR_SETS, v)) && isOptional(x.slot, (v) => isIn(ALL_SLOTS, v)) &&
     isOptional(x.rarity, (v) => isIn(RARITIES, v)) && isOptional(x.level, (v) => isLootRange(v, MAX_RULE_LEVEL)) &&
-    isOptional(x.modTier, (v) => isUpTo(v, MAX_RULE_LEVEL)) && isOptional(x.mods, (v) => isLootRange(v, MAX_RULE_MODS)) &&
+    isOptional(x.modTier, (v) => isUpTo(v, MAX_RULE_LEVEL)) && isOptional(x.modTierGap, (v) => isUpTo(v, MAX_RULE_LEVEL)) &&
+    isOptional(x.mods, (v) => isLootRange(v, MAX_RULE_MODS)) &&
     isOptional(x.mapMod, (v) => isIn(MAP_MOD_KINDS, v)) && isOptional(x.gem, (v) => isIn(GEM_TYPES, v)) &&
-    isOptional(x.grade, (v) => isIn(GEM_GRADES, v)) && isOptional(x.material, isMaterial);
+    isOptional(x.grade, (v) => isIn(GEM_GRADES, v)) && isOptional(x.rune, isRuneType) && isOptional(x.material, isMaterial);
   return fields && ruleValid(x as unknown as LootRule);
 }
 
@@ -541,6 +854,129 @@ function isSettings(x: unknown): boolean {
 function isMerchant(x: unknown): boolean {
   if (!isObject(x) || !isNonNegInt(x.band) || !Array.isArray(x.bought) || x.bought.length > STOCK_SIZE) return false;
   return x.bought.every((i) => isUpTo(i, STOCK_SIZE - 1)) && new Set(x.bought).size === x.bought.length;
+}
+
+// The ore market: a premium per ore, each a finite number within the cap.
+function isOreMarket(x: unknown): boolean {
+  if (!isObject(x) || !isObject(x.premium)) return false;
+  const premium = x.premium;
+  if (Object.keys(premium).length !== MATERIALS.length) return false;
+  return MATERIALS.every((m) => {
+    const n = premium[m];
+    return isNonNegFinite(n) && n <= PREMIUM_CAP;
+  });
+}
+
+/** Whether every allocated id reaches `start` over links that stay inside { start } ∪ allocated. */
+function isConnectedTree(
+  allocated: readonly string[],
+  nodes: ReadonlyMap<string, { links: string[] }>,
+  start: string,
+): boolean {
+  const alloc = new Set(allocated);
+  const seen = new Set<string>([start]);
+  const queue = [start];
+  while (queue.length > 0) {
+    const id = queue.pop() as string;
+    const node = nodes.get(id);
+    if (node === undefined) return false;
+    for (const l of node.links) {
+      if (seen.has(l) || (l !== start && !alloc.has(l))) continue;
+      seen.add(l);
+      queue.push(l);
+    }
+  }
+  return [...alloc].every((id) => seen.has(id));
+}
+
+// The ascendancy tree: unspent points and unique known node ids, never the start, connected to the start.
+function isAscendancy(x: unknown): x is { points: number; allocated: string[] } {
+  if (!isObject(x) || !isNonNegInt(x.points) || !Array.isArray(x.allocated)) return false;
+  if (x.allocated.length > ASCENDANCY_NODE_COUNT - 1) return false;
+  const ids = new Set<string>();
+  for (const id of x.allocated) {
+    if (typeof id !== 'string' || id === ASCENDANCY_START_ID || !ASCENDANCY_NODE_BY_ID.has(id) || ids.has(id)) return false;
+    ids.add(id);
+  }
+  return isConnectedTree(x.allocated as string[], ASCENDANCY_NODE_BY_ID, ASCENDANCY_START_ID);
+}
+
+// The auto-map queue: maps physically held, unique ids, and the on/off switch.
+function isAutoMap(x: unknown, nextId: number, seen: Set<number>): x is { queue: MapItem[]; on: boolean } {
+  if (!isObject(x) || typeof x.on !== 'boolean' || !Array.isArray(x.queue)) return false;
+  const ids = new Set<number>();
+  for (const m of x.queue) {
+    if (!isMapItem(m, nextId, seen)) return false;
+    if (ids.has(m.id)) return false;
+    ids.add(m.id);
+  }
+  return true;
+}
+
+const isLifetime = (x: unknown): x is { ascensions: number; deepest: number } =>
+  isObject(x) && isNonNegInt(x.ascensions) && isNonNegInt(x.deepest);
+
+// The lifetime stats ledger: every scalar a non-negative finite number, one count per ore and per gem type and grade.
+function isLifetimeStats(x: unknown): x is LifetimeStats {
+  if (!isObject(x)) return false;
+  const scalars = [
+    'metresDug', 'clicks', 'clicksPaused', 'metresDugByClick', 'metresDugAuto',
+    'timePlayedMs', 'timeAwayMs', 'timeDiggingMs', 'timeCombatMs', 'timeIdleMs',
+    'goldFound', 'goldFromSales', 'goldSpent', 'diamondsFound', 'diamondsSpent', 'soulsEarned', 'soulsSpent',
+    'chestsOpened', 'mapsFound', 'mapsFromClears', 'monstersKilled', 'championKills', 'bossKills', 'deaths', 'mapsCleared', 'mapsLost',
+    'levelsGained', 'itemsCrafted', 'itemsKept', 'itemsSold', 'itemsSalvaged', 'gems', 'itemsBought', 'gemsSocketed', 'legendaries',
+  ];
+  if (!scalars.every((k) => isNonNegFinite(x[k]))) return false;
+  const { oresFound, oresTraded } = x;
+  if (!isObject(oresFound) || !isObject(oresTraded)) return false;
+  if (Object.keys(oresFound).length !== MATERIALS.length || !MATERIALS.every((m) => isNonNegFinite(oresFound[m]))) return false;
+  if (Object.keys(oresTraded).length !== MATERIALS.length || !MATERIALS.every((m) => isNonNegFinite(oresTraded[m]))) return false;
+  const gemsFound = x.gemsFound;
+  if (!isObject(gemsFound) || Object.keys(gemsFound).length !== GEM_TYPES.length) return false;
+  for (const type of GEM_TYPES) {
+    const counts = gemsFound[type];
+    if (!isObject(counts) || Object.keys(counts).length !== GEM_GRADES.length) return false;
+    if (!GEM_GRADES.every((g) => isNonNegFinite(counts[g]))) return false;
+  }
+  return isLedgerSets(x);
+}
+
+// A ledger set: a sorted, duplicate-free list whose every member passes `ok`.
+const isLedgerSet = (x: unknown, ok: (v: unknown) => boolean): boolean =>
+  Array.isArray(x) && x.every(ok) && isSortedSet(x);
+
+// The collections and feats' sets, and the per-gate attempt table.
+function isLedgerSets(x: Record<string, unknown>): boolean {
+  if (!isLedgerSet(x.legendariesFound, (v) => typeof v === 'string' && v.length > 0)) return false;
+  if (!isLedgerSet(x.runesFound, isRuneType) || !isLedgerSet(x.championModsKilled, (v) => isIn(CHAMPION_MODS, v))) return false;
+  if (!isLedgerSet(x.specialsCleared, (v) => isIn(MAP_SPECIALS, v))) return false;
+  if (!isLedgerSet(x.dungeonTypesCleared, (v) => typeof v === 'string' && /^[1-9]\d*:[012]$/.test(v))) return false;
+  if (!isLedgerSet(x.gatesFirstTry, (v) => isNonNegInt(v) && isGateTier(v))) return false;
+  const { gateAttempts } = x;
+  return isObject(gateAttempts) && Object.entries(gateAttempts).every(([tier, n]) => isGateTier(Number(tier)) && String(Number(tier)) === tier && isNonNegInt(n) && n >= 1);
+}
+
+// The earned set: unique ids, each a known achievement.
+function isAchievements(x: unknown): x is { earned: string[] } {
+  if (!isObject(x) || !Array.isArray(x.earned)) return false;
+  const ids = new Set<string>();
+  for (const id of x.earned) {
+    // pruneEarned has already dropped unknown and non-string ids before validation, so this guards only duplicates.
+    if (typeof id !== 'string' || !ACHIEVEMENT_IDS.has(id) || ids.has(id)) return false;
+    ids.add(id);
+  }
+  return true;
+}
+
+// The passive web: at most one point per level past the first plus the ascendancy tree's, unique known ids, never the start, connected to the start.
+function isPassives(x: unknown): x is { allocated: string[] } {
+  if (!isObject(x) || !Array.isArray(x.allocated) || x.allocated.length > LEVEL_CAP - 1 + MAX_ASCENDANCY_PASSIVE_POINTS) return false;
+  const ids = new Set<string>();
+  for (const id of x.allocated) {
+    if (typeof id !== 'string' || id === START_NODE_ID || !PASSIVE_NODE_BY_ID.has(id) || ids.has(id)) return false;
+    ids.add(id);
+  }
+  return isConnectedWeb(x.allocated as string[]);
 }
 
 const MAP_MOD_KEYS: readonly string[] = ['kind', 'tier', 'value'];
@@ -622,16 +1058,22 @@ const isBossRoom = (x: unknown, seed: number, map: MapItem): x is number =>
   x === dungeonType(seed, map.tier, dungeonIndexAt(seed, map.metre)).rooms + 1;
 const isRoomIn = (x: unknown, bossRoom: number): x is number => isNonNegInt(x) && x >= 1 && x <= bossRoom;
 
+const isRunHandicaps = (x: unknown): boolean => isObject(x) && Object.keys(x).length === 4
+  && ['emptySlot', 'plainGear', 'noBattleGear', 'noPassives'].every((key) => typeof x[key] === 'boolean');
+
 function isMapRun(x: unknown, seed: number, nextId: number, seen: Set<number>): boolean {
   if (!isObject(x) || !isMapItem(x.map, nextId, seen) || !isBossRoom(x.bossRoom, seed, x.map) || !isRoomIn(x.room, x.bossRoom)) return false;
   const { queue, room, bossRoom } = x;
   const tier = isObject(x.map) && typeof x.map.tier === 'number' ? x.map.tier : 1;
-  if (!Array.isArray(queue) || queue.length < 1 || queue.length > MONSTER_BUDGET || !queue.every((m) => isMonster(m, tier))) return false;
+  if (!Array.isArray(queue) || queue.length < 1 || queue.length > monsterBudget(tier) + 1 || !queue.every((m) => isMonster(m, tier))) return false;
   if ((queue[0].rank === 'boss') !== (room === bossRoom)) return false;
   if (!isNonNegInt(x.life) || x.life < 1 || x.life > MAX_LIFE) return false;
   if (!isUnitRange(x.hitCarry) || !isUnitRange(x.monsterCarry) || !isUnitRange(x.regenCarry)) return false;
   if (!isGains(x.gained) || !isNonNegInt(x.items)) return false;
-  if (!isNonNegInt(x.strikes) || (x.saved !== undefined && x.saved !== true)) return false;
+  if (!isNonNegFinite(x.minLifeShare) || x.minLifeShare > 1 || !isNonNegFinite(x.elapsedS) || !isNonNegInt(x.attempt)) return false;
+  if (x.bossSinceS !== undefined && !isNonNegFinite(x.bossSinceS)) return false;
+  if (!isRunHandicaps(x.startedWith)) return false;
+  if (!isNonNegInt(x.strikes) || (x.saved !== undefined && x.saved !== true) || (x.auto !== undefined && x.auto !== true)) return false;
   if (!Array.isArray(x.log) || x.log.length > COMBAT_LOG_LIMIT || !x.log.every(isCombatLine)) return false;
   return Array.isArray(x.loot) && x.loot.length <= RUN_LOOT_LIMIT && x.loot.every(isLootNote);
 }
@@ -656,7 +1098,7 @@ function isInventory(x: Record<string, unknown>, nextId: number, seen: Set<numbe
   const { general, bought } = stash;
   if (!isPagedTab(general, START_GENERAL_PAGES, (c) => isGearItem(c, nextId, seen))) return false;
   if (!isMapStash(stash.maps, nextId, seen)) return false;
-  if (!isGemTab(stash.gems) || !isMaterialTab(stash.materials)) return false;
+  if (!isGemTab(stash.gems) || !isRuneTab(stash.runes) || !isMaterialTab(stash.materials) || !isOrbsTab(stash.orbs)) return false;
   if (!isObject(bought) || Object.keys(bought).length !== 1 || !isBoughtOf(bought.general, general)) return false;
   // held finds are any kind of item, each as a bag cell would hold it
   if (!Array.isArray(overflow) || overflow.length > MAX_HELD || !overflow.every((o) => isBagItem(o, nextId, seen))) return false;
@@ -683,7 +1125,7 @@ function isTrailStep(x: unknown): boolean {
   return materials === undefined || (isObject(materials) && Object.entries(materials).every(([m, n]) => isMaterial(m) && isNonNegFinite(n)));
 }
 
-const ITEM_TYPES: readonly string[] = ['gear', 'gem', 'material', 'map'];
+const ITEM_TYPES: readonly string[] = ['gear', 'gem', 'rune', 'material', 'map'];
 
 function isDropEntry(x: unknown, nextId: number): x is DropEntry {
   if (!isObject(x) || !isIdBelow(x.id, nextId) || !isIn(ITEM_TYPES, x.kind) || !isName(x.name)) return false;
@@ -714,8 +1156,10 @@ export function validateState(x: unknown): x is GameState {
   if (!isUint32(x.seed) || !isUint32(x.rng)) return false;
   if (typeof x.worldSeed !== 'string' || !isValidSeedText(x.worldSeed) || seedFromText(x.worldSeed) !== x.seed) return false;
   if (x.worldGen !== 1 && x.worldGen !== 2) return false;
+  if (typeof x.characterName !== 'string' || !isValidCharacterName(x.characterName)) return false;
   if (!isNonNegInt(x.tickCount) || !isNonNegInt(x.deepest)) return false;
-  if (!isNonNegFinite(x.lastTickAt) || !isNonNegFinite(x.gold) || !isNonNegFinite(x.diamonds)) return false;
+  if (!isNonNegInt(x.pickaxeHighWater) || x.pickaxeHighWater > MAX_ITEM_LEVEL) return false;
+  if (!isNonNegFinite(x.lastTickAt) || !isNonNegFinite(x.lastWallAt) || !isNonNegFinite(x.gold) || !isNonNegFinite(x.diamonds)) return false;
   if (!isUnitRange(x.progress)) return false;
   if (!isObject(x.ahead)) return false;
   for (const [key, roll] of Object.entries(x.ahead)) {
@@ -734,7 +1178,12 @@ export function validateState(x: unknown): x is GameState {
   if (!isObject(x.mapTally) || !isNonNegInt(x.mapTally.cleared) || !isNonNegInt(x.mapTally.lost)) return false;
   if (!Array.isArray(x.finds) || x.finds.length > FINDS_LOG_LIMIT || !x.finds.every((f) => isFindRecord(f, nextId))) return false;
   if (typeof x.paused !== 'boolean' || !isDropLog(x.drops, nextId)) return false;
-  if (!isMerchant(x.merchant) || !isUint32(x.uniqueRng)) return false;
+  if (!isMerchant(x.merchant) || !isUint32(x.uniqueRng) || !isUint32(x.runeRng)) return false;
+  if (!isOreMarket(x.oreMarket)) return false;
+  if (!isAscendancy(x.ascendancy) || !isAutoMap(x.autoMap, nextId, seen) || !isLifetime(x.lifetime)) return false;
+  if (!isLifetimeStats(x.stats) || !isAchievements(x.achievements)) return false;
+  const extraPassivePoints = ascendancyTotals({ ascendancy: x.ascendancy }).passivePoints;
+  if (!isPassives(x.passives) || x.passives.allocated.length > x.level - 1 + extraPassivePoints) return false;
   const { seed } = x;
   return Array.isArray(x.deaths) && x.deaths.length <= DEATH_LOG_LIMIT && x.deaths.every((d) => isDeathEntry(d, seed, nextId));
 }
@@ -758,6 +1207,12 @@ export function decodeSave(text: string): DecodeResult {
   } catch {
     return { ok: false, reason: 'invalid' };
   }
+  // A retired achievement id goes before validation (which rejects unknown ids); the ones the ledger now passes are
+  // earned again, silently, since the store only toasts what a mutation after the load adds.
+  if (isObject(migrated) && isObject(migrated.achievements) && Array.isArray(migrated.achievements.earned)) {
+    pruneEarned(migrated as unknown as { achievements: { earned: string[] } });
+  }
   if (!validateState(migrated) || !isNonNegFinite(savedAt)) return { ok: false, reason: 'invalid' };
+  checkAchievements(migrated);
   return { ok: true, state: migrated, savedAt };
 }

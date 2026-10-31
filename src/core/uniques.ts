@@ -3,8 +3,8 @@ import type { Gen } from './itemGen';
 import { setOfSlot } from './items';
 import type { GameState } from './types';
 
-/** Each legendary's unique line, as its card shows it. */
-export const UNIQUE_LINES: Readonly<Record<LegendaryId, string>> = {
+/** Each signature legendary's unique line, as its card shows it. Stat-only legendaries have none. */
+export const UNIQUE_LINES: Readonly<Partial<Record<LegendaryId, string>>> = {
   deepdelver: 'Every 25th metre is dug at once, and its find is doubled.',
   golddigger: 'Gold veins also give a material of the band.',
   blackLantern: 'Hazards ahead show on the minimap, and hazards slow you by half as much.',

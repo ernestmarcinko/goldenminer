@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { GameStore } from '../../store/gameStore';
-import { monsterLook } from '../../core/monsterLook';
+import { monsterLook, type MonsterLook } from '../../core/monsterLook';
 import type { DungeonType } from '../../core/dungeons';
 import type { MapRun } from '../../core/types';
 import { formatNumber, formatRate } from '../format';
@@ -16,6 +16,9 @@ import './run.css';
 const SWEEP_MS = 250;
 const DRAIN_MS = 1000;
 const MONSTER_SCALE = 8;
+const MINION_SCALE = 4;
+/** The scene draws the main target plus this many monsters behind it; the rest are counted in the caption. */
+const SHOWN = 6;
 
 type Point = { x: number; y: number };
 
@@ -49,14 +52,13 @@ export function FightScene({ store, run, floor, roomSize }: {
   const monster = run.queue[0];
   const { seed } = state;
   const { tier } = run.map;
-  // The look is drawn again only when the monster is a different one, not on every life change.
-  const species = monster?.species;
-  const rank = monster?.rank;
-  const extra = monster?.extra;
-  const look = useMemo(
-    () => (species === undefined || rank === undefined || extra === undefined ? null : monsterLook(seed, tier, { species, rank, extra })),
-    [seed, tier, species, rank, extra],
+  // The looks are drawn again only when the monsters change, not on every life change.
+  const looks = useMemo(
+    () => run.queue.slice(0, SHOWN).map((m) => monsterLook(seed, tier, { species: m.species, rank: m.rank, extra: m.extra })),
+    [seed, tier, run.queue],
   );
+  const mainLook = looks[0] ?? null;
+  const minions = run.queue.slice(1, SHOWN).map((m, i) => ({ m, look: looks[i + 1] ?? null }));
 
   // A big monster must fit a narrow stage: it is drawn at the largest whole scale that does, never scaled by CSS.
   useLayoutEffect(() => {
@@ -67,9 +69,10 @@ export function FightScene({ store, run, floor, roomSize }: {
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-  const gridWidth = look?.grid[0]?.length ?? 1;
-  const scale = look === null ? MONSTER_SCALE
-    : Math.max(1, Math.min(MONSTER_SCALE * look.scale, stageWidth === null ? Infinity : Math.floor(stageWidth / gridWidth)));
+  const gridWidth = mainLook?.grid[0]?.length ?? 1;
+  const scale = mainLook === null ? MONSTER_SCALE
+    : Math.max(1, Math.min(MONSTER_SCALE * mainLook.scale, stageWidth === null ? Infinity : Math.floor(stageWidth / gridWidth)));
+  const minionScale = (look: MonsterLook): number => Math.max(1, Math.round(MINION_SCALE * look.scale));
 
   // Auto strikes and the damage taken arrive once a second, summed by the store.
   useEffect(() => {
@@ -103,6 +106,7 @@ export function FightScene({ store, run, floor, roomSize }: {
     <div ref={sceneRef} className="gm-fight">
       <span className="gm-visually-hidden">
         {monster !== undefined && `${monster.name}: ${formatNumber(monster.life)} of ${formatNumber(monster.maxLife)} life. `}
+        {run.queue.length > 1 && `${formatNumber(run.queue.length)} monsters in this room. `}
         You: {formatNumber(run.life)} of {formatNumber(maxLife)} life.
       </span>
       <div aria-hidden="true" className="gm-fight__floor">
@@ -123,8 +127,22 @@ export function FightScene({ store, run, floor, roomSize }: {
         </div>
       )}
       <div ref={stageRef} aria-hidden="true" className="gm-fight__stage">
-        {look !== null && (
-          <PixelArt grid={look.grid} palette={look.palette} scale={scale} aura={look.aura} />
+        {minions.length > 0 && (
+          <div className="gm-fight__mobrow">
+            {minions.map(({ m, look }) => (
+              <div key={`${m.species}-${m.extra}`} className="gm-fight__minion" data-rank={m.rank} title={m.name}>
+                {look !== null && (
+                  <PixelArt grid={look.grid} palette={look.palette} scale={minionScale(look)} aura={look.aura} />
+                )}
+                <div className="gm-fight__minionbar">
+                  <div className="gm-fight__fill gm-fight__fill--enemy" style={{ width: pct(m.life, m.maxLife) }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {mainLook !== null && (
+          <PixelArt grid={mainLook.grid} palette={mainLook.palette} scale={scale} aura={mainLook.aura} />
         )}
       </div>
       <div aria-hidden="true" className="gm-fight__foot">

@@ -1,3 +1,4 @@
+import { checkAchievements } from '../../src/core/achievements';
 import { describe, expect, it } from 'vitest';
 import { compressToBase64, decompressFromBase64 } from 'lz-string';
 import fixture from '../fixtures/save-schema-1.txt?raw';
@@ -9,23 +10,29 @@ import fixture6 from '../fixtures/save-schema-6.txt?raw';
 import fixture7 from '../fixtures/save-schema-7.txt?raw';
 import fixture8 from '../fixtures/save-schema-8.txt?raw';
 import fixture9 from '../fixtures/save-schema-9.txt?raw';
+import fixture10 from '../fixtures/save-schema-10.txt?raw';
+import fixture11 from '../fixtures/save-schema-11.txt?raw';
 import { applyTicks } from '../../src/core/dig';
+import { emptyLifetimeStats } from '../../src/core/telemetry';
 import {
   BAG_SIZE, DEATH_LOG_LIMIT, DROP_LOG_LIMIT, MAP_TIER_CAP, MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_HELD, MAX_LOOT_RULES,
-  MAX_TIER_OVER_CAP, MAX_TRAIL_STEPS, START_GENERAL_PAGES, STASH_PAGE_SIZE,
+  MAX_TIER_OVER_CAP, MAX_TRAIL_STEPS, RUNE_RNG_SALT, START_GENERAL_PAGES, STASH_PAGE_SIZE,
 } from '../../src/core/balance';
-import { emptyInventory, firstEmpty } from '../../src/core/cells';
+import { emptyInventory, emptyMaterialCounts, emptyRuneCounts, firstEmpty } from '../../src/core/cells';
 import { sideCount } from '../../src/core/itemGen';
 import { migrateLootFilter } from '../../src/core/lootFilter';
 import { addMap, startMap, takeMap } from '../../src/core/maps';
 import { newGame } from '../../src/core/newGame';
+import { defaultCharacterName } from '../../src/core/names';
+import { ASCENDANCY_NODE_BY_ID, ASCENDANCY_START_ID, allocateAscendancy } from '../../src/core/ascendancy';
+import { PASSIVE_NODE_BY_ID, START_NODE_ID } from '../../src/core/passives';
 import { hash2 } from '../../src/core/rng';
 import { decodeSave, encodeSave, migrate, MIGRATIONS, SCHEMA_VERSION, validateState } from '../../src/core/save';
 import { deriveStats } from '../../src/core/stats';
 import { tierFor, tierRange } from '../../src/core/tiers';
-import { MAP_MOD_KINDS, MOD_SIDE } from '../../src/core/items';
+import { MAP_MOD_KINDS, MOD_SIDE, MATERIALS } from '../../src/core/items';
 import type { Cell, GemGrade, GemType, MapItem, MapMod, ModLine } from '../../src/core/items';
-import type { ChampionMod, CombatLine, DeathEntry, DropEntry, FindRecord, GameState, LootAction, MapRun, RunOutcome } from '../../src/core/types';
+import type { ChampionMod, CombatLine, DeathEntry, DropEntry, FindRecord, GameState, LootAction, LifetimeStats, MapRun, RunOutcome } from '../../src/core/types';
 import { gear, gem, stashMap } from '../helpers/items';
 
 const raw = (env: unknown) => compressToBase64(JSON.stringify(env));
@@ -35,6 +42,152 @@ it('round-trips a game', () => {
   s.gold = 2480;
   const r = decodeSave(encodeSave(s, 456));
   expect(r).toEqual({ ok: true, state: s, savedAt: 456 });
+});
+
+it('a character name round-trips through save and load', () => {
+  const s = newGame(9, 123, { name: 'Gorvash' });
+  expect(s.characterName).toBe('Gorvash');
+  const r = decodeSave(encodeSave(s, 456));
+  if (!r.ok) throw new Error(r.reason);
+  expect(r.state.characterName).toBe('Gorvash');
+});
+
+it('a schema-16 save migrates to 25 with a generated name', () => {
+  expect(SCHEMA_VERSION).toBe(25);
+  const state16 = { ...newGame(12345, 0) };
+  delete (state16 as Partial<GameState>).characterName;
+  const r = decodeSave(raw({ schema: 16, savedAt: 0, state: state16 }));
+  if (!r.ok) throw new Error(r.reason);
+  expect(r.state.characterName).toBe(defaultCharacterName(12345));
+  expect(r.state.characterName.length).toBeGreaterThan(0);
+  expect(r.state.worldGen).toBe(2);
+});
+
+it('a schema-17 save whose major was reached through a major↔major cross-link prunes the tail', () => {
+  // sharpened's own smalls (battleSmall7..12) then sharpened; thickSkin was reached only through the old
+  // sharpened↔thickSkin terminal cross-link, which Plan 25 removed. Under the new graph it is stranded.
+  const s = newGame(1, 0);
+  const allocated = ['battleSmall7', 'battleSmall8', 'battleSmall9', 'battleSmall10', 'battleSmall11', 'battleSmall12', 'sharpened', 'thickSkin'];
+  s.level = allocated.length + 1;
+  s.passives.allocated = allocated;
+  const r = decodeSave(raw({ schema: 17, savedAt: 0, state: s }));
+  expect(r.ok).toBe(true);
+  if (!r.ok) return;
+  expect(r.state.passives.allocated).toEqual(['battleSmall7', 'battleSmall8', 'battleSmall9', 'battleSmall10', 'battleSmall11', 'battleSmall12', 'sharpened']);
+  expect(r.state.passives.allocated.includes('thickSkin')).toBe(false);
+  // The pruned node's point returns: level − 1 − allocated.length.
+  expect(r.state.level - 1 - r.state.passives.allocated.length).toBe(1);
+});
+
+it('a schema-17 save reached through minors is unchanged after load', () => {
+  const s = newGame(1, 0);
+  s.level = 8;
+  s.passives.allocated = ['battleSmall7', 'battleSmall8', 'battleSmall9', 'battleSmall10', 'battleSmall11', 'battleSmall12', 'sharpened'];
+  const r = decodeSave(raw({ schema: 17, savedAt: 0, state: s }));
+  expect(r.ok).toBe(true);
+  if (!r.ok) return;
+  expect(r.state.passives.allocated).toEqual(s.passives.allocated);
+});
+
+it('a schema-17 save with no passives is byte-identical after load', () => {
+  const s = newGame(1, 0);
+  const r = decodeSave(raw({ schema: 17, savedAt: 0, state: s }));
+  expect(r.ok).toBe(true);
+  if (!r.ok) return;
+  expect(r.state).toEqual(s);
+});
+
+it('a schema-18 save refunds its essences to ore and its old orbs to Minor craft orbs', () => {
+  const s = newGame(1, 0);
+  const state18 = structuredClone(s) as unknown as Record<string, unknown>;
+  state18.nextId = 2000;
+  const stash18 = state18.stash as Record<string, unknown>;
+  delete stash18.orbs;
+  stash18.essences = { 'goldYield:2': 2, prefix: 5, suffix: 1 };
+  const bag = state18.bag as unknown[];
+  bag[0] = { id: 1001, type: 'essence', stat: 'digPower', tier: 1, count: 3 };   // refunds 3 × 1 Iron
+  bag[1] = { id: 1002, type: 'orb', side: 'prefix', count: 2 };                 // becomes a Minor Orb of Prefixes
+  const r = decodeSave(raw({ schema: 18, savedAt: 0, state: state18 }));
+  if (!r.ok) throw new Error(r.reason);
+  const st = r.state;
+  // essences refunded into the Materials tab: goldYield:2 ×2 → 2 × 2 Silver; digPower:1 ×3 → 3 × 1 Iron.
+  expect(st.stash.materials.silver).toBe(4);
+  expect(st.stash.materials.iron).toBe(3);
+  // old orbs became Minor craft orbs: 5 + 2 prefixes in the Orbs tab, 1 suffix; the essence cell emptied.
+  expect(st.stash.orbs['craft:prefix:minor']).toBe(5);
+  expect(st.stash.orbs['craft:suffix:minor']).toBe(1);
+  expect(st.bag[0]).toBeNull();
+  expect(st.bag[1]).toMatchObject({ type: 'orb', family: 'craft', side: 'prefix', tier: 'minor', count: 2 });
+  expect((st.stash as Record<string, unknown>).essences).toBeUndefined();
+  expect(validateState(st)).toBe(true);
+});
+
+it('a schema-19 save untiers its removal orbs and keeps its other orbs', () => {
+  const s = newGame(1, 0);
+  const state19 = structuredClone(s) as unknown as Record<string, unknown>;
+  state19.nextId = 2000;
+  const stash19 = state19.stash as Record<string, unknown>;
+  stash19.orbs = {
+    'craft:prefix:minor': 2,
+    'scattering:greater': 3,
+    'removal:prefix:minor': 4,
+    'removal:prefix:greater': 1,
+    'removal:suffix:normal': 2,
+  };
+  const bag = state19.bag as unknown[];
+  bag[0] = { id: 1001, type: 'orb', family: 'removal', side: 'prefix', tier: 'normal', count: 1 };
+  const r = decodeSave(raw({ schema: 19, savedAt: 0, state: state19 }));
+  if (!r.ok) throw new Error(r.reason);
+  const st = r.state;
+  // the removal tiers merged (this migration), and the scattering tiers too (the one after it); craft kept.
+  expect(st.stash.orbs['craft:prefix:minor']).toBe(2);
+  expect(st.stash.orbs.scattering).toBe(3);
+  expect(st.stash.orbs['scattering:greater']).toBeUndefined();
+  expect(st.stash.orbs['removal:prefix']).toBe(5);
+  expect(st.stash.orbs['removal:suffix']).toBe(2);
+  expect(st.stash.orbs['removal:prefix:minor']).toBeUndefined();
+  // the held removal orb lost its tier.
+  expect(st.bag[0]).toMatchObject({ type: 'orb', family: 'removal', side: 'prefix', count: 1 });
+  expect((st.bag[0] as { tier?: unknown }).tier).toBeUndefined();
+  expect(validateState(st)).toBe(true);
+});
+
+it('a schema-20 save untiers its scattering orbs', () => {
+  const s = newGame(1, 0);
+  const state20 = structuredClone(s) as unknown as Record<string, unknown>;
+  state20.nextId = 2000;
+  const stash20 = state20.stash as Record<string, unknown>;
+  stash20.orbs = {
+    'craft:prefix:minor': 2,
+    'scattering:minor': 1,
+    'scattering:normal': 2,
+    'scattering:greater': 4,
+  };
+  const bag = state20.bag as unknown[];
+  bag[0] = { id: 1001, type: 'orb', family: 'scattering', tier: 'normal', count: 1 };
+  const r = decodeSave(raw({ schema: 20, savedAt: 0, state: state20 }));
+  if (!r.ok) throw new Error(r.reason);
+  const st = r.state;
+  // the three scattering tiers merged into one; craft kept.
+  expect(st.stash.orbs['craft:prefix:minor']).toBe(2);
+  expect(st.stash.orbs.scattering).toBe(7);
+  expect(st.stash.orbs['scattering:minor']).toBeUndefined();
+  // the held scattering orb lost its tier.
+  expect(st.bag[0]).toMatchObject({ type: 'orb', family: 'scattering', count: 1 });
+  expect((st.bag[0] as { tier?: unknown }).tier).toBeUndefined();
+  expect(validateState(st)).toBe(true);
+});
+
+it('rejects a missing, empty, over-long or control-character name', () => {
+  const named = (name: unknown): GameState => {
+    const s = newGame(1, 0);
+    (s as { characterName: unknown }).characterName = name;
+    return s;
+  };
+  expect(validateState(named('Gorvash'))).toBe(true);
+  for (const name of [undefined, '', '   ', 'x'.repeat(25), 'Gor\u0000vash']) {
+    expect(validateState(named(name)), String(name)).toBe(false);
+  }
 });
 
 it('rejects garbage as corrupt', () => {
@@ -104,7 +257,7 @@ it('rejects impossible inventories', () => {
     ['a bag of 61 cells', (s) => { s.bag.push(null); }],
     ['a bag of 59 cells', (s) => { s.bag.pop(); }],
     ['a General tab of 121 cells', (s) => { s.stash.general.push(null); }],
-    ['a stack of 26', (s) => { s.bag[1] = gem(s, 'ruby', { count: 26 }); }],
+    ['a stack of 36', (s) => { s.bag[1] = gem(s, 'ruby', { count: 36 }); }],
     ['an empty stack', (s) => { s.bag[1] = gem(s, 'ruby', { count: 0 }); }],
     ['an empty material stack', (s) => { s.bag[1] = { id: s.nextId++, type: 'material', material: 'tin', count: 0 }; }],
     ['an unknown material', (s) => { s.bag[1] = { id: s.nextId++, type: 'material', material: 'gold' as never, count: 1 }; }],
@@ -133,7 +286,7 @@ it('rejects impossible inventories', () => {
     ['too many loot rules', (s) => { for (let i = 0; i < MAX_LOOT_RULES + 1; i++) s.settings.lootFilter.push({ kind: 'gem', action: 'keep' }); }],
     ['a find without an id', (s) => { s.finds.push({ depth: 0, kind: 'chest', amount: 0, tick: 0 } as FindRecord); }],
     ['61 held items', (s) => { for (let i = 0; i < MAX_HELD + 1; i++) s.overflow.push(gear(s, 'pickaxe')); }],
-    ['a held gem stack of 26', (s) => { s.overflow.push(gem(s, 'ruby', { count: 26 })); }],
+    ['a held gem stack of 36', (s) => { s.overflow.push(gem(s, 'ruby', { count: 36 })); }],
   ];
   for (const [name, mutate] of cases) {
     const s = stocked();
@@ -345,7 +498,7 @@ function running(): GameState {
   const s = newGame(1, 0);
   const map = looseMap(s, 2, 2);
   s.activity = { kind: 'map', run: {
-    map, room: 1, bossRoom: 6, life: 40, hitCarry: 0, monsterCarry: 0, regenCarry: 0, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [], items: 0, strikes: 0,
+    map, room: 1, bossRoom: 6, life: 40, hitCarry: 0, monsterCarry: 0, regenCarry: 0, gained: { xp: 0, souls: 0, gold: 0, levels: 0 }, log: [], loot: [], items: 0, strikes: 0, minLifeShare: 1, elapsedS: 0, attempt: 0, startedWith: { emptySlot: false, plainGear: false, noBattleGear: false, noPassives: false },
     queue: [{ name: 'Mud Slime', species: 1, rank: 'normal', mods: [], extra: 7, element: 'elemental', life: 30, maxLife: 37, damage: 4, intervalS: 2, xp: 28 }],
   } };
   return s;
@@ -356,7 +509,7 @@ it('rejects impossible maps, runs and levels', () => {
   const run = (s: GameState) => (s.activity.kind === 'map' ? s.activity.run : null);
   const first = (s: GameState) => run(s)?.queue[0];
   const cases: [string, (s: GameState) => void][] = [
-    ['level 61', (s) => { s.level = 61; }],
+    ['level 101', (s) => { s.level = 101; }],
     ['xp past the next level', (s) => { s.xp = 100; }],
     ['negative souls', (s) => { s.souls = -1; }],
     ['an empty room', (s) => { run(s)?.queue.splice(0); }],
@@ -447,7 +600,7 @@ it('accepts the legal extremes of maps, runs and levels', () => {
 
 it('rejects xp at the level cap', () => {
   const s = running();
-  s.level = 60;
+  s.level = 100;
   s.xp = 1;
   expect(decodes(s)).toBe(false);
 });
@@ -497,7 +650,7 @@ it('a schema-5 save with no maps comes out with an empty Map stash', () => {
 });
 
 it('every older fixture still loads', () => {
-  for (const f of [fixture, fixture2, fixture3, fixture4, fixture5, fixture6, fixture7, fixture8, fixture9]) expect(decodeSave(f.trim()).ok).toBe(true);
+  for (const f of [fixture, fixture2, fixture3, fixture4, fixture5, fixture6, fixture7, fixture8, fixture9, fixture10, fixture11]) expect(decodeSave(f.trim()).ok).toBe(true);
 });
 
 it('a schema-5 save carrying more than one bag holds is rejected, not cut short', () => {
@@ -517,7 +670,7 @@ it('the validator holds the schema-6 shape', () => {
   expect(bad((s) => { s.stash.general = s.stash.general.slice(0, 60); })).toBe(false);  // fewer than 2 pages
   expect(bad((s) => { s.stash.maps[1] = [gear(s, 'pickaxe')]; })).toBe(false);          // gear in the Maps tab
   expect(bad((s) => { s.stash.general[0] = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] }; })).toBe(false);
-  expect(bad((s) => { s.bag[0] = { id: s.nextId++, type: 'material', material: 'copper', count: 51 }; })).toBe(false);
+  expect(bad((s) => { s.bag[0] = { id: s.nextId++, type: 'material', material: 'copper', count: 76 }; })).toBe(false);
   expect(bad((s) => { s.stash.materials.copper = 1_000_001; })).toBe(false);
   expect(bad((s) => { const m = { id: s.nextId++, type: 'map', tier: 1, metre: 2, rarity: 'normal', mods: [] }; s.bag[0] = m; s.stash.maps[1] = [{ ...m }]; })).toBe(false); // duplicate id
   expect(bad((s) => { s.stash.bought.general = 3; })).toBe(false);                       // more bought than the 2 pages held
@@ -748,7 +901,7 @@ it('the schema-8 fixture migrates to hold mode, keeps its held gear, groups its 
     expect(list).toEqual(oldTab.filter((m: MapItem) => m.tier === Number(tier)));
   }
   // schema 10 starts the run's strike count
-  const activity = { ...old.activity, run: { ...old.activity.run, strikes: 0 } };
+  const activity = { ...old.activity, run: { ...old.activity.run, strikes: 0, minLifeShare: 1, elapsedS: 0, attempt: 0, startedWith: { emptySlot: false, plainGear: false, noBattleGear: false, noPassives: false } } };
   expect([s.bag, s.equipped, s.stash.general, s.activity, s.lastRun, s.finds])
     .toEqual([old.bag, old.equipped, old.stash.general, activity, old.lastRun, old.finds]);
   // the run in progress plays on to its end
@@ -929,9 +1082,13 @@ it('the schema-9 fixture migrates its rules, gains an empty bought record and a 
   const run = s.activity.kind === 'map' ? s.activity.run : null;
   expect(run?.strikes).toBe(0);
   expect(run?.saved).toBeUndefined();
-  expect(run).toEqual({ ...old.activity.run, strikes: 0 });
-  expect([s.bag, s.equipped, s.stash, s.overflow, s.drops, s.deaths, s.lastRun, s.gold, s.deepest])
+  expect(run).toEqual({ ...old.activity.run, strikes: 0, minLifeShare: 1, elapsedS: 0, attempt: 0, startedWith: { emptySlot: false, plainGear: false, noBattleGear: false, noPassives: false } });
+  const { orbs: _orbs9, runes: _runes9, ...stash9 } = s.stash;
+  expect([s.bag, s.equipped, stash9, s.overflow, s.drops, s.deaths, s.lastRun, s.gold, s.deepest])
     .toEqual([old.bag, old.equipped, old.stash, old.overflow, old.drops, old.deaths, old.lastRun, old.gold, old.deepest]);
+  expect(s.stash.orbs).toEqual({});
+  expect(s.stash.runes).toEqual(emptyRuneCounts());
+  expect(s.oreMarket.premium).toEqual(emptyMaterialCounts());
   // the run in progress plays on to its end
   for (let t = 0; t < 20_000 && s.activity.kind !== 'dig'; t += 50) {
     expect(() => applyTicks(s, 50, deriveStats(s))).not.toThrow();
@@ -1030,5 +1187,435 @@ describe('the validator holds the schema-10 shapes', () => {
       ['a run map with special x', (s) => { (run(s).map as { special: unknown }).special = 'x'; }],
     ];
     for (const [name, change] of cases) expect(check(change), name).toBe(false);
+  });
+});
+
+it('a schema-10 save gains an empty passive web and keeps everything else', () => {
+  const raw = JSON.parse(decompressFromBase64(fixture10.trim())).state;
+  const r = decodeSave(fixture10.trim());
+  if (!r.ok) throw new Error(`fixture rejected: ${r.reason}`);
+  expect(r.savedAt).toBe(1_762_000_000_000);
+  expect(r.state.passives).toEqual({ allocated: [] });
+  expect(r.state.level).toBe(4);
+  const {
+    passives: _passives, ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, oreMarket: _oreMarket,
+    stats: _stats, achievements: _achievements, lastWallAt: _lastWallAt, runeRng: _runeRng, characterName: _characterName,
+    pickaxeHighWater: _pickaxeHighWater, ...rest
+  } = r.state;
+  const { orbs: _orbs10, runes: _runes10, ...restStash } = r.state.stash;
+  expect({ ...rest, stash: restStash }).toEqual(raw);   // nothing else changes
+  expect(r.state.characterName).toBe(defaultCharacterName(r.state.seed));
+  expect(r.state.oreMarket.premium).toEqual(emptyMaterialCounts());
+  expect(r.state.stash.runes).toEqual(emptyRuneCounts());
+});
+
+it('the validator refuses a broken web', () => {
+  const ok = (alloc: string[]): boolean => {
+    const s = newGame(1, 0);
+    s.level = 4;
+    s.passives.allocated = alloc;
+    return decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: s })).ok;
+  };
+  const start = PASSIVE_NODE_BY_ID.get(START_NODE_ID)!;
+  const ring1 = start.links[0]!;
+  const ring2 = PASSIVE_NODE_BY_ID.get(ring1)!.links.find((l) => l !== START_NODE_ID)!;
+  expect(ok([ring1])).toBe(true);
+  expect(ok([ring1, ring2])).toBe(true);
+  expect(ok(['prospectorsLuck'])).toBe(false);   // a keystone at the far end of a chain, detached from the start
+  expect(ok([ring1, ring1])).toBe(false);        // a duplicate id
+  expect(ok(['notANode'])).toBe(false);          // an unknown id
+  const tooMany = newGame(1, 0);
+  tooMany.level = 2;
+  tooMany.passives.allocated = [ring1, ring2];   // more nodes than level - 1
+  expect(decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: tooMany })).ok).toBe(false);
+});
+
+/** A path from the ascendancy start to `target`, in allocation order (first adjacent to the start, last = target). */
+function ascendancyPathTo(target: string): string[] {
+  const prev = new Map<string, string>();
+  const seen = new Set([ASCENDANCY_START_ID]);
+  const queue = [ASCENDANCY_START_ID];
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    if (cur === target) break;
+    for (const l of ASCENDANCY_NODE_BY_ID.get(cur)!.links) {
+      if (seen.has(l)) continue;
+      seen.add(l);
+      prev.set(l, cur);
+      queue.push(l);
+    }
+  }
+  const path: string[] = [];
+  let cur: string | undefined = target;
+  while (cur !== undefined && cur !== ASCENDANCY_START_ID) {
+    path.unshift(cur);
+    cur = prev.get(cur);
+  }
+  return path;
+}
+
+it('ascendancy passive points raise the passive web ceiling', () => {
+  // Second Sight's chain is three passive-point smalls and the 6-point mid.
+  const bonus = ascendancyPathTo('secondSight');
+  expect(bonus).toHaveLength(4);
+  const ascendancy = newGame(1, 0);
+  const cost = bonus.reduce((sum, id) => sum + (ASCENDANCY_NODE_BY_ID.get(id)?.cost ?? 0), 0);
+  ascendancy.ascendancy.points = cost;
+  for (const id of bonus) expect(allocateAscendancy(ascendancy, id)).toBe('ok');
+
+  // The first six passive nodes in BFS order stay connected to the start.
+  const chain: string[] = [];
+  const seen = new Set([START_NODE_ID]);
+  const queue = [START_NODE_ID];
+  while (chain.length < 6) {
+    const cur = queue.shift()!;
+    for (const l of PASSIVE_NODE_BY_ID.get(cur)!.links) {
+      if (seen.has(l)) continue;
+      seen.add(l);
+      queue.push(l);
+      chain.push(l);
+    }
+  }
+
+  const ok = (allocated: string[]): boolean => {
+    const s = newGame(1, 0);
+    s.level = 2;
+    s.ascendancy = { points: 0, allocated: [...ascendancy.ascendancy.allocated] };
+    s.passives.allocated = allocated;
+    return decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: s })).ok;
+  };
+  // level - 1 + 4 = 5 nodes; one past that is invalid.
+  expect(ok(chain.slice(0, 5))).toBe(true);
+  expect(ok(chain.slice(0, 6))).toBe(false);
+  // and without the ascendancy points the same web is over the old level - 1 ceiling.
+  const plain = newGame(1, 0);
+  plain.level = 2;
+  plain.passives.allocated = chain.slice(0, 2);
+  expect(decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: plain })).ok).toBe(false);
+});
+
+it('a stack over the base cap but under the passive ceiling is a valid save', () => {
+  const s = newGame(1, 0);
+  const g = gem(s);
+  g.count = 35;
+  s.bag[0] = g;
+  expect(decodeSave(encodeSave(s, 1)).ok).toBe(true);
+  g.count = 36;
+  s.bag[0] = g;
+  expect(decodeSave(encodeSave(s, 1)).ok).toBe(false);
+  const m = { id: s.nextId++, type: 'material' as const, material: 'copper' as const, count: 75 };
+  s.bag[0] = m;
+  expect(decodeSave(encodeSave(s, 1)).ok).toBe(true);
+  m.count = 76;
+  expect(decodeSave(encodeSave(s, 1)).ok).toBe(false);
+});
+
+it('a schema-11 save gains an empty ascendancy, auto-map and lifetime record', () => {
+  const raw = JSON.parse(decompressFromBase64(fixture11.trim())).state;
+  const r = decodeSave(fixture11.trim());
+  if (!r.ok) throw new Error(`fixture rejected: ${r.reason}`);
+  expect(r.savedAt).toBe(1_762_100_000_000);
+  expect(r.state.ascendancy).toEqual({ points: 0, allocated: [] });
+  expect(r.state.autoMap).toEqual({ queue: [], on: false });
+  expect(r.state.lifetime).toEqual({ ascensions: 0, deepest: 0 });
+  const {
+    ascendancy: _ascendancy, autoMap: _autoMap, lifetime: _lifetime, oreMarket: _oreMarket, stats: _stats,
+    achievements: _achievements, lastWallAt: _lastWallAt, runeRng: _runeRng, characterName: _characterName,
+    pickaxeHighWater: _pickaxeHighWater, ...rest
+  } = r.state;
+  const { orbs: _orbs11, runes: _runes11, ...restStash } = r.state.stash;
+  expect({ ...rest, stash: restStash }).toEqual(raw);   // nothing else changes
+  expect(r.state.characterName).toBe(defaultCharacterName(r.state.seed));
+  expect(r.state.oreMarket.premium).toEqual(emptyMaterialCounts());
+  expect(r.state.stash.runes).toEqual(emptyRuneCounts());
+});
+
+it('a schema-12 save gains a zeroed ore market and an empty orbs tab', () => {
+  const s = newGame(1, 0);
+  const asV12 = structuredClone(s) as unknown as Record<string, unknown>;
+  delete asV12.oreMarket;
+  const stash12 = asV12.stash as Record<string, unknown>;
+  delete stash12.orbs;
+  const r = decodeSave(raw({ schema: 12, savedAt: 0, state: asV12 }));
+  if (!r.ok) throw new Error(`schema-12 save rejected: ${r.reason}`);
+  expect(r.state.oreMarket.premium).toEqual(emptyMaterialCounts());
+  expect(r.state.stash.orbs).toEqual({});
+  expect(r.state.stash.runes).toEqual(emptyRuneCounts());
+  expect(r.state.runeRng).toBe(hash2(s.rng, RUNE_RNG_SALT));   // seeded from the loot stream, as the migration does
+  const { runeRng: _migratedRune, ...migrated } = r.state;
+  const { runeRng: _freshRune, ...fresh } = s;
+  expect(migrated).toEqual(fresh);   // nothing else changes
+});
+
+it('a schema-13 save gains empty achievements and zeroed stats', () => {
+  const s = newGame(1, 0);
+  const asV13 = structuredClone(s) as unknown as Record<string, unknown>;
+  delete asV13.achievements;
+  delete asV13.stats;
+  const r = decodeSave(raw({ schema: 13, savedAt: 0, state: asV13 }));
+  if (!r.ok) throw new Error(`schema-13 save rejected: ${r.reason}`);
+  expect(r.state.achievements).toEqual({ earned: [] });
+  expect(r.state.stats).toEqual(emptyLifetimeStats());
+  expect(r.state.stash.runes).toEqual(emptyRuneCounts());
+  expect(r.state.runeRng).toBe(hash2(s.rng, RUNE_RNG_SALT));
+  const { runeRng: _migratedRune, ...migrated } = r.state;
+  const { runeRng: _freshRune, ...fresh } = s;
+  expect(migrated).toEqual(fresh);   // nothing else changes
+});
+
+it('a schema-14 save migrates to 15 and carries its totals into the lifetime stats', () => {
+  const s = newGame(1, 0);
+  const asV14 = structuredClone(s) as unknown as Record<string, unknown>;
+  delete asV14.stats;
+  asV14.totals = {
+    gold: 500, diamonds: 12, metres: 34, gems: 56,
+    ore: Object.fromEntries(MATERIALS.map((m, i) => [m, i])),
+    kills: 78, bosses: 9, deaths: 4, maps: 20, crafts: 15, buys: 7, sockets: 3, legendaries: 2,
+  };
+  const r = decodeSave(raw({ schema: 14, savedAt: 0, state: asV14 }));
+  if (!r.ok) throw new Error(`schema-14 save rejected: ${r.reason}`);
+  expect(r.state.stats.goldFound).toBe(500);
+  expect(r.state.stats.diamondsFound).toBe(12);
+  expect(r.state.stats.metresDug).toBe(34);
+  expect(r.state.stats.gems).toBe(56);
+  expect(r.state.stats.monstersKilled).toBe(78);
+  expect(r.state.stats.bossKills).toBe(9);
+  expect(r.state.stats.deaths).toBe(4);
+  expect(r.state.stats.mapsCleared).toBe(20);
+  expect(r.state.stats.itemsCrafted).toBe(15);
+  expect(r.state.stats.itemsBought).toBe(7);
+  expect(r.state.stats.gemsSocketed).toBe(3);
+  expect(r.state.stats.legendaries).toBe(2);
+  expect(MATERIALS.every((m, i) => r.state.stats.oresFound[m] === i)).toBe(true);
+  expect((r.state as unknown as Record<string, unknown>).totals).toBeUndefined();
+});
+
+it('the validator refuses a malformed lifetime stats object', () => {
+  const cases: [string, (s: GameState) => void][] = [
+    ['a missing counter', (s) => { delete (s.stats as Partial<LifetimeStats>).goldFound; }],
+    ['a negative counter', (s) => { s.stats.metresDug = -1; }],
+    ['a non-finite counter', (s) => { s.stats.timePlayedMs = NaN; }],
+    ['a missing ore key', (s) => { delete (s.stats.oresFound as Record<string, number>).copper; }],
+    ['an extra ore key', (s) => { (s.stats.oresFound as Record<string, number>).unobtanium = 1; }],
+    ['a negative ore count', (s) => { s.stats.oresFound.copper = -1; }],
+    ['a missing gem key', (s) => { delete (s.stats.gemsFound as Record<string, unknown>).ruby; }],
+    ['a missing grade key', (s) => { delete (s.stats.gemsFound.ruby as Record<string, number>).tiny; }],
+  ];
+  for (const [name, mutate] of cases) {
+    const s = newGame(1, 0);
+    mutate(s);
+    expect(decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: s })), name).toEqual({ ok: false, reason: 'invalid' });
+  }
+});
+
+it('the validator refuses a broken ascendancy, auto-map and lifetime', () => {
+  const cases: [string, (s: GameState) => void][] = [
+    ['negative ascendancy points', (s) => { s.ascendancy.points = -1; }],
+    ['a duplicate ascendancy id', (s) => { s.ascendancy.allocated = ['wealthSmall1', 'wealthSmall1']; }],
+    ['an unknown ascendancy id', (s) => { s.ascendancy.allocated = ['notANode']; }],
+    ['a detached ascendancy id', (s) => { s.ascendancy.allocated = ['wealthSmall3']; }],
+    ['a duplicate queued id', (s) => { const m = stashMap(s, 2, 10); s.autoMap.queue = [m, { ...m }]; }],
+    ['a non-map in the queue', (s) => { s.autoMap.queue = [gear(s, 'ring') as unknown as MapItem]; }],
+    ['a missing auto-map switch', (s) => { (s.autoMap as { on?: boolean }).on = undefined as never; }],
+    ['negative ascensions', (s) => { s.lifetime.ascensions = -1; }],
+    ['a negative deepest depth', (s) => { s.lifetime.deepest = -1; }],
+  ];
+  for (const [name, mutate] of cases) {
+    const s = newGame(1, 0);
+    mutate(s);
+    expect(decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: s })), name).toEqual({ ok: false, reason: 'invalid' });
+  }
+});
+
+it('a schema-15 save gains a rune stream and an empty Runes tab', () => {
+  const s = newGame(1, 0);
+  const asV15 = structuredClone(s) as unknown as Record<string, unknown>;
+  delete asV15.runeRng;
+  const stash15 = asV15.stash as Record<string, unknown>;
+  delete stash15.runes;
+  const r = decodeSave(raw({ schema: 15, savedAt: 0, state: asV15 }));
+  if (!r.ok) throw new Error(`schema-15 save rejected: ${r.reason}`);
+  expect(r.state.runeRng).toBe(hash2(s.rng, RUNE_RNG_SALT));
+  expect(r.state.stash.runes).toEqual(emptyRuneCounts());
+  const { runeRng: _migratedRune, ...migrated } = r.state;
+  const { runeRng: _freshRune, ...fresh } = s;
+  expect(migrated).toEqual(fresh);   // nothing else changes
+});
+
+it('a schema-16 save round-trips a rune in the bag, a socketed rune and a Runes-tab count', () => {
+  const s = newGame(1, 0);
+  s.bag[0] = { id: s.nextId++, type: 'rune', rune: 'fehu', count: 3 };
+  s.equipped.mining.pickaxe = gear(s, 'pickaxe', { sockets: 1, gems: [{ rune: 'uruz' }] });
+  s.stash.runes.isa = 7;
+  const r = decodeSave(encodeSave(s, 1));
+  if (!r.ok) throw new Error(`round trip failed: ${r.reason}`);
+  expect(r.state).toEqual(s);
+});
+
+it('a maxResist affix validates and round-trips at the current schema, with no migration', () => {
+  const s = newGame(1, 0);
+  s.equipped.battle.ring = gear(s, 'ring', { affixes: [{ stat: 'maxResist', value: 20 }] });
+  const r = decodeSave(encodeSave(s, 1));
+  if (!r.ok) throw new Error(`maxResist round-trip failed: ${r.reason}`);
+  expect(r.state).toEqual(s);
+  // a non-integer value is refused by the validator
+  const bad = newGame(1, 0);
+  bad.equipped.battle.ring = gear(bad, 'ring', { affixes: [{ stat: 'maxResist', value: 20.5 }] });
+  expect(decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: bad }))).toEqual({ ok: false, reason: 'invalid' });
+});
+
+it('the validator accepts runes and refuses malformed ones', () => {
+  const ok = (change: (s: GameState) => void): boolean => {
+    const s = newGame(1, 0);
+    change(s);
+    return decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: s })).ok;
+  };
+  expect(ok((s) => { s.bag[0] = { id: s.nextId++, type: 'rune', rune: 'fehu', count: 1 }; })).toBe(true);
+  expect(ok((s) => { s.bag[0] = { id: s.nextId++, type: 'rune', rune: 'isa', count: 10 }; })).toBe(true);
+  expect(ok((s) => { s.equipped.mining.pickaxe = gear(s, 'pickaxe', { sockets: 1, gems: [{ rune: 'uruz' }] }); })).toBe(true);
+  expect(ok((s) => { s.stash.runes.isa = 1000; })).toBe(true);
+  const cases: [string, (s: GameState) => void][] = [
+    ['an unknown rune kind', (s) => { s.bag[0] = { id: s.nextId++, type: 'rune', rune: 'nope' as never, count: 1 }; }],
+    ['a rune count of 0', (s) => { s.bag[0] = { id: s.nextId++, type: 'rune', rune: 'fehu', count: 0 }; }],
+    ['a rune count past the bag stack', (s) => { s.bag[0] = { id: s.nextId++, type: 'rune', rune: 'fehu', count: 11 }; }],
+    ['a rune count past the tab cap', (s) => { s.stash.runes.isa = 1001; }],
+    ['a socketed rune with a gem grade', (s) => { s.equipped.mining.pickaxe = gear(s, 'pickaxe', { sockets: 1, gems: [{ rune: 'fehu', grade: 'tiny' } as never] }); }],
+    ['a socketed gem with a rune key', (s) => { s.equipped.mining.pickaxe = gear(s, 'pickaxe', { sockets: 1, gems: [{ gem: 'ruby', grade: 'tiny', rune: 'fehu' } as never] }); }],
+  ];
+  for (const [name, mutate] of cases) expect(ok(mutate), name).toBe(false);
+});
+
+it('a schema-23 save migrates to 24 with no maps from clears counted', () => {
+  const state23 = newGame(7, 0);
+  delete (state23.stats as Partial<GameState['stats']>).mapsFromClears;
+  const r = decodeSave(raw({ schema: 23, savedAt: 0, state: state23 }));
+  if (!r.ok) throw new Error(r.reason);
+  expect(r.state.stats.mapsFromClears).toBe(0);
+});
+
+it('a schema-24 save round-trips its maps-from-clears count', () => {
+  const s = newGame(7, 0);
+  s.stats.mapsFromClears = 5;
+  const r = decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: s }));
+  if (!r.ok) throw new Error(r.reason);
+  expect(r.state.stats.mapsFromClears).toBe(5);
+  const bad = newGame(7, 0);
+  bad.stats.mapsFromClears = -1;
+  expect(decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: bad })).ok).toBe(false);
+});
+
+describe('schema 25: the feat and collection ledger', () => {
+  const save25 = (s: GameState) => decodeSave(raw({ schema: SCHEMA_VERSION, savedAt: 0, state: s }));
+
+  it('a schema-24 save gains an empty ledger and live-run tracking', () => {
+    const s = newGame(7, 0);
+    s.equipped.mining.pickaxe = gear(s, 'pickaxe', { ilvl: 7 });
+    expect(startMap(s, stashMap(s, 1, 2).id)).toBe('ok');
+    const old = JSON.parse(JSON.stringify(s)) as GameState;
+    delete (old as unknown as Record<string, unknown>).pickaxeHighWater;
+    for (const k of ['legendariesFound', 'runesFound', 'championModsKilled', 'specialsCleared', 'dungeonTypesCleared', 'gateAttempts', 'gatesFirstTry', 'clicksPaused']) {
+      delete (old.stats as unknown as Record<string, unknown>)[k];
+    }
+    if (old.activity.kind !== 'map') throw new Error('no map is running');
+    for (const k of ['minLifeShare', 'elapsedS', 'bossSinceS', 'attempt', 'startedWith']) delete (old.activity.run as unknown as Record<string, unknown>)[k];
+    const r = decodeSave(raw({ schema: 24, savedAt: 0, state: old }));
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.state.stats).toMatchObject({
+      legendariesFound: [], runesFound: [], championModsKilled: [], specialsCleared: [], dungeonTypesCleared: [], gateAttempts: {}, gatesFirstTry: [], clicksPaused: 0,
+    });
+    if (r.state.activity.kind !== 'map') throw new Error('no map is running');
+    expect(r.state.activity.run).toMatchObject({ minLifeShare: 1, elapsedS: 0, attempt: 0 });
+    expect(r.state.activity.run.bossSinceS).toBeUndefined();
+    // a run already under way began with no handicap the feats can trust, and the pickaxe mark starts at the worn one
+    expect(r.state.activity.run.startedWith).toEqual({ emptySlot: false, plainGear: false, noBattleGear: false, noPassives: false });
+    expect(r.state.pickaxeHighWater).toBe(7);
+  });
+
+  it('a schema-25 save refuses a broken pickaxe mark or run handicaps', () => {
+    const s = newGame(7, 0);
+    expect(startMap(s, stashMap(s, 1, 2).id)).toBe('ok');
+    expect(save25(s).ok).toBe(true);
+    expect(save25({ ...s, pickaxeHighWater: -1 }).ok).toBe(false);
+    expect(save25({ ...s, pickaxeHighWater: 1.5 }).ok).toBe(false);
+    if (s.activity.kind !== 'map') throw new Error('no map is running');
+    const run = s.activity.run;
+    const broken = (startedWith: unknown) => ({ ...s, activity: { kind: 'map', run: { ...run, startedWith } } }) as unknown as GameState;
+    expect(save25(broken({ ...run.startedWith, plainGear: 1 })).ok).toBe(false);
+    expect(save25(broken({ emptySlot: true })).ok).toBe(false);
+    expect(save25(broken(undefined)).ok).toBe(false);
+  });
+
+  it('a schema-24 save drops earned ids the list no longer has and re-earns the ones its ledger passes', () => {
+    const s = newGame(7, 0);
+    s.deepest = 1000;
+    s.ahead = {};
+    s.achievements.earned = ['clicks.7', 'depth.10'];
+    const r = decodeSave(raw({ schema: 24, savedAt: 0, state: s }));
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.state.achievements.earned).not.toContain('clicks.7');
+    expect(r.state.achievements.earned).not.toContain('depth.10');
+    expect(r.state.achievements.earned).toContain('depth.1000');
+  });
+
+  it('a schema-25 save round-trips the ledger and the run fields', () => {
+    const s = newGame(7, 0);
+    s.stats.legendariesFound = ['molesbane', 'wolfEye'];
+    s.stats.runesFound = ['fehu', 'isa'];
+    s.stats.championModsKilled = ['armored', 'swift'];
+    s.stats.specialsCleared = ['treasureRoom'];
+    s.stats.dungeonTypesCleared = ['1:0', '2:1'];
+    s.stats.gateAttempts = { 5: 3, 10: 1 };
+    s.stats.gatesFirstTry = [5, 10];
+    expect(startMap(s, stashMap(s, 10, 40).id)).toBe('ok');
+    if (s.activity.kind !== 'map') throw new Error('no map is running');
+    s.activity.run.bossSinceS = 12.5;
+    checkAchievements(s);   // a load grants what the ledger already passes, so the saved state holds those too
+    const r = save25(s);
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.state).toEqual(s);
+  });
+
+  it('rejects a duplicate or unsorted ledger set, an unknown member and a malformed attempt table', () => {
+    const cases: [string, (s: GameState) => void][] = [
+      ['a duplicate rune', (s) => { s.stats.runesFound = ['fehu', 'fehu']; }],
+      ['unsorted runes', (s) => { s.stats.runesFound = ['isa', 'fehu']; }],
+      ['an unknown rune', (s) => { s.stats.runesFound = ['nope' as never]; }],
+      ['unsorted gate tiers', (s) => { s.stats.gatesFirstTry = [10, 5]; }],
+      ['a duplicate gate tier', (s) => { s.stats.gatesFirstTry = [5, 5]; }],
+      ['a non-integer gate tier', (s) => { s.stats.gatesFirstTry = [2.5]; }],
+      ['an unknown champion mod', (s) => { s.stats.championModsKilled = ['nope' as never]; }],
+      ['an unknown map special', (s) => { s.stats.specialsCleared = ['nope' as never]; }],
+      ['a duplicate legendary', (s) => { s.stats.legendariesFound = ['molesbane', 'molesbane']; }],
+      ['a malformed dungeon key', (s) => { s.stats.dungeonTypesCleared = ['nope']; }],
+      ['a negative paused-click count', (s) => { s.stats.clicksPaused = -1; }],
+      ['a negative attempt count', (s) => { s.stats.gateAttempts = { 5: -1 }; }],
+      ['a non-numeric attempt key', (s) => { s.stats.gateAttempts = { five: 1 } as never; }],
+    ];
+    for (const [name, mutate] of cases) {
+      const s = newGame(7, 0);
+      mutate(s);
+      expect(save25(s), name).toEqual({ ok: false, reason: 'invalid' });
+    }
+  });
+
+  it('requires the run fields on a live map run', () => {
+    const cases: [string, (run: MapRun) => void][] = [
+      ['no minLifeShare', (run) => { delete (run as Partial<MapRun>).minLifeShare; }],
+      ['a negative minLifeShare', (run) => { run.minLifeShare = -0.1; }],
+      ['a minLifeShare above 1', (run) => { run.minLifeShare = 1.1; }],
+      ['a non-finite minLifeShare', (run) => { run.minLifeShare = Number.NaN; }],
+      ['no elapsedS', (run) => { delete (run as Partial<MapRun>).elapsedS; }],
+      ['a negative elapsedS', (run) => { run.elapsedS = -1; }],
+      ['a negative bossSinceS', (run) => { run.bossSinceS = -1; }],
+      ['no attempt', (run) => { delete (run as Partial<MapRun>).attempt; }],
+      ['a fractional attempt', (run) => { run.attempt = 1.5; }],
+    ];
+    for (const [name, mutate] of cases) {
+      const s = newGame(7, 0);
+      expect(startMap(s, stashMap(s, 1, 2).id)).toBe('ok');
+      if (s.activity.kind !== 'map') throw new Error('no map is running');
+      mutate(s.activity.run);
+      expect(save25(s), name).toEqual({ ok: false, reason: 'invalid' });
+    }
   });
 });

@@ -1,19 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { BAG_SIZE, MAX_STASH_PAGES, STASH_PAGE_SIZE } from '../../core/balance';
 import { pageCount } from '../../core/cells';
-import { setOfSlot, type Cell, type GearSet } from '../../core/items';
-import { gearTotals } from '../../core/stats';
+import type { Cell } from '../../core/items';
 import type { GameState } from '../../core/types';
 import type { GameStore } from '../../store/gameStore';
 import { dropAttr } from '../character/dragDrop';
+import { CharacterSheet } from '../character/CharacterSheet';
+import { OrbTab } from '../character/OrbTab';
 import { GemTab } from '../character/GemTab';
 import { ItemGrid } from '../character/ItemGrid';
 import type { ItemHandlers } from '../character/ItemGrid';
-import { battleStatLine, miningStatLine } from '../character/itemView';
 import { LootFilterDialog } from '../character/LootFilterDialog';
 import { MaterialTab } from '../character/MaterialTab';
 import { PaperDoll } from '../character/PaperDoll';
+import { RuneTab } from '../character/RuneTab';
 import {
   bagHeading, buyLabel, gridCapacity, mapTierCaption, mapTierCells, mapTiers, pageCells, pickTier, STASH_TABS, tabLabel,
 } from '../character/stashView';
@@ -25,12 +26,6 @@ import { useRecentEquip } from '../Toast';
 import { useGame } from '../useGame';
 import '../character/character.css';
 import './inventory.css';
-
-// The toggle switches the paper doll and its stat line; the one bag holds both sets.
-const SETS: readonly { set: GearSet; toggle: string }[] = [
-  { set: 'mining', toggle: 'Mining set' },
-  { set: 'battle', toggle: 'Battle set' },
-];
 
 const tabId = (tab: StashTab): string => `gm-stash-tab-${tab}`;
 
@@ -99,6 +94,7 @@ function MapsTab({ state, handlers, tier, onTier }: {
       />
       <div className="gm-muted gm-small">
         {tier === null ? 'No maps in the stash. A map moved here joins its own tier.' : mapTierCaption(tier, cells.length)}
+        {state.autoMap.queue.length > 0 && ` · ${formatNumber(state.autoMap.queue.length)} queued for auto-map`}
       </div>
     </div>
   );
@@ -110,11 +106,9 @@ function MapsTab({ state, handlers, tier, onTier }: {
  * tier, each remembered while the view is open.
  */
 export function InventoryView({ store }: { store: GameStore }) {
-  const { state, stats } = useGame(store);
+  const { state } = useGame(store);
   const recentEquip = useRecentEquip(store);
   const flashSlot = recentEquip?.slot ?? null;
-  const running = state.activity.kind === 'map';
-  const [set, setSet] = useState<GearSet>(running ? 'battle' : 'mining');
   const [filterOpen, setFilterOpen] = useState(false);
   const [tab, setTab] = useState<StashTab>('general');
   const [page, setPage] = useState(0);
@@ -126,22 +120,6 @@ export function InventoryView({ store }: { store: GameStore }) {
   const { handlers, message, say, cards, tapCard, tapWhere, reset } = useItemInteractions({
     store, state, fallbackRef: bagHeadingRef, drag,
   });
-
-  // a run starting shows the Battle set and its ending the Mining set; an equip shows the set it went into, so its glow is seen
-  const wasRunning = useRef(running);
-  useEffect(() => {
-    if (running === wasRunning.current) return;
-    wasRunning.current = running;
-    setSet(running ? 'battle' : 'mining');
-    reset();
-  }, [running, reset]);
-  const shownEquip = useRef<number | undefined>(undefined);
-  useEffect(() => {
-    if (recentEquip === null || recentEquip.id === shownEquip.current) return;
-    shownEquip.current = recentEquip.id;
-    setSet(setOfSlot(recentEquip.slot));
-    reset();
-  }, [recentEquip, reset]);
 
   const closeFilter = (): void => {
     setFilterOpen(false);
@@ -197,23 +175,11 @@ export function InventoryView({ store }: { store: GameStore }) {
     <div className="gm-inv">
       <h2 className="gm-visually-hidden">Inventory</h2>
       <section aria-label="Gear" className="gm-inv__col gm-inv__col--doll">
-        <div role="group" aria-label="Gear set" className="gm-char__toggle">
-          {SETS.map((s) => (
-            <button
-              key={s.set}
-              type="button"
-              className="gm-char__tab"
-              aria-pressed={set === s.set}
-              onClick={() => { setSet(s.set); reset(); }}
-            >
-              {s.toggle}
-            </button>
-          ))}
-        </div>
-        <PaperDoll state={state} set={set} handlers={handlers} flashSlot={flashSlot} />
+        <h3 className="gm-char__bag">Gear</h3>
+        <PaperDoll state={state} set="both" handlers={handlers} flashSlot={flashSlot} />
         {tapSpot === 'doll' && tapCard}
         <div className="gm-char__stats">
-          {set === 'mining' ? miningStatLine(stats, state.deepest) : battleStatLine(gearTotals(state, 'battle'))}
+          <CharacterSheet state={state} half="both" />
         </div>
       </section>
 
@@ -276,8 +242,10 @@ export function InventoryView({ store }: { store: GameStore }) {
             </div>
           )}
           {tab === 'gems' && <GemTab state={state} handlers={handlers} />}
+          {tab === 'runes' && <RuneTab state={state} handlers={handlers} />}
           {tab === 'maps' && <MapsTab state={state} handlers={handlers} tier={shownTier} onTier={showTier} />}
           {tab === 'materials' && <MaterialTab state={state} handlers={handlers} />}
+          {tab === 'orbs' && <OrbTab state={state} handlers={handlers} />}
           {tapSpot === 'stash' && tapCard}
         </div>
       </section>

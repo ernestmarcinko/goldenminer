@@ -29,7 +29,10 @@ function SocketDots({ item }: { item: Item }) {
   if (!isGear(item) || item.sockets === 0) return null;
   const dots = [];
   for (let i = 0; i < Math.min(MAX_DOTS, item.sockets); i++) {
-    dots.push(<span key={i} className="gm-item__dot" data-gem={item.gems[i]?.gem} />);
+    const s = item.gems[i];
+    dots.push(s !== undefined && 'rune' in s
+      ? <span key={i} className="gm-item__dot" data-rune={s.rune} />
+      : <span key={i} className="gm-item__dot" data-gem={s?.gem} />);
   }
   return <span className="gm-item__dots" aria-hidden="true">{dots}</span>;
 }
@@ -83,7 +86,8 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
       className={className}
       data-rarity={rarityOf(item)}
       data-drop={dropAttr(target)}
-      data-held={drag.held !== null && sameLoc(drag.held, target) ? '' : undefined}
+      data-held={drag.held !== null && !drag.heldGhost && sameLoc(drag.held, target) ? '' : undefined}
+      data-held-ghost={drag.held !== null && drag.heldGhost && sameLoc(drag.held, target) ? '' : undefined}
       aria-label={!isStack(item) || item.count <= 1 ? label : `${label}, ${formatNumber(item.count)}`}
       onPointerDown={(e) => { pointerType.current = e.pointerType; drag.onPointerDown(target, e); }}
       onClick={(e) => {
@@ -92,8 +96,20 @@ export function ItemButton({ item, target, handlers, scale, className, label }: 
           altKey: e.altKey, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey, detail: e.detail,
           pointerType: pointerType.current,
         }, drag.held !== null, IS_MAC);
-        if (route.kind === 'pick') handlers.onPick(target, route.intent, e.currentTarget);
-        else if (drag.onTap(target, true) && route.kind === 'lift') handlers.onLift(target, e.currentTarget);
+        if (route.kind === 'pick') {
+          handlers.onPick(target, route.intent, e.currentTarget);
+          return;
+        }
+        // a stock slot is bought from its card, never picked up
+        if (route.kind === 'hold' && target.where === 'stock') {
+          handlers.onPick(target, 'card', e.currentTarget);
+          return;
+        }
+        if (route.kind === 'hold') {
+          drag.pickUp(target, e.currentTarget, e.clientX, e.clientY);
+          return;
+        }
+        if (drag.onTap(target, true) && route.kind === 'lift') handlers.onLift(target, e.currentTarget);
       }}
       onContextMenu={(e) => { e.preventDefault(); handlers.onMenu(target, e.currentTarget); }}
       onMouseEnter={(e) => { if (pointerType.current !== 'touch') handlers.onInspect(target, e.currentTarget); }}

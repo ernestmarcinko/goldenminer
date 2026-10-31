@@ -1,34 +1,54 @@
+import { ascend as coreAscend } from '../core/ascend';
+import { allocateAscendancy as coreAllocateAscendancy } from '../core/ascendancy';
+import { ACHIEVEMENT_BY_ID, achievementIcon, checkFeats } from '../core/achievements';
+import { autoMapping, queueForAutoMap as coreQueueForAutoMap, tryAutoMap, unqueueForAutoMap as coreUnqueueForAutoMap } from '../core/autoMap';
 import { LONG_GAP_MS, MAX_LOOT_RULES, OFFLINE_SUMMARY_MIN_TICKS } from '../core/balance';
 import { deriveBattleStats, type BattleStats } from '../core/battle';
 import { advance, ClickLimiter, clickTicks } from '../core/clock';
-import { craft as coreCraft } from '../core/crafting';
+import { craft as coreCraft, targetedCraft as coreTargetedCraft } from '../core/crafting';
 import * as inv from '../core/inventory';
 import { itemName } from '../core/itemData';
-import { BATTLE_SLOTS, MINING_SLOTS, setOfSlot } from '../core/items';
-import type { GearItem, Slot } from '../core/items';
+import { BATTLE_SLOTS, MINING_SLOTS, orbKey, orbName, setOfSlot } from '../core/items';
+import type { GearItem, Material, OrbFamily, OrbSide, OrbTier, Slot } from '../core/items';
 import { drainOverflow } from '../core/loot';
 import { ruleValid } from '../core/lootFilter';
 import { leaveMap as coreLeaveMap, startMap as coreStartMap } from '../core/maps';
 import { gamble as coreGamble, type GambleResult } from '../core/merchant';
+import { isValidCharacterName, randomCharacterName } from '../core/names';
 import { newGame } from '../core/newGame';
+import { buyOrb as coreBuyOrb, tradeOres as coreTradeOres, type MarketResult } from '../core/oreMarket';
+import type { IconGlyphId } from '../core/skillIcons';
+import {
+  allocate as coreAllocate, allocateMany as coreAllocateMany, refund as coreRefund, refundMany as coreRefundMany,
+  resetWeb as coreResetWeb,
+} from '../core/respec';
 import { soulUpgrade as coreSoulUpgrade, type SoulUpgradeCheck } from '../core/soulUpgrade';
 import { buyStashPage as coreBuyStashPage } from '../core/stashPages';
+import { testCheat as coreTestCheat, type TestCheat } from '../core/testCheat';
 import { decodeSave, encodeSave, type DecodeResult } from '../core/save';
-import { freshWorld, isValidSeedText, seedFromText } from '../core/seed';
+import { freshWorld, isValidSeedText, randomSeedText as coreRandomSeedText, seedFromText } from '../core/seed';
 import { buyStock as coreBuyStock, type BuyResult } from '../core/trader';
 import { deriveStats } from '../core/stats';
 import { summarize } from '../core/summary';
 import type {
   CraftCheck, CraftKind, CraftResult, DropTarget, FindRecord, GameState, InvResult, ItemLoc, LootRule, MotionSettings,
-  OfflineSummary, Stats, TemperOutcome, TickEvent,
+  OfflineSummary, Stats, TargetedCraft, TemperOutcome, TickEvent,
 } from '../core/types';
 import { BACKUP_PREFIX, SAVE_KEY, type StorageLike } from './storage';
+import type { SpriteName } from '../sprites/atlas';
+import { itemSprite, orbSprite } from '../ui/character/itemView';
 
 /** Gear just worn into a slot that was empty; `id` counts up so the UI can tell one from the next. */
 export interface EquipNotice { id: number; slot: Slot; name: string; rarity: GearItem['rarity'] }
 
 /** The newest craft, refused or not, for the crafting message; `id` counts up so the UI can tell one from the next. */
 export interface CraftNotice { id: number; target: ItemLoc; kind: CraftKind; check: CraftCheck; temper?: TemperOutcome }
+
+/** The newest successful vendor buy, for the fly-in animation; `id` counts up so React re-triggers it. */
+export interface BuyNotice { id: number; key: string; name: string; sprite: SpriteName; from: 'refiner' | 'trader' }
+
+/** An earned achievement queued for a pop-down toast; transient store state, never written into the save. */
+export interface AchievementNotification { id: number; icon: IconGlyphId; name: string; desc: string }
 
 export interface Feedback {
   gold: number;
@@ -38,6 +58,8 @@ export interface Feedback {
   strikes: { amount: number; crit: boolean }[];
   /** Damage the player took, summed. */
   hurt: number;
+  /** Dig ticks since the last drain, one per tick that advanced the face. */
+  digs: number;
 }
 
 export type Notice =
@@ -56,7 +78,7 @@ interface Deps {
 const MAX_FINDS = 3;
 const MAX_STRIKES = 6;
 const ALL_SLOTS: readonly Slot[] = [...MINING_SLOTS, ...BATTLE_SLOTS];
-const emptyFeedback = (): Feedback => ({ gold: 0, diamonds: 0, finds: [], strikes: [], hurt: 0 });
+const emptyFeedback = (): Feedback => ({ gold: 0, diamonds: 0, finds: [], strikes: [], hurt: 0, digs: 0 });
 
 export class GameStore {
   private _state: GameState;
@@ -71,12 +93,19 @@ export class GameStore {
   private _lastCraft: CraftNotice | null = null;
   private craftCount = 0;
   private _lastGamble: GearItem | null = null;
+  private _lastBuy: BuyNotice | null = null;
+  private buyCount = 0;
   private feedback: Feedback = emptyFeedback();
   private readonly listeners = new Set<() => void>();
   private limiter = new ClickLimiter();
   // UI state, never saved: another view pauses live digging, and a hidden tab lifts that, since away counts as idle.
   private viewPaused = false;
   private hidden = false;
+  // Transient achievement-toast queue, never saved: newest first, capped for display by the stack. `notifId` counts up so
+  // React can tell one toast from the next; `lastEarned` is how many of the append-only `earned` ids are already queued.
+  private _notifications: AchievementNotification[] = [];
+  private notifId = 0;
+  private lastEarned = 0;
 
   constructor(private readonly deps: Deps) {
     this._state = freshWorld(deps.newSeed, deps.now());
@@ -95,6 +124,10 @@ export class GameStore {
   get lastCraft(): CraftNotice | null { return this._lastCraft; }
   /** The newest item bought from the merchant, for its "You got" panel. */
   get lastGamble(): GearItem | null { return this._lastGamble; }
+  /** The newest vendor buy, for the fly-in animation. */
+  get lastBuy(): BuyNotice | null { return this._lastBuy; }
+  /** The queued achievement toasts, newest first. Transient: never written into the save. */
+  get notifications(): readonly AchievementNotification[] { return this._notifications; }
   /** Whether live ticks dig: the player's Pause always holds, the view pause only while the tab is on screen. */
   get digPaused(): boolean { return this._state.paused || (this.viewPaused && !this.hidden); }
 
@@ -103,11 +136,56 @@ export class GameStore {
     return () => { this.listeners.delete(fn); };
   }
 
+  /** Whether a save exists in storage; false on a first launch (or when storage cannot be read). */
+  hasSave(): boolean {
+    try {
+      return this.deps.storage.getItem(SAVE_KEY) !== null;
+    } catch {
+      return false;
+    }
+  }
+
+  /** A random character name, drawn from the same RNG stream the game uses. */
+  randomName(): string {
+    return randomCharacterName(this.deps.newSeed);
+  }
+
+  /** A random seed text, drawn from the same RNG stream the game uses. */
+  randomSeedText(): string {
+    return coreRandomSeedText(this.deps.newSeed);
+  }
+
   private changed(): void {
     this._stats = deriveStats(this._state);
     this._battle = deriveBattleStats(this._state);
+    this.enqueueNewAchievements();
     this._version++;
     for (const fn of [...this.listeners]) fn();
+  }
+
+  /**
+   * Diffs the append-only `state.achievements.earned`: any id past `lastEarned` was earned by the mutation that just ran,
+   * so map it to its def and queue a toast. Reading the tail never reads or advances `state.rng`, so the loot stream is
+   * untouched and a no-achievement mutation enqueues nothing.
+   */
+  private enqueueNewAchievements(): void {
+    const earned = this._state.achievements.earned;
+    if (earned.length <= this.lastEarned) {
+      this.lastEarned = earned.length;
+      return;
+    }
+    const fresh = earned.slice(this.lastEarned);
+    this.lastEarned = earned.length;
+    for (const id of fresh) {
+      const def = ACHIEVEMENT_BY_ID.get(id);
+      if (def === undefined) continue;
+      this._notifications.unshift({
+        id: ++this.notifId,
+        icon: achievementIcon(def),
+        name: def.name,
+        desc: def.desc,
+      });
+    }
   }
 
   // A loaded save may hold loot that now has room (schema 6 gave it a bigger bag), so `load` and `importSave` drain it.
@@ -116,6 +194,9 @@ export class GameStore {
     this._equipNotice = null;
     this._lastCraft = null;
     this._lastGamble = null;
+    this._lastBuy = null;
+    this._notifications = [];
+    this.lastEarned = state.achievements.earned.length;
     this._stats = deriveStats(state);
     this._battle = deriveBattleStats(state);
   }
@@ -213,6 +294,7 @@ export class GameStore {
       else if (e.kind === 'find') fb.finds.push(e.find);
       else if (e.kind === 'strike') fb.strikes.push({ amount: e.amount, crit: e.crit });
       else if (e.kind === 'hurt') fb.hurt += e.amount;
+      else if (e.kind === 'dig') fb.digs += 1;
     }
     if (fb.finds.length > MAX_FINDS) fb.finds = fb.finds.slice(-MAX_FINDS);
     if (fb.strikes.length > MAX_STRIKES) fb.strikes = fb.strikes.slice(-MAX_STRIKES);
@@ -272,7 +354,7 @@ export class GameStore {
   unequip(slot: Slot, to?: ItemLoc): InvResult { return this.act(() => inv.unequip(this._state, slot, to)); }
   moveItem(from: ItemLoc, to: ItemLoc): InvResult { return this.act(() => inv.moveItem(this._state, from, to)); }
   sendItem(from: ItemLoc, to: 'stash' | 'bag'): InvResult { return this.act(() => inv.sendItem(this._state, from, to)); }
-  socketGem(gem: ItemLoc, into: ItemLoc): InvResult { return this.act(() => inv.socketGem(this._state, gem, into)); }
+  socketGem(gem: ItemLoc, into: ItemLoc): InvResult { return this.act(() => inv.socketInto(this._state, gem, into)); }
   sell(from: ItemLoc): InvResult { return this.act(() => inv.sell(this._state, from)); }
   salvage(from: ItemLoc): InvResult { return this.act(() => inv.salvage(this._state, from)); }
   drop(from: ItemLoc, to: DropTarget): InvResult {
@@ -287,6 +369,36 @@ export class GameStore {
       this.noteCraft(target, kind, result);
       return result.check === 'ok' ? 'ok' : 'craftRefused';
     });
+    return result;
+  }
+
+  /** A targeted craft on gear; only an 'ok' changes anything. */
+  targetedCraft(target: ItemLoc, action: TargetedCraft): CraftResult {
+    let result: CraftResult = { check: 'notGear' };
+    this.act(() => {
+      result = coreTargetedCraft(this._state, target, action);
+      return result.check === 'ok' ? 'ok' : 'craftRefused';
+    });
+    return result;
+  }
+
+  /** Buys an orb from the Refiner; only an 'ok' changes anything, and records the buy for the fly-in animation. */
+  buyOrb(family: OrbFamily, side: OrbSide | undefined, tier: OrbTier | undefined): MarketResult {
+    const result = coreBuyOrb(this._state, family, side, tier);
+    if (result === 'ok') {
+      this._lastBuy = {
+        id: ++this.buyCount, key: orbKey(family, side, tier),
+        name: orbName({ id: 0, type: 'orb', family, side, tier, count: 1 }), sprite: orbSprite(family, side, tier), from: 'refiner',
+      };
+      this.changed();
+    }
+    return result;
+  }
+
+  /** Exchanges ores at the Refiner; only an 'ok' changes anything. */
+  tradeOres(from: Material, to: Material, amount: number): MarketResult {
+    const result = coreTradeOres(this._state, from, to, amount);
+    if (result === 'ok') this.changed();
     return result;
   }
 
@@ -308,10 +420,17 @@ export class GameStore {
     return outcome;
   }
 
-  /** Buys a slot of the Trader's stock; only an 'ok' changes anything. */
+  /** Buys a slot of the Trader's stock; only an 'ok' changes anything, and records the buy for the fly-in animation. */
   buyStock(index: number): BuyResult {
-    const { result } = coreBuyStock(this._state, index);
-    if (result === 'ok') this.changed();
+    const { result, item } = coreBuyStock(this._state, index);
+    if (result === 'ok') {
+      if (item !== undefined) {
+        this._lastBuy = {
+          id: ++this.buyCount, key: String(item.id), name: itemName(item), sprite: itemSprite(item), from: 'trader',
+        };
+      }
+      this.changed();
+    }
     return result;
   }
 
@@ -327,6 +446,91 @@ export class GameStore {
       this.changed();
     }
     return result;
+  }
+
+  /** Allocates a passive node; only an 'ok' changes anything. */
+  allocate(id: string): ReturnType<typeof coreAllocate> {
+    const result = coreAllocate(this._state, id);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
+  /** Allocates a staged sequence of passive nodes; only an 'ok' changes anything. */
+  allocateMany(ids: readonly string[]): ReturnType<typeof coreAllocateMany> {
+    const result = coreAllocateMany(this._state, ids);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
+  /** Refunds a passive node for Gold; only an 'ok' changes anything. */
+  refund(id: string): ReturnType<typeof coreRefund> {
+    const result = coreRefund(this._state, id);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
+  /** Refunds a staged set of passive nodes for Gold; only an 'ok' changes anything. */
+  refundMany(ids: readonly string[]): ReturnType<typeof coreRefundMany> {
+    const result = coreRefundMany(this._state, ids);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
+  /** A full web reset for Diamonds; only an 'ok' changes anything. */
+  resetWeb(): ReturnType<typeof coreResetWeb> {
+    const result = coreResetWeb(this._state);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
+  /** Trades a finished run for permanent ascendancy points; only an 'ok' changes anything. */
+  ascend(): ReturnType<typeof coreAscend> {
+    const result = coreAscend(this._state);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
+  /** Allocates an ascendancy node for a permanent point; only an 'ok' changes anything. */
+  allocateAscendancy(id: string): ReturnType<typeof coreAllocateAscendancy> {
+    const result = coreAllocateAscendancy(this._state, id);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
+  /** Queues a held map for away-time auto-mapping; only an 'ok' changes anything. */
+  queueForAutoMap(id: number): ReturnType<typeof coreQueueForAutoMap> {
+    const result = coreQueueForAutoMap(this._state, id);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
+  /** Takes a map id out of the auto-map queue; only an 'ok' changes anything. */
+  unqueueForAutoMap(id: number): ReturnType<typeof coreUnqueueForAutoMap> {
+    const result = coreUnqueueForAutoMap(this._state, id);
+    if (result === 'ok') this.changed();
+    return result;
+  }
+
+  /** Turns auto-mapping on or off; only a real change notifies. */
+  setAutoMap(on: boolean): void {
+    if (this._state.autoMap.on === on) return;
+    this._state.autoMap.on = on;
+    this.changed();
+  }
+
+  /** Turns auto-mapping on and starts the first eligible queued map at once, so the trigger begins the battle now. */
+  startAutoMap(): 'ok' | 'locked' | 'nothing' {
+    if (!autoMapping(this._state)) return 'locked';
+    this._state.autoMap.on = true;
+    const started = tryAutoMap(this._state);
+    this.changed();
+    return started ? 'ok' : 'nothing';   // 'nothing' means the chain found nothing eligible and switched itself off
+  }
+
+  /** Applies a test cheat (dev-only Test tool); always notifies. */
+  testCheat(action: TestCheat): void {
+    coreTestCheat(this._state, action);
+    this.changed();
   }
 
   setLootFilter(rules: LootRule[]): void {
@@ -377,23 +581,38 @@ export class GameStore {
     return result;
   }
 
-  /** Starts a new world from typed seed text, or a random one for `null`; refuses text with no usable characters. */
-  newWorld(seedText: string | null): boolean {
+  /** Starts a new world named `name` from typed seed text, or a random one for `null`; refuses an invalid name or text. */
+  newWorld(name: string, seedText: string | null): boolean {
+    const trimmed = name.trim();
+    if (!isValidCharacterName(trimmed)) return false;
     const { newSeed, now } = this.deps;
     let world: GameState;
     if (seedText === null) {
       world = freshWorld(newSeed, now());
+      world.characterName = trimmed;
     } else if (isValidSeedText(seedText)) {
       const text = seedText.trim();
-      world = newGame(seedFromText(text), now(), { seedText: text, lootSeed: newSeed() });
+      world = newGame(seedFromText(text), now(), { seedText: text, lootSeed: newSeed(), name: trimmed });
     } else {
       return false;
     }
     this._unreadable = null;
     this.clearLoadFailed();
     this.replaceState(world);
+    checkFeats(this._state, { kind: 'rename', name: trimmed });
     this._summary = null;
     this.feedback = emptyFeedback();
+    this.changed();
+    this.save();
+    return true;
+  }
+
+  /** Renames the current miner (trimmed); refuses an invalid name and leaves the old one. The rename feats see every change. */
+  renameCharacter(name: string): boolean {
+    const trimmed = name.trim();
+    if (!isValidCharacterName(trimmed)) return false;
+    this._state.characterName = trimmed;
+    checkFeats(this._state, { kind: 'rename', name: trimmed });
     this.changed();
     this.save();
     return true;
@@ -422,6 +641,21 @@ export class GameStore {
 
   dismissNotice(): void {
     this._notice = null;
+    this.changed();
+  }
+
+  /** Removes one queued toast; a no-op when its id is already gone. */
+  dismissNotification(id: number): void {
+    const next = this._notifications.filter((n) => n.id !== id);
+    if (next.length === this._notifications.length) return;
+    this._notifications = next;
+    this.changed();
+  }
+
+  /** Removes every queued toast at once. */
+  dismissAll(): void {
+    if (this._notifications.length === 0) return;
+    this._notifications = [];
     this.changed();
   }
 }

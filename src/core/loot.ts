@@ -1,15 +1,19 @@
+import { checkAchievements, checkFeats, recordLegendary } from './achievements';
 import {
-  GEM_BAG_STACK, GEM_GRADE_LEVEL, GEM_SALVAGE_TIN, GEM_SELL_GOLD, GEM_STASH_STACK, MAP_RARITY_SELL, MAP_SALVAGE, MAP_SELL_GOLD,
-  MATERIAL_BAG_STACK, MATERIAL_STASH_STACK, MAX_HELD, SALVAGE_MATERIALS, SELL_GOLD,
+  GEM_GRADE_LEVEL, GEM_SALVAGE_TIN, GEM_SELL_GOLD, GEM_STASH_STACK, MAP_RARITY_SELL, MAP_SALVAGE, MAP_SELL_GOLD,
+  MATERIAL_STASH_STACK, MAX_HELD, RUNE_SALVAGE_VOID_CRYSTAL, RUNE_SELL_GOLD, RUNE_STASH_STACK, SALVAGE_MATERIALS, SELL_GOLD,
 } from './balance';
 import { firstEmpty } from './cells';
 import { logDrop, trail } from './dropLog';
+import { addToSet } from './ledger';
 import { itemName, MATERIAL_LABELS } from './itemData';
-import { MATERIALS } from './items';
+import { isStack, MATERIALS } from './items';
 import { ruleMatches } from './lootFilter';
 import { putMap } from './maps';
-import type { Cell, GearItem, Gem, GemItem, Item, MapItem, Material, MaterialItem, Stack } from './items';
+import { stackCaps } from './passives';
+import type { Cell, GearItem, Gem, GemItem, Item, MapItem, Material, MaterialItem, OrbItem, RuneItem, Stack } from './items';
 import { deriveStats } from './stats';
+import { countGem, countOre } from './telemetry';
 import type { DropOrigin, GameState, LootAction, LootNote, LootOutcome, LootRule, Stats, TrailStep } from './types';
 
 const tierFactor = (level: number): number => 1 + Math.floor(level / 5);
@@ -20,13 +24,16 @@ export function gemSellValue(g: Gem): number {
 
 const gemSalvageTin = (g: Gem): number => GEM_SALVAGE_TIN * tierFactor(GEM_GRADE_LEVEL[g.grade]);
 
-/** What the loot filter, selling and salvaging deal in: gear, gem stacks and maps. */
-export type Loot = GearItem | GemItem | MapItem;
+/** What the loot filter, selling and salvaging deal in: gear, gem stacks, rune stacks and maps. */
+export type Loot = GearItem | GemItem | RuneItem | MapItem;
 
 export function sellValue(item: Loot): number {
   switch (item.type) {
-    case 'gear': return item.gems.reduce((sum, g) => sum + gemSellValue(g), SELL_GOLD[item.rarity] * item.ilvl);
+    case 'gear': return item.gems.reduce(
+      (sum, g) => sum + ('rune' in g ? RUNE_SELL_GOLD : gemSellValue(g)), SELL_GOLD[item.rarity] * item.ilvl,
+    );
     case 'gem': return gemSellValue(item) * item.count;
+    case 'rune': return RUNE_SELL_GOLD * item.count;
     case 'map': return Math.round(MAP_SELL_GOLD * item.tier ** 2 * MAP_RARITY_SELL[item.rarity]);
   }
 }
@@ -45,11 +52,17 @@ export function salvageYield(item: Item): Partial<Record<Material, number>> {
         const n = base[m];
         if (n !== undefined) add(m, n * tierFactor(item.ilvl));
       }
-      for (const g of item.gems) add('tin', gemSalvageTin(g));
+      for (const g of item.gems) {
+        if ('rune' in g) add('voidCrystal', RUNE_SALVAGE_VOID_CRYSTAL);
+        else add('tin', gemSalvageTin(g));
+      }
       return out;
     }
     case 'gem':
       add('tin', gemSalvageTin(item) * item.count);
+      return out;
+    case 'rune':
+      add('voidCrystal', RUNE_SALVAGE_VOID_CRYSTAL * item.count);
       return out;
     case 'map': {
       const g = tierFactor(item.tier);
@@ -58,6 +71,8 @@ export function salvageYield(item: Item): Partial<Record<Material, number>> {
       return out;
     }
     case 'material':
+      return out;
+    case 'orb':
       return out;
   }
 }
@@ -99,15 +114,26 @@ function note(item: Item, outcome: LootOutcome, value = 0): LootNote {
   switch (item.type) {
     case 'gear': return { name: itemName(item), rarity: item.rarity, base: item.slot, outcome, value };
     case 'gem': return { name: itemName(item), rarity: 'gem', base: item.gem, outcome, value };
+    case 'rune': return { name: itemName(item), rarity: 'rune', base: item.rune, outcome, value };
     case 'map': return { name: itemName(item), rarity: item.rarity, base: 'map', outcome, value };
     case 'material': return { name: itemName(item), rarity: 'material', base: item.material, outcome, value };
+    case 'orb': throw new Error('orbs are never looted');
   }
 }
 
-/** Sells a find, or part of a gem stack, for its sell pay: the Gold is paid and the note says how much. */
+/**
+ * Sells a find, or part of a gem stack, for its sell pay: the Gold is paid, the sale is counted and the note says how
+ * much. Every sale (manual, loot filter or overflow) comes through here, so the sell feats are offered once per sale,
+ * after the counters moved.
+ */
 export function sellFind(state: GameState, item: Loot): LootNote {
   const value = sellPay(item, deriveStats(state));
   state.gold += value;
+  state.stats.goldFromSales += value;
+  checkAchievements(state, 'gold');
+  state.stats.itemsSold += 1;
+  checkAchievements(state, 'itemsSold');
+  checkFeats(state, { kind: 'sell', item });
   return note(item, 'sold', value);
 }
 
@@ -115,26 +141,45 @@ export function sellFind(state: GameState, item: Loot): LootNote {
 interface Fate { note: LootNote; step: TrailStep; count: number }
 
 const fate = (note: LootNote, step: TrailStep, count = 1): Fate => ({ note, step, count });
-const unitsOf = (item: Item): number => (item.type === 'gem' || item.type === 'material' ? item.count : 1);
+const unitsOf = (item: Item): number => (isStack(item) ? item.count : 1);
 
 function tally(state: GameState, notes: LootNote[]): LootNote[] {
   for (const n of notes) {
     if (n.outcome === 'sold') state.lootTally.sold += 1;
     else if (n.outcome === 'salvaged') state.lootTally.salvaged += 1;
-    else state.lootTally.kept += 1;
+    else {
+      state.lootTally.kept += 1;
+      state.stats.itemsKept += 1;
+      checkAchievements(state, 'itemsKept');
+    }
   }
   return notes;
 }
 
 // The kind of a stack: what decides whether two stacks are one.
-type StackKind = Pick<GemItem, 'type' | 'gem' | 'grade'> | Pick<MaterialItem, 'type' | 'material'>;
+type StackKind =
+  | Pick<GemItem, 'type' | 'gem' | 'grade'>
+  | Pick<RuneItem, 'type' | 'rune'>
+  | Pick<MaterialItem, 'type' | 'material'>
+  | Pick<OrbItem, 'type' | 'family' | 'side' | 'tier'>;
 
-const bagCap = (kind: StackKind): number => (kind.type === 'gem' ? GEM_BAG_STACK : MATERIAL_BAG_STACK);
+const bagCap = (state: GameState, kind: StackKind): number => {
+  const caps = stackCaps(state);
+  switch (kind.type) {
+    case 'gem': return caps.gem;
+    case 'rune': return caps.rune;
+    case 'material': return caps.material;
+    case 'orb': return caps.orb;
+  }
+};
 
 function sameKind(kind: StackKind, c: Cell): c is Stack {
-  return kind.type === 'gem'
-    ? c?.type === 'gem' && c.gem === kind.gem && c.grade === kind.grade
-    : c?.type === 'material' && c.material === kind.material;
+  switch (kind.type) {
+    case 'gem': return c?.type === 'gem' && c.gem === kind.gem && c.grade === kind.grade;
+    case 'rune': return c?.type === 'rune' && c.rune === kind.rune;
+    case 'material': return c?.type === 'material' && c.material === kind.material;
+    case 'orb': return c?.type === 'orb' && c.family === kind.family && c.side === kind.side && c.tier === kind.tier;
+  }
 }
 
 /** New stacks of a find's kind: the first keeps the find's id, any after it take fresh ones. */
@@ -154,7 +199,7 @@ function stacksOf(state: GameState, item: Stack): (count: number) => Stack {
 export function stackIntoBag(
   state: GameState, kind: StackKind, count: number, cells: number, open: (count: number) => Stack,
 ): number {
-  const cap = bagCap(kind);
+  const cap = bagCap(state, kind);
   let left = count;
   for (const c of state.bag) {
     if (left === 0) break;
@@ -177,7 +222,7 @@ export function stackIntoBag(
 function holdStack(state: GameState, kind: StackKind, count: number, open: (count: number) => Stack): number {
   let left = count;
   while (left > 0 && state.overflow.length < MAX_HELD) {
-    const take = Math.min(bagCap(kind), left);
+    const take = Math.min(bagCap(state, kind), left);
     state.overflow.push(open(take));
     left -= take;
   }
@@ -206,10 +251,17 @@ function stashFind(state: GameState, item: Item): Fate | null {
       counts[item.grade] += n;
       return stashed(n);
     }
+    case 'rune': {
+      const n = Math.min(item.count, RUNE_STASH_STACK - state.stash.runes[item.rune]);
+      if (n <= 0) return null;
+      state.stash.runes[item.rune] += n;
+      return stashed(n);
+    }
     case 'material': {
       const n = units(stashMaterials(state, { [item.material]: item.count }));
       return n > 0 ? stashed(n) : null;
     }
+    case 'orb': return null;
   }
 }
 
@@ -219,8 +271,9 @@ function stashFind(state: GameState, item: Item): Fate | null {
  */
 function applyFilter(state: GameState, item: Item): Fate | null {
   const action = lootAction(state.settings.lootFilter, item);
-  // materials are crafting currency: only keep and stash rules match them
+  // materials are crafting currency: only keep and stash rules match them; orbs are never looted
   if (item.type === 'material') return action === 'stash' ? stashFind(state, item) : null;
+  if (item.type === 'orb') return null;
   switch (action) {
     case 'keep': return null;
     case 'stash': return stashFind(state, item);
@@ -230,6 +283,9 @@ function applyFilter(state: GameState, item: Item): Fate | null {
     }
     case 'salvage': {
       const stored = stashMaterials(state, salvagePay(item, deriveStats(state)));
+      state.stats.itemsSalvaged += 1;
+      checkAchievements(state, 'itemsSalvaged');
+      checkFeats(state, { kind: 'salvage', item });
       return fate(note(item, 'salvaged', units(stored)), { event: 'filterSalvaged', materials: stored }, unitsOf(item));
     }
   }
@@ -237,15 +293,15 @@ function applyFilter(state: GameState, item: Item): Fate | null {
 
 // A found stack tops up the bag's stacks, then opens one cell; the rest is held, and past MAX_HELD it is sold. Each
 // part that went somewhere else has its own fate, so a sold remainder is noted and logged with its Gold.
-function stowGem(state: GameState, gem: GemItem): Fate[] {
-  const open = stacksOf(state, gem);
-  const unplaced = stackIntoBag(state, gem, gem.count, 1, open);
-  const unheld = holdStack(state, gem, unplaced, open);
+function stowStack(state: GameState, item: GemItem | RuneItem): Fate[] {
+  const open = stacksOf(state, item);
+  const unplaced = stackIntoBag(state, item, item.count, 1, open);
+  const unheld = holdStack(state, item, unplaced, open);
   const fates: Fate[] = [];
-  if (unplaced < gem.count) fates.push(fate(note(gem, 'bag'), { event: 'bag' }, gem.count - unplaced));
-  if (unheld < unplaced) fates.push(fate(note(gem, 'held'), { event: 'held' }, unplaced - unheld));
+  if (unplaced < item.count) fates.push(fate(note(item, 'bag'), { event: 'bag' }, item.count - unplaced));
+  if (unheld < unplaced) fates.push(fate(note(item, 'held'), { event: 'held' }, unplaced - unheld));
   if (unheld > 0) {
-    const sold = sellFind(state, { ...gem, count: unheld });
+    const sold = sellFind(state, { ...item, count: unheld });
     fates.push(fate(sold, { event: 'sold', gold: sold.value }, unheld));
   }
   return fates;
@@ -260,11 +316,11 @@ function intoEmptyCell(state: GameState, item: GearItem | MapItem): boolean {
 }
 
 /**
- * Where a kept find goes: gear and maps to the bag's first empty cell, a gem stack as `stowGem` says. With no room it
- * is held, and digging waits on it; past MAX_HELD it is sold. Nothing carried is sold to make room.
+ * Where a kept find goes: gear and maps to the bag's first empty cell, a gem or rune stack as `stowStack` says. With no
+ * room it is held, and digging waits on it; past MAX_HELD it is sold. Nothing carried is sold to make room.
  */
 function stow(state: GameState, item: Loot): Fate[] {
-  if (item.type === 'gem') return stowGem(state, item);
+  if (item.type === 'gem' || item.type === 'rune') return stowStack(state, item);
   if (intoEmptyCell(state, item)) return [fate(note(item, 'bag'), { event: 'bag' })];
   if (state.overflow.length < MAX_HELD) {
     state.overflow.push(item);
@@ -276,18 +332,31 @@ function stow(state: GameState, item: Loot): Fate[] {
 
 /**
  * Every find goes through here: the loot filter first, then the bag, then the held list, then a sale. Each fate is
- * logged from `origin`; a gem stack's later parts take fresh ids, as the first keeps the find's. What a stash rule's
- * tab had no room for is kept.
+ * logged from `origin`; a gem or rune stack's later parts take fresh ids, as the first keeps the find's. What a stash
+ * rule's tab had no room for is kept.
  */
 export function receiveItem(state: GameState, item: Loot, origin: DropOrigin): LootNote[] {
+  if (item.type === 'gem') {
+    state.stats.gems += item.count;
+    countGem(state.stats, item.gem, item.grade, item.count);
+    checkAchievements(state, 'gems');
+    checkAchievements(state, 'collection.gems');
+    checkAchievements(state, `collection.gemGrade.${item.grade}`);
+  } else if (item.type === 'gear' && item.rarity === 'legendary') {
+    state.stats.legendaries += 1;
+    recordLegendary(state, item.uniqueId);
+    checkAchievements(state, 'legendaries');
+  } else if (item.type === 'rune') {
+    if (addToSet(state.stats.runesFound, item.rune)) checkAchievements(state, 'collection.runes');
+  }
   const filtered = applyFilter(state, item);
   const rest = unitsOf(item) - (filtered?.count ?? 0);
   const fates = filtered === null ? stow(state, item)
-    : rest > 0 && item.type === 'gem' ? [filtered, ...stowGem(state, { ...item, count: rest })]
+    : rest > 0 && (item.type === 'gem' || item.type === 'rune') ? [filtered, ...stowStack(state, { ...item, count: rest })]
     : [filtered];
   fates.forEach((f, i) => {
     const id = i === 0 ? item.id : state.nextId++;
-    logDrop(state, item.type === 'gem' ? { ...item, id, count: f.count } : item, origin, f.step);
+    logDrop(state, item.type === 'gem' || item.type === 'rune' ? { ...item, id, count: f.count } : item, origin, f.step);
   });
   return tally(state, fates.map((f) => f.note));
 }
@@ -298,6 +367,8 @@ export function receiveItem(state: GameState, item: Loot, origin: DropOrigin): L
  */
 export function receiveMaterial(state: GameState, material: Material, count: number, origin: DropOrigin): LootNote[] {
   if (count <= 0) return [];
+  countOre(state.stats, material, count);
+  checkAchievements(state, `ore.${material}`);
   const stashed = applyFilter(state, { id: 0, type: 'material', material, count });
   if (stashed === null) return keepMaterial(state, material, count, origin);
   logDrop(state, { id: state.nextId++, type: 'material', material, count: stashed.count }, origin, stashed.step);
@@ -332,7 +403,9 @@ function unhold(state: GameState, item: Item): boolean {
     case 'gear':
     case 'map': return intoEmptyCell(state, item);
     case 'gem':
+    case 'rune':
     case 'material':
+    case 'orb':
       item.count = stackIntoBag(state, item, item.count, 1, (n) => ({ ...item, count: n }));
       return item.count === 0;
   }
@@ -349,7 +422,7 @@ export function drainOverflow(state: GameState): void {
     const settled = applyFilter(state, first);
     if (settled !== null) {
       trail(state, first.id, settled.step);
-      if (settled.count < unitsOf(first) && (first.type === 'gem' || first.type === 'material')) first.count -= settled.count;
+      if (settled.count < unitsOf(first) && (first.type === 'gem' || first.type === 'rune' || first.type === 'material')) first.count -= settled.count;
       else {
         state.overflow.shift();
         continue;

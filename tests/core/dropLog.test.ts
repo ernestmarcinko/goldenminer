@@ -216,7 +216,7 @@ it('a map\'s trail: to bag, enchanted, run, lost; a cleared map stops at run', (
   addMap(s, 4, 400);
   const map = s.bag.find((c): c is MapItem => c?.type === 'map');
   if (map === undefined) throw new Error('no map');
-  expect(craft(s, { where: 'bag', index: bagIndex(s, map.id) }, 'copper').check).toBe('ok');
+  expect(craft(s, { where: 'bag', index: bagIndex(s, map.id) }, 'makeMagic').check).toBe('ok');
   expect(startMap(s, map.id)).toBe('ok');
   const stats = deriveStats(s);
   for (let t = 0; t < 5000 && s.activity.kind === 'map'; t++) applyTicks(s, 1, stats);
@@ -233,6 +233,7 @@ it('a map\'s trail: to bag, enchanted, run, lost; a cleared map stops at run', (
   expect(left.deaths).toEqual([]);
 
   const c = newGame(1, 0);
+  c.level = 3;   // a naked level-1 miner no longer has the early achievements to carry it through
   addMap(c, 1, 2);
   const cleared = c.bag.find((x): x is MapItem => x?.type === 'map');
   if (cleared === undefined) throw new Error('no map');

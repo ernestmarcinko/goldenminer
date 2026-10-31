@@ -11,7 +11,7 @@ import { newGame } from '../../src/core/newGame';
 import { validateState } from '../../src/core/save';
 import { deriveStats } from '../../src/core/stats';
 import { summarize } from '../../src/core/summary';
-import type { MapItem, MaterialItem } from '../../src/core/items';
+import type { MapItem, MaterialItem, RuneItem } from '../../src/core/items';
 import type { DropOrigin, GameState, LootRule } from '../../src/core/types';
 import { gear, gem } from '../helpers/items';
 
@@ -31,6 +31,26 @@ it('sell and salvage values', () => {
   expect(sellValue(gear(s, 'pickaxe', { rarity: 'rare', ilvl: 4, sockets: 1, gems: [gem(s, 'ruby')] }))).toBe(160);
   expect(salvageYield(gear(s, 'ring', { rarity: 'rare', ilvl: 10 }))).toEqual({ copper: 9, tin: 6, iron: 3 });
   expect(salvageYield(gem(s, 'ruby'))).toEqual({ tin: 1 });
+});
+
+it('a rune sells for 500 Gold, salvages into a void crystal, and socketed runes count on their gear', () => {
+  const s = newGame(1, 0);
+  const rune: RuneItem = { id: s.nextId++, type: 'rune', rune: 'fehu', count: 1 };
+  expect(sellValue(rune)).toBe(500);
+  expect(sellValue({ ...rune, count: 3 })).toBe(1500);
+  expect(salvageYield(rune)).toEqual({ voidCrystal: 1 });
+  const plain = sellValue(gear(s, 'ring', { rarity: 'rare', ilvl: 5 }));
+  const socketed = sellValue(gear(s, 'ring', { rarity: 'rare', ilvl: 5, sockets: 1, gems: [{ rune: 'fehu' }] }));
+  expect(socketed).toBe(plain + 500);
+  expect(salvageYield(gear(s, 'ring', { rarity: 'rare', ilvl: 5, sockets: 1, gems: [{ rune: 'fehu' }] })).voidCrystal).toBe(1);
+});
+
+it('a rune find stows into the bag as a stack', () => {
+  const s = newGame(1, 0);
+  const notes = receiveItem(s, { id: s.nextId++, type: 'rune', rune: 'fehu', count: 1 }, HERE);
+  expect(notes[0]).toMatchObject({ rarity: 'rune', base: 'fehu', outcome: 'bag' });
+  expect(s.bag.some((c) => c?.type === 'rune' && c.rune === 'fehu' && c.count === 1)).toBe(true);
+  expect(validateState(s)).toBe(true);
 });
 
 it('a map sells for 25 × tier² Gold, × 1.5 if magic and × 2.5 if rare', () => {
@@ -598,4 +618,15 @@ it('salvage yield raises each material salvage gives, rounded', () => {
   s.settings.lootFilter = [{ kind: 'gear', rarity: 'rare', action: 'salvage' }];
   expect(receiveItem(s, gear(s, 'ring', { rarity: 'rare', ilvl: 10 }), HERE)).toEqual([expect.objectContaining({ outcome: 'salvaged', value: 36 })]);
   expect(s.stash.materials.copper).toBe(36);
+});
+
+it('a gem stacks to the passive cap', () => {
+  const s = newGame(1, 0);
+  s.passives.allocated = ['gemPouch'];   // adjacency is not checked by receiveItem
+  const existing = gem(s);
+  existing.count = 34;
+  s.bag[0] = existing;
+  receiveItem(s, gem(s), HERE);
+  const stack = s.bag[0];
+  expect(stack?.type === 'gem' && stack.count).toBe(35);
 });

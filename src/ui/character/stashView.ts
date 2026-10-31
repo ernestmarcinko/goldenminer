@@ -1,12 +1,13 @@
 import { BAG_SIZE, MAP_TIER_CAP, stashPagePrice, STASH_PAGE_SIZE } from '../../core/balance';
 import { filledCount, mapStashCount, mapTierCount, mapTiers as stashTiers, pageCount } from '../../core/cells';
-import { GEM_GRADES, GEM_TYPES, MATERIALS } from '../../core/items';
-import type { GemGrade, GemType, MapItem, Material } from '../../core/items';
+import { GEM_GRADES, GEM_TYPES, MATERIALS, RUNE_TYPES, orbName, parseOrbKey } from '../../core/items';
+import type { GemGrade, GemType, MapItem, Material, RuneType } from '../../core/items';
 import { GEM_GRADE_LABELS, GEM_LABELS, MATERIAL_LABELS } from '../../core/itemData';
+import { RUNE_LABELS } from '../../core/runes';
 import type { GameState, ItemLoc } from '../../core/types';
 import { formatCompact, formatNumber } from '../format';
 
-export const STASH_TABS = ['general', 'gems', 'maps', 'materials'] as const;
+export const STASH_TABS = ['general', 'gems', 'runes', 'maps', 'materials', 'orbs'] as const;
 export type StashTab = (typeof STASH_TABS)[number];
 
 export const GRADE_HEADERS: readonly string[] = GEM_GRADES.map((g) => GEM_GRADE_LABELS[g]);
@@ -15,8 +16,10 @@ export function tabLabel(state: GameState, tab: StashTab): string {
   switch (tab) {
     case 'general': return `General ${formatNumber(filledCount(state.stash.general))} / ${formatNumber(state.stash.general.length)}`;
     case 'gems': return 'Gems';
+    case 'runes': return 'Runes';
     case 'maps': return `Maps ${formatNumber(mapStashCount(state))}`;
     case 'materials': return 'Materials';
+    case 'orbs': return 'Orbs';
   }
 }
 
@@ -99,4 +102,28 @@ export function materialTabCells(state: GameState): MaterialCell[] {
     const count = state.stash.materials[material];
     return { material, label: MATERIAL_LABELS[material], count, text: count > 0 ? formatCompact(count) : '' };
   });
+}
+
+export interface RuneCell { rune: RuneType; label: string; count: number; text: string }
+
+/** One cell per rune kind, in catalogue order; `text` is the short count, empty when there is none. */
+export function runeTabCells(state: GameState): RuneCell[] {
+  return RUNE_TYPES.map((rune) => {
+    const count = state.stash.runes[rune];
+    return { rune, label: RUNE_LABELS[rune], count, text: count > 0 ? formatCompact(count) : '' };
+  });
+}
+
+export interface OrbCell { key: string; label: string; count: number; text: string }
+
+/** The Orbs tab's held stacks, keyed by orbKey(family, side?, tier), sorted by key. */
+export function orbTabCells(state: GameState): OrbCell[] {
+  return Object.entries(state.stash.orbs)
+    .filter(([, n]) => n > 0)
+    .map(([key, count]) => {
+      const parsed = parseOrbKey(key);
+      const label = parsed === undefined ? key : orbName({ id: 0, type: 'orb', family: parsed.family, side: parsed.side, tier: parsed.tier, count: 0 });
+      return { key, label, count, text: formatCompact(count) };
+    })
+    .sort((a, b) => a.key.localeCompare(b.key));
 }

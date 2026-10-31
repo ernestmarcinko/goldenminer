@@ -1,3 +1,4 @@
+import { checkAchievements } from './achievements';
 import {
   MAGIC_LINE_WEIGHTS, RARE_LINE_WEIGHTS, STOCK_BAND_METRES, STOCK_SIZE, TRADER_MAP_SHARE, TRADER_PRICE_MULT,
 } from './balance';
@@ -101,6 +102,10 @@ export function buyStock(state: GameState, index: number): { result: BuyResult; 
   state.merchant = { band: stockBand(state), bought: [...boughtIn(state), index] };
   state.bag[cell] = item;
   state.gold -= price;
+  state.stats.goldSpent += price;
+  checkAchievements(state, 'goldSpent');
+  state.stats.itemsBought += 1;
+  checkAchievements(state, 'merchant');
   logDrop(state, item, { kind: 'merchant' }, { event: 'bag' });
   return { result: 'ok', item };
 }

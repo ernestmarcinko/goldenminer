@@ -23,7 +23,10 @@ const targetKey = (t: ItemTarget): string => {
     case 'stash': return `stash-${t.index}`;
     case 'maps': return `maps-${t.tier}-${t.index}`;
     case 'gems': return `gems-${t.gem}-${t.grade}`;
+    case 'runes': return `runes-${t.rune}`;
     case 'materials': return `materials-${t.material}`;
+    case 'orbs': return `orbs-${t.key}`;
+    case 'queue': return `queue-${t.index}`;
     case 'stock': return `stock-${t.index}`;
   }
 };
@@ -70,6 +73,10 @@ export function useItemInteractions({ store, state, fallbackRef, drag }: {
       setMessage(craftResultText(store.craft(target, action.kind), craftTargetAt(store.state, target)));
       return;
     }
+    if (action.id === 'targetedCraft' && action.targeted !== undefined) {
+      setMessage(craftResultText(store.targetedCraft(target, action.targeted), craftTargetAt(store.state, target)));
+      return;
+    }
     if (action.id === 'soulUpgrade') {
       setMessage(soulUpgradeResultText(store.soulUpgrade(target)));
       return;
@@ -106,6 +113,7 @@ export function useItemInteractions({ store, state, fallbackRef, drag }: {
       key={`menu-${targetKey(menu.target)}`}
       state={state} target={menu.target}
       left={popover.menuLeft} fit={menu.fit} follow={popover.follow} inline={menu.inline === true} smooth={smooth}
+      pair={menu.pair === true}
       menu={{
         onAction: (a) => perform(menu.target, a, true),
         onClose: () => closeMenu(true, fallbackRef.current),
