@@ -17,6 +17,9 @@ describe('formatNumber', () => {
     expect(formatNumber(456_700_000_000)).toBe('457B');
     expect(formatNumber(1e12)).toBe('1.00T');
     expect(formatNumber(-2_500_000)).toBe('-2.50M');
+    // a value that rounds up to a million reads as one
+    expect(formatNumber(999_999.5)).toBe('1.00M');
+    expect(formatNumber(999_999.4)).toBe('999,999');
     // rounding up to the next unit moves to its suffix
     expect(formatNumber(999_999_999)).toBe('1.00B');
     // past the last suffix the trillions keep their separators, still never an exponent

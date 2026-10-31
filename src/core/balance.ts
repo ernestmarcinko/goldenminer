@@ -173,8 +173,9 @@ export function expectedAchievements(level: number): number {
 // times in three, and a level-3 miner in normal tier-2 gear wins a tier-2 map about seven times in ten. From tier 3 the
 // base curve keeps pace with the power a reference player should have there. The monster bases and the hordes already
 // grow with the tier, as the gear and levels that come with it do; the curve adds the expected achievement boost at the
-// tier's typical level (TIER_LEVELS × tier, +1 % each), and a growth a tier (life eases off a little, so deep maps stay
-// short enough to farm). Both stop at the cap's tier, past which the bases alone keep the climb going.
+// tier's typical level (TIER_LEVELS × tier, +1 % each). The growth a tier on top of that is 1 for both life and damage
+// (the f3 tuning), so the curve is the bases times the boost and the gates' steps below. Both stop at the cap's tier,
+// past which the bases alone keep the climb going.
 export const EARLY_TIER_SCALE: readonly number[] = [1.38, 1.34];
 export const TIER_LEVELS = 2;
 export const TIER_LIFE_GROWTH = 1;

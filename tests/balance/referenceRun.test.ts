@@ -43,7 +43,7 @@ describe('the reference run (defence-aware)', () => {
       });
 
       expect(r.capDay, summary).toBeGreaterThanOrEqual(12);
-      // Interim band (owner decision 2026-10-31): round 5b restores [12, 16] / ≥ 80% once crafting gives a deliberate way past a wall. See spec §4.2 amendment.
+      // Interim band (owner decision 2026-10-31, spec §4.6): the cap day's top is 19; round 5b restores 16.
       expect(r.capDay, summary).toBeLessThanOrEqual(19);
       expect(r.achievementsAtDay1 / total, summary).toBeGreaterThanOrEqual(0.06);
       expect(r.achievementsAtDay1 / total, summary).toBeLessThanOrEqual(0.14);
@@ -72,7 +72,7 @@ describe('the reference run (defence-aware)', () => {
     const holds = gates.map(hold);
     const summary = JSON.stringify({ failedFirst: failedFirst.length, attempted: attempted.length, holds });
     expect(attempted.length, summary).toBeGreaterThan(0);
-    // Interim band (owner decision 2026-10-31): round 5b restores [12, 16] / ≥ 80% once crafting gives a deliberate way past a wall. See spec §4.2 amendment.
+    // Interim band (owner decision 2026-10-31, spec §4.6): first attempts failing at ≥ 40 % of gates; round 5b restores 80 %.
     expect(failedFirst.length / attempted.length, summary).toBeGreaterThanOrEqual(0.4);
     expect(median(holds), summary).toBeGreaterThanOrEqual(0.3);
     expect(median(holds), summary).toBeLessThanOrEqual(0.8);

@@ -208,13 +208,16 @@ it('a gate tier is a step up the curve, not a steeper slope, and the tier after 
 it('a physical wall hits harder and more often; an elemental wall turns the damage elemental', () => {
   expect(PHYSICAL_WALL.damageMult).toBeGreaterThan(1);
   expect(PHYSICAL_WALL.speedMult).toBeGreaterThan(1);
-  expect(ELEMENTAL_WALL.damageMult).toBeGreaterThan(0);
   const rat = { species: 0, rank: 'normal' as const, name: 'Mole Rat', mods: [], extra: 1 };
   const plain = monsterState(5, rat);
   const physical = monsterState(5, rat, undefined, 'physical');
   expect(physical.damage).toBeGreaterThan(plain.damage);
   expect(physical.intervalS).toBeLessThan(plain.intervalS);
-  expect(monsterState(5, rat, undefined, 'elemental').element).toBe('elemental');
+  const elemental = monsterState(5, rat, undefined, 'elemental');
+  expect(elemental.element).toBe('elemental');
+  // the wall's damage factor is the whole difference, within rounding
+  expect(Math.abs(elemental.damage - plain.damage * ELEMENTAL_WALL.damageMult)).toBeLessThanOrEqual(ELEMENTAL_WALL.damageMult / 2 + 0.5);
+  expect(elemental.intervalS).toBe(plain.intervalS);
 });
 
 it('deeper tiers keep getting tougher off the gates, past the cap tier too', () => {

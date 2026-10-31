@@ -99,7 +99,24 @@ The 2013 original lives in `legacy/` (open `legacy/index-dev.html`).
 
 ## Balance
 
-`npm run balance` plays a reference run headlessly through the real tick, map, passive, auto-map and ascension code: four fifteen-minute check-ins a day, offline digging between, the best drop worn, and points spent towards Surveyor. On the seeded reference run the first map arrives within a minute, auto-mapping unlocks at level 30, and the level-100 cap lands at about 3 simulated days (the achievements boost accelerates the idealized run; a human's first run is longer); the deepest depth is still climbing a day later (5,581 m at the cap; frontier map tier 24 → 28), the cap is worth 4 ascendancy points, and a second run's level bonus is +4. The horde rebalance — up to a thousand monsters a room, always-on cleave and softer swarm attacks — raises the XP throughput, so the idealized cap comes much earlier than the old single-target maps did. The model assumes perfect drops and no crafting, so a human's run is a little longer.
+`npm run balance` plays the reference run headlessly through the real tick, map, passive, auto-map and ascension code: four fifteen-minute check-ins a day, offline digging between, the best drop worn, points spent towards Surveyor, and a queue of the best maps left running while away. It plays three seeds (12345, 777 and 31337) for 24 simulated days with the defence-aware policy, which wears defence for the next gate's wall, and once more on seed 12345 with the raw-power policy, which ignores the wall and wears the biggest numbers.
+
+What the suite pins, on every seed unless noted:
+
+- the level-100 cap lands on day 12 to 19 (see the interim bands below), and a second run reaches it no later;
+- the frontier at the cap is map tier 45 to 55, and every gate below it has been cleared;
+- 6 to 14 % of the achievements are earned on day 1 and 32 to 48 % by the cap, and the count at levels 10, 30, 60 and 100 stays within 25 % of the expected curve;
+- gates are walls: across the three seeds the first attempt fails at 40 % of gates or more, and the median gate hold, from reaching the gate to clearing it, is 0.3 to 0.8 days;
+- the raw-power run still clears every gate it reaches (no hard lock), but holds at least 1.5 times as long at the gates as the defence-aware run;
+- a seed plays out the same twice.
+
+Every fifth map tier (5, 10, 15 and so on) is a gate. A physical gate is an armour check: its monsters hit harder and more often. An elemental gate is a resistance check: its monsters hit with elemental damage. The tiers between gates are a gentle climb.
+
+The bands are the design. When the run misses one, the tuning changes (the curve in `src/core/balance.ts`, the gates, the sim's policies); a band is never loosened to fit the game.
+
+Two bands are interim, by the owner's decision of 2026-10-31 (spec section 4.6): the cap day may run up to 19 rather than 16, and first attempts need to fail at 40 % of gates rather than 80 %. Round 5b restores [12, 16] and 80 %, once crafting gives a player a deliberate way past a wall.
+
+With the current tuning (the f3 numbers) the cap lands after about 15 to 18 days and the frontier reaches about tier 50 by then. About 7 % of the achievements are earned on day 1 and about 39 % by the cap, and a typical gate holds the run for about 0.6 days. A second run's cap comes sooner, at day 10 to 13. The model assumes no crafting, so a human's run is longer.
 
 ## Credits
 

@@ -173,8 +173,9 @@ const FAMILY_DEFS: readonly FamilyDef[] = [
 ];
 
 // Each ore's ladder follows how deep it first appears and how heavily it is weighted: copper is everywhere, void crystal
-// only turns up past 1000 m and one at a time. Every one is ten steps of the 1–2.5–5 series, starting past what the
-// first night digs and ending a thousand times higher.
+// only turns up past 1000 m and one at a time. Every one is ten steps of the 1–2.5–5 series, ending a thousand times
+// higher. The first steps land inside day 1 (copper and tin share 250, the deepest ores start at 5–10), which is where
+// the day-one share of achievements comes from.
 const ORE_STARTS: Readonly<Record<Material, number>> = {
   copper: 250, tin: 250, iron: 100, silver: 50, mithril: 50, starsteel: 5, obsidian: 10, voidCrystal: 10,
 };

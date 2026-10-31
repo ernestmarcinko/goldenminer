@@ -371,7 +371,8 @@ function stashedMap(state: GameState, tier: number): MapItem | undefined {
 
 /**
  * Sets the auto-map queue the way a player leaves it at a check-in: the best AWAY_QUEUE_MAPS maps the miner farms,
- * highest tier first from `top` down (the frontier, or the two tiers below a gate while held there). Everything else,
+ * highest tier first, counting down from `top` (the frontier, or the tier below the gate while held there) until the queue
+ * holds AWAY_QUEUE_MAPS = 30 maps or the stash runs out. Everything else,
  * older and lower stock included, goes back to the stash, and a gate map is never queued: gate attempts are run by hand.
  */
 function queueBestMaps(state: GameState, top: number): void {

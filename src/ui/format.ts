@@ -7,7 +7,8 @@ const numberFormat = new Intl.NumberFormat('en-US', {
 const UNITS: readonly (readonly [number, string])[] = [[1e6, 'M'], [1e9, 'B'], [1e12, 'T']];
 
 export function formatNumber(n: number): string {
-  const abs = Math.abs(n);
+  // compared on the rounded value: 999,999.5 prints as a million, so it reads as one
+  const abs = Math.round(Math.abs(n));
   if (!Number.isFinite(n) || abs < 1e6) return numberFormat.format(n);
   const sign = n < 0 ? '-' : '';
   for (let i = UNITS.length - 1; i >= 0; i--) {
