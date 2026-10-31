@@ -187,6 +187,31 @@ materials but never maps. A player stuck at a gate keeps digging deeper, so new 
   rules).
 - Death keeps the drops (§4.4), so a map dropped earlier in a failed run is kept.
 
+### 4.6 Interim tuning (owner decision 2026-10-31)
+
+Amends §4.2 and §6. Plan 35's tuning found a trade-off the current game cannot get out of. Gates hard enough that
+≥ 80 % of first attempts fail also stall one or two mid gates per seed (tiers 15–30) for 2–13 days, because the miner's
+power barely grows while it farms under a wall: its gear stays at the tier below, and late levels and achievements add
+little. Those stalls push the cap past day 16 and the frontier below 45. Softer gates keep the pacing but let the late
+gates fall at the first try.
+
+**Decision (Ernest, 2026-10-31): ship the tuning Plan 35 calls f3, under interim bands**: the first cap on days 12–19,
+and first attempts failing at ≥ 40 % of gates. Every other §6 band is unchanged.
+
+f3 on the reference sim (24-day runs, defence-aware):
+
+| seed | cap day | frontier at cap | achievements day 1 / cap | first-attempt fails | second cap day |
+|---|---|---|---|---|---|
+| 12345 | 15.35 | 50 | 7.0 % / 38.4 % | 5/9 | 10.46 |
+| 777 | 17.77 | 52 | 7.5 % / 39.1 % | 4/10 | 12.88 |
+| 31337 | 18.11 | 52 | 7.2 % / 39.4 % | 4/10 | 12.84 |
+
+Across the three seeds, 13 of 29 first attempts failed (45 %). The median gate hold is about 0.6 days. On seed 12345 the
+raw-power policy holds 1.53× as long at the gates both runs cleared.
+
+**Round 5b must restore the original bands** (cap on days 12–16, ≥ 80 % first-attempt fails) through crafting and the
+upgrade levers, giving a player a deliberate way past a wall instead of waiting on drops.
+
 ## 5. Auto-mapping (decided: no cap, runs whatever you queue)
 
 - Remove the tier limit: `autoMapMaxTier` and `AUTO_MAP_BASE_TIER` go. `nextEligibleAutoMap` returns the oldest queued
@@ -224,6 +249,8 @@ walls, that player would stall, so the sim gets a slightly smarter policy **(my 
 - the raw-power-only policy takes at least ~1.5× as long at gates as the defence-aware one.
 
 The bands are the design; if the sim misses them, change the tuning, never the bands.
+
+**Interim (§4.6):** until round 5b, the balance suite pins the cap on days 12–19 and first-attempt fails at ≥ 40 %.
 
 **(my call)** These bands are pinned against today's economy. Round 5b (bases, economy, crafting) must keep them, and
 re-tunes its own numbers if it moves them. So round 5a's sim buys from the merchant only in the simplest way and does
