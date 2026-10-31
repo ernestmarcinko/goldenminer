@@ -128,8 +128,8 @@ export function cardHead(seed: number, item: Item): { name: string; kind: string
 
 /** A map's modifiers with their tiers, in their rolled order, and what they pay; then where it was found. */
 const GATE_LINES: Readonly<Record<Wall, string>> = {
-  physical: 'Gate tier: physical wall. Monsters hit hard; armour matters most.',
-  elemental: 'Gate tier: elemental wall. Most damage is elemental; resistances matter most.',
+  physical: 'Gate tier: physical wall. Monsters hit harder and faster; armour matters most.',
+  elemental: 'Gate tier: elemental wall. Monsters hit much harder with elemental damage; resistances matter most.',
 };
 
 /** A map's gate line (when its tier is a gate, which the world's seed decides), then its modifiers and the rest. */

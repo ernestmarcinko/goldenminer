@@ -57,7 +57,8 @@ describe('the reference run (defence-aware)', () => {
       }
       expect(r.frontierTierAtCap, summary).toBeGreaterThanOrEqual(45);
       expect(r.frontierTierAtCap, summary).toBeLessThanOrEqual(55);
-      // no permanent stall: every gate below the frontier was cleared
+      // every gate below the frontier was cleared: this holds by construction (the sim never runs past an uncleared
+      // gate), so the real stall guard is the frontier band above
       for (const g of gatesAtCap(r)) expect(g.clearedDay, `gate ${g.tier}: ${summary}`).toBeGreaterThanOrEqual(0);
       // a later run is never slower
       expect(r.secondCapDay, summary).toBeGreaterThan(0);

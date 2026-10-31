@@ -212,6 +212,21 @@ raw-power policy holds 1.53× as long at the gates both runs cleared.
 **Round 5b must restore the original bands** (cap on days 12–16, ≥ 80 % first-attempt fails) through crafting and the
 upgrade levers, giving a player a deliberate way past a wall instead of waiting on drops.
 
+**Findings for round 5b (final review, 2026-10-31)**
+
+- The away auto-map queue farms tiers of already-cleared gates (they stay walls), causing dozens of deaths during the
+  long holds (e.g. 31337: 40 deaths on tier 15 while held at gate 20). Skip gate tiers in `queueBestMaps` and re-measure
+  before treating the trade-off above as structural.
+- The walls are unbalanced: physical is about 1.56× DPS (×1.25 damage, ×1.25 speed) against elemental ×3. Mean hold is
+  0.53 d for physical vs 1.04 d for elemental; first attempts failed 4/15 vs 9/15; every stall of 1.8 d or more is
+  elemental. Rebalance the wall modifiers and add a per-wall check to the balance suite.
+- The raw-power tilt passes at 1.53× mostly because of one elemental gate (gate 30); without it the ratio is about
+  1.1. Revisit `powerScore`'s defence weighting.
+- The first gate (5) is elemental on all three seeds and holds a fresh player for about 0.5–1 d.
+- Holds are measured from `reachedDay`, so they include waiting for a gate map or the next check-in (first-try gates
+  still show 0.2–0.6 d).
+- `EXPECTED_ACHIEVEMENTS_AT_LEVEL` was fitted before f3 (the level-10 margin is thin on 31337).
+
 ## 5. Auto-mapping (decided: no cap, runs whatever you queue)
 
 - Remove the tier limit: `autoMapMaxTier` and `AUTO_MAP_BASE_TIER` go. `nextEligibleAutoMap` returns the oldest queued

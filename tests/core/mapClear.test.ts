@@ -63,7 +63,8 @@ it('a fresh tier-N map is cleared by magic item-level-N gear at level 3N, with t
   const table = rates.map((r, i) => `tier ${i + 1}: ${Math.round(r * 100)}%`).join(', ');
   rates.forEach((r, i) => {
     // Plan 35's curve keeps pace with the achievement boost a player should hold, so this miner wins the tiers between
-    // gates often (about 40–100 %), and a gate tier at most one time in five: a gate is a wall, not a slope. The bounds
+    // gates often (at least 30 %, and 60 % or more on the first two tiers), and a gate tier at most one time in five:
+    // a gate is a wall, not a slope. The bounds
     // guard both an accidental nerf and an accidental buff.
     const tier = i + 1;
     const [lo, hi] = isGateTier(tier) ? [0, 0.2] : tier <= 2 ? [0.6, 1] : [0.3, 1];

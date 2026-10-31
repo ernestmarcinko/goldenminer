@@ -398,15 +398,15 @@ it('a gate map card names its wall before the modifiers; other tiers have no gat
   const seed = 77;
   const map: MapItem = { id: 1, type: 'map', tier: 10, metre: 327, rarity: 'magic', mods: [{ kind: 'monsterLife', tier: 4, value: 27 }] };
   const text = gateWall(seed, 10) === 'physical'
-    ? 'Gate tier: physical wall. Monsters hit hard; armour matters most.'
-    : 'Gate tier: elemental wall. Most damage is elemental; resistances matter most.';
+    ? 'Gate tier: physical wall. Monsters hit harder and faster; armour matters most.'
+    : 'Gate tier: elemental wall. Monsters hit much harder with elemental damage; resistances matter most.';
   expect(itemLines(map, undefined, seed).slice(0, 2)).toEqual([
     { text, tone: 'plain' },
     { text: 'Monsters have +27% life', tone: 'plain', tier: 4 },
   ]);
   const both = Array.from({ length: 40 }, (_, i) => i + 1).map((s) => itemLines(map, undefined, s)[0]?.text);
-  expect(both).toContain('Gate tier: physical wall. Monsters hit hard; armour matters most.');
-  expect(both).toContain('Gate tier: elemental wall. Most damage is elemental; resistances matter most.');
+  expect(both).toContain('Gate tier: physical wall. Monsters hit harder and faster; armour matters most.');
+  expect(both).toContain('Gate tier: elemental wall. Monsters hit much harder with elemental damage; resistances matter most.');
   const off = itemLines({ ...map, tier: 9 }, undefined, seed).map((l) => l.text);
   expect(off.some((t) => t.startsWith('Gate tier'))).toBe(false);
   expect(itemLines(map).some((l) => l.text.startsWith('Gate tier'))).toBe(false);
